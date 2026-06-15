@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, Animated,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -13,6 +14,7 @@ import { useAuthStore } from '@/stores/auth'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import type { Goal } from '@/types'
 
 const C = Colors.light
@@ -86,6 +88,7 @@ export default function WorkoutsScreen() {
   const [rpePrompt, setRpePrompt] = useState<{ exId: string; idx: number } | null>(null)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
+  const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
@@ -151,6 +154,14 @@ export default function WorkoutsScreen() {
 
     setExercises(ordered)
     setExpandedId(ordered[0]?.id ?? null)
+    setGifIds({})
+
+    // Pre-fetch exercise IDs in the background; expo-image handles the actual GIF download with auth headers
+    ordered.forEach(ex => {
+      fetchExerciseId(ex.name).then(id => {
+        if (id) setGifIds(prev => ({ ...prev, [ex.id]: id }))
+      })
+    })
 
     // Build each exercise's "last session" performance → next-session prescription
     // + the per-set PREV column. History is read before the new log exists, so the
@@ -498,6 +509,19 @@ export default function WorkoutsScreen() {
                 onPress={() => setExpandedId(isExpanded ? null : ex.id)}
                 activeOpacity={0.7}
               >
+                {/* GIF thumbnail */}
+                <View style={styles.thumbWrap}>
+                  {gifIds[ex.id] ? (
+                    <Image
+                      source={gifSource(gifIds[ex.id]!)}
+                      style={styles.thumb}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Ionicons name="barbell-outline" size={22} color={C.outlineVariant} />
+                  )}
+                </View>
+
                 <View style={{ flex: 1 }}>
                   <Text style={styles.exerciseName}>{ex.name}</Text>
                   <Text style={styles.muscleLabel}>
@@ -734,7 +758,15 @@ const styles = StyleSheet.create({
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.md },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   exerciseCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow, borderWidth: 1, borderColor: C.outlineVariant },
-  exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
+  thumbWrap: {
+    width: 58, height: 58, borderRadius: 12,
+    backgroundColor: '#F5F7FF',
+    borderWidth: 1, borderColor: '#E0E7FF',
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', flexShrink: 0,
+  },
+  thumb: { width: 58, height: 58 },
   exerciseName: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text, letterSpacing: -0.2 },
   exerciseTarget: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, marginTop: 2 },
   timerRing: { width: 52, height: 52, borderRadius: Radius.full, borderWidth: 3, borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },

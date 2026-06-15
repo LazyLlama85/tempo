@@ -424,14 +424,52 @@ export async function generateQuickWorkout(
 // flows through the existing session player + counts toward streak/consistency.
 // user_plan_id is left null — these ad-hoc sessions are intentionally excluded
 // from the "missed workout" sweep (see lib/missedWorkouts).
+//
+// If a plan-based workout exists for today and covers similar movement patterns as
+// the quick session, it's rescheduled to tomorrow so the day doesn't show two
+// conflicting entries. A wholly different pattern pair (e.g. quick=push, plan=legs)
+// is kept — both sessions are genuinely useful.
 export async function persistQuickWorkout(
   client: SupabaseClient,
   userId: string,
   workout: QuickWorkout,
 ): Promise<string | null> {
   const now = new Date()
-  const planned_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const planned_start_time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const planned_date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const planned_start_time = `${pad(now.getHours())}:${pad(now.getMinutes())}:00`
+
+  // Check for an existing plan-based workout today
+  try {
+    const { data: todayPlanned } = await client
+      .from('scheduled_workouts')
+      .select('id, focus')
+      .eq('user_id', userId)
+      .eq('planned_date', planned_date)
+      .eq('status', 'scheduled')
+      .not('user_plan_id', 'is', null)
+      .limit(1)
+
+    if (todayPlanned?.length) {
+      const quickPatterns = new Set(workout.exercises.map(e => e.movement_pattern))
+      const plannedFocus = (todayPlanned[0].focus as string).toLowerCase()
+      // Detect rough overlap: planned focus label contains a pattern the quick session uses
+      const overlaps = Array.from(quickPatterns).some(p => plannedFocus.includes(p) || plannedFocus.includes('full body'))
+
+      if (overlaps) {
+        // Move the planned workout to the day after tomorrow (skip tomorrow to avoid back-to-back)
+        const nextSlot = new Date(now)
+        nextSlot.setDate(now.getDate() + 2)
+        const nextDate = `${nextSlot.getFullYear()}-${pad(nextSlot.getMonth() + 1)}-${pad(nextSlot.getDate())}`
+        await client
+          .from('scheduled_workouts')
+          .update({ planned_date: nextDate, status: 'scheduled' })
+          .eq('id', todayPlanned[0].id)
+      }
+    }
+  } catch {
+    // Adjustment is best-effort — never block the quick workout from starting
+  }
 
   const { data, error } = await client
     .from('scheduled_workouts')
