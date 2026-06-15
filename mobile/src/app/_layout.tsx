@@ -57,6 +57,8 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
           <Stack.Screen name="onboarding" />
+          <Stack.Screen name="quick-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="workout-complete" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
         </Stack>
       </ThemeProvider>
     </QueryClientProvider>

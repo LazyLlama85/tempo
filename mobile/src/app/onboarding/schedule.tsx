@@ -32,10 +32,11 @@ export default function ScheduleScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '85%' }]} />
+        <View style={[styles.progressFill, { width: '80%' }]} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <Text style={styles.stepLabel}>STEP 4 OF 5</Text>
         <Text style={styles.title}>Sync your schedule.</Text>
         <Text style={styles.subtitle}>
           Tempo adapts your fitness plan to your free time, not the other way around.
@@ -155,6 +156,7 @@ const styles = StyleSheet.create({
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.lg },
+  stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   connectedBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: '#F0FDF4', padding: Spacing.md, borderRadius: Radius.lg },

@@ -34,11 +34,11 @@ export default function ExperienceScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '66%' }]} />
+        <View style={[styles.progressFill, { width: '40%' }]} />
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.stepLabel}>STEP 1 OF 2</Text>
+        <Text style={styles.stepLabel}>STEP 2 OF 5</Text>
         <Text style={styles.title}>How much experience do you have?</Text>
         <Text style={styles.subtitle}>We'll tailor your starting weights and complexity accordingly.</Text>
 

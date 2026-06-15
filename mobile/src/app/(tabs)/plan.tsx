@@ -67,7 +67,7 @@ function formatElapsed(seconds: number): string {
 
 export default function WorkoutsScreen() {
   const router = useRouter()
-  const { workoutId: workoutIdParam } = useLocalSearchParams<{ workoutId?: string }>()
+  const { workoutId: workoutIdParam, quick: quickParam } = useLocalSearchParams<{ workoutId?: string; quick?: string }>()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
 
@@ -92,10 +92,13 @@ export default function WorkoutsScreen() {
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
+  // Reload when the target workout changes too — otherwise navigating into an
+  // already-mounted Workouts tab with a new workoutId (e.g. starting a Quick
+  // Workout, or a second "Start Session") would keep showing the stale session.
   useEffect(() => {
     if (!userId) return
     loadWorkout()
-  }, [userId])
+  }, [userId, workoutIdParam])
 
   async function loadWorkout() {
     let targetId: string | undefined = workoutIdParam
@@ -364,11 +367,11 @@ export default function WorkoutsScreen() {
 
     cancelWorkoutReminder(workout.id).catch(() => {})
 
-    Alert.alert(
-      'Workout Complete!',
-      `Session time: ${mins} min`,
-      [{ text: 'Done', onPress: () => router.replace('/(tabs)') }]
-    )
+    // Motivational summary — streak impact, consistency, weekly target progress.
+    router.replace({
+      pathname: '/workout-complete',
+      params: { minutes: String(mins), quick: quickParam === '1' ? '1' : '0' },
+    })
   }
 
   // ── Rest timer ─────────────────────────────────────────────────────────────

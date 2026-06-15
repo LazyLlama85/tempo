@@ -33,6 +33,7 @@ export interface UserProfile {
   days_per_week: number
   preferred_duration_min: number
   bodyweight_lbs: number | null
+  injuries: string[] | null
   onboarding_complete: boolean
   created_at: string
 }

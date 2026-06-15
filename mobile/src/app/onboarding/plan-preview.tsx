@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { ThemedView } from '@/components/themed-view'
-import { ThemedText } from '@/components/themed-text'
-import { Colors, Spacing } from '@/constants/theme'
-import { useColorScheme } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { generatePlan } from '@/lib/generatePlan'
@@ -13,12 +11,20 @@ import { requestPermissions, scheduleWorkoutReminders } from '@/lib/notification
 import type { ScheduledWorkout } from '@/lib/notifications'
 import type { Equipment, Experience, Goal } from '@/types'
 
+const C = Colors.light
+
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
   fat_loss: 'Lose Fat',
   strength: 'Get Stronger',
   general_fitness: 'General Fitness',
   athletic: 'Athletic Performance',
+}
+
+const EXP_LABELS: Record<string, string> = {
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
 }
 
 // Returns a human-readable program name based on inputs
@@ -37,8 +43,6 @@ export default function PlanPreviewScreen() {
     daysPerWeek: string
   }>()
   const { session, refreshProfile } = useAuthStore()
-  const colorScheme = useColorScheme()
-  const colors = Colors[colorScheme === 'dark' ? 'dark' : 'light']
   const [status, setStatus] = useState<'idle' | 'saving' | 'generating'>('idle')
 
   if (!session) return <Redirect href="/sign-in" />
@@ -99,97 +103,111 @@ export default function PlanPreviewScreen() {
     }
   }
 
+  const busy = status !== 'idle'
+
+  const DETAILS = [
+    { label: 'Goal', value: GOAL_LABELS[goal ?? ''] ?? '—' },
+    { label: 'Experience', value: EXP_LABELS[experience ?? ''] ?? '—' },
+    { label: 'Days per week', value: `${days} days` },
+    { label: 'Duration', value: '~45 min / session' },
+    { label: 'Length', value: '4 weeks (then repeats)' },
+  ]
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <ThemedText type="small" themeColor="textSecondary">Step 5 of 5</ThemedText>
-          <ThemedText type="subtitle" style={styles.title}>Your plan is ready.</ThemedText>
-          <ThemedText themeColor="textSecondary">Here's what we built for you.</ThemedText>
-        </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} disabled={busy}>
+          <Ionicons name="arrow-back" size={22} color={busy ? C.outlineVariant : C.text} />
+        </TouchableOpacity>
+        <Text style={styles.logo}>TEMPO</Text>
+        <View style={{ width: 38 }} />
+      </View>
 
-        <View style={[styles.planCard, { backgroundColor: colors.backgroundElement }]}>
-          <ThemedText type="smallBold" themeColor="textSecondary">PROGRAM</ThemedText>
-          <ThemedText type="subtitle" style={styles.programName}>{programName}</ThemedText>
+      {/* Progress bar */}
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: '100%' }]} />
+      </View>
 
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <Text style={styles.stepLabel}>STEP 5 OF 5</Text>
+        <Text style={styles.title}>Your plan is ready.</Text>
+        <Text style={styles.subtitle}>Here's what we built for you.</Text>
+
+        <View style={styles.planCard}>
+          <Text style={styles.programEyebrow}>PROGRAM</Text>
+          <Text style={styles.programName}>{programName}</Text>
           <View style={styles.divider} />
-
           <View style={styles.details}>
-            <View style={styles.detailRow}>
-              <ThemedText themeColor="textSecondary">Goal</ThemedText>
-              <ThemedText type="smallBold">{GOAL_LABELS[goal ?? ''] ?? '—'}</ThemedText>
-            </View>
-            <View style={styles.detailRow}>
-              <ThemedText themeColor="textSecondary">Experience</ThemedText>
-              <ThemedText type="smallBold" style={{ textTransform: 'capitalize' }}>{experience}</ThemedText>
-            </View>
-            <View style={styles.detailRow}>
-              <ThemedText themeColor="textSecondary">Days per week</ThemedText>
-              <ThemedText type="smallBold">{days} days</ThemedText>
-            </View>
-            <View style={styles.detailRow}>
-              <ThemedText themeColor="textSecondary">Duration</ThemedText>
-              <ThemedText type="smallBold">~45 min / session</ThemedText>
-            </View>
-            <View style={styles.detailRow}>
-              <ThemedText themeColor="textSecondary">Length</ThemedText>
-              <ThemedText type="smallBold">4 weeks (then repeats)</ThemedText>
-            </View>
+            {DETAILS.map((d) => (
+              <View key={d.label} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{d.label}</Text>
+                <Text style={styles.detailValue}>{d.value}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
+        {/* Reinforce the core promise right at the finish line */}
+        <View style={styles.adaptNote}>
+          <Ionicons name="sparkles" size={16} color={C.primary} style={{ marginTop: 1 }} />
+          <Text style={styles.adaptNoteText}>
+            This is a starting point, not a contract. Tempo reshapes it around your real
+            schedule — and when life gets busy, a Quick Workout keeps you moving.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
         {status === 'generating' && (
-          <ThemedText themeColor="textSecondary" style={{ textAlign: 'center', fontSize: 14 }}>
-            Building your plan…
-          </ThemedText>
+          <Text style={styles.buildingText}>Building your plan…</Text>
         )}
         <TouchableOpacity
-          style={[styles.confirmButton, { opacity: status !== 'idle' ? 0.6 : 1 }]}
+          style={[styles.confirmBtn, busy && { opacity: 0.6 }]}
           onPress={handleConfirm}
-          disabled={status !== 'idle'}
-          activeOpacity={0.8}
+          disabled={busy}
+          activeOpacity={0.85}
         >
-          {status !== 'idle' ? (
-            <ActivityIndicator color="#FFFFFF" />
+          {busy ? (
+            <ActivityIndicator color={C.onPrimary} />
           ) : (
-            <ThemedText type="smallBold" style={styles.confirmText}>Let's Go →</ThemedText>
+            <Text style={styles.confirmText}>Let's Go →</Text>
           )}
         </TouchableOpacity>
-      </SafeAreaView>
-    </ThemedView>
+      </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.five,
-    gap: Spacing.four,
+  container: { flex: 1, backgroundColor: C.surface },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
-  header: { gap: Spacing.two },
-  title: { fontSize: 28, lineHeight: 36 },
+  backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
+  progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
+  scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
+  stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   planCard: {
-    flex: 1,
-    padding: Spacing.four,
-    borderRadius: 16,
-    gap: Spacing.three,
+    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm, marginTop: Spacing.xs,
   },
-  programName: { fontSize: 22, lineHeight: 30 },
-  divider: { height: 1, backgroundColor: 'rgba(128,128,128,0.15)' },
-  details: { gap: Spacing.two },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  confirmButton: {
-    backgroundColor: '#3B82F6',
-    padding: Spacing.three,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  confirmText: { color: '#FFFFFF' },
+  programEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  programName: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -2 },
+  divider: { height: 1, backgroundColor: C.surfaceContainerHigh, marginVertical: Spacing.xs },
+  details: { gap: Spacing.sm },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detailLabel: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary },
+  detailValue: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  adaptNote: { flexDirection: 'row', gap: 8, backgroundColor: '#EFF4FF', borderRadius: Radius.lg, padding: Spacing.md },
+  adaptNoteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
+  footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.xs },
+  buildingText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center' },
+  confirmBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
+  confirmText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
 })

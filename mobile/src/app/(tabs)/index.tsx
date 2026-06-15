@@ -14,6 +14,7 @@ import { checkMissedWorkouts } from '@/lib/missedWorkouts'
 import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
 import { getTodayCheckin, readinessLabel } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
+import { getQuickSuggestion, type QuickSuggestion } from '@/lib/quickSuggestion'
 
 const C = Colors.light
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -186,6 +187,32 @@ export default function ScheduleScreen() {
     enabled: !!userId,
   })
 
+  // Calendar-aware Quick Workout nudge — the proactive "your day is messy, here's
+  // a session that fits" prompt that sets Tempo apart from plain generators.
+  const { data: suggestion } = useQuery({
+    queryKey: ['quick_suggestion', userId],
+    queryFn: () => getQuickSuggestion(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const goQuick = (s?: QuickSuggestion | null) => {
+    if (s) {
+      router.push({
+        pathname: '/quick-workout',
+        params: {
+          minutes: String(s.minutes),
+          ...(s.purpose ? { purpose: s.purpose } : {}),
+          ...(s.targetPattern ? { targetPattern: s.targetPattern } : {}),
+          ...(s.daysSinceTrained ? { daysSinceTrained: String(s.daysSinceTrained) } : {}),
+          ...(s.fromCalendarGap ? { fromCalendarGap: '1' } : {}),
+        },
+      })
+    } else {
+      router.push('/quick-workout')
+    }
+  }
+
   const handleReschedule = async (workout: ScheduledWorkout) => {
     if (rescheduling) return
     setRescheduling(true)
@@ -312,6 +339,24 @@ export default function ScheduleScreen() {
             )
           })}
         </ScrollView>
+
+        {/* Quick Workout — hero entry. Contextual when Tempo has a reason to nudge,
+            always one tap to "build a session for the minutes I actually have". */}
+        <TouchableOpacity style={styles.quickCard} onPress={() => goQuick(suggestion)} activeOpacity={0.9}>
+          <View style={styles.quickIconWrap}>
+            <Ionicons name={(suggestion?.icon as any) ?? 'flash'} size={22} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickEyebrow}>QUICK WORKOUT</Text>
+            <Text style={styles.quickTitle}>{suggestion?.headline ?? 'Short on time?'}</Text>
+            <Text style={styles.quickSub}>
+              {suggestion?.sub ?? 'Build a session for the minutes you actually have.'}
+            </Text>
+          </View>
+          <View style={styles.quickGo}>
+            <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
+          </View>
+        </TouchableOpacity>
 
         {/* Daily readiness */}
         {checkin ? (
@@ -458,9 +503,9 @@ export default function ScheduleScreen() {
         </View>
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => router.push('/(tabs)/plan')}>
-        <Ionicons name="add" size={28} color={C.onPrimary} />
+      {/* FAB — one-tap Quick Workout from anywhere on the schedule */}
+      <TouchableOpacity style={styles.fab} onPress={() => goQuick(suggestion)}>
+        <Ionicons name="flash" size={26} color={C.onPrimary} />
       </TouchableOpacity>
 
       <RecoveryCheckIn
@@ -716,6 +761,31 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   doneBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#16A34A', letterSpacing: 0.5 },
+
+  quickCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginHorizontal: Spacing.containerPadding,
+    marginBottom: Spacing.md,
+    backgroundColor: C.background,
+    borderRadius: Radius.xl,
+    borderWidth: 1.5,
+    borderColor: C.primary,
+    padding: Spacing.md,
+    ...CardShadow,
+  },
+  quickIconWrap: {
+    width: 44, height: 44, borderRadius: Radius.md,
+    backgroundColor: '#EFF4FF', alignItems: 'center', justifyContent: 'center',
+  },
+  quickEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
+  quickTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 16, color: C.text, letterSpacing: -0.2, marginTop: 1 },
+  quickSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 2, lineHeight: 16 },
+  quickGo: {
+    width: 36, height: 36, borderRadius: Radius.full,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
+  },
 
   emptyState: { paddingVertical: Spacing.xl, alignItems: 'center' },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary },

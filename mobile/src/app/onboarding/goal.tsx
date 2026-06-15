@@ -33,12 +33,12 @@ export default function GoalScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '33%' }]} />
+        <View style={[styles.progressFill, { width: '20%' }]} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Step label */}
-        <Text style={styles.stepLabel}>ONBOARDING 01/03</Text>
+        <Text style={styles.stepLabel}>STEP 1 OF 5</Text>
         <Text style={styles.title}>What is your primary goal?</Text>
         <Text style={styles.subtitle}>
           Select the outcome that best describes your ideal fitness transformation. You can refine this later.
