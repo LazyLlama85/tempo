@@ -1,0 +1,140 @@
+import * as Calendar from 'expo-calendar'
+import { Platform } from 'react-native'
+import { supabase } from '@/lib/supabase'
+
+export interface WorkoutEventInput {
+  id: string
+  focus: string
+  planned_date: string          // 'YYYY-MM-DD'
+  planned_start_time: string    // 'HH:MM:SS'
+  planned_duration_min: number
+}
+
+async function getWritableCalendar(): Promise<string | null> {
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  const writable = calendars.filter(c => c.allowsModifications)
+  if (!writable.length) return null
+  if (Platform.OS === 'ios') {
+    const local = writable.find(c => c.source?.type === Calendar.SourceType.LOCAL)
+    return (local ?? writable[0]).id
+  }
+  return writable[0].id
+}
+
+export async function requestCalendarPermissions(): Promise<boolean> {
+  const { status } = await Calendar.requestCalendarPermissionsAsync()
+  return status === 'granted'
+}
+
+export async function getCalendarPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  const { status } = await Calendar.getCalendarPermissionsAsync()
+  return status as 'granted' | 'denied' | 'undetermined'
+}
+
+export async function createWorkoutEvent(
+  workout: WorkoutEventInput,
+  userId: string
+): Promise<string | null> {
+  const granted = await requestCalendarPermissions()
+  if (!granted) return null
+
+  const calendarId = await getWritableCalendar()
+  if (!calendarId) return null
+
+  const [y, m, d] = workout.planned_date.split('-').map(Number)
+  const [hStr, mStr] = workout.planned_start_time.split(':')
+  const startDate = new Date(y, m - 1, d, parseInt(hStr, 10), parseInt(mStr, 10))
+  const endDate = new Date(startDate.getTime() + workout.planned_duration_min * 60 * 1000)
+
+  const eventId = await Calendar.createEventAsync(calendarId, {
+    title: `Tempo: ${workout.focus}`,
+    startDate,
+    endDate,
+    notes: `${workout.planned_duration_min} min workout · Tracked in Tempo`,
+    alarms: [{ relativeOffset: -15 }],
+  })
+
+  await supabase
+    .from('scheduled_workouts')
+    .update({ calendar_event_id: eventId })
+    .eq('id', workout.id)
+    .eq('user_id', userId)
+
+  return eventId
+}
+
+// ── Reading the calendar (schedule around real life) ──────────────────────────
+
+export interface BusyBlock { start: Date; end: Date }
+export interface FreeWindow { start: Date; end: Date; durationMin: number }
+
+// All timed events on a given day, sorted by start. Returns [] without permission.
+export async function getBusyBlocks(date: Date): Promise<BusyBlock[]> {
+  const status = await getCalendarPermissionStatus()
+  if (status !== 'granted') return []
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  const ids = calendars.map(c => c.id)
+  if (!ids.length) return []
+
+  const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
+
+  const events = await Calendar.getEventsAsync(ids, dayStart, dayEnd)
+  return events
+    .filter(e => !e.allDay)
+    .map(e => ({ start: new Date(e.startDate as string | number | Date), end: new Date(e.endDate as string | number | Date) }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+}
+
+// Open gaps on a day that are at least `neededMin` long, within waking hours.
+export async function findFreeWindows(
+  date: Date,
+  neededMin: number,
+  dayStartHour = 6,
+  dayEndHour = 21,
+): Promise<FreeWindow[]> {
+  const busy = await getBusyBlocks(date)
+  const windows: FreeWindow[] = []
+
+  const cursor = new Date(date); cursor.setHours(dayStartHour, 0, 0, 0)
+  const dayEnd = new Date(date); dayEnd.setHours(dayEndHour, 0, 0, 0)
+
+  for (const block of busy) {
+    if (block.end <= cursor) continue
+    if (block.start > cursor) {
+      const gapMin = (block.start.getTime() - cursor.getTime()) / 60000
+      if (gapMin >= neededMin) {
+        windows.push({ start: new Date(cursor), end: new Date(block.start), durationMin: Math.round(gapMin) })
+      }
+    }
+    if (block.end > cursor) cursor.setTime(block.end.getTime())
+  }
+
+  if (cursor < dayEnd) {
+    const gapMin = (dayEnd.getTime() - cursor.getTime()) / 60000
+    if (gapMin >= neededMin) {
+      windows.push({ start: new Date(cursor), end: new Date(dayEnd), durationMin: Math.round(gapMin) })
+    }
+  }
+
+  return windows
+}
+
+export async function deleteWorkoutEvent(
+  workoutId: string,
+  eventId: string,
+  userId: string
+): Promise<void> {
+  try {
+    await Calendar.deleteEventAsync(eventId)
+  } catch {
+    // Event may have been manually deleted from the calendar already
+  }
+
+  await supabase
+    .from('scheduled_workouts')
+    .update({ calendar_event_id: null })
+    .eq('id', workoutId)
+    .eq('user_id', userId)
+}

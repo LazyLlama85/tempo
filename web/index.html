@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tempo — Workouts that fit your life</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0a0c;
+      --surface:   #131016;
+      --card:      #17131c;
+      --border:    rgba(255,255,255,0.07);
+      --border-hi: rgba(255,255,255,0.14);
+      --text:      #f4eee9;
+      --muted:     #7a6f68;
+      --muted-hi:  #a89b91;
+      /* Signature ember palette (var kept as --blue for back-compat) */
+      --blue:      #ff5a36;
+      --blue-dark: #c2350f;
+      --accent-2:  #ffae3b;
+      /* Light "paper" theme tokens */
+      --paper:     #f7f1e8;
+      --paper-2:   #efe6d8;
+      --ink:       #1b1714;
+      --ink-muted: #6f655b;
+      --ease:      cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: transparent;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── SCROLL REVEAL ─────────────────────────────────────── */
+    [data-sr] {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+      transition-delay: var(--d, 0ms);
+    }
+    [data-sr="scale"] { transform: scale(0.96); opacity: 0; }
+    [data-sr].in { opacity: 1; transform: none; }
+
+    /* ── NAV ───────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 100;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      transition: background 0.4s, border-color 0.4s, backdrop-filter 0.4s;
+    }
+    nav.stuck {
+      background: rgba(11,10,12,0.8);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px; text-decoration: none;
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: linear-gradient(145deg, #ff8a5c, #c2350f);
+      border-radius: 9px;
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 16px; color: #fff;
+      box-shadow: 0 2px 16px rgba(255,90,54,0.45);
+      flex-shrink: 0;
+    }
+    .logo-name {
+      font-size: 17px; font-weight: 700;
+      color: var(--text); letter-spacing: -0.025em;
+    }
+    .nav-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--blue); color: #fff; border: none;
+      padding: 9px 18px; border-radius: 10px;
+      font: 600 14px/1 'Inter', sans-serif;
+      text-decoration: none; cursor: pointer;
+      position: relative; overflow: hidden;
+      transition: box-shadow 0.25s, transform 0.2s, background 0.2s;
+    }
+    .nav-btn:hover { background: #ff6e4d; box-shadow: 0 6px 22px rgba(255,90,54,0.4); transform: translateY(-1.5px); }
+    .nav-btn:active { transform: translateY(0) scale(0.985); }
+
+    /* ── HERO ──────────────────────────────────────────────── */
+    .hero {
+      min-height: 100dvh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 96px 24px 80px;
+      position: relative; overflow: hidden;
+      background: var(--bg);
+    }
+    #hero-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0; opacity: 0.85;
+    }
+    .hero-grid {
+      position: absolute; inset: 0; z-index: 1;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black, transparent);
+      pointer-events: none;
+    }
+    /* Vignette so text stays readable */
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0; z-index: 2;
+      background: radial-gradient(ellipse 60% 50% at 50% 100%, rgba(11,10,12,0.7), transparent);
+      pointer-events: none;
+    }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,90,54,0.09);
+      border: 1px solid rgba(255,90,54,0.24);
+      border-radius: 999px; padding: 7px 16px;
+      font-size: 12.5px; font-weight: 500; color: #ffb39a;
+      margin-bottom: 36px;
+      position: relative; z-index: 3;
+      animation: fadeSlideDown 0.8s var(--ease) 0.05s both;
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--blue); border-radius: 50%;
+      box-shadow: 0 0 8px var(--blue);
+      animation: pulseDot 2.4s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%,100% { opacity: 1; box-shadow: 0 0 8px var(--blue); }
+      50%      { opacity: 0.45; box-shadow: 0 0 2px var(--blue); }
+    }
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(110%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-title {
+      font-size: clamp(52px, 9.5vw, 92px);
+      font-weight: 900; line-height: 1.04;
+      letter-spacing: -0.045em;
+      margin-bottom: 24px; max-width: 860px;
+      position: relative; z-index: 3;
+    }
+    .hero-title .line { display: block; overflow: hidden; }
+    .hero-title .word { display: inline-block; animation: slideUp 0.85s var(--ease) both; }
+    .hero-title .line:nth-child(1) .word { animation-delay: 0.18s; }
+    .hero-title .line:nth-child(2) .word { animation-delay: 0.32s; }
+
+    .gradient-text {
+      background: linear-gradient(120deg, #ff7a4d 0%, #ff5a36 45%, #ffae3b 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-body {
+      font-size: 17.5px; color: var(--muted-hi);
+      max-width: 460px; line-height: 1.78; margin-bottom: 44px;
+      position: relative; z-index: 3;
+      animation: fadeIn 1s var(--ease) 0.55s both;
+    }
+    .form-shell {
+      position: relative; z-index: 3;
+      animation: fadeIn 1s var(--ease) 0.72s both;
+    }
+    .email-row {
+      display: flex; gap: 8px; max-width: 456px;
+    }
+    .email-field {
+      flex: 1; min-width: 0;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 14px 18px;
+      font: 15px/1 'Inter', sans-serif; color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .email-field::placeholder { color: var(--muted); }
+    .email-field:focus {
+      border-color: rgba(255,90,54,0.55);
+      box-shadow: 0 0 0 3px rgba(255,90,54,0.12);
+      background: rgba(255,255,255,0.065);
+    }
+    .cta-btn {
+      flex-shrink: 0; background: var(--blue); color: #fff;
+      border: none; padding: 14px 22px; border-radius: 12px;
+      font: 600 15px/1 'Inter', sans-serif; cursor: pointer;
+      white-space: nowrap; position: relative; overflow: hidden;
+      transition: background 0.2s, box-shadow 0.25s, transform 0.15s;
+    }
+    .cta-btn:hover { background: #ff6e4d; box-shadow: 0 8px 30px rgba(255,90,54,0.42); transform: translateY(-1.5px); }
+    .cta-btn:active { transform: translateY(0) scale(0.985); }
+    .cta-btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+    .form-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+    .form-msg { display: none; font-size: 13.5px; font-weight: 500; margin-top: 14px; }
+    .form-msg.ok  { color: #4ade80; }
+    .form-msg.err { color: #f87171; }
+
+    /* ── DIVIDER ───────────────────────────────────────────── */
+    .divider {
+      max-width: 1120px; margin: 0 auto; height: 1px;
+      background: linear-gradient(to right, transparent, var(--border), transparent);
+    }
+
+    /* ── SECTIONS ──────────────────────────────────────────── */
+    .section { padding: 120px 24px; }
+    .section-in { max-width: 1120px; margin: 0 auto; }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--blue); margin-bottom: 22px;
+    }
+    .eyebrow::before {
+      content: ''; width: 22px; height: 1.5px;
+      background: var(--blue); border-radius: 2px;
+    }
+    .s-title {
+      font-size: clamp(34px, 4.8vw, 54px); font-weight: 900;
+      line-height: 1.12; letter-spacing: -0.038em; margin-bottom: 18px;
+    }
+    .s-body { font-size: 17px; color: var(--muted-hi); max-width: 520px; line-height: 1.78; }
+
+    /* ── PROBLEM ───────────────────────────────────────────── */
+    .prob-top { display: flex; align-items: flex-end; gap: 28px; margin-bottom: 56px; }
+    .stat-num {
+      font-size: clamp(88px, 14vw, 148px); font-weight: 900;
+      line-height: 1; letter-spacing: -0.06em; flex-shrink: 0;
+      background: linear-gradient(160deg, #fff 55%, rgba(255,255,255,0.3) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-text { padding-bottom: 14px; }
+    .stat-text h2 {
+      font-size: clamp(22px, 3vw, 34px); font-weight: 800;
+      letter-spacing: -0.03em; line-height: 1.3; margin-bottom: 10px;
+    }
+    .stat-text p { font-size: 16px; color: var(--muted-hi); line-height: 1.7; }
+
+    .prob-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .prob-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; padding: 30px 28px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.3s, transform 0.35s var(--ease), box-shadow 0.35s;
+    }
+    .prob-card::before {
+      content: ''; position: absolute; inset: 0 0 auto; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,90,54,0.5), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .prob-card:hover { border-color: var(--border-hi); transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
+    .prob-card:hover::before { opacity: 1; }
+    .prob-card h3 { font-size: 16.5px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .prob-card p  { font-size: 14px; color: var(--muted-hi); line-height: 1.7; }
+
+    /* ── 3D SCROLL PREVIEW ─────────────────────────────────── */
+    .preview-section {
+      height: 2400px;
+      padding: 0 24px;
+      position: relative;
+    }
+    .preview-sticky {
+      position: sticky; top: 0;
+      height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    /* Subtle scene background */
+    .preview-ambient {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 80% 70% at 50% 55%, rgba(28,14,10,0.95), var(--bg) 75%);
+    }
+    .preview-ambient::after {
+      content: ''; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.016) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.016) 1px, transparent 1px);
+      background-size: 72px 72px;
+    }
+    .preview-header {
+      text-align: center; margin-bottom: 36px;
+      position: relative; z-index: 4;
+      will-change: transform, opacity;
+    }
+    .preview-header .eyebrow { justify-content: center; }
+    .preview-header .s-title { font-size: clamp(32px, 5vw, 56px); margin-bottom: 0; }
+
+    /* Phone scene container */
+    .phone-scene {
+      position: relative; z-index: 3;
+      width: 100%; max-width: 960px;
+      height: 620px;
+    }
+
+    /* Blue glow behind phone */
+    .phone-glow {
+      position: absolute;
+      left: 50%; top: 44%;
+      transform: translate(-50%, -50%);
+      width: 480px; height: 480px;
+      background: radial-gradient(ellipse, rgba(255,90,54,0.28) 0%, transparent 65%);
+      border-radius: 50%;
+      filter: blur(48px);
+      pointer-events: none; z-index: 0;
+      transition: opacity 0.4s;
+    }
+
+    /* The phone itself */
+    .phone-wrap {
+      position: absolute;
+      left: 50%; top: 0;
+      transform: translateX(-50%);
+      width: 290px;
+      z-index: 2;
+      will-change: transform;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    /* Side hardware buttons on phone-wrap so overflow:hidden on frame doesn't clip them */
+    .phone-wrap::before { /* power button */
+      content: '';
+      position: absolute; right: -4px; top: 140px;
+      width: 3px; height: 72px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.11), rgba(255,255,255,0.03));
+      border-radius: 0 2px 2px 0; z-index: 3;
+    }
+    .phone-wrap::after { /* volume buttons */
+      content: '';
+      position: absolute; left: -4px; top: 105px;
+      width: 3px; height: 108px;
+      background: linear-gradient(to bottom,
+        rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 30px,
+        transparent 30px, transparent 46px,
+        rgba(255,255,255,0.08) 46px, rgba(255,255,255,0.08) 108px);
+      border-radius: 2px 0 0 2px; z-index: 3;
+    }
+    /* Phone bezel body */
+    .phone-frame {
+      width: 100%;
+      background: #0a0708;
+      border-radius: 52px;
+      border: 1.5px solid rgba(255,255,255,0.13);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.04),
+        0 60px 140px rgba(0,0,0,0.97),
+        0 24px 64px rgba(0,0,0,0.75),
+        0 0 80px rgba(255,90,54,0.07);
+      overflow: hidden;
+      position: relative;
+    }
+    /* Screen area */
+    .phone-screen-wrap { position: relative; overflow: hidden; aspect-ratio: 390/760; }
+    /* Dynamic Island overlay */
+    .phone-island {
+      position: absolute; top: 12px;
+      left: 50%; transform: translateX(-50%);
+      width: 112px; height: 34px;
+      background: #000; border-radius: 22px;
+      z-index: 10;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    /* Bottom home indicator bar */
+    .phone-home-area {
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 0 14px; background: #000;
+    }
+    .phone-home-pill {
+      width: 110px; height: 5px;
+      background: rgba(255,255,255,0.3); border-radius: 3px;
+    }
+    .phone-screen {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.65s ease;
+    }
+    .phone-screen.active { opacity: 1; }
+    /* Glossy reflection overlay */
+    .phone-shine {
+      position: absolute; inset: 0; pointer-events: none; z-index: 20;
+      border-radius: 52px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 35%, transparent 58%);
+    }
+
+    /* Screen indicator dots */
+    .screen-dots {
+      display: flex; align-items: center; gap: 7px;
+      margin-top: 20px;
+      z-index: 5;
+    }
+    .screen-dot {
+      height: 6px; width: 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.18);
+      transition: width 0.35s var(--ease), background 0.35s, box-shadow 0.35s;
+    }
+    .screen-dot.active {
+      width: 22px;
+      background: var(--blue);
+      box-shadow: 0 0 10px rgba(255,90,54,0.65);
+    }
+
+    /* Floating feature callout cards */
+    .float-card {
+      position: absolute;
+      display: flex; align-items: center; gap: 13px;
+      background: rgba(9, 9, 20, 0.88);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,90,54,0.2);
+      border-radius: 16px; padding: 14px 18px;
+      min-width: 196px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+      opacity: 0; z-index: 5;
+      pointer-events: none;
+    }
+    .fc-left  { left: 0; }
+    .fc-right { right: 0; }
+    #fc-0 { top: 22%; }
+    #fc-1 { top: 55%; }
+
+    .fc-icon {
+      width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
+      background: rgba(255,90,54,0.1);
+      border: 1px solid rgba(255,90,54,0.18);
+      display: grid; place-items: center; font-size: 19px;
+    }
+    .fc-title { font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .fc-sub   { font-size: 11px; color: var(--muted-hi); margin-top: 2px; line-height: 1.4; }
+
+    /* ── HOW IT WORKS ──────────────────────────────────────── */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 64px; }
+    .step { padding: 0 40px 0 0; }
+    .step + .step { padding-left: 40px; border-left: 1px solid var(--border); }
+    .step-n {
+      font-size: clamp(64px, 9vw, 88px); font-weight: 900;
+      letter-spacing: -0.06em; line-height: 1; margin-bottom: 24px;
+      background: linear-gradient(160deg, #5c2410 0%, rgba(92,36,16,0.25) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      transition: background 0.3s;
+    }
+    .step:hover .step-n {
+      background: linear-gradient(160deg, #e03e1e 0%, rgba(224,62,30,0.4) 100%);
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .step h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 12px; }
+    .step p  { font-size: 14px; color: var(--muted-hi); line-height: 1.72; }
+
+    /* ── FEATURES ──────────────────────────────────────────── */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px; margin-top: 64px;
+    }
+    .feat-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 26px 26px 22px;
+      display: flex; flex-direction: column; gap: 16px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.3s, transform 0.35s var(--ease), box-shadow 0.35s;
+    }
+    .feat-card:nth-child(1),
+    .feat-card:nth-child(4),
+    .feat-card:nth-child(5) { grid-column: span 2; }
+    /* color tint */
+    .feat-card::before {
+      content: ''; position: absolute; inset: 0; border-radius: 20px;
+      background: radial-gradient(ellipse 90% 70% at 10% 0%, var(--fc-bg,rgba(255,90,54,0.09)), transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    /* expanding top accent line */
+    .feat-card::after {
+      content: ''; position: absolute; top: -1px; left: -1px;
+      height: 2px; width: 36px;
+      background: var(--fc-accent, var(--blue));
+      border-radius: 0 0 2px 0;
+      transition: width 0.45s var(--ease);
+    }
+    .feat-card:hover::after { width: calc(100% + 2px); border-radius: 0; }
+    .feat-card:hover { border-color: var(--border-hi); transform: translateY(-3px); box-shadow: 0 14px 48px rgba(0,0,0,0.42); }
+    /* big watermark icon */
+    .feat-wm {
+      position: absolute; right: 10px; bottom: -6px;
+      font-size: 80px; line-height: 1;
+      opacity: 0.055; pointer-events: none; user-select: none;
+      transition: transform 0.45s var(--ease), opacity 0.3s; z-index: 0;
+    }
+    .feat-card:hover .feat-wm { transform: scale(1.1) rotate(7deg); opacity: 0.1; }
+    .feat-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: var(--fc-bg, rgba(255,90,54,0.09));
+      border: 1px solid var(--fc-border, rgba(255,90,54,0.18));
+      display: grid; place-items: center; font-size: 19px;
+      flex-shrink: 0; position: relative; z-index: 1;
+      transition: transform 0.3s var(--ease), box-shadow 0.3s;
+    }
+    .feat-card:hover .feat-icon { transform: scale(1.1); box-shadow: 0 0 20px var(--fc-glow, rgba(255,90,54,0.18)); }
+    .feat-card h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; position: relative; z-index: 1; }
+    .feat-card p  { font-size: 13.5px; color: var(--muted-hi); line-height: 1.72; position: relative; z-index: 1; flex: 1; }
+    .fc-blue   { --fc-accent:#ff5a36; --fc-bg:rgba(255,90,54,0.07);  --fc-border:rgba(255,90,54,0.16);  --fc-glow:rgba(255,90,54,0.18); }
+    .fc-purple { --fc-accent:#fb7185; --fc-bg:rgba(251,113,133,0.07);  --fc-border:rgba(251,113,133,0.16);  --fc-glow:rgba(251,113,133,0.18); }
+    .fc-green  { --fc-accent:#10b981; --fc-bg:rgba(16,185,129,0.07);  --fc-border:rgba(16,185,129,0.16);  --fc-glow:rgba(16,185,129,0.18); }
+    .fc-amber  { --fc-accent:#f59e0b; --fc-bg:rgba(245,158,11,0.07);  --fc-border:rgba(245,158,11,0.16);  --fc-glow:rgba(245,158,11,0.18); }
+    .fc-teal   { --fc-accent:#14b8a6; --fc-bg:rgba(20,184,166,0.07);  --fc-border:rgba(20,184,166,0.16);  --fc-glow:rgba(20,184,166,0.18); }
+    .fc-indigo { --fc-accent:#e2603f; --fc-bg:rgba(226,96,63,0.07);  --fc-border:rgba(226,96,63,0.16);  --fc-glow:rgba(226,96,63,0.18); }
+
+    /* ── LIGHT SECTION THEME (crisp paper, contrasts dark hero) ── */
+    .section--light {
+      background: var(--paper);
+      position: relative; z-index: 1;
+    }
+    .section--light::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 55% at 88% -5%, rgba(255,90,54,0.07), transparent 60%),
+        radial-gradient(ellipse 65% 55% at -5% 105%, rgba(255,174,59,0.08), transparent 55%);
+    }
+    .section--light > .section-in { position: relative; z-index: 1; }
+    .section--light .eyebrow { color: var(--blue-dark); }
+    .section--light .eyebrow::before { background: var(--blue-dark); }
+    .section--light .s-title { color: var(--ink); }
+    .section--light .s-body  { color: var(--ink-muted); }
+    .section--light .feat-card {
+      background: #fffdfa;
+      border-color: rgba(27,23,20,0.09);
+      box-shadow: 0 1px 2px rgba(27,23,20,0.05);
+    }
+    .section--light .feat-card:hover {
+      border-color: rgba(27,23,20,0.17);
+      box-shadow: 0 18px 42px rgba(27,23,20,0.10);
+    }
+    .section--light .feat-card h3 { color: var(--ink); }
+    .section--light .feat-card p  { color: var(--ink-muted); }
+    .section--light .feat-wm { opacity: 0.07; }
+    .section--light .feat-card:hover .feat-wm { opacity: 0.12; }
+
+    /* ── CTA ───────────────────────────────────────────────── */
+    .cta-wrap { padding: 0 24px 120px; }
+    .cta-card {
+      max-width: 1120px; margin: 0 auto;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 28px; padding: 88px 48px; text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .cta-card::before {
+      content: ''; position: absolute;
+      top: -120px; left: 50%; margin-left: -280px;
+      width: 560px; height: 360px;
+      background: radial-gradient(ellipse, rgba(224,62,30,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-card h2 {
+      font-size: clamp(36px, 5vw, 58px); font-weight: 900;
+      letter-spacing: -0.042em; line-height: 1.12; margin-bottom: 18px;
+      position: relative; z-index: 1;
+    }
+    .cta-card > p { font-size: 17px; color: var(--muted-hi); margin-bottom: 44px; line-height: 1.75; position: relative; z-index: 1; }
+    .cta-card .email-row { margin: 0 auto; position: relative; z-index: 1; }
+    .cta-card .form-note { position: relative; z-index: 1; }
+    .cta-card .form-msg  { position: relative; z-index: 1; }
+
+    /* ── FOOTER ────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 28px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    footer p { font-size: 13px; color: var(--muted); }
+
+    /* ── RESPONSIVE ────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      nav { padding: 0 20px; }
+      .hero { padding: 96px 20px 72px; }
+      .prob-cards, .steps { grid-template-columns: 1fr; }
+      .feat-grid { grid-template-columns: 1fr 1fr; }
+      .feat-card:nth-child(1),.feat-card:nth-child(4),.feat-card:nth-child(5) { grid-column: span 2; }
+      .step + .step { padding-left: 0; border-left: none; border-top: 1px solid var(--border); padding-top: 40px; margin-top: 40px; }
+      .step { padding-right: 0; }
+      .prob-top { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .email-row { flex-direction: column; }
+      .cta-card { padding: 56px 24px; border-radius: 22px; }
+      .section { padding: 88px 20px; }
+      footer { flex-direction: column; gap: 12px; text-align: center; padding: 24px 20px; }
+      .preview-section { height: 1400px; }
+      .phone-scene { height: 520px; }
+      .phone-wrap { width: 240px; }
+      .fc-left, .fc-right { display: none; }
+    }
+
+    /* ── APP SCREENS (CSS-drawn phone UI) ──────────── */
+    .app-screen { background:#F2F2F7; font-family:-apple-system,'Helvetica Neue',sans-serif; display:flex; flex-direction:column; color:#111827; font-size:15px; -webkit-font-smoothing:antialiased; overflow:hidden; }
+    .app-sb { height:52px; background:#000; flex-shrink:0; }
+    .app-nav { height:52px; background:#fff; border-bottom:1px solid #E5E7EB; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; }
+    .app-nav-title { font-size:17px; font-weight:700; color:#111827; }
+    .app-nav-back  { position:absolute; left:16px; font-size:15px; color:#ff5a36; font-weight:500; }
+    .app-nav-add   { position:absolute; right:14px; font-size:26px; color:#ff5a36; font-weight:300; line-height:1; }
+    .app-scroll    { flex:1; overflow:hidden; }
+
+    .app-week { background:#fff; display:flex; border-bottom:1px solid #E5E7EB; flex-shrink:0; }
+    .app-wday { flex:1; display:flex; flex-direction:column; align-items:center; padding:10px 0 6px; gap:5px; }
+    .app-wday-lbl { font-size:10px; color:#9CA3AF; font-weight:700; text-transform:uppercase; }
+    .app-wday-num { font-size:16px; font-weight:600; color:#111827; line-height:1; }
+    .app-wday.today .app-wday-lbl { color:#ff5a36; font-weight:700; }
+    .app-wday.today .app-wday-num { width:30px; height:30px; border-radius:50%; background:#ff5a36; color:#fff; font-size:14px; display:flex; align-items:center; justify-content:center; }
+    .app-wday-dot { width:5px; height:5px; border-radius:50%; background:#ff5a36; }
+
+    .app-slabel { padding:14px 16px 6px; font-size:11px; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:.07em; }
+    .app-event { margin:0 12px 8px; background:#fff; border-radius:14px; padding:13px 14px 13px 20px; display:flex; align-items:center; gap:10px; box-shadow:0 1px 4px rgba(0,0,0,0.07); position:relative; }
+    .app-event::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; }
+    .app-ev-b::before  { background:#ff5a36; }
+    .app-ev-g::before  { background:#10B981; }
+    .app-ev-p::before  { background:#fb7185; }
+    .app-ev-time { font-size:11px; font-weight:700; min-width:50px; }
+    .app-ev-b .app-ev-time { color:#ff5a36; }
+    .app-ev-g .app-ev-time { color:#10B981; }
+    .app-ev-p .app-ev-time { color:#fb7185; }
+    .app-ev-info { flex:1; }
+    .app-ev-title { font-size:14px; font-weight:700; color:#111827; margin-bottom:2px; }
+    .app-ev-sub   { font-size:12px; color:#9CA3AF; }
+    .app-ev-badge { font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:#fff0ea; color:#ff5a36; flex-shrink:0; }
+
+    .app-wh { background:#fff; padding:18px 16px; border-bottom:1px solid #E5E7EB; flex-shrink:0; }
+    .app-wh-title { font-size:20px; font-weight:800; color:#111827; margin-bottom:10px; }
+    .app-wh-meta  { display:flex; gap:6px; flex-wrap:wrap; }
+    .app-chip { background:#F3F4F6; border-radius:20px; padding:4px 10px; font-size:11px; font-weight:600; color:#374151; }
+    .app-chip.b { background:#fff0ea; color:#ff5a36; }
+    .app-exlist { padding:8px 12px; }
+    .app-ex { background:#fff; border-radius:12px; padding:12px 14px; margin-bottom:7px; display:flex; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+    .app-ex-n { width:28px; height:28px; border-radius:9px; flex-shrink:0; background:#fff0ea; color:#ff5a36; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+    .app-ex-nm { font-size:13px; font-weight:600; color:#111827; }
+    .app-ex-s  { font-size:11px; color:#9CA3AF; }
+    .app-bigbtn { margin:10px 12px 0; background:#ff5a36; color:#fff; border-radius:14px; padding:15px; text-align:center; font-size:15px; font-weight:700; }
+
+    .app-act { background:#111; }
+    .app-act .app-sb { background:#000; }
+    .app-act-hdr { background:#111; padding:16px 16px 20px; flex-shrink:0; }
+    .app-act-ex  { font-size:20px; font-weight:800; color:#fff; margin-bottom:4px; }
+    .app-act-set { font-size:13px; color:rgba(255,255,255,0.45); }
+    .app-act-wgt { background:#111; padding:16px 16px 20px; text-align:center; flex-shrink:0; }
+    .app-act-num { font-size:60px; font-weight:900; color:#fff; line-height:1; }
+    .app-act-unt { font-size:18px; color:rgba(255,255,255,0.4); }
+    .app-act-hist { background:#16100f; padding:14px 12px 0; flex:1; }
+    .app-act-ct  { font-size:11px; font-weight:700; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:.07em; margin-bottom:10px; }
+    .app-act-row { background:#211a1e; border-radius:10px; padding:11px 14px; margin-bottom:7px; display:flex; align-items:center; gap:10px; }
+    .app-act-row.cur { background:#3a1a10; border:1px solid rgba(255,90,54,0.3); }
+    .app-act-sn  { font-size:13px; font-weight:700; color:rgba(255,255,255,0.3); width:22px; }
+    .app-act-row.cur .app-act-sn { color:#ff5a36; }
+    .app-act-sv  { flex:1; font-size:13px; color:rgba(255,255,255,0.6); }
+    .app-act-row.cur .app-act-sv { color:#fff; font-weight:600; }
+    .app-act-ck  { font-size:14px; color:#10B981; }
+    .app-act-now { font-size:11px; color:#ff5a36; font-weight:700; }
+    .app-bigbtn.dark { background:#ff5a36; margin-top:12px; }
+
+    .app-prg-top { background:#fff; padding:18px 16px; display:flex; align-items:center; gap:18px; border-bottom:1px solid #E5E7EB; flex-shrink:0; }
+    .app-ring { width:86px; height:86px; border-radius:50%; flex-shrink:0; background:conic-gradient(#ff5a36 306deg,#E5E7EB 306deg); display:flex; align-items:center; justify-content:center; position:relative; }
+    .app-ring::before { content:''; position:absolute; inset:10px; background:#fff; border-radius:50%; }
+    .app-ring-in { position:relative; z-index:1; text-align:center; }
+    .app-ring-pct { font-size:18px; font-weight:900; color:#111827; line-height:1; }
+    .app-ring-lbl { font-size:9px; color:#9CA3AF; }
+    .app-streak   { flex:1; }
+    .app-streak-n { font-size:32px; font-weight:900; color:#111827; line-height:1; }
+    .app-streak-l { font-size:12px; color:#9CA3AF; margin-top:2px; }
+    .app-prg-chart { padding:14px 14px 0; flex-shrink:0; }
+    .app-prg-ct   { font-size:11px; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:.07em; margin-bottom:10px; }
+    .app-bars { display:flex; align-items:flex-end; gap:5px; height:68px; }
+    .app-bwrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .app-bar { width:100%; border-radius:3px 3px 0 0; background:#E5E7EB; }
+    .app-bar.done { background:#ff5a36; }
+    .app-bar.cur  { background:#c2350f; }
+    .app-blbl { font-size:10px; color:#9CA3AF; }
+    .app-prg-stats { display:flex; gap:8px; padding:10px 14px 0; flex-shrink:0; }
+    .app-scard { flex:1; background:#fff; border-radius:12px; padding:11px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+    .app-scard-n { font-size:20px; font-weight:800; color:#111827; }
+    .app-scard-l { font-size:10px; color:#9CA3AF; margin-top:2px; }
+
+    /* ── PAGE BACKGROUND INFRASTRUCTURE ───────────── */
+    #page-bg {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      z-index: -3; pointer-events: none;
+    }
+    #bg-canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      z-index: -2; opacity: 0.16;
+      pointer-events: none;
+    }
+
+    /* ── ORIGIN BUTTON RIPPLE ───────────────────── */
+    .origin-ripple {
+      position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      transform: translate(-50%, -50%) scale(0);
+      pointer-events: none;
+      transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.38s;
+      opacity: 0; will-change: transform;
+    }
+    .cta-btn.rip-in .origin-ripple {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+    }
+
+    /* ── BUTTON LOADING SPINNER ───────────────────────────── */
+    .btn-spinner {
+      display: inline-block; width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff; border-radius: 50%;
+      animation: btnspin 0.7s linear infinite;
+      vertical-align: -2px; margin-right: 9px;
+    }
+    @keyframes btnspin { to { transform: rotate(360deg); } }
+
+    /* ── SUCCESS MODAL ────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      background: rgba(7,5,6,0.66);
+      backdrop-filter: blur(10px) saturate(140%);
+      -webkit-backdrop-filter: blur(10px) saturate(140%);
+      opacity: 0; visibility: hidden;
+      transition: opacity 0.4s var(--ease), visibility 0.4s;
+    }
+    .modal-overlay.open { opacity: 1; visibility: visible; }
+    .modal {
+      position: relative;
+      width: 100%; max-width: 424px;
+      background: linear-gradient(180deg, #1d1620, var(--card));
+      border: 1px solid var(--border-hi);
+      border-radius: 26px;
+      padding: 44px 36px 32px;
+      text-align: center;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.62), 0 0 0 1px rgba(255,255,255,0.03);
+      transform: translateY(20px) scale(0.96);
+      opacity: 0;
+      transition: transform 0.55s var(--ease), opacity 0.55s var(--ease);
+    }
+    .modal-overlay.open .modal { transform: none; opacity: 1; }
+    .modal-glow {
+      position: absolute; top: -90px; left: 50%; transform: translateX(-50%);
+      width: 320px; height: 220px; pointer-events: none;
+      background: radial-gradient(ellipse, rgba(255,90,54,0.28), transparent 70%);
+    }
+    .modal-badge {
+      width: 64px; height: 64px; margin: 0 auto 22px;
+      border-radius: 20px; position: relative; z-index: 1;
+      background: linear-gradient(145deg, #ff8a5c, #c2350f);
+      display: grid; place-items: center;
+      font-size: 30px; color: #fff;
+      box-shadow: 0 10px 30px rgba(255,90,54,0.45);
+      animation: badgePop 0.6s var(--ease) 0.12s both;
+    }
+    @keyframes badgePop {
+      from { transform: scale(0.4); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .modal h3 {
+      font-size: 26px; font-weight: 900; letter-spacing: -0.03em;
+      margin-bottom: 12px; position: relative; z-index: 1;
+    }
+    .modal > p {
+      font-size: 15px; color: var(--muted-hi); line-height: 1.7;
+      margin-bottom: 26px; position: relative; z-index: 1;
+    }
+    .modal > p strong { color: var(--text); font-weight: 600; }
+    .modal-steps {
+      display: flex; gap: 10px; text-align: left;
+      margin-bottom: 26px; position: relative; z-index: 1;
+    }
+    .modal-step {
+      flex: 1; background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 12px 13px;
+    }
+    .modal-step-i { font-size: 17px; margin-bottom: 7px; }
+    .modal-step-t { font-size: 11.5px; color: var(--muted-hi); line-height: 1.45; }
+    .modal-cta {
+      width: 100%; background: var(--blue); color: #fff; border: none;
+      padding: 14px; border-radius: 13px; cursor: pointer;
+      font: 600 15px/1 'Inter', sans-serif; position: relative; z-index: 1;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.25s;
+    }
+    .modal-cta:hover { background: #ff6e4d; transform: translateY(-1.5px); box-shadow: 0 8px 26px rgba(255,90,54,0.4); }
+    .modal-cta:active { transform: translateY(0) scale(0.985); }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px; z-index: 2;
+      width: 30px; height: 30px; border-radius: 9px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      color: var(--muted-hi); cursor: pointer; font-size: 12px;
+      display: grid; place-items: center;
+      transition: background 0.2s, color 0.2s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    @media (max-width: 480px) {
+      .modal { padding: 38px 22px 24px; }
+      .modal-steps { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div id="page-bg"></div>
+<canvas id="bg-canvas"></canvas>
+
+<!-- ── NAV ──────────────────────────────────────────────────── -->
+<nav id="nav">
+  <a href="#" class="logo">
+    <div class="logo-mark">T</div>
+    <span class="logo-name">Tempo</span>
+  </a>
+  <a href="#cta" class="nav-btn">Join waitlist</a>
+</nav>
+
+<!-- ── HERO (WebGL shader) ───────────────────────────────────── -->
+<section class="hero" id="hero-section">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-grid"></div>
+
+  <div class="badge">
+    <span class="badge-dot"></span>
+    Coming soon to iOS &amp; Android
+  </div>
+
+  <h1 class="hero-title">
+    <span class="line"><span class="word">Workouts that fit</span></span>
+    <span class="line"><span class="word gradient-text">your life.</span></span>
+  </h1>
+
+  <p class="hero-body">
+    Tempo connects to your calendar, finds your free time, and builds a personalized workout plan around your actual schedule — then adapts when life changes.
+  </p>
+
+  <div class="form-shell">
+    <form class="email-row" id="hero-form">
+      <input type="email" class="email-field" placeholder="your@email.com" required>
+      <button type="submit" class="cta-btn">Join waitlist →<span class="origin-ripple"></span></button>
+    </form>
+    <p class="form-note">No spam. Unsubscribe anytime.</p>
+    <p class="form-msg ok"  id="h-ok"></p>
+    <p class="form-msg err" id="h-err"></p>
+  </div>
+</section>
+
+<!-- ── PROBLEM ───────────────────────────────────────────────── -->
+<div class="divider"></div>
+<section class="section">
+  <div class="section-in">
+    <p class="eyebrow" data-sr>The Problem</p>
+    <div class="prob-top">
+      <div class="stat-num" data-sr data-count="90" style="--d:80ms">0%</div>
+      <div class="stat-text" data-sr style="--d:180ms">
+        <h2>of fitness app users quit<br>within 30 days.</h2>
+        <p>It's not a willpower problem. It's a scheduling problem.<br>And most apps make it worse.</p>
+      </div>
+    </div>
+    <div class="prob-cards">
+      <div class="prob-card" data-sr style="--d:0ms">
+        <h3>"I don't have time."</h3>
+        <p>The most common reason people skip workouts. Schedule is the real barrier — not motivation.</p>
+      </div>
+      <div class="prob-card" data-sr style="--d:100ms">
+        <h3>"I don't know what to do."</h3>
+        <p>Opening an app to 500 workout options creates paralysis. People close the app and watch Netflix instead.</p>
+      </div>
+      <div class="prob-card" data-sr style="--d:200ms">
+        <h3>"I missed a week."</h3>
+        <p>One disrupted week becomes two, then permanent. Apps guilt-trip you instead of quietly adapting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 3D SCROLL PREVIEW ─────────────────────────────────────── -->
+<div class="divider"></div>
+<section class="preview-section" id="preview-section">
+  <div class="preview-sticky">
+
+    <!-- Scene atmosphere -->
+    <div class="preview-ambient"></div>
+
+    <!-- Header (scrolls away) -->
+    <div class="preview-header" id="preview-header">
+      <p class="eyebrow">The App</p>
+      <h2 class="s-title">See Tempo <span class="gradient-text">in action.</span></h2>
+    </div>
+
+    <!-- 3D phone scene -->
+    <div class="phone-scene" id="phone-scene">
+
+      <!-- Glow orb behind phone -->
+      <div class="phone-glow" id="phone-glow"></div>
+
+      <!-- Phone with cycling screens -->
+      <div class="phone-wrap" id="phone-wrap">
+        <div class="phone-frame">
+          <div class="phone-screen-wrap">
+
+            <!-- Screen 0: Schedule -->
+            <div class="phone-screen app-screen active" id="ps-0">
+              <div class="app-sb"></div>
+              <div class="app-nav">
+                <span class="app-nav-title">Schedule</span>
+                <span class="app-nav-add">＋</span>
+              </div>
+              <div class="app-week">
+                <div class="app-wday"><span class="app-wday-lbl">M</span><span class="app-wday-num">13</span></div>
+                <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">14</span></div>
+                <div class="app-wday today"><span class="app-wday-lbl">W</span><span class="app-wday-num">15</span><div class="app-wday-dot"></div></div>
+                <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">16</span></div>
+                <div class="app-wday"><span class="app-wday-lbl">F</span><span class="app-wday-num">17</span><div class="app-wday-dot"></div></div>
+                <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">18</span></div>
+                <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">19</span></div>
+              </div>
+              <div class="app-scroll">
+                <div class="app-slabel">Today</div>
+                <div class="app-event app-ev-b">
+                  <div class="app-ev-time">10:30 AM</div>
+                  <div class="app-ev-info"><div class="app-ev-title">Upper Body Power</div><div class="app-ev-sub">45 min · Gym · 6 exercises</div></div>
+                  <div class="app-ev-badge">Scheduled</div>
+                </div>
+                <div class="app-slabel">Tomorrow</div>
+                <div class="app-event app-ev-g">
+                  <div class="app-ev-time">7:00 AM</div>
+                  <div class="app-ev-info"><div class="app-ev-title">5K Easy Run</div><div class="app-ev-sub">30 min · Outdoor</div></div>
+                </div>
+                <div class="app-event app-ev-p">
+                  <div class="app-ev-time">12:00 PM</div>
+                  <div class="app-ev-info"><div class="app-ev-title">Core &amp; Mobility</div><div class="app-ev-sub">25 min · Home</div></div>
+                </div>
+                <div class="app-slabel">Thursday</div>
+                <div class="app-event app-ev-b">
+                  <div class="app-ev-time">6:30 PM</div>
+                  <div class="app-ev-info"><div class="app-ev-title">Lower Body Strength</div><div class="app-ev-sub">50 min · Gym</div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Screen 1: Workout Detail -->
+            <div class="phone-screen app-screen" id="ps-1">
+              <div class="app-sb"></div>
+              <div class="app-nav">
+                <span class="app-nav-back">← Back</span>
+                <span class="app-nav-title">Today's Workout</span>
+              </div>
+              <div class="app-scroll">
+                <div class="app-wh">
+                  <div class="app-wh-title">Upper Body Power</div>
+                  <div class="app-wh-meta">
+                    <div class="app-chip">⏱ 45 min</div>
+                    <div class="app-chip b">💪 Intermediate</div>
+                    <div class="app-chip">🏋️ Gym</div>
+                  </div>
+                </div>
+                <div class="app-exlist">
+                  <div class="app-ex"><div class="app-ex-n">1</div><div><div class="app-ex-nm">Barbell Bench Press</div><div class="app-ex-s">4 sets · 8–10 reps</div></div></div>
+                  <div class="app-ex"><div class="app-ex-n">2</div><div><div class="app-ex-nm">Incline DB Press</div><div class="app-ex-s">3 sets · 10–12 reps</div></div></div>
+                  <div class="app-ex"><div class="app-ex-n">3</div><div><div class="app-ex-nm">Cable Fly</div><div class="app-ex-s">3 sets · 12–15 reps</div></div></div>
+                  <div class="app-ex"><div class="app-ex-n">4</div><div><div class="app-ex-nm">Overhead Press</div><div class="app-ex-s">3 sets · 8–10 reps</div></div></div>
+                  <div class="app-ex"><div class="app-ex-n">5</div><div><div class="app-ex-nm">Lateral Raises</div><div class="app-ex-s">3 sets · 15 reps</div></div></div>
+                  <div class="app-ex"><div class="app-ex-n">6</div><div><div class="app-ex-nm">Tricep Pushdown</div><div class="app-ex-s">3 sets · 12 reps</div></div></div>
+                  <div class="app-bigbtn">Start Workout</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Screen 2: Active Session -->
+            <div class="phone-screen app-screen app-act" id="ps-2">
+              <div class="app-sb"></div>
+              <div class="app-act-hdr">
+                <div class="app-act-ex">Barbell Bench Press</div>
+                <div class="app-act-set">Set 3 of 4 · 8–10 reps</div>
+              </div>
+              <div class="app-act-wgt">
+                <div class="app-act-num">135</div>
+                <div class="app-act-unt">lbs</div>
+              </div>
+              <div class="app-act-hist">
+                <div class="app-act-ct">Previous Sets</div>
+                <div class="app-act-row"><div class="app-act-sn">1</div><div class="app-act-sv">135 lbs · 10 reps</div><div class="app-act-ck">✓</div></div>
+                <div class="app-act-row"><div class="app-act-sn">2</div><div class="app-act-sv">135 lbs · 9 reps</div><div class="app-act-ck">✓</div></div>
+                <div class="app-act-row cur"><div class="app-act-sn">3</div><div class="app-act-sv">135 lbs · ? reps</div><div class="app-act-now">Now</div></div>
+                <div class="app-act-row" style="opacity:0.35"><div class="app-act-sn">4</div><div class="app-act-sv">Next</div></div>
+                <div class="app-bigbtn dark">Log Set</div>
+              </div>
+            </div>
+
+            <!-- Screen 3: Progress -->
+            <div class="phone-screen app-screen" id="ps-3">
+              <div class="app-sb"></div>
+              <div class="app-nav"><span class="app-nav-title">Progress</span></div>
+              <div class="app-scroll">
+                <div class="app-prg-top">
+                  <div class="app-ring"><div class="app-ring-in"><div class="app-ring-pct">85%</div><div class="app-ring-lbl">consistency</div></div></div>
+                  <div class="app-streak">
+                    <div style="display:flex;align-items:center;gap:6px"><div class="app-streak-n">48</div><span style="font-size:22px">🔥</span></div>
+                    <div class="app-streak-l">day streak</div>
+                    <div style="font-size:12px;color:#10B981;margin-top:8px;font-weight:600">↑ 92% weekly adherence</div>
+                  </div>
+                </div>
+                <div class="app-prg-chart">
+                  <div class="app-prg-ct">This Week</div>
+                  <div class="app-bars">
+                    <div class="app-bwrap"><div class="app-bar done" style="height:56px"></div><div class="app-blbl">M</div></div>
+                    <div class="app-bwrap"><div class="app-bar done" style="height:42px"></div><div class="app-blbl">T</div></div>
+                    <div class="app-bwrap"><div class="app-bar cur"  style="height:48px"></div><div class="app-blbl">W</div></div>
+                    <div class="app-bwrap"><div class="app-bar" style="height:38px"></div><div class="app-blbl">T</div></div>
+                    <div class="app-bwrap"><div class="app-bar" style="height:52px"></div><div class="app-blbl">F</div></div>
+                    <div class="app-bwrap"><div class="app-bar" style="height:28px;opacity:0.3"></div><div class="app-blbl">S</div></div>
+                    <div class="app-bwrap"><div class="app-bar" style="height:28px;opacity:0.3"></div><div class="app-blbl">S</div></div>
+                  </div>
+                </div>
+                <div class="app-prg-stats">
+                  <div class="app-scard"><div class="app-scard-n">12</div><div class="app-scard-l">Workouts this month</div></div>
+                  <div class="app-scard"><div class="app-scard-n">6.4h</div><div class="app-scard-l">Total training time</div></div>
+                </div>
+                <div class="app-prg-stats">
+                  <div class="app-scard"><div class="app-scard-n" style="color:#10B981">↑15%</div><div class="app-scard-l">Volume increase</div></div>
+                  <div class="app-scard"><div class="app-scard-n">3</div><div class="app-scard-l">Sessions left this week</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="phone-island"></div>
+          </div>
+          <div class="phone-home-area"><div class="phone-home-pill"></div></div>
+          <div class="phone-shine"></div>
+        </div>
+        <div class="screen-dots" id="screen-dots">
+          <div class="screen-dot active"></div>
+          <div class="screen-dot"></div>
+          <div class="screen-dot"></div>
+          <div class="screen-dot"></div>
+        </div>
+      </div>
+
+      <!-- Floating feature callout cards -->
+      <div class="float-card fc-left" id="fc-0">
+        <div class="fc-icon">📅</div>
+        <div><div class="fc-title">Calendar-synced</div><div class="fc-sub">Finds your free windows</div></div>
+      </div>
+      <div class="float-card fc-right" id="fc-1">
+        <div class="fc-icon">⚡</div>
+        <div><div class="fc-title">Plan adapted</div><div class="fc-sub">Life changed, plan adjusted</div></div>
+      </div>
+
+    </div><!-- /phone-scene -->
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ──────────────────────────────────────────── -->
+<div class="divider"></div>
+<section class="section">
+  <div class="section-in">
+    <p class="eyebrow" data-sr>How Tempo Works</p>
+    <h2 class="s-title" data-sr style="--d:80ms">Three things, done right.</h2>
+    <div class="steps">
+      <div class="step" data-sr style="--d:0ms">
+        <div class="step-n">01</div>
+        <h3>Connects to your calendar</h3>
+        <p>Tempo reads your Google or Apple Calendar, finds your free windows, and books workouts like meetings — automatically.</p>
+      </div>
+      <div class="step" data-sr style="--d:140ms">
+        <div class="step-n">02</div>
+        <h3>Builds your plan</h3>
+        <p>Based on your goals, experience, and available equipment, Tempo creates a structured, progressive program that actually makes sense.</p>
+      </div>
+      <div class="step" data-sr style="--d:280ms">
+        <div class="step-n">03</div>
+        <h3>Adapts when life happens</h3>
+        <p>Meeting at lunchtime? Tough week? Tempo detects conflicts and reshuffles your plan — no guilt, no momentum lost.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES (light theme) ────────────────────────────────── -->
+<section class="section section--light">
+  <div class="section-in">
+    <p class="eyebrow" data-sr>Features</p>
+    <h2 class="s-title" data-sr style="--d:80ms">Built for real life,<br>not ideal conditions.</h2>
+    <p class="s-body" data-sr style="--d:140ms">Six things Tempo does so a busy week never becomes a lost one.</p>
+    <div class="feat-grid">
+      <div class="feat-card fc-blue" data-sr style="--d:0ms">
+        <div class="feat-wm">📅</div>
+        <div class="feat-icon">📅</div>
+        <h3>Calendar-aware scheduling</h3>
+        <p>Workouts appear in your calendar where you actually have time — not a generic weekly template you ignore.</p>
+      </div>
+      <div class="feat-card fc-purple" data-sr style="--d:80ms">
+        <div class="feat-wm">🔄</div>
+        <div class="feat-icon">🔄</div>
+        <h3>No-shame adaptation</h3>
+        <p>Miss a session? Tempo quietly reshuffles and keeps your streak alive.</p>
+      </div>
+      <div class="feat-card fc-green" data-sr style="--d:0ms">
+        <div class="feat-wm">📈</div>
+        <div class="feat-icon">📈</div>
+        <h3>Progressive overload</h3>
+        <p>Exact weights, every session. No guessing, no plateaus.</p>
+      </div>
+      <div class="feat-card fc-amber" data-sr style="--d:80ms">
+        <div class="feat-wm">⚡</div>
+        <div class="feat-icon">⚡</div>
+        <h3>Context-aware workouts</h3>
+        <p>Only 20 minutes? Tempo condenses your session automatically — no manual editing required.</p>
+      </div>
+      <div class="feat-card fc-teal" data-sr style="--d:160ms">
+        <div class="feat-wm">✈️</div>
+        <div class="feat-icon">✈️</div>
+        <h3>Life event modes</h3>
+        <p>Traveling, sick, or slammed at work? One tap switches your plan to fit the moment.</p>
+      </div>
+      <div class="feat-card fc-indigo" data-sr style="--d:240ms">
+        <div class="feat-wm">🎯</div>
+        <div class="feat-icon">🎯</div>
+        <h3>Minimum effective dose</h3>
+        <p>Start with the least training needed to hit your goals, then scale as the habit locks in.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────── -->
+<div class="cta-wrap" id="cta">
+  <div class="cta-card" data-sr="scale">
+    <h2>Ready to actually<br>stay consistent?</h2>
+    <p>Join the waitlist and be first to know when Tempo launches on iOS and Android.</p>
+    <form class="email-row" id="cta-form">
+      <input type="email" class="email-field" placeholder="your@email.com" required>
+      <button type="submit" class="cta-btn">Join waitlist →<span class="origin-ripple"></span></button>
+    </form>
+    <p class="form-note">No spam. Unsubscribe anytime.</p>
+    <p class="form-msg ok"  id="c-ok"></p>
+    <p class="form-msg err" id="c-err"></p>
+  </div>
+</div>
+
+<!-- ── FOOTER ────────────────────────────────────────────────── -->
+<footer>
+  <a href="#" class="logo">
+    <div class="logo-mark">T</div>
+    <span class="logo-name">Tempo</span>
+  </a>
+  <p>© 2026 Tempo. All rights reserved.</p>
+</footer>
+
+<!-- ── SUCCESS MODAL ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="success-modal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-glow"></div>
+    <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+    <div class="modal-badge">✓</div>
+    <h3 id="modal-title">You're on the list.</h3>
+    <p>We'll send your early invite to <strong id="modal-email">your inbox</strong> the moment Tempo opens up. No spam in the meantime — promise.</p>
+    <div class="modal-steps">
+      <div class="modal-step"><div class="modal-step-i">📨</div><div class="modal-step-t">Watch your inbox for the invite</div></div>
+      <div class="modal-step"><div class="modal-step-i">📅</div><div class="modal-step-t">Connect your calendar in 30 seconds</div></div>
+      <div class="modal-step"><div class="modal-step-i">🏃</div><div class="modal-step-t">First plan built around your week</div></div>
+    </div>
+    <button class="modal-cta" id="modal-ok">Got it</button>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   1. NAV
+══════════════════════════════════════════════════════════════ */
+const nav = document.getElementById('nav');
+const onScroll = () => nav.classList.toggle('stuck', scrollY > 16);
+addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+
+/* ════════════════════════════════════════════════════════════
+   2. SCROLL REVEAL
+══════════════════════════════════════════════════════════════ */
+const reveal = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); reveal.unobserve(e.target); }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -64px 0px' });
+document.querySelectorAll('[data-sr]').forEach(el => reveal.observe(el));
+
+/* ════════════════════════════════════════════════════════════
+   3. COUNT-UP STAT
+══════════════════════════════════════════════════════════════ */
+const statEl = document.querySelector('[data-count]');
+if (statEl) {
+  const target = parseInt(statEl.dataset.count, 10);
+  const io = new IntersectionObserver(([e]) => {
+    if (!e.isIntersecting) return;
+    io.disconnect();
+    const start = performance.now(), dur = 1400;
+    const tick = now => {
+      const p = Math.min((now - start) / dur, 1);
+      statEl.textContent = Math.round((1 - Math.pow(1-p, 3)) * target) + '%';
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, { threshold: 0.5 });
+  io.observe(statEl);
+}
+
+/* ════════════════════════════════════════════════════════════
+   4. FEATURE CARD CURSOR GLOW
+══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.feat-card').forEach(card => {
+  card.addEventListener('mousemove', ({ clientX, clientY }) => {
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--cx', ((clientX - r.left) / r.width  * 100) + '%');
+    card.style.setProperty('--cy', ((clientY - r.top)  / r.height * 100) + '%');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════
+   5. 3D PHONE PREVIEW — scroll-driven + mouse tilt + screen cycling
+══════════════════════════════════════════════════════════════ */
+(function () {
+  const section   = document.getElementById('preview-section');
+  const phoneWrap = document.getElementById('phone-wrap');
+  const header    = document.getElementById('preview-header');
+  const phoneGlow = document.getElementById('phone-glow');
+  const floatCards= [...document.querySelectorAll('.float-card')];
+  const screens   = [...document.querySelectorAll('.phone-screen')];
+  const dots      = [...document.querySelectorAll('.screen-dot')];
+  if (!section || !phoneWrap) return;
+
+  /* ── Screen cycling ── */
+  let cur = 0;
+  function nextScreen() {
+    screens[cur].classList.remove('active');
+    dots[cur].classList.remove('active');
+    cur = (cur + 1) % screens.length;
+    screens[cur].classList.add('active');
+    dots[cur].classList.add('active');
+  }
+  const cycleTimer = setInterval(nextScreen, 3400);
+
+  /* ── Mouse tracking ── */
+  let mx = 0, my = 0;
+  document.addEventListener('mousemove', e => {
+    mx = (e.clientX / innerWidth  - 0.5) * 2;
+    my = (e.clientY / innerHeight - 0.5) * 2;
+  }, { passive: true });
+
+  /* ── Helpers ── */
+  function scrollP() {
+    const r = section.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight + r.height)));
+  }
+  function easeOut(t, exp = 2.4) { return 1 - Math.pow(1 - t, exp); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  /* Float card entrance triggers (scroll progress value) */
+  const cardTriggers = [0.28, 0.52];
+
+  /* ── Animation loop ── */
+  let raf;
+  function tick() {
+    const p  = scrollP();
+    const e  = easeOut(Math.min(p * 1.7, 1));   // completes at ~59% scroll
+
+    /* -- Phone 3D rotation: dramatic tilt → flat -- */
+    const baseRotX = lerp(26, 0, e);
+    const baseRotY = lerp(-10, 0, e);
+    /* Mouse micro-tilt (always active, more prominent when flat) */
+    const microX = my * lerp(1.5, 4, e);
+    const microY = mx * lerp(2, 6, e);
+    const scaleV = lerp(1.08, 1, e);
+
+    phoneWrap.style.transform = `
+      perspective(1100px)
+      rotateX(${baseRotX + microX}deg)
+      rotateY(${baseRotY + microY}deg)
+      scale(${scaleV})
+    `;
+
+    /* -- Glow: intensifies as phone settles -- */
+    if (phoneGlow) {
+      phoneGlow.style.opacity  = lerp(0.4, 1, e);
+      phoneGlow.style.transform = `translate(-50%, -50%) scale(${lerp(0.85, 1.15, e)})`;
+    }
+
+    /* -- Header: floats upward and fades -- */
+    const headP  = Math.max(0, Math.min(1, p * 3));
+    header.style.transform = `translateY(${-60 * headP}px)`;
+    header.style.opacity   = 1 - headP;
+
+    /* -- Float cards: staggered slide-in from sides -- */
+    floatCards.forEach((card, i) => {
+      const trigger = cardTriggers[i];
+      const local   = easeOut(Math.max(0, Math.min(1, (p - trigger) / 0.13)));
+      const side    = i % 2 === 0 ? -1 : 1;
+      /* Cards fade out near the end of the scroll */
+      const fadeOut = easeOut(Math.max(0, (p - 0.80) / 0.14));
+      const op      = local * (1 - fadeOut);
+      card.style.opacity   = op;
+      card.style.transform = `translateX(${side * (1 - local) * 56}px) translateY(${-local * 6}px)`;
+    });
+
+    raf = requestAnimationFrame(tick);
+  }
+
+  /* Only run when section is in/near viewport */
+  const sectionObs = new IntersectionObserver(([e]) => {
+    if (e.isIntersecting) { raf = requestAnimationFrame(tick); }
+    else { cancelAnimationFrame(raf); }
+  }, { rootMargin: '200px' });
+  sectionObs.observe(section);
+})();
+
+/* ════════════════════════════════════════════════════════════
+   6. WEBGL SHADER HERO — Blue nebula (ported from Matthias Hurrle)
+══════════════════════════════════════════════════════════════ */
+(function () {
+  const canvas = document.getElementById('hero-canvas');
+  const hero   = document.getElementById('hero-section');
+  if (!canvas) return;
+
+  const gl = canvas.getContext('webgl2');
+  if (!gl) return; // silently fall back to CSS bg
+
+  const VS_SRC = `#version 300 es
+precision highp float;
+in vec4 position;
+void main(){ gl_Position = position; }`;
+
+  // Blue-palette variant of Matthias Hurrle's cloud shader
+  const FS_SRC = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform vec2  resolution;
+uniform float time;
+#define FC gl_FragCoord.xy
+#define T  time
+#define R  resolution
+#define MN min(R.x,R.y)
+
+float rnd(vec2 p){
+  p=fract(p*vec2(12.9898,78.233));
+  p+=dot(p,p+34.56);
+  return fract(p.x*p.y);
+}
+float noise(vec2 p){
+  vec2 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);
+  return mix(mix(rnd(i),rnd(i+vec2(1,0)),u.x),
+             mix(rnd(i+vec2(0,1)),rnd(i+1.),u.x),u.y);
+}
+float fbm(vec2 p){
+  float t=.0,a=1.;mat2 m=mat2(1.,-.5,.2,1.2);
+  for(int i=0;i<5;i++){t+=a*noise(p);p*=2.*m;a*=.5;}
+  return t;
+}
+float clouds(vec2 p){
+  float d=1.,t=.0;
+  for(float i=.0;i<3.;i++){
+    float a=d*fbm(i*10.+p.x*.2+.2*(1.+i)*p.y+d+i*i+p);
+    t=mix(t,d,a);d=a;p*=2./(i+1.);
+  }
+  return t;
+}
+void main(){
+  vec2 uv=(FC-.5*R)/MN, st=uv*vec2(2,1);
+  vec3 col=vec3(0);
+  float bg=clouds(vec2(st.x+T*.5,-st.y));
+  uv*=1.-.3*(sin(T*.2)*.5+.5);
+  for(float i=1.;i<12.;i++){
+    uv+=.1*cos(i*vec2(.1+.01*i,.8)+i*i+T*.5+.1*uv.x);
+    vec2 p=uv;
+    float d=length(p);
+    // Swapped vec3 channels: blue/indigo palette
+    col+=.00125/d*(cos(sin(i)*vec3(3.,2.,0.8))+1.);
+    float b=noise(i+p+bg*1.731);
+    col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
+    // Deep ember-ink background mix (warm: red-dominant)
+    col=mix(col, vec3(bg*.17, bg*.055, bg*.02), d);
+  }
+  // Tone-map: warm ember tint, muted so hero text stays readable
+  col = col * vec3(1.0, 0.42, 0.22) * 0.72;
+  col = pow(max(col, vec3(0)), vec3(0.88));
+  O = vec4(col, 1.0);
+}`;
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+
+  const vs   = compile(gl.VERTEX_SHADER,   VS_SRC);
+  const fs   = compile(gl.FRAGMENT_SHADER, FS_SRC);
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,1,-1,-1,1,1,1,-1]), gl.STATIC_DRAW);
+  const posLoc = gl.getAttribLocation(prog, 'position');
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+  const uRes  = gl.getUniformLocation(prog, 'resolution');
+  const uTime = gl.getUniformLocation(prog, 'time');
+
+  let dpr, W, H, raf;
+
+  function resize() {
+    dpr = Math.max(1, Math.min(window.devicePixelRatio, 2));
+    W   = hero.offsetWidth;
+    H   = hero.offsetHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  function loop(now) {
+    gl.uniform2f(uRes, W, H);
+    gl.uniform1f(uTime, now * 0.001);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    raf = requestAnimationFrame(loop);
+  }
+
+  resize();
+  addEventListener('resize', resize, { passive: true });
+  raf = requestAnimationFrame(loop);
+
+  // Pause when hero leaves viewport for perf
+  const heroObs = new IntersectionObserver(([e]) => {
+    if (e.isIntersecting) { raf = requestAnimationFrame(loop); }
+    else { cancelAnimationFrame(raf); }
+  });
+  heroObs.observe(hero);
+})();
+
+/* ════════════════════════════════════════════════════════════
+   7. ORIGIN BUTTON RIPPLE
+══════════════════════════════════════════════════════════════ */
+(function () {
+  function coverDiam(w, h, x, y) {
+    return Math.ceil(2 * Math.max(
+      Math.hypot(x, y), Math.hypot(w - x, y),
+      Math.hypot(x, h - y), Math.hypot(w - x, h - y)
+    ));
+  }
+  document.querySelectorAll('.cta-btn').forEach(btn => {
+    const ripple = btn.querySelector('.origin-ripple');
+    if (!ripple) return;
+    function place(e) {
+      const r = btn.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const d = coverDiam(r.width, r.height, x, y);
+      ripple.style.width = ripple.style.height = d + 'px';
+      ripple.style.left  = x + 'px';
+      ripple.style.top   = y + 'px';
+    }
+    btn.addEventListener('pointerenter', e => { place(e); btn.classList.add('rip-in'); });
+    btn.addEventListener('pointermove',  e => { if (!btn.classList.contains('rip-in')) return; });
+    btn.addEventListener('pointerleave', () => btn.classList.remove('rip-in'));
+    btn.addEventListener('pointerdown',  e => { place(e); btn.classList.add('rip-in'); });
+  });
+})();
+
+/* ════════════════════════════════════════════════════════════
+   8. BACKGROUND RINGS SHADER — subtle texture for content sections
+══════════════════════════════════════════════════════════════ */
+(function () {
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const gl = canvas.getContext('webgl2');
+  if (!gl) return;
+
+  const VS = `#version 300 es
+precision highp float;
+in vec4 position;
+void main(){ gl_Position = position; }`;
+
+  const FS = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform vec2 resolution;
+uniform float time;
+void main(){
+  vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
+  float t = time * 0.016;
+  float lw = 0.0014;
+  vec3 color = vec3(0.0);
+  for(int j = 0; j < 3; j++){
+    for(int i = 0; i < 5; i++){
+      color[j] += lw * float(i*i) / max(
+        abs(fract(t - 0.01*float(j) + float(i)*0.013)*5.5
+            - length(uv)
+            + mod(uv.x + uv.y, 0.22)),
+        0.0003
+      );
+    }
+  }
+  /* Bias toward ember: full red, partial green, mute blue */
+  color = vec3(color.r * 1.0, color.g * 0.42, color.b * 0.16);
+  O = vec4(clamp(color, 0.0, 1.0), 1.0);
+}`;
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s); return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog); gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,1,-1,-1,1,1,1,-1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+  const uRes  = gl.getUniformLocation(prog, 'resolution');
+  const uTime = gl.getUniformLocation(prog, 'time');
+  let W, H;
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    W = canvas.width  = window.innerWidth  * dpr;
+    H = canvas.height = window.innerHeight * dpr;
+    gl.viewport(0, 0, W, H);
+  }
+  resize();
+  addEventListener('resize', resize, { passive: true });
+
+  function loop(now) {
+    gl.uniform2f(uRes, W, H);
+    gl.uniform1f(uTime, now * 0.001);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ════════════════════════════════════════════════════════════
+   9. FORM SUBMIT
+══════════════════════════════════════════════════════════════ */
+/* ── Success modal control ── */
+const successModal = document.getElementById('success-modal');
+function openSuccess(email) {
+  const emailEl = document.getElementById('modal-email');
+  if (emailEl && email) emailEl.textContent = email;
+  successModal.classList.add('open');
+  successModal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modal-ok').focus();
+}
+function closeSuccess() {
+  successModal.classList.remove('open');
+  successModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+document.getElementById('modal-close').addEventListener('click', closeSuccess);
+document.getElementById('modal-ok').addEventListener('click', closeSuccess);
+successModal.addEventListener('click', e => { if (e.target === successModal) closeSuccess(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && successModal.classList.contains('open')) closeSuccess(); });
+
+async function submit(form, okId, errId) {
+  const email = form.querySelector('input').value.trim();
+  const btn   = form.querySelector('button');
+  const okEl  = document.getElementById(okId);
+  const errEl = document.getElementById(errId);
+  const orig  = btn.innerHTML;          // preserve label + ripple span
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Joining…';
+  if (okEl)  okEl.style.display = 'none';
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const res  = await fetch('/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      form.reset();
+      openSuccess(email);
+    } else {
+      errEl.textContent = data.error || 'Something went wrong.';
+      errEl.style.display = 'block';
+    }
+  } catch {
+    errEl.textContent = 'Could not connect. Please try again.';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.innerHTML = orig;
+}
+
+document.getElementById('hero-form').addEventListener('submit', e => { e.preventDefault(); submit(e.target,'h-ok','h-err'); });
+document.getElementById('cta-form').addEventListener('submit',  e => { e.preventDefault(); submit(e.target,'c-ok','c-err'); });
+</script>
+</body>
+</html>

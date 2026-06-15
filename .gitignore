@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+*.env.local
+*.json.key
+credentials.json
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.tsbuildinfo
+
+# Next.js / web
+.next/
+
+# OS
+.DS_Store
