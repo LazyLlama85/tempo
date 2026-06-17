@@ -1,54 +1,45 @@
 import { Platform } from 'react-native';
 
+// Tempo ships a single, dark, sports-performance theme (Whoop/Strava energy):
+// near-black backgrounds, near-white text, one electric-blue accent. The key is
+// kept as `light` because every screen resolves `Colors.light` directly — and
+// `dark` mirrors it so any color-scheme-driven path stays consistently dark.
+const tempoDark = {
+  // Backgrounds — elevation ramp from the screen base up to fills/tracks
+  surface: '#0C0D10',              // screen background (darkest)
+  background: '#15181E',           // cards / elevated surfaces
+  surfaceContainerLow: '#191C22',  // chips, inputs, secondary cards
+  surfaceContainer: '#1F232B',
+  surfaceContainerHigh: '#2A2F39', // progress tracks, skeletons (lightest fill)
+  // Text
+  text: '#F2F3F6',
+  textSecondary: '#A6ACBA',
+  outline: '#767E8C',
+  outlineVariant: '#2B313B',       // hairline borders / dividers
+  // Primary (electric blue accent)
+  primary: '#3D82F7',
+  primaryContainer: '#1E4FD0',
+  onPrimary: '#FFFFFF',
+  // Secondary
+  secondary: '#9BA3AF',
+  secondaryContainer: '#232830',
+  onSecondary: '#0B0B0D',
+  // Error
+  error: '#FF6B6B',
+  errorContainer: '#3A1414',
+  // Semantic tints (used on dark cards)
+  primarySoft: 'rgba(61,130,247,0.16)',
+  success: '#34D399',
+  successSoft: 'rgba(52,211,153,0.16)',
+  dangerSoft: 'rgba(255,107,107,0.16)',
+  // Legacy aliases used in existing components
+  backgroundElement: '#1F232B',
+  backgroundSelected: '#232830',
+} as const;
+
 export const Colors = {
-  light: {
-    // Backgrounds
-    background: '#FFFFFF',
-    surface: '#FCF8F9',
-    surfaceContainer: '#F0EDEE',
-    surfaceContainerLow: '#F6F3F4',
-    surfaceContainerHigh: '#EAE7E8',
-    // Text
-    text: '#1B1B1C',
-    textSecondary: '#414755',
-    outline: '#717786',
-    outlineVariant: '#C1C6D7',
-    // Primary (Tempo Blue)
-    primary: '#0058BC',
-    primaryContainer: '#0070EB',
-    onPrimary: '#FFFFFF',
-    // Secondary
-    secondary: '#5D5E63',
-    secondaryContainer: '#DFDFE4',
-    onSecondary: '#FFFFFF',
-    // Error
-    error: '#BA1A1A',
-    errorContainer: '#FFDAD6',
-    // Legacy aliases used in existing components
-    backgroundElement: '#F0EDEE',
-    backgroundSelected: '#DFDFE4',
-  },
-  dark: {
-    background: '#1B1B1C',
-    surface: '#242425',
-    surfaceContainer: '#2E2E2F',
-    surfaceContainerLow: '#282829',
-    surfaceContainerHigh: '#383839',
-    text: '#E5E2E3',
-    textSecondary: '#9497A0',
-    outline: '#8B9099',
-    outlineVariant: '#414755',
-    primary: '#ADC6FF',
-    primaryContainer: '#0058BC',
-    onPrimary: '#001A41',
-    secondary: '#C6C6CB',
-    secondaryContainer: '#414347',
-    onSecondary: '#2E3035',
-    error: '#FFB4AB',
-    errorContainer: '#93000A',
-    backgroundElement: '#2E2E2F',
-    backgroundSelected: '#414347',
-  },
+  light: tempoDark,
+  dark: tempoDark,
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;

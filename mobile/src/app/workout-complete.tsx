@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -6,6 +6,8 @@ import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
+import { supabase } from '@/lib/supabase'
+import { recordWorkoutFeedback, type WorkoutFeel } from '@/lib/adaptation'
 
 const C = Colors.light
 
@@ -26,10 +28,27 @@ export default function WorkoutCompleteScreen() {
   const mins = Number(minutes) || 0
 
   const { stats, refetch } = useProgressStats(userId)
+  const [feel, setFeel] = useState<WorkoutFeel | null>(null)
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
   useEffect(() => { refetch() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFeel = (f: WorkoutFeel) => {
+    setFeel(f)
+    if (userId) recordWorkoutFeedback(supabase, userId, f)
+  }
+
+  const FEEL_OPTIONS: { key: WorkoutFeel; label: string; icon: string }[] = [
+    { key: 'too_easy', label: 'Too easy', icon: 'flash-outline' },
+    { key: 'just_right', label: 'Just right', icon: 'checkmark-circle-outline' },
+    { key: 'too_hard', label: 'Too hard', icon: 'flame-outline' },
+  ]
+  const feelConfirm: Record<WorkoutFeel, string> = {
+    too_easy: "Got it — we'll add a set to each lift next session to push you.",
+    just_right: 'Perfect — your plan stays right where it is.',
+    too_hard: "Noted — we'll ease back the volume next time so you recover.",
+  }
 
   const goalLabel = GOAL_LABELS[profile?.goal ?? 'general_fitness'] ?? 'fitness'
   const weeklyTarget = profile?.days_per_week ?? 3
@@ -92,6 +111,26 @@ export default function WorkoutCompleteScreen() {
           </Text>
         </View>
 
+        {/* Difficulty check-in — coarse signal that tunes the next session's volume */}
+        <View style={styles.card}>
+          <Text style={styles.weekLabel}>HOW DID THAT FEEL?</Text>
+          {feel ? (
+            <View style={styles.feelDoneRow}>
+              <Ionicons name="checkmark-circle" size={18} color={C.primary} />
+              <Text style={styles.feelConfirm}>{feelConfirm[feel]}</Text>
+            </View>
+          ) : (
+            <View style={styles.feelRow}>
+              {FEEL_OPTIONS.map((o) => (
+                <TouchableOpacity key={o.key} style={styles.feelBtn} onPress={() => handleFeel(o.key)} activeOpacity={0.8}>
+                  <Ionicons name={o.icon as any} size={20} color={C.primary} />
+                  <Text style={styles.feelBtnText}>{o.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
         {isQuick && (
           <View style={styles.noteBox}>
             <Ionicons name="bulb-outline" size={16} color={C.primary} style={{ marginTop: 1 }} />
@@ -143,7 +182,17 @@ const styles = StyleSheet.create({
   barFill: { height: 8, backgroundColor: C.primary, borderRadius: Radius.full },
   weekCaption: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 18 },
 
-  noteBox: { flexDirection: 'row', gap: 8, backgroundColor: '#EFF4FF', borderRadius: Radius.lg, padding: Spacing.md },
+  feelRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.xs },
+  feelBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    paddingVertical: Spacing.md, borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  feelBtnText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
+  feelDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  feelConfirm: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
+
+  noteBox: { flexDirection: 'row', gap: 8, backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md },
   noteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
 
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },

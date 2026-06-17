@@ -62,17 +62,29 @@ export async function suggestNextSlot(
       .map(w => w.planned_date as string),
   )
 
-  const canRead = (await getCalendarPermissionStatus()) === 'granted'
+  // Calendar reads go through the native module (expo-calendar). Wrap every call
+  // so a permissions race or a device with no calendars can never reject the
+  // whole reschedule — we just fall back to the default-time pass below.
+  let canRead = false
+  try {
+    canRead = (await getCalendarPermissionStatus()) === 'granted'
+  } catch {
+    canRead = false
+  }
 
   // Pass 1: prefer a real free window if we can read the calendar
   if (canRead) {
     for (let i = 1; i <= 7; i++) {
       const d = new Date(today); d.setDate(today.getDate() + i)
       if (takenDays.has(toDateStr(d))) continue
-      const windows = await findFreeWindows(d, durationMin)
-      if (windows.length) {
-        const start = windows[0].start
-        return { date: toDateStr(d), start_time: fmtTime(start), label: labelFor(d, start), fromCalendar: true }
+      try {
+        const windows = await findFreeWindows(d, durationMin)
+        if (windows.length) {
+          const start = windows[0].start
+          return { date: toDateStr(d), start_time: fmtTime(start), label: labelFor(d, start), fromCalendar: true }
+        }
+      } catch {
+        break // calendar read failed — stop trying and use the default-time pass
       }
     }
   }

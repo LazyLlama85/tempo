@@ -3,18 +3,21 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, A
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Colors, Spacing, Radius, CardShadow, Typography } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { createWorkoutEvent, deleteWorkoutEvent, getCalendarPermissionStatus } from '@/services/calendarService'
+import { createWorkoutEvent, deleteWorkoutEvent, getCalendarPermissionStatus, getDayEvents, type DayEvent } from '@/services/calendarService'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
+import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
 import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
 import { getTodayCheckin, readinessLabel } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
 import { getQuickSuggestion, type QuickSuggestion } from '@/lib/quickSuggestion'
+import { parseAvatar } from '@/lib/avatar'
 
 const C = Colors.light
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -53,6 +56,15 @@ function formatTimeLabel(t: string): string {
   return t.slice(0, 5)
 }
 
+// Date → 'HH:MM' / '7:00 AM' for calendar events on the timeline.
+function hm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+function time12(d: Date): string {
+  let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12
+  return `${h}:${String(m).padStart(2, '0')} ${ap}`
+}
+
 interface ScheduledWorkout {
   id: string
   user_id: string
@@ -74,6 +86,13 @@ export default function ScheduleScreen() {
 
   const today = new Date()
   const todayStr = toDateStr(today)
+
+  // Header greeting — replaces the old menu icon (which just opened Profile, same
+  // as the avatar). The avatar mirrors the user's chosen profile avatar.
+  const hour = today.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+  const firstName = profile?.display_name?.trim().split(' ')[0] || 'Athlete'
+  const avatar = parseAvatar(profile?.avatar_url)
 
   const [currentMonth, setCurrentMonth] = useState(() =>
     new Date(today.getFullYear(), today.getMonth(), 1)
@@ -157,13 +176,18 @@ export default function ScheduleScreen() {
     enabled: !!userId,
   })
 
-  // Mark any past-due 'scheduled' workouts as 'missed' on entry, then refresh.
+  // On entry: collapse any duplicate days (repairs older "4 workouts at 7:00"
+  // state), then mark past-due 'scheduled' workouts as 'missed'. Refresh after.
   useEffect(() => {
     if (!userId) return
-    checkMissedWorkouts(supabase, userId).then(n => {
-      if (n > 0) queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+    ;(async () => {
+      const removed = await dedupeScheduledWorkouts(supabase, userId)
+      const missedCount = await checkMissedWorkouts(supabase, userId)
+      if (removed > 0 || missedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      }
       queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
-    })
+    })()
   }, [userId])
 
   const { data: missed = [] } = useQuery<ScheduledWorkout[]>({
@@ -192,6 +216,16 @@ export default function ScheduleScreen() {
   const { data: suggestion } = useQuery({
     queryKey: ['quick_suggestion', userId],
     queryFn: () => getQuickSuggestion(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Calendar events for the selected day — shown on the timeline alongside
+  // workouts (de-emphasised). Tempo's own synced events are filtered out inside
+  // getDayEvents so they never duplicate the workout cards.
+  const { data: dayEvents = [] } = useQuery<DayEvent[]>({
+    queryKey: ['day_events', userId, selectedDate],
+    queryFn: () => getDayEvents(new Date(`${selectedDate}T00:00:00`)),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
@@ -230,13 +264,19 @@ export default function ScheduleScreen() {
           {
             text: 'Move it',
             onPress: async () => {
-              await rescheduleWorkout(supabase, userId, workout.id, slot)
-              queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-              queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+              try {
+                await rescheduleWorkout(supabase, userId, workout.id, slot)
+                queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+                queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+              } catch {
+                Alert.alert('Could not reschedule', 'Something went wrong moving that workout. Please try again.')
+              }
             },
           },
         ],
       )
+    } catch {
+      Alert.alert('Could not reschedule', 'We had trouble finding a new slot. Please try again.')
     } finally {
       setRescheduling(false)
     }
@@ -245,6 +285,8 @@ export default function ScheduleScreen() {
   const workoutsByDate = useMemo(() => {
     const map: Record<string, ScheduledWorkout[]> = {}
     for (const w of workouts) {
+      // 'rescheduled' rows are superseded duplicates / cleared plan sessions — hidden.
+      if (w.status === 'rescheduled') continue
       if (!map[w.planned_date]) map[w.planned_date] = []
       map[w.planned_date].push(w)
     }
@@ -254,6 +296,21 @@ export default function ScheduleScreen() {
   const days = useMemo(() => getDaysInMonth(currentMonth), [currentMonth])
   const selectedWorkouts = workoutsByDate[selectedDate] ?? []
   const monthYear = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  // One time-sorted timeline of the day's workouts (emphasised cards) and
+  // calendar events (muted rows).
+  type TimelineItem =
+    | { kind: 'workout'; key: string; sort: number; workout: ScheduledWorkout }
+    | { kind: 'event'; key: string; sort: number; event: DayEvent }
+
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+    const items: TimelineItem[] = [
+      ...selectedWorkouts.map(w => ({ kind: 'workout' as const, key: `w-${w.id}`, sort: toMin(w.planned_start_time), workout: w })),
+      ...dayEvents.map(e => ({ kind: 'event' as const, key: `e-${e.id}`, sort: e.start.getHours() * 60 + e.start.getMinutes(), event: e })),
+    ]
+    return items.sort((a, b) => a.sort - b.sort)
+  }, [selectedWorkouts, dayEvents])
 
   const changeMonth = (delta: number) => {
     const d = new Date(currentMonth)
@@ -275,14 +332,22 @@ export default function ScheduleScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      {/* Header — greeting on the left, avatar (the single Profile entry) on the right */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
-          <Ionicons name="menu-outline" size={24} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerLogo}>TEMPO</Text>
-        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')}>
-          <Ionicons name="person" size={16} color={C.onPrimary} />
+        <View style={styles.greetingWrap}>
+          <Text style={styles.greetingEyebrow}>{greeting.toUpperCase()}</Text>
+          <Text style={styles.greetingName} numberOfLines={1}>{firstName}</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.avatar, { backgroundColor: avatar.color }]}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.85}
+        >
+          {avatar.imageUri ? (
+            <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
+          ) : (
+            <Ionicons name={avatar.icon as any} size={18} color="#fff" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -424,81 +489,109 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* Timeline */}
+        {/* Timeline — workouts (emphasised cards) + calendar events (muted rows) */}
         <View style={styles.timeline}>
           {isLoading ? (
             <LoadingCard />
           ) : isError ? (
             <ErrorBanner message="Failed to load your schedule." onRetry={refetch} />
-          ) : workouts.length === 0 ? (
-            profile?.onboarding_complete === false ? (
-              <View style={styles.emptyState}>
-                <TouchableOpacity style={styles.setupButton} onPress={() => router.push('/onboarding/goal')}>
-                  <Text style={styles.setupButtonText}>Complete setup to get your plan →</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>Your plan is loading. Pull down to refresh.</Text>
-              </View>
-            )
-          ) : selectedWorkouts.length === 0 ? (
+          ) : profile?.onboarding_complete === false ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Rest day — recovery is part of the plan.</Text>
+              <TouchableOpacity style={styles.setupButton} onPress={() => router.push('/onboarding/goal')}>
+                <Text style={styles.setupButtonText}>Complete setup to get your plan →</Text>
+              </TouchableOpacity>
+            </View>
+          ) : timelineItems.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
+                {workouts.length === 0
+                  ? 'Your plan is loading. Pull down to refresh.'
+                  : 'Rest day — recovery is part of the plan.'}
+              </Text>
             </View>
           ) : (
-            selectedWorkouts.map((workout) => (
-              <View key={workout.id} style={styles.timelineRow}>
-                <Text style={[styles.timeLabel, styles.timeLabelActive]}>
-                  {formatTimeLabel(workout.planned_start_time)}
-                </Text>
-                <View style={styles.workoutCard}>
-                  <View style={styles.workoutBadgeRow}>
-                    {workout.status === 'completed' ? (
-                      <View style={styles.doneBadge}>
-                        <Text style={styles.doneBadgeText}>DONE</Text>
+            timelineItems.map((item) => {
+              if (item.kind === 'event') {
+                const e = item.event
+                return (
+                  <View key={item.key} style={styles.timelineRow}>
+                    <Text style={styles.timeLabel}>{hm(e.start)}</Text>
+                    <View style={styles.eventLite}>
+                      <View style={styles.eventLiteDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.eventLiteTitle} numberOfLines={1}>{e.title}</Text>
+                        <Text style={styles.eventLiteTime}>{time12(e.start)} – {time12(e.end)}</Text>
                       </View>
-                    ) : (
-                      <View style={styles.workoutBadge}>
-                        <Text style={styles.workoutBadgeText}>WORKOUT</Text>
-                      </View>
-                    )}
-                    <Ionicons name="barbell-outline" size={18} color={C.primary} />
-                  </View>
-                  <Text style={styles.workoutTitle}>{workout.focus}</Text>
-                  <View style={styles.workoutMeta}>
-                    <View style={styles.metaChip}>
-                      <Text style={styles.metaChipLabel}>START TIME</Text>
-                      <Text style={styles.metaChipValue}>{formatTime(workout.planned_start_time)}</Text>
-                    </View>
-                    <View style={styles.metaChip}>
-                      <Text style={styles.metaChipLabel}>DURATION</Text>
-                      <Text style={styles.metaChipValue}>{workout.planned_duration_min} min</Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.startButton}
-                    onPress={() =>
-                      router.push({ pathname: '/(tabs)/plan', params: { workoutId: workout.id } })
-                    }
-                  >
-                    <Ionicons name="play" size={14} color={C.onPrimary} />
-                    <Text style={styles.startButtonText}>Start Session</Text>
-                  </TouchableOpacity>
-                  {workout.calendar_event_id ? (
-                    <TouchableOpacity style={styles.calendarBtn} onPress={() => handleRemoveFromCalendar(workout)}>
-                      <Ionicons name="calendar" size={14} color="#16A34A" />
-                      <Text style={styles.calendarBtnTextGreen}>In Calendar</Text>
+                )
+              }
+              const workout = item.workout
+              return (
+                <View key={item.key} style={styles.timelineRow}>
+                  <Text style={[styles.timeLabel, styles.timeLabelActive]}>
+                    {formatTimeLabel(workout.planned_start_time)}
+                  </Text>
+                  <View style={styles.workoutCard}>
+                    <View style={styles.workoutBadgeRow}>
+                      {workout.status === 'completed' ? (
+                        <View style={styles.doneBadge}>
+                          <Text style={styles.doneBadgeText}>DONE</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.workoutBadge}>
+                          <Text style={styles.workoutBadgeText}>WORKOUT</Text>
+                        </View>
+                      )}
+                      <Ionicons name="barbell-outline" size={18} color={C.primary} />
+                    </View>
+                    <Text style={styles.workoutTitle}>{workout.focus}</Text>
+                    <View style={styles.workoutMeta}>
+                      <View style={styles.metaChip}>
+                        <Text style={styles.metaChipLabel}>START TIME</Text>
+                        <Text style={styles.metaChipValue}>{formatTime(workout.planned_start_time)}</Text>
+                      </View>
+                      <View style={styles.metaChip}>
+                        <Text style={styles.metaChipLabel}>DURATION</Text>
+                        <Text style={styles.metaChipValue}>{workout.planned_duration_min} min</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.startButton}
+                      onPress={() =>
+                        router.push({ pathname: '/(tabs)/plan', params: { workoutId: workout.id } })
+                      }
+                    >
+                      <Ionicons name="play" size={14} color={C.onPrimary} />
+                      <Text style={styles.startButtonText}>Start Session</Text>
                     </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={styles.calendarBtn} onPress={() => handleAddToCalendar(workout)}>
-                      <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
-                      <Text style={styles.calendarBtnText}>Add to Calendar</Text>
-                    </TouchableOpacity>
-                  )}
+                    <View style={styles.cardActionsRow}>
+                      {workout.calendar_event_id ? (
+                        <TouchableOpacity style={styles.calendarBtn} onPress={() => handleRemoveFromCalendar(workout)}>
+                          <Ionicons name="calendar" size={14} color={C.success} />
+                          <Text style={styles.calendarBtnTextGreen}>In Calendar</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity style={styles.calendarBtn} onPress={() => handleAddToCalendar(workout)}>
+                          <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
+                          <Text style={styles.calendarBtnText}>Add to Calendar</Text>
+                        </TouchableOpacity>
+                      )}
+                      {workout.status !== 'completed' && (
+                        <TouchableOpacity
+                          style={styles.calendarBtn}
+                          onPress={() => handleReschedule(workout)}
+                          disabled={rescheduling}
+                        >
+                          <Ionicons name="swap-horizontal" size={14} color={C.textSecondary} />
+                          <Text style={styles.calendarBtnText}>Reschedule</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
                 </View>
-              </View>
-            ))
+              )
+            })
           )}
         </View>
       </ScrollView>
@@ -534,20 +627,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: C.outlineVariant,
   },
-  headerLogo: {
-    fontFamily: 'Inter_800ExtraBold',
-    fontSize: 16,
-    color: C.primary,
-    letterSpacing: 2,
-  },
   avatar: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: Radius.full,
     backgroundColor: C.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  avatarImg: { width: '100%', height: '100%' },
+  greetingWrap: { flex: 1 },
+  greetingEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  greetingName: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.3, marginTop: 1 },
 
   monthRow: {
     flexDirection: 'row',
@@ -576,7 +668,7 @@ const styles = StyleSheet.create({
   dayNumActive: { color: '#FFFFFF' },
   dot: { width: 5, height: 5, borderRadius: Radius.full, marginTop: 4 },
   dotBlue: { backgroundColor: C.primary },
-  dotGreen: { backgroundColor: '#16A34A' },
+  dotGreen: { backgroundColor: C.success },
   dotWhite: { backgroundColor: '#FFFFFF' },
   dotPlaceholder: { width: 5, height: 5, marginTop: 4 },
 
@@ -680,7 +772,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginHorizontal: Spacing.containerPadding,
     marginBottom: Spacing.md,
-    backgroundColor: '#EFF4FF',
+    backgroundColor: C.primarySoft,
     borderRadius: Radius.lg,
     padding: Spacing.md,
   },
@@ -702,7 +794,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginHorizontal: Spacing.containerPadding,
     marginBottom: Spacing.md,
-    backgroundColor: '#EFF4FF',
+    backgroundColor: C.primarySoft,
     borderRadius: Radius.lg,
     borderWidth: 1.5,
     borderColor: C.primary,
@@ -749,18 +841,18 @@ const styles = StyleSheet.create({
   },
   readyPromptIcon: {
     width: 40, height: 40, borderRadius: Radius.md,
-    backgroundColor: '#EFF4FF', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center',
   },
   readyPromptTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   readyPromptSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 2 },
 
   doneBadge: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: C.successSoft,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.xs,
     paddingVertical: 3,
   },
-  doneBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#16A34A', letterSpacing: 0.5 },
+  doneBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.success, letterSpacing: 0.5 },
 
   quickCard: {
     flexDirection: 'row',
@@ -777,7 +869,7 @@ const styles = StyleSheet.create({
   },
   quickIconWrap: {
     width: 44, height: 44, borderRadius: Radius.md,
-    backgroundColor: '#EFF4FF', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center',
   },
   quickEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
   quickTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 16, color: C.text, letterSpacing: -0.2, marginTop: 1 },
@@ -815,12 +907,14 @@ const styles = StyleSheet.create({
     color: C.onPrimary,
     textAlign: 'center',
   },
+  cardActionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   calendarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
   },
   calendarBtnText: {
     fontFamily: 'Inter_500Medium',
@@ -830,6 +924,21 @@ const styles = StyleSheet.create({
   calendarBtnTextGreen: {
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
-    color: '#16A34A',
+    color: C.success,
   },
+
+  // Calendar events on the timeline — intentionally quiet next to workout cards.
+  eventLite: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  eventLiteDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.outline },
+  eventLiteTitle: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  eventLiteTime: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, marginTop: 1 },
 })

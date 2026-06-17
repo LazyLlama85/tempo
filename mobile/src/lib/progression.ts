@@ -61,10 +61,14 @@ export function buildPrescription(
   goal: Goal,
   pattern: string,
   readinessLow = false,
+  bias: -1 | 0 | 1 = 0,
 ): ExercisePrescription {
   const scheme = GOAL_SCHEME[goal] ?? GOAL_SCHEME.general_fitness
   let sets = scheme.sets
   if (readinessLow && sets > 2) sets -= 1
+  // Workout-level feedback: "too easy" adds a set, "too hard" trims one.
+  if (bias > 0) sets += 1
+  else if (bias < 0 && sets > 2) sets -= 1
 
   const base = { sets, repLow: scheme.repLow, repHigh: scheme.repHigh, restSeconds: scheme.rest }
 
@@ -102,8 +106,18 @@ export function buildPrescription(
   const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null
   const inc = weightIncrement(pattern)
 
-  // Cleared the top of the range and it wasn't maximal → progress the load.
+  // Cleared the top of the range and it wasn't maximal → progress the load,
+  // unless the user just told us the last session was too hard (hold instead).
   if (minReps >= scheme.repHigh && (avgRpe == null || avgRpe <= 8)) {
+    if (bias < 0) {
+      return {
+        ...base,
+        suggestedWeight: topWeight,
+        direction: 'hold',
+        reason: `You said last session was tough — hold ${topWeight} lbs and own these reps.`,
+        lastSummary,
+      }
+    }
     return {
       ...base,
       suggestedWeight: topWeight + inc,

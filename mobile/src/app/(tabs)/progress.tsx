@@ -6,10 +6,17 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'expo-router'
 import { useProgressStats, type ChartPeriod } from '@/hooks/useProgressStats'
+import { ACHIEVEMENTS, type AchievementStats } from '@/lib/achievements'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
 
 const C = Colors.light
+
+const TIER_COLOR: Record<string, string> = {
+  bronze: '#B45309',
+  silver: '#64748B',
+  gold: '#B8860B',
+}
 
 function fmtDate(iso: string): string {
   if (!iso) return '—'
@@ -79,31 +86,6 @@ function ProgressRing({ pct }: { pct: number }) {
   )
 }
 
-// ── Achievement definitions ────────────────────────────────────────────────────
-const ACHIEVEMENTS = [
-  {
-    key: 'early_bird',
-    label: 'EARLY BIRD',
-    icon: 'sunny-outline',
-    description: 'Complete your first workout',
-    unlocked: (totalWorkouts: number, streak: number) => totalWorkouts >= 1,
-  },
-  {
-    key: 'iron_will',
-    label: 'IRON WILL',
-    icon: 'trophy-outline',
-    description: '7-day streak',
-    unlocked: (totalWorkouts: number, streak: number) => streak >= 7,
-  },
-  {
-    key: 'century',
-    label: '100 SESSIONS',
-    icon: 'star-outline',
-    description: '100 total workouts',
-    unlocked: (totalWorkouts: number, streak: number) => totalWorkouts >= 100,
-  },
-] as const
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
@@ -120,6 +102,25 @@ export default function ProgressScreen() {
   const chartVolumes = stats?.chartVolumes ?? []
   const chartLabels = stats?.chartLabels ?? []
   const deltaStr = stats?.deltaStr ?? '— vs last mo'
+
+  const achStats: AchievementStats = {
+    totalWorkouts: stats?.totalWorkouts ?? 0,
+    streak: stats?.streak ?? 0,
+    totalVolumeNum: stats?.totalVolumeNum ?? 0,
+    benchMax: stats?.benchMax ?? 0,
+  }
+
+  // Roadmap: the milestone you're closest to unlocking — "where you're headed".
+  const nextMilestone = (() => {
+    const locked = ACHIEVEMENTS.filter(a => !a.isUnlocked(achStats))
+    if (!locked.length) return null
+    const scored = locked.map(a => {
+      const p = a.progress(achStats)
+      return { def: a, current: p.current, target: p.target, ratio: p.target > 0 ? p.current / p.target : 0 }
+    })
+    scored.sort((x, y) => y.ratio - x.ratio)
+    return scored[0]
+  })()
 
   const maxChartVol = Math.max(...chartVolumes, 1)
 
@@ -184,6 +185,28 @@ export default function ProgressScreen() {
                   : 'Complete a workout today to start your streak.'}
               </Text>
             </View>
+
+            {/* Next milestone (roadmap) */}
+            {nextMilestone && (
+              <View style={styles.statCard}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.statLabel}>NEXT MILESTONE</Text>
+                  <Ionicons name={nextMilestone.def.icon as any} size={16} color={C.primary} />
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.milestoneName}>{nextMilestone.def.label}</Text>
+                  <Text style={styles.milestoneRemain}>
+                    {Math.max(0, Math.round(nextMilestone.target - nextMilestone.current)).toLocaleString()} to go
+                  </Text>
+                </View>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { width: `${Math.round(nextMilestone.ratio * 100)}%` as `${number}%` }]} />
+                </View>
+                <Text style={styles.milestoneCaption}>
+                  {nextMilestone.def.description} · {Math.round(nextMilestone.current).toLocaleString()}/{nextMilestone.target.toLocaleString()}
+                </Text>
+              </View>
+            )}
 
             {/* Completion rate */}
             <View style={styles.statCard}>
@@ -274,25 +297,37 @@ export default function ProgressScreen() {
 
             {/* Achievements */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Achievements</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Achievements</Text>
+                <Text style={styles.achMeta}>
+                  {ACHIEVEMENTS.filter(a => a.isUnlocked(achStats)).length} of {ACHIEVEMENTS.length}
+                </Text>
+              </View>
               <View style={styles.achievementsRow}>
                 {ACHIEVEMENTS.map((a) => {
-                  const isUnlocked = a.unlocked(stats.totalWorkouts, stats.streak)
+                  const isUnlocked = a.isUnlocked(achStats)
+                  const prog = a.progress(achStats)
+                  const tint = isUnlocked ? TIER_COLOR[a.tier] : C.outline
                   return (
                     <View
                       key={a.key}
                       style={[styles.achievementBadge, !isUnlocked && styles.achievementBadgeLocked]}
                     >
-                      <Ionicons
-                        name={a.icon}
-                        size={28}
-                        color={isUnlocked ? C.primary : C.outline}
-                      />
-                      <Text style={[styles.achievementLabel, !isUnlocked && styles.achievementLabelLocked]}>
+                      <View style={[styles.achBadgeIcon, { backgroundColor: isUnlocked ? tint + '22' : C.surfaceContainerHigh }]}>
+                        <Ionicons name={a.icon as any} size={24} color={tint} />
+                        {!isUnlocked && (
+                          <View style={styles.achLockDot}><Ionicons name="lock-closed" size={9} color={C.outline} /></View>
+                        )}
+                      </View>
+                      <Text style={[styles.achievementLabel, !isUnlocked && styles.achievementLabelLocked]} numberOfLines={1}>
                         {a.label}
                       </Text>
-                      {!isUnlocked && (
-                        <Ionicons name="lock-closed" size={10} color={C.outline} />
+                      {isUnlocked ? (
+                        <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
+                      ) : prog.target > 1 ? (
+                        <Text style={styles.achProg}>{Math.round(prog.current).toLocaleString()}/{prog.target.toLocaleString()}</Text>
+                      ) : (
+                        <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
                       )}
                     </View>
                   )
@@ -341,6 +376,9 @@ const styles = StyleSheet.create({
   statDelta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, marginBottom: 4 },
   barTrack: { height: 8, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full },
   barFill: { height: 8, backgroundColor: C.primary, borderRadius: Radius.full },
+  milestoneName: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.4 },
+  milestoneRemain: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary, marginBottom: 4 },
+  milestoneCaption: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary },
 
   periodToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 3, gap: 2 },
   periodBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radius.md },
@@ -364,14 +402,19 @@ const styles = StyleSheet.create({
   recordValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.text, letterSpacing: -0.3 },
   recordUnit: { fontFamily: 'Inter_400Regular', fontSize: 14 },
 
-  achievementsRow: { flexDirection: 'row', gap: Spacing.md },
+  achMeta: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline },
+  achievementsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   achievementBadge: {
-    flex: 1, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl,
-    padding: Spacing.md, alignItems: 'center', gap: Spacing.xs, aspectRatio: 1,
+    flexGrow: 1, flexBasis: '30%', maxWidth: '32%', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    padding: Spacing.sm, alignItems: 'center', gap: 4,
   },
-  achievementBadgeLocked: { opacity: 0.5 },
-  achievementLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.textSecondary, letterSpacing: 0.5, textAlign: 'center' },
+  achievementBadgeLocked: { opacity: 0.7 },
+  achBadgeIcon: { width: 48, height: 48, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
+  achLockDot: { position: 'absolute', bottom: -2, right: -2, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, padding: 2 },
+  achievementLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.text, textAlign: 'center' },
   achievementLabelLocked: { color: C.outline },
+  achDesc: { fontFamily: 'Inter_400Regular', fontSize: 10, color: C.textSecondary, textAlign: 'center', lineHeight: 13 },
+  achProg: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary },
 
   weekBarsContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 56 },
   weekBarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },

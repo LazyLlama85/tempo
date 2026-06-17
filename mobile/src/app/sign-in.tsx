@@ -195,13 +195,13 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   appleIcon: {
-    color: '#FFFFFF',
+    color: C.surface,
     fontSize: 18,
   },
   appleButtonText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 14,
-    color: '#FFFFFF',
+    color: C.surface,
     letterSpacing: 0.5,
   },
   googleButton: {

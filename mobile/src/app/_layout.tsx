@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { Stack } from 'expo-router'
-import { DefaultTheme, ThemeProvider } from 'expo-router'
+import { DarkTheme, ThemeProvider } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
+import { Colors } from '@/constants/theme'
 import {
   useFonts,
   Inter_400Regular,
@@ -20,12 +22,18 @@ const queryClient = new QueryClient({
   },
 })
 
-// Force light theme to match Stitch design
-const LightTheme = {
-  ...DefaultTheme,
+// Tempo is dark-mode-first — keep the navigation background dark so there's no
+// white flash behind screens or during transitions.
+const C = Colors.light
+const NavTheme = {
+  ...DarkTheme,
   colors: {
-    ...DefaultTheme.colors,
-    background: '#FFFFFF',
+    ...DarkTheme.colors,
+    background: C.surface,
+    card: C.background,
+    text: C.text,
+    border: C.outlineVariant,
+    primary: C.primary,
   },
 }
 
@@ -52,12 +60,14 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={LightTheme}>
+      <ThemeProvider value={NavTheme}>
+        <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="quick-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="smart-scheduler" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-complete" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
         </Stack>
       </ThemeProvider>

@@ -21,8 +21,8 @@ export function ErrorBanner({ message, onRetry }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF1F0',
-    borderColor: '#FFCDD2',
+    backgroundColor: C.dangerSoft,
+    borderColor: 'rgba(255,107,107,0.35)',
     borderWidth: 1,
     borderRadius: 12,
     padding: Spacing.md,

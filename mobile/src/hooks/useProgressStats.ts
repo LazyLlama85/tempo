@@ -118,11 +118,14 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       return d
     }
 
-    // a) Consistency — last 30 days + delta vs prior 30
+    // a) Consistency — last 30 days + delta vs prior 30.
+    // 'rescheduled' rows are superseded duplicates / cleared sessions — they were
+    // never real commitments, so they don't count toward the completion rate.
+    const counts = (w: WorkoutRow) => w.status !== 'rescheduled'
     const thirtyAgo = toDateStr(daysAgo(30))
     const sixtyAgo = toDateStr(daysAgo(60))
-    const last30 = workouts.filter(w => w.planned_date >= thirtyAgo)
-    const prev30 = workouts.filter(w => w.planned_date >= sixtyAgo && w.planned_date < thirtyAgo)
+    const last30 = workouts.filter(w => counts(w) && w.planned_date >= thirtyAgo)
+    const prev30 = workouts.filter(w => counts(w) && w.planned_date >= sixtyAgo && w.planned_date < thirtyAgo)
 
     const consistency_pct = last30.length
       ? Math.round((last30.filter(w => w.status === 'completed').length / last30.length) * 100)
@@ -162,6 +165,15 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     const totalVolume = totalVolumeNum > 0
       ? Math.round(totalVolumeNum).toLocaleString()
       : '0'
+
+    // Heaviest bench (for the "First 225 Bench" achievement) + heaviest single lift
+    let benchMax = 0
+    let heaviestLift = 0
+    for (const sl of setLogs) {
+      if (sl.weight_lbs == null) continue
+      if (sl.weight_lbs > heaviestLift) heaviestLift = sl.weight_lbs
+      if (/bench/i.test(sl.exerciseName) && sl.weight_lbs > benchMax) benchMax = sl.weight_lbs
+    }
 
     // e) Personal records
     const prMap: Record<string, { name: string; maxWeight: number; achievedAt: string }> = {}
@@ -253,6 +265,9 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       streak,
       thisWeek,
       totalVolume,
+      totalVolumeNum: Math.round(totalVolumeNum),
+      benchMax,
+      heaviestLift,
       periodVolume,
       prs,
       weekVolumes,

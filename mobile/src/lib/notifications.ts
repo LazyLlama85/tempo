@@ -41,8 +41,8 @@ export async function scheduleWorkoutReminders(workouts: ScheduledWorkout[]): Pr
     await Notifications.scheduleNotificationAsync({
       identifier: workout.id,
       content: {
-        title: 'Workout in 30 minutes',
-        body: `${workout.focus} — ${workout.planned_duration_min} min session`,
+        title: `${workout.focus} starts in 30 min`,
+        body: `Your ${workout.planned_duration_min}-min session is coming up. Tap when you're ready to go.`,
         sound: true,
       },
       trigger: {

@@ -107,6 +107,35 @@ export async function generatePlan(
   const days = DAY_OFFSETS[profile.days_per_week] ? profile.days_per_week : 3
   const offsets = DAY_OFFSETS[days]
 
+  // ── Step 0: Clear any prior plan ─────────────────────────────────────────────
+  // Regenerating must never stack a second 4-week block on top of the old one —
+  // that's what produced "4 workouts on Friday at 7:00". We retire prior active
+  // plans and their still-scheduled sessions, while leaving completed/missed
+  // history and ad-hoc Quick Workouts (user_plan_id is null) untouched.
+
+  // Retire EVERY still-scheduled *plan* workout from any prior plan by marking it
+  // 'rescheduled' — NOT deleting. We intentionally do NOT filter by date: the new
+  // plan starts on the current week's Monday, which may be a day or two in the
+  // past, so old past-week sessions left in place would both duplicate those days
+  // AND collide with the one-plan-per-day unique index, failing the insert below.
+  // A 'scheduled' session is by definition not completed, so retiring it is safe.
+  // Some may already be referenced by workout_logs (the session was opened), and
+  // that FK has no cascade, so a delete would fail — marking frees the per-day
+  // guard slot, preserves any logged history, and the UI hides 'rescheduled' rows.
+  await client
+    .from('scheduled_workouts')
+    .update({ status: 'rescheduled' })
+    .eq('user_id', userId)
+    .eq('status', 'scheduled')
+    .not('user_plan_id', 'is', null)
+
+  // Retire any still-active plans so only the new one is current.
+  await client
+    .from('user_plans')
+    .update({ status: 'abandoned' })
+    .eq('user_id', userId)
+    .eq('status', 'active')
+
   // ── Step 1: Find best matching program ──────────────────────────────────────
   const { data: programs, error: progErr } = await client
     .from('programs')

@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   hint: { fontFamily: 'Inter_400Regular', fontSize: 11, color: C.outline },
   preview: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#EFF4FF', borderRadius: Radius.lg, padding: Spacing.md, marginTop: Spacing.xs,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md, marginTop: Spacing.xs,
   },
   previewEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
   previewLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text, marginTop: 2 },

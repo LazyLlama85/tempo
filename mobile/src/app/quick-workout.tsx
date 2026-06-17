@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   previewLoading: { alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },
   previewLoadingText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
   previewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  purposeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EFF4FF', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  purposeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   purposeBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
   previewEst: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
   previewTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -4 },
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   exName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   exMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize', marginTop: 1 },
   exDose: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
-  contribBox: { backgroundColor: '#EFF4FF', borderRadius: Radius.lg, padding: Spacing.md, gap: 4 },
+  contribBox: { backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md, gap: 4 },
   contribLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
   contribText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
 

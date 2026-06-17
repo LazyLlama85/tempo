@@ -451,3 +451,48 @@ export async function persistQuickWorkout(
   if (error || !data) return null
   return data.id as string
 }
+
+// Largest preset duration that fits within `target` minutes — lets the smart
+// scheduler reuse the Quick engine for, say, a 45-min slot (→ a 40-min session).
+export function snapToQuickMinutes(target: number): QuickMinutes {
+  let best: QuickMinutes = QUICK_DURATIONS[0]
+  for (const d of QUICK_DURATIONS) if (d <= target) best = d
+  return best
+}
+
+// Persist a generated session to a SPECIFIC date/time (used by the Smart
+// Scheduler), optionally linking the Google Calendar event it was synced to.
+// Same shape as persistQuickWorkout but you control when it lands, the duration
+// shown, and the focus label. user_plan_id stays null — these are ad-hoc
+// sessions, excluded from the "missed workout" sweep like Quick Workouts.
+export async function persistPlannedWorkout(
+  client: SupabaseClient,
+  userId: string,
+  workout: QuickWorkout,
+  opts: {
+    plannedDate: string         // 'YYYY-MM-DD'
+    plannedStartTime: string    // 'HH:MM:SS'
+    durationMin: number
+    focus?: string
+    calendarEventId?: string | null
+  },
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('scheduled_workouts')
+    .insert({
+      user_id: userId,
+      user_plan_id: null,
+      planned_date: opts.plannedDate,
+      planned_start_time: opts.plannedStartTime,
+      planned_duration_min: opts.durationMin,
+      focus: opts.focus ?? workout.title,
+      status: 'scheduled',
+      exercise_ids: workout.exercises.map(e => e.id),
+      calendar_event_id: opts.calendarEventId ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !data) return null
+  return data.id as string
+}

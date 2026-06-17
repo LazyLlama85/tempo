@@ -64,7 +64,7 @@ export default function ScheduleScreen() {
         {/* Calendar connect buttons */}
         {calendarConnected ? (
           <View style={styles.connectedBadge}>
-            <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
+            <Ionicons name="checkmark-circle" size={20} color={C.success} />
             <Text style={styles.connectedText}>Calendar connected</Text>
           </View>
         ) : (
@@ -159,8 +159,8 @@ const styles = StyleSheet.create({
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
-  connectedBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: '#F0FDF4', padding: Spacing.md, borderRadius: Radius.lg },
-  connectedText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: '#16A34A' },
+  connectedBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: C.successSoft, padding: Spacing.md, borderRadius: Radius.lg },
+  connectedText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.success },
   calendarButtons: { gap: Spacing.sm },
   calendarBtn: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,

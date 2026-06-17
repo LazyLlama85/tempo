@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, Vibration,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
+import { getIntensityBias, type IntensityBias } from '@/lib/adaptation'
+import { getSubstitutions, saveSubstitution, applySubstitutions } from '@/lib/substitutions'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import type { Goal } from '@/types'
@@ -87,6 +89,7 @@ export default function WorkoutsScreen() {
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [goal, setGoal] = useState<Goal>('general_fitness')
+  const [bias, setBias] = useState<IntensityBias>(0)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
 
@@ -126,16 +129,24 @@ export default function WorkoutsScreen() {
     if (!workoutRow) { setNotFound(true); setLoading(false); return }
     setWorkout(workoutRow as WorkoutRow)
 
-    const exerciseIds: string[] = workoutRow.exercise_ids ?? []
+    const rawIds: string[] = workoutRow.exercise_ids ?? []
 
-    // The user's goal drives rep/rest schemes; a rough recovery day trims volume.
-    const [{ data: profileRow }, readiness] = await Promise.all([
+    // The user's goal drives rep/rest schemes; a rough recovery day trims volume;
+    // the last "too easy / too hard" check-in biases this session's volume; and
+    // any saved swaps are applied so the user's preferred lifts show up.
+    const [{ data: profileRow }, readiness, biasVal, subs] = await Promise.all([
       supabase.from('user_profiles').select('goal').eq('user_id', userId).maybeSingle(),
       getTodayReadiness(userId),
+      getIntensityBias(supabase, userId),
+      getSubstitutions(supabase, userId),
     ])
     const goal = (profileRow?.goal ?? 'general_fitness') as Goal
     setGoal(goal)
+    setBias(biasVal)
     const readinessLow = readiness != null && readiness < 50
+
+    // Remap to the user's saved substitutes before loading exercise details.
+    const exerciseIds = applySubstitutions(rawIds, subs)
 
     // Fetch full exercise rows and restore the plan's original order
     const { data: exRows } = exerciseIds.length
@@ -176,7 +187,7 @@ export default function WorkoutsScreen() {
         }))
         prevBySetMap[ex.id] = lastSets.map(r =>
           r.weight_lbs != null ? `${r.weight_lbs}×${r.reps_completed}` : `${r.reps_completed}`)
-        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow)
+        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow, biasVal)
       }
     }
 
@@ -244,7 +255,9 @@ export default function WorkoutsScreen() {
       [exId]: prev[exId].map((s, i) => i === idx ? { ...s, rpe, done: true } : s),
     }))
 
-    // Auto-start the rest timer using this exercise's prescribed rest
+    // Light haptic confirm, then auto-start the rest timer using this exercise's
+    // prescribed rest.
+    Vibration.vibrate(20)
     setRestSecondsLeft(restDefaults.current[exId] ?? 90)
 
     await supabase.from('set_logs').insert({
@@ -310,14 +323,14 @@ export default function WorkoutsScreen() {
         onPress: () => replaceExercise(ex.id, c),
       }))
       buttons.push({ text: 'Cancel', style: 'cancel' })
-      Alert.alert('Swap exercise', `Replace ${ex.name} with:`, buttons)
+      Alert.alert('Swap exercise', `Replace ${ex.name} with: (we'll remember this for next time)`, buttons)
     } finally {
       setSwapping(false)
     }
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false)
+    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias)
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))
@@ -340,12 +353,14 @@ export default function WorkoutsScreen() {
     })
     setExpandedId(cur => cur === oldId ? next.id : cur)
 
-    // Persist the swap into the plan so it sticks for this workout
+    // Persist the swap into this workout AND remember the preference so the same
+    // substitution is applied automatically to future workouts.
     if (workout) {
       const newIds = workout.exercise_ids.map(id => id === oldId ? next.id : id)
       setWorkout({ ...workout, exercise_ids: newIds })
       await supabase.from('scheduled_workouts').update({ exercise_ids: newIds }).eq('id', workout.id)
     }
+    saveSubstitution(supabase, userId, oldId, next.id)
   }
 
   // ── Complete workout ───────────────────────────────────────────────────────
@@ -380,6 +395,7 @@ export default function WorkoutsScreen() {
     if (restSecondsLeft === null) return
     if (restSecondsLeft === 0) {
       setRestSecondsLeft(null)
+      Vibration.vibrate(600) // buzz when rest is up
       Alert.alert('Rest Complete!', 'Time for your next set.')
       return
     }
@@ -483,6 +499,20 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {bias !== 0 && (
+          <View style={styles.adaptBanner}>
+            <Ionicons
+              name={bias > 0 ? 'trending-up' : 'shield-checkmark-outline'}
+              size={16}
+              color={C.primary}
+            />
+            <Text style={styles.adaptBannerText}>
+              {bias > 0
+                ? 'Last session felt easy — added a set to each lift to push you.'
+                : 'Last session felt tough — trimmed a set to keep you fresh and recovering.'}
+            </Text>
+          </View>
+        )}
         {exercises.map((ex) => {
           const exSets = sets[ex.id] ?? []
           const doneCount = exSets.filter(s => s.done).length
@@ -505,7 +535,7 @@ export default function WorkoutsScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? '#16A34A' : C.outline }}>
+                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? C.success : C.outline }}>
                     {doneCount}/{exSets.length}
                   </Text>
                   <Ionicons
@@ -523,25 +553,25 @@ export default function WorkoutsScreen() {
                     <View style={styles.targetCard}>
                       <View style={styles.targetRow}>
                         <View style={styles.targetLeft}>
-                          <Text style={styles.targetEyebrow}>TODAY'S TARGET</Text>
+                          <Text style={styles.targetEyebrow}>RECOMMENDED · {p.sets} SETS</Text>
                           <Text style={styles.targetValue}>
-                            {p.suggestedWeight != null ? `${p.suggestedWeight} lbs · ` : ''}{p.repLow}–{p.repHigh} reps × {p.sets}
+                            {p.suggestedWeight != null ? `${p.suggestedWeight} lbs · ` : ''}{p.repLow}–{p.repHigh} reps
                           </Text>
                         </View>
                         {p.direction !== 'new' && (
                           <View style={[
                             styles.dirBadge,
-                            p.direction === 'up' && { backgroundColor: '#F0FDF4' },
-                            p.direction === 'down' && { backgroundColor: '#FFF1F0' },
+                            p.direction === 'up' && { backgroundColor: C.successSoft },
+                            p.direction === 'down' && { backgroundColor: C.dangerSoft },
                           ]}>
                             <Ionicons
                               name={p.direction === 'up' ? 'trending-up' : p.direction === 'down' ? 'trending-down' : 'remove'}
                               size={13}
-                              color={p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary}
+                              color={p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary}
                             />
                             <Text style={[
                               styles.dirBadgeText,
-                              { color: p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary },
+                              { color: p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary },
                             ]}>
                               {p.direction === 'up' ? 'GO UP' : p.direction === 'down' ? 'BACK OFF' : 'HOLD'}
                             </Text>
@@ -549,6 +579,11 @@ export default function WorkoutsScreen() {
                         )}
                       </View>
                       <Text style={styles.targetReason}>{p.reason}</Text>
+                      <Text style={styles.targetHint}>
+                        {p.suggestedWeight != null
+                          ? `You should be able to do about ${p.suggestedWeight} lbs for ${p.repHigh} reps. We've pre-filled it — adjust to what you actually lift.`
+                          : `Aim for ${p.repLow}–${p.repHigh} clean reps. Log the weight you use so Tempo can progress you next time.`}
+                      </Text>
                     </View>
                   )}
 
@@ -783,12 +818,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1B1B1C',
+    backgroundColor: C.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: C.outlineVariant,
     borderRadius: Radius.full,
     paddingVertical: 12,
     paddingHorizontal: 20,
     zIndex: 40,
-    shadowColor: '#1A1A1B',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.14,
     shadowRadius: 40,
@@ -808,7 +845,7 @@ const styles = StyleSheet.create({
 
   // ── Adaptive coaching (Track 1) ─────────────────────────────────────────────
   targetCard: {
-    backgroundColor: '#EFF4FF',
+    backgroundColor: C.primarySoft,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: 6,
@@ -824,6 +861,7 @@ const styles = StyleSheet.create({
   },
   dirBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
   targetReason: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+  targetHint: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary, lineHeight: 17 },
   exActions: { flexDirection: 'row', gap: Spacing.sm },
   exActionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -846,4 +884,9 @@ const styles = StyleSheet.create({
   rpeSkip: { paddingHorizontal: 4 },
   rpeSkipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline },
   rpeLogged: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, textAlign: 'right', marginTop: -2, marginBottom: 4 },
+  adaptBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  adaptBannerText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
 })

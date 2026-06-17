@@ -7,7 +7,7 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { generatePlan } from '@/lib/generatePlan'
-import { requestPermissions, scheduleWorkoutReminders } from '@/lib/notifications'
+import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from '@/lib/notifications'
 import type { ScheduledWorkout } from '@/lib/notifications'
 import type { Equipment, Experience, Goal } from '@/types'
 
@@ -80,6 +80,10 @@ export default function PlanPreviewScreen() {
       try {
         const granted = await requestPermissions()
         if (granted) {
+          // Clear any reminders tied to the previous plan's (now-retired) workout
+          // IDs first, so re-generating a plan can't leave stale notifications
+          // firing for sessions that no longer exist.
+          await cancelAllReminders()
           const { data: workouts } = await supabase
             .from('scheduled_workouts')
             .select('id, focus, planned_date, planned_start_time, planned_duration_min, status')
@@ -92,7 +96,8 @@ export default function PlanPreviewScreen() {
       }
 
       await refreshProfile()
-      router.replace('/(tabs)')
+      // Finish with a quick "make it yours" profile step before entering the app.
+      router.replace('/onboarding/profile-setup')
     } catch (err) {
       setStatus('idle')
       Alert.alert(
@@ -204,7 +209,7 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   detailLabel: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary },
   detailValue: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  adaptNote: { flexDirection: 'row', gap: 8, backgroundColor: '#EFF4FF', borderRadius: Radius.lg, padding: Spacing.md },
+  adaptNote: { flexDirection: 'row', gap: 8, backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md },
   adaptNoteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.xs },
   buildingText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center' },

@@ -121,6 +121,35 @@ export async function findFreeWindows(
   return windows
 }
 
+export interface DayEvent { id: string; title: string; start: Date; end: Date }
+
+// Timed events on a given day, WITH titles, for display on the home timeline.
+// Tempo's own synced workouts (titled "Tempo …") are filtered out — those are
+// rendered from scheduled_workouts, so we don't want them showing twice.
+// Returns [] without calendar permission.
+export async function getDayEvents(date: Date): Promise<DayEvent[]> {
+  const status = await getCalendarPermissionStatus()
+  if (status !== 'granted') return []
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  const ids = calendars.map(c => c.id)
+  if (!ids.length) return []
+
+  const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999)
+
+  const events = await Calendar.getEventsAsync(ids, dayStart, dayEnd)
+  return events
+    .filter(e => !e.allDay && !(e.title ?? '').startsWith('Tempo'))
+    .map(e => ({
+      id: e.id,
+      title: e.title || 'Busy',
+      start: new Date(e.startDate as string | number | Date),
+      end: new Date(e.endDate as string | number | Date),
+    }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+}
+
 export async function deleteWorkoutEvent(
   workoutId: string,
   eventId: string,

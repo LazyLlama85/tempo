@@ -1,12 +1,15 @@
 import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { ExerciseMedia } from '@/components/ExerciseMedia'
+import { getCommonMistakes } from '@/data/commonMistakes'
 
 const C = Colors.light
 
 // Structural prop type so this component doesn't couple to the session screen's
 // internal ExerciseRow — anything with these fields works.
 export interface FormExercise {
+  id: string
   name: string
   movement_pattern: string
   primary_muscles: string[]
@@ -36,21 +39,14 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
               <Text style={styles.eyebrow}>{exercise.movement_pattern.toUpperCase()} · FORM GUIDE</Text>
               <Text style={styles.title}>{exercise.name}</Text>
 
-              {/* Form media well (image placeholder; opens video if available) */}
-              <TouchableOpacity
-                style={styles.mediaWell}
-                activeOpacity={exercise.video_url ? 0.8 : 1}
-                onPress={() => exercise.video_url && Linking.openURL(exercise.video_url)}
-                disabled={!exercise.video_url}
-              >
-                <Ionicons name="barbell-outline" size={48} color={C.outlineVariant} />
-                {exercise.video_url && (
-                  <View style={styles.playPill}>
-                    <Ionicons name="play" size={13} color="#fff" />
-                    <Text style={styles.playPillText}>Watch form guide</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              {/* Animated form demo (verified clip) with a graceful fallback */}
+              <ExerciseMedia exerciseId={exercise.id} height={200} />
+              {exercise.video_url && (
+                <TouchableOpacity style={styles.videoLink} onPress={() => Linking.openURL(exercise.video_url!)}>
+                  <Ionicons name="play-circle-outline" size={16} color={C.primary} />
+                  <Text style={styles.videoLinkText}>Watch full video</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Muscles worked */}
               <Text style={styles.sectionLabel}>MUSCLES WORKED</Text>
@@ -78,6 +74,21 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                           <Text style={styles.stepNumText}>{i + 1}</Text>
                         </View>
                         <Text style={styles.stepText}>{step}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Common mistakes (movement-pattern coaching cues) */}
+              {getCommonMistakes(exercise.movement_pattern).length > 0 && (
+                <>
+                  <Text style={styles.sectionLabel}>COMMON MISTAKES</Text>
+                  <View style={{ gap: Spacing.xs }}>
+                    {getCommonMistakes(exercise.movement_pattern).map((m, i) => (
+                      <View key={i} style={styles.mistakeRow}>
+                        <Ionicons name="alert-circle-outline" size={16} color={C.error} style={{ marginTop: 1 }} />
+                        <Text style={styles.mistakeText}>{m}</Text>
                       </View>
                     ))}
                   </View>
@@ -125,18 +136,14 @@ const styles = StyleSheet.create({
   scroll: { gap: Spacing.sm, paddingBottom: Spacing.md },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
   title: { fontFamily: 'Inter_800ExtraBold', fontSize: 26, color: C.text, letterSpacing: -0.4, marginBottom: Spacing.xs },
-  mediaWell: {
-    height: 160, borderRadius: Radius.lg, backgroundColor: C.surfaceContainerHigh,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
+  videoLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    paddingVertical: 4,
   },
-  playPill: {
-    position: 'absolute', bottom: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(27,27,28,0.72)', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 6,
-  },
-  playPillText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff' },
+  videoLinkText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  musclePrimary: { backgroundColor: '#EFF4FF', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
+  musclePrimary: { backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
   musclePrimaryText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, textTransform: 'capitalize' },
   muscleSecondary: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
   muscleSecondaryText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
@@ -144,6 +151,8 @@ const styles = StyleSheet.create({
   stepNum: { width: 24, height: 24, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   stepNumText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.onPrimary },
   stepText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21 },
+  mistakeRow: { flexDirection: 'row', gap: Spacing.xs, alignItems: 'flex-start' },
+  mistakeText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21 },
   equipChip: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
   equipChipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
   closeBtn: { height: 52, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.sm },
