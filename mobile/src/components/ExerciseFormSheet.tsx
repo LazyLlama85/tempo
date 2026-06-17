@@ -1,15 +1,16 @@
-import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Modal, View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, Linking, Animated,
+} from 'react-native'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
-import { ExerciseMedia } from '@/components/ExerciseMedia'
-import { getCommonMistakes } from '@/data/commonMistakes'
+import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 
 const C = Colors.light
 
-// Structural prop type so this component doesn't couple to the session screen's
-// internal ExerciseRow — anything with these fields works.
 export interface FormExercise {
-  id: string
   name: string
   movement_pattern: string
   primary_muscles: string[]
@@ -26,6 +27,45 @@ interface Props {
 
 export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const visible = exercise !== null
+  const [gifId, setGifId] = useState<string | null>(null)
+  const [gifLoading, setGifLoading] = useState(false)
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const pulseAnim = useRef(new Animated.Value(0.4)).current
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null)
+
+  useEffect(() => {
+    if (!exercise) {
+      setGifId(null)
+      return
+    }
+    setGifLoading(true)
+    fadeAnim.setValue(0)
+
+    fetchExerciseId(exercise.name).then(id => {
+      setGifId(id)
+      setGifLoading(false)
+      if (id) {
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true,
+        }).start()
+      }
+    })
+  }, [exercise?.name])
+
+  useEffect(() => {
+    pulseLoop.current?.stop()
+    if (!gifLoading) { pulseAnim.setValue(0.4); return }
+    pulseLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 750, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+      ])
+    )
+    pulseLoop.current.start()
+    return () => pulseLoop.current?.stop()
+  }, [gifLoading])
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -33,26 +73,77 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
         <TouchableOpacity style={styles.backdropTap} activeOpacity={1} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
+
           {exercise && (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scroll}
+              bounces={false}
+            >
               {/* Title */}
-              <Text style={styles.eyebrow}>{exercise.movement_pattern.toUpperCase()} · FORM GUIDE</Text>
+              <Text style={styles.eyebrow}>
+                {exercise.movement_pattern.replace(/_/g, ' ').toUpperCase()} · FORM GUIDE
+              </Text>
               <Text style={styles.title}>{exercise.name}</Text>
 
-              {/* Animated form demo (verified clip) with a graceful fallback */}
-              <ExerciseMedia exerciseId={exercise.id} height={200} />
-              {exercise.video_url && (
-                <TouchableOpacity style={styles.videoLink} onPress={() => Linking.openURL(exercise.video_url!)}>
-                  <Ionicons name="play-circle-outline" size={16} color={C.primary} />
-                  <Text style={styles.videoLinkText}>Watch full video</Text>
-                </TouchableOpacity>
-              )}
+              {/* GIF hero */}
+              <View style={styles.mediaContainer}>
+                {/* Loading skeleton */}
+                {gifLoading && (
+                  <Animated.View style={[styles.skeleton, { opacity: pulseAnim }]}>
+                    <View style={styles.skeletonIcon}>
+                      <Ionicons name="barbell-outline" size={36} color={C.outlineVariant} />
+                    </View>
+                    <Text style={styles.skeletonText}>Loading form guide…</Text>
+                  </Animated.View>
+                )}
+
+                {/* GIF with fade-in */}
+                {!gifLoading && gifId && (
+                  <Animated.View style={[styles.gifWrapper, { opacity: fadeAnim }]}>
+                    <Image
+                      source={gifSource(gifId)}
+                      style={styles.gifImage}
+                      contentFit="contain"
+                    />
+                    {exercise.video_url && (
+                      <TouchableOpacity
+                        style={styles.playPill}
+                        onPress={() => Linking.openURL(exercise.video_url!)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="play-circle" size={15} color="#fff" />
+                        <Text style={styles.playPillText}>Watch video</Text>
+                      </TouchableOpacity>
+                    )}
+                  </Animated.View>
+                )}
+
+                {/* No GIF fallback */}
+                {!gifLoading && !gifId && (
+                  <TouchableOpacity
+                    style={styles.noGifFallback}
+                    activeOpacity={exercise.video_url ? 0.8 : 1}
+                    onPress={() => exercise.video_url && Linking.openURL(exercise.video_url)}
+                    disabled={!exercise.video_url}
+                  >
+                    <Ionicons name="barbell-outline" size={44} color={C.outlineVariant} />
+                    {exercise.video_url && (
+                      <View style={styles.playPill}>
+                        <Ionicons name="play-circle" size={15} color="#fff" />
+                        <Text style={styles.playPillText}>Watch form guide</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Muscles worked */}
               <Text style={styles.sectionLabel}>MUSCLES WORKED</Text>
               <View style={styles.chipRow}>
                 {exercise.primary_muscles.map(m => (
                   <View key={m} style={styles.musclePrimary}>
+                    <View style={styles.muscleDot} />
                     <Text style={styles.musclePrimaryText}>{m}</Text>
                   </View>
                 ))}
@@ -63,32 +154,17 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 ))}
               </View>
 
-              {/* Instructions */}
+              {/* Step-by-step instructions */}
               {exercise.instructions.length > 0 && (
                 <>
                   <Text style={styles.sectionLabel}>HOW TO DO IT</Text>
-                  <View style={{ gap: Spacing.sm }}>
+                  <View style={styles.stepList}>
                     {exercise.instructions.map((step, i) => (
                       <View key={i} style={styles.stepRow}>
                         <View style={styles.stepNum}>
                           <Text style={styles.stepNumText}>{i + 1}</Text>
                         </View>
                         <Text style={styles.stepText}>{step}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {/* Common mistakes (movement-pattern coaching cues) */}
-              {getCommonMistakes(exercise.movement_pattern).length > 0 && (
-                <>
-                  <Text style={styles.sectionLabel}>COMMON MISTAKES</Text>
-                  <View style={{ gap: Spacing.xs }}>
-                    {getCommonMistakes(exercise.movement_pattern).map((m, i) => (
-                      <View key={i} style={styles.mistakeRow}>
-                        <Ionicons name="alert-circle-outline" size={16} color={C.error} style={{ marginTop: 1 }} />
-                        <Text style={styles.mistakeText}>{m}</Text>
                       </View>
                     ))}
                   </View>
@@ -102,6 +178,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                   <View style={styles.chipRow}>
                     {exercise.required_equipment.map(e => (
                       <View key={e} style={styles.equipChip}>
+                        <Ionicons name="barbell-outline" size={11} color={C.textSecondary} />
                         <Text style={styles.equipChipText}>{e.replace(/_/g, ' ')}</Text>
                       </View>
                     ))}
@@ -121,40 +198,145 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10,10,12,0.6)',
+    justifyContent: 'flex-end',
+  },
   backdropTap: { flex: 1 },
   sheet: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    maxHeight: '88%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '92%',
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.containerPadding,
     paddingBottom: Spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 20,
   },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.md },
+  handle: {
+    width: 36, height: 4, borderRadius: Radius.full,
+    backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.lg,
+  },
   scroll: { gap: Spacing.sm, paddingBottom: Spacing.md },
-  eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 26, color: C.text, letterSpacing: -0.4, marginBottom: Spacing.xs },
-  videoLink: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    paddingVertical: 4,
+
+  eyebrow: {
+    fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary,
+    letterSpacing: 1, textTransform: 'uppercase',
   },
-  videoLinkText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
-  sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.sm },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  musclePrimary: { backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  musclePrimaryText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, textTransform: 'capitalize' },
-  muscleSecondary: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  muscleSecondaryText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
-  stepRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
-  stepNum: { width: 24, height: 24, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  stepNumText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.onPrimary },
-  stepText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21 },
-  mistakeRow: { flexDirection: 'row', gap: Spacing.xs, alignItems: 'flex-start' },
-  mistakeText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21 },
-  equipChip: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  equipChipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
-  closeBtn: { height: 52, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.sm },
-  closeBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
+  title: {
+    fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text,
+    letterSpacing: -0.5, marginBottom: Spacing.xs,
+  },
+
+  // ── GIF hero ───────────────────────────────────────────────────────────────
+  mediaContainer: {
+    height: 230,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#F5F7FF',
+    borderWidth: 1,
+    borderColor: C.outlineVariant,
+    marginBottom: Spacing.sm,
+  },
+  skeleton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  skeletonIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: C.surfaceContainerHigh,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  skeletonText: {
+    fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline,
+  },
+  gifWrapper: {
+    flex: 1,
+  },
+  gifImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noGifFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playPill: {
+    position: 'absolute', bottom: 12, left: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(15,15,20,0.76)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  playPillText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff' },
+
+  // ── Sections ───────────────────────────────────────────────────────────────
+  sectionLabel: {
+    fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline,
+    letterSpacing: 0.8, marginTop: Spacing.sm,
+  },
+
+  // Muscles
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  musclePrimary: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#EEF3FF',
+    borderRadius: Radius.full, paddingHorizontal: 11, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#D0DCFF',
+  },
+  muscleDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary,
+  },
+  musclePrimaryText: {
+    fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, textTransform: 'capitalize',
+  },
+  muscleSecondary: {
+    backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.full, paddingHorizontal: 11, paddingVertical: 6,
+    borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  muscleSecondaryText: {
+    fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize',
+  },
+
+  // Steps
+  stepList: { gap: 10 },
+  stepRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  stepNum: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0,
+  },
+  stepNumText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: C.onPrimary },
+  stepText: {
+    flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14,
+    color: C.textSecondary, lineHeight: 22,
+  },
+
+  // Equipment
+  equipChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.full, paddingHorizontal: 11, paddingVertical: 6,
+    borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  equipChipText: {
+    fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize',
+  },
+
+  // Done button
+  closeBtn: {
+    height: 54, backgroundColor: C.primary, borderRadius: Radius.lg,
+    alignItems: 'center', justifyContent: 'center', marginTop: Spacing.sm,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+  },
+  closeBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
 })

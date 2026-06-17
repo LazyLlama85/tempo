@@ -21,3 +21,6 @@ android/
 
 # OS
 .DS_Store
+
+# Claude Code local settings (machine-specific; may contain tokens/keys)
+.claude/settings.local.json

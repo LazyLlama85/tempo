@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Vibration,
+  TextInput, Alert, ActivityIndicator, Animated,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -11,10 +12,9 @@ import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
-import { getIntensityBias, type IntensityBias } from '@/lib/adaptation'
-import { getSubstitutions, saveSubstitution, applySubstitutions } from '@/lib/substitutions'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import type { Goal } from '@/types'
 
 const C = Colors.light
@@ -88,8 +88,8 @@ export default function WorkoutsScreen() {
   const [rpePrompt, setRpePrompt] = useState<{ exId: string; idx: number } | null>(null)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
+  const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
-  const [bias, setBias] = useState<IntensityBias>(0)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
 
@@ -129,24 +129,16 @@ export default function WorkoutsScreen() {
     if (!workoutRow) { setNotFound(true); setLoading(false); return }
     setWorkout(workoutRow as WorkoutRow)
 
-    const rawIds: string[] = workoutRow.exercise_ids ?? []
+    const exerciseIds: string[] = workoutRow.exercise_ids ?? []
 
-    // The user's goal drives rep/rest schemes; a rough recovery day trims volume;
-    // the last "too easy / too hard" check-in biases this session's volume; and
-    // any saved swaps are applied so the user's preferred lifts show up.
-    const [{ data: profileRow }, readiness, biasVal, subs] = await Promise.all([
+    // The user's goal drives rep/rest schemes; a rough recovery day trims volume.
+    const [{ data: profileRow }, readiness] = await Promise.all([
       supabase.from('user_profiles').select('goal').eq('user_id', userId).maybeSingle(),
       getTodayReadiness(userId),
-      getIntensityBias(supabase, userId),
-      getSubstitutions(supabase, userId),
     ])
     const goal = (profileRow?.goal ?? 'general_fitness') as Goal
     setGoal(goal)
-    setBias(biasVal)
     const readinessLow = readiness != null && readiness < 50
-
-    // Remap to the user's saved substitutes before loading exercise details.
-    const exerciseIds = applySubstitutions(rawIds, subs)
 
     // Fetch full exercise rows and restore the plan's original order
     const { data: exRows } = exerciseIds.length
@@ -162,6 +154,14 @@ export default function WorkoutsScreen() {
 
     setExercises(ordered)
     setExpandedId(ordered[0]?.id ?? null)
+    setGifIds({})
+
+    // Pre-fetch exercise IDs in the background; expo-image handles the actual GIF download with auth headers
+    ordered.forEach(ex => {
+      fetchExerciseId(ex.name).then(id => {
+        if (id) setGifIds(prev => ({ ...prev, [ex.id]: id }))
+      })
+    })
 
     // Build each exercise's "last session" performance → next-session prescription
     // + the per-set PREV column. History is read before the new log exists, so the
@@ -187,7 +187,7 @@ export default function WorkoutsScreen() {
         }))
         prevBySetMap[ex.id] = lastSets.map(r =>
           r.weight_lbs != null ? `${r.weight_lbs}×${r.reps_completed}` : `${r.reps_completed}`)
-        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow, biasVal)
+        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow)
       }
     }
 
@@ -255,9 +255,7 @@ export default function WorkoutsScreen() {
       [exId]: prev[exId].map((s, i) => i === idx ? { ...s, rpe, done: true } : s),
     }))
 
-    // Light haptic confirm, then auto-start the rest timer using this exercise's
-    // prescribed rest.
-    Vibration.vibrate(20)
+    // Auto-start the rest timer using this exercise's prescribed rest
     setRestSecondsLeft(restDefaults.current[exId] ?? 90)
 
     await supabase.from('set_logs').insert({
@@ -323,14 +321,14 @@ export default function WorkoutsScreen() {
         onPress: () => replaceExercise(ex.id, c),
       }))
       buttons.push({ text: 'Cancel', style: 'cancel' })
-      Alert.alert('Swap exercise', `Replace ${ex.name} with: (we'll remember this for next time)`, buttons)
+      Alert.alert('Swap exercise', `Replace ${ex.name} with:`, buttons)
     } finally {
       setSwapping(false)
     }
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias)
+    const prescription = buildPrescription([], goal, next.movement_pattern, false)
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))
@@ -353,14 +351,12 @@ export default function WorkoutsScreen() {
     })
     setExpandedId(cur => cur === oldId ? next.id : cur)
 
-    // Persist the swap into this workout AND remember the preference so the same
-    // substitution is applied automatically to future workouts.
+    // Persist the swap into the plan so it sticks for this workout
     if (workout) {
       const newIds = workout.exercise_ids.map(id => id === oldId ? next.id : id)
       setWorkout({ ...workout, exercise_ids: newIds })
       await supabase.from('scheduled_workouts').update({ exercise_ids: newIds }).eq('id', workout.id)
     }
-    saveSubstitution(supabase, userId, oldId, next.id)
   }
 
   // ── Complete workout ───────────────────────────────────────────────────────
@@ -395,7 +391,6 @@ export default function WorkoutsScreen() {
     if (restSecondsLeft === null) return
     if (restSecondsLeft === 0) {
       setRestSecondsLeft(null)
-      Vibration.vibrate(600) // buzz when rest is up
       Alert.alert('Rest Complete!', 'Time for your next set.')
       return
     }
@@ -499,20 +494,6 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {bias !== 0 && (
-          <View style={styles.adaptBanner}>
-            <Ionicons
-              name={bias > 0 ? 'trending-up' : 'shield-checkmark-outline'}
-              size={16}
-              color={C.primary}
-            />
-            <Text style={styles.adaptBannerText}>
-              {bias > 0
-                ? 'Last session felt easy — added a set to each lift to push you.'
-                : 'Last session felt tough — trimmed a set to keep you fresh and recovering.'}
-            </Text>
-          </View>
-        )}
         {exercises.map((ex) => {
           const exSets = sets[ex.id] ?? []
           const doneCount = exSets.filter(s => s.done).length
@@ -528,6 +509,19 @@ export default function WorkoutsScreen() {
                 onPress={() => setExpandedId(isExpanded ? null : ex.id)}
                 activeOpacity={0.7}
               >
+                {/* GIF thumbnail */}
+                <View style={styles.thumbWrap}>
+                  {gifIds[ex.id] ? (
+                    <Image
+                      source={gifSource(gifIds[ex.id]!)}
+                      style={styles.thumb}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Ionicons name="barbell-outline" size={22} color={C.outlineVariant} />
+                  )}
+                </View>
+
                 <View style={{ flex: 1 }}>
                   <Text style={styles.exerciseName}>{ex.name}</Text>
                   <Text style={styles.muscleLabel}>
@@ -535,7 +529,7 @@ export default function WorkoutsScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? C.success : C.outline }}>
+                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? '#16A34A' : C.outline }}>
                     {doneCount}/{exSets.length}
                   </Text>
                   <Ionicons
@@ -553,25 +547,25 @@ export default function WorkoutsScreen() {
                     <View style={styles.targetCard}>
                       <View style={styles.targetRow}>
                         <View style={styles.targetLeft}>
-                          <Text style={styles.targetEyebrow}>RECOMMENDED · {p.sets} SETS</Text>
+                          <Text style={styles.targetEyebrow}>TODAY'S TARGET</Text>
                           <Text style={styles.targetValue}>
-                            {p.suggestedWeight != null ? `${p.suggestedWeight} lbs · ` : ''}{p.repLow}–{p.repHigh} reps
+                            {p.suggestedWeight != null ? `${p.suggestedWeight} lbs · ` : ''}{p.repLow}–{p.repHigh} reps × {p.sets}
                           </Text>
                         </View>
                         {p.direction !== 'new' && (
                           <View style={[
                             styles.dirBadge,
-                            p.direction === 'up' && { backgroundColor: C.successSoft },
-                            p.direction === 'down' && { backgroundColor: C.dangerSoft },
+                            p.direction === 'up' && { backgroundColor: '#F0FDF4' },
+                            p.direction === 'down' && { backgroundColor: '#FFF1F0' },
                           ]}>
                             <Ionicons
                               name={p.direction === 'up' ? 'trending-up' : p.direction === 'down' ? 'trending-down' : 'remove'}
                               size={13}
-                              color={p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary}
+                              color={p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary}
                             />
                             <Text style={[
                               styles.dirBadgeText,
-                              { color: p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary },
+                              { color: p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary },
                             ]}>
                               {p.direction === 'up' ? 'GO UP' : p.direction === 'down' ? 'BACK OFF' : 'HOLD'}
                             </Text>
@@ -579,11 +573,6 @@ export default function WorkoutsScreen() {
                         )}
                       </View>
                       <Text style={styles.targetReason}>{p.reason}</Text>
-                      <Text style={styles.targetHint}>
-                        {p.suggestedWeight != null
-                          ? `You should be able to do about ${p.suggestedWeight} lbs for ${p.repHigh} reps. We've pre-filled it — adjust to what you actually lift.`
-                          : `Aim for ${p.repLow}–${p.repHigh} clean reps. Log the weight you use so Tempo can progress you next time.`}
-                      </Text>
                     </View>
                   )}
 
@@ -769,7 +758,15 @@ const styles = StyleSheet.create({
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.md },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   exerciseCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow, borderWidth: 1, borderColor: C.outlineVariant },
-  exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
+  thumbWrap: {
+    width: 58, height: 58, borderRadius: 12,
+    backgroundColor: '#F5F7FF',
+    borderWidth: 1, borderColor: '#E0E7FF',
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', flexShrink: 0,
+  },
+  thumb: { width: 58, height: 58 },
   exerciseName: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text, letterSpacing: -0.2 },
   exerciseTarget: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, marginTop: 2 },
   timerRing: { width: 52, height: 52, borderRadius: Radius.full, borderWidth: 3, borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },
@@ -818,14 +815,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: C.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: C.outlineVariant,
+    backgroundColor: '#1B1B1C',
     borderRadius: Radius.full,
     paddingVertical: 12,
     paddingHorizontal: 20,
     zIndex: 40,
-    shadowColor: '#000000',
+    shadowColor: '#1A1A1B',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.14,
     shadowRadius: 40,
@@ -845,7 +840,7 @@ const styles = StyleSheet.create({
 
   // ── Adaptive coaching (Track 1) ─────────────────────────────────────────────
   targetCard: {
-    backgroundColor: C.primarySoft,
+    backgroundColor: '#EFF4FF',
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: 6,
@@ -861,7 +856,6 @@ const styles = StyleSheet.create({
   },
   dirBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
   targetReason: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-  targetHint: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary, lineHeight: 17 },
   exActions: { flexDirection: 'row', gap: Spacing.sm },
   exActionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -884,9 +878,4 @@ const styles = StyleSheet.create({
   rpeSkip: { paddingHorizontal: 4 },
   rpeSkipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline },
   rpeLogged: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, textAlign: 'right', marginTop: -2, marginBottom: 4 },
-  adaptBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
-  },
-  adaptBannerText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
 })
