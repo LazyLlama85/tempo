@@ -10,6 +10,7 @@
   <meta property="og:title" content="Tempo — Fitness that fits your schedule">
   <meta property="og:description" content="Most fitness apps expect your life to fit their plan. Tempo builds training around your real calendar — and adapts when life gets busy.">
   <meta property="og:type" content="website">
+  <link rel="icon" href="tempo-logo.png" type="image/png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -113,10 +114,8 @@
     nav .wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
     .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
     .logo-mark {
-      width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-      background: var(--accent); color: #fff;
-      display: grid; place-items: center; font-weight: 800; font-size: 16px;
-      letter-spacing: -0.02em;
+      width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+      display: block; object-fit: contain;
     }
     .logo-name { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
     .nav-links { display: flex; align-items: center; gap: 4px; }
@@ -179,12 +178,56 @@
       z-index: 0;
     }
     .float-chip {
-      position: absolute; z-index: 4;
-      display: flex; align-items: center; gap: 10px;
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: 14px; padding: 11px 14px;
-      box-shadow: 0 12px 34px rgba(23,20,15,0.12);
-    }
+        position: absolute;
+        z-index: 4;
+
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        background: var(--surface);
+
+        /* clearer outline (more visible but still soft) */
+        border: 1px solid rgba(23, 20, 15, 0.18);
+
+        border-radius: 14px;
+        padding: 11px 14px;
+
+        /* stronger but still natural depth */
+        box-shadow:
+          0 16px 40px rgba(23, 20, 15, 0.14),
+          0 2px 6px rgba(23, 20, 15, 0.08);
+
+        /* subtle glass effect */
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+
+        /* smoother feel when animating */
+        transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+        will-change: transform;
+      }
+
+      /* TOP chip (calendar synced) */
+      .float-chip.top {
+        top: 8%;
+        left: 0;
+        transform: translateX(-110%);
+      }
+
+      /* BOTTOM chip (plan adapted) */
+      .float-chip.bot {
+        bottom: 12%;
+        right: 0;
+        transform: translateX(110%);
+      }
+
+      /* optional: slight hover lift */
+      .float-chip:hover {
+        transform: translateX(var(--tx, 0)) translateY(-2px);
+        box-shadow:
+          0 22px 55px rgba(23, 20, 15, 0.18),
+          0 4px 10px rgba(23, 20, 15, 0.10);
+      }
     .float-chip .fc-ic {
       width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
       background: var(--accent-soft); color: var(--accent-ink);
@@ -192,8 +235,8 @@
     }
     .float-chip .fc-t { font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; }
     .float-chip .fc-s { font-size: 11px; color: var(--muted); margin-top: 1px; }
-    .float-chip.top { top: 8%; left: -4%; }
-    .float-chip.bot { bottom: 12%; right: -6%; }
+    .float-chip.top { top: 0%; left: 0%; transform: translate(-20%, -20%);}
+    .float-chip.bot { bottom: 0%; right: 0%; transform: translate(30%, 30%);}
 
     /* ── TRUST STRIP ───────────────────────────────────────── */
     .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.5); }
@@ -351,104 +394,242 @@
     .footer-col a:hover { color: var(--dark-text); }
     .footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 28px; font-size: 13px; }
 
-    /* ── PHONE COMPONENT (realistic device frame) ──────────── */
+    /* ── PHONE COMPONENT (matches Tempo dark UI) ──────────── */
     .phone { position: relative; }
     .phone-frame {
       width: 100%; background: #0c0a09; border-radius: 44px;
       padding: 9px; border: 1px solid rgba(23,20,15,0.14);
       box-shadow: 0 40px 80px rgba(23,20,15,0.22), 0 12px 28px rgba(23,20,15,0.14);
     }
-    .phone-screen-wrap { position: relative; overflow: hidden; border-radius: 36px; aspect-ratio: 300/620; background: #F2F2F7; }
+    .phone-screen-wrap { position: relative; overflow: hidden; border-radius: 36px; aspect-ratio: 300/620; background: #0C0D10; }
     .phone-island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 92px; height: 26px; background: #000; border-radius: 16px; z-index: 10; }
 
-    /* App screen base */
-    .app-screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: #F2F2F7; font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #111827; -webkit-font-smoothing: antialiased; overflow: hidden; }
-    .app-sb { height: 46px; background: transparent; flex-shrink: 0; }
-    .app-nav { height: 48px; background: #fff; border-bottom: 1px solid #ECECEF; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
-    .app-nav-title { font-size: 16px; font-weight: 700; color: #111827; }
-    .app-nav-back  { position: absolute; left: 14px; font-size: 14px; color: var(--accent); font-weight: 500; }
-    .app-nav-add   { position: absolute; right: 14px; font-size: 24px; color: var(--accent); font-weight: 300; line-height: 1; }
-    .app-scroll    { flex: 1; overflow: hidden; }
+    /* App tokens — synced with mobile/src/constants/theme.ts */
+    .app-screen {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      background: #0C0D10; font-family: 'Inter', -apple-system, sans-serif;
+      color: #F2F3F6; -webkit-font-smoothing: antialiased; overflow: hidden;
+    }
+    .app-sb { height: 46px; flex-shrink: 0; }
+    .app-scroll { flex: 1; overflow: hidden; padding: 0 12px; }
+    .app-scroll-pad { padding-bottom: 8px; }
 
-    .app-week { background: #fff; display: flex; border-bottom: 1px solid #ECECEF; flex-shrink: 0; padding: 4px 2px; }
-    .app-wday { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 0 6px; gap: 5px; }
-    .app-wday-lbl { font-size: 9px; color: #9CA3AF; font-weight: 700; text-transform: uppercase; }
-    .app-wday-num { font-size: 14px; font-weight: 600; color: #111827; line-height: 1; }
-    .app-wday.today .app-wday-lbl { color: var(--accent); }
-    .app-wday.today .app-wday-num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
-    .app-wday-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+    /* Shared */
+    .app-eyebrow { font-size: 9px; font-weight: 700; color: #767E8C; letter-spacing: 0.6px; text-transform: uppercase; }
+    .app-avatar { width: 28px; height: 28px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; flex-shrink: 0; }
+    .app-avatar svg { color: #fff; }
+    .app-tabbar {
+      flex-shrink: 0; display: flex; background: #15181E;
+      border-top: 0.5px solid #2B313B; padding: 6px 4px 14px;
+    }
+    .app-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .app-tab svg { color: #767E8C; }
+    .app-tab.on svg, .app-tab.on .app-tab-lbl { color: #3D82F7; }
+    .app-tab-lbl { font-size: 9px; font-weight: 500; color: #767E8C; }
 
-    .app-slabel { padding: 13px 14px 5px; font-size: 10px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .06em; }
-    .app-event { margin: 0 11px 7px; background: #fff; border-radius: 13px; padding: 11px 12px 11px 16px; display: flex; align-items: center; gap: 9px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); position: relative; }
-    .app-event::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 4px; border-radius: 0 4px 4px 0; }
-    .app-ev-b::before  { background: var(--accent); }
-    .app-ev-g::before  { background: #10B981; }
-    .app-ev-p::before  { background: #fb7185; }
-    .app-ev-time { font-size: 10px; font-weight: 700; min-width: 46px; }
-    .app-ev-b .app-ev-time { color: var(--accent); }
-    .app-ev-g .app-ev-time { color: #10B981; }
-    .app-ev-p .app-ev-time { color: #fb7185; }
-    .app-ev-info { flex: 1; }
-    .app-ev-title { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 2px; }
-    .app-ev-sub   { font-size: 11px; color: #9CA3AF; }
-    .app-ev-badge { font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: var(--accent-soft); color: var(--accent-ink); flex-shrink: 0; }
+    /* Schedule (home tab) */
+    .app-sched-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px 10px; border-bottom: 0.5px solid #2B313B; flex-shrink: 0;
+    }
+    .app-greeting-name { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-top: 1px; }
+    .app-month-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 8px; }
+    .app-month-text { font-size: 17px; font-weight: 700; color: #F2F3F6; letter-spacing: -0.2px; }
+    .app-month-nav { display: flex; gap: 8px; color: #F2F3F6; }
+    .app-date-strip { display: flex; gap: 4px; margin-bottom: 10px; overflow: hidden; }
+    .app-day {
+      min-width: 44px; padding: 8px 10px; border-radius: 14px; text-align: center; flex-shrink: 0;
+    }
+    .app-day.on { background: #3D82F7; }
+    .app-day-lbl { font-size: 9px; font-weight: 500; color: #767E8C; margin-bottom: 3px; }
+    .app-day.on .app-day-lbl, .app-day.on .app-day-num { color: #fff; }
+    .app-day-num { font-size: 16px; font-weight: 700; color: #F2F3F6; line-height: 1; }
+    .app-day-dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; margin: 4px auto 0; }
+    .app-quick-card {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+      background: #15181E; border: 1.5px solid #3D82F7; border-radius: 18px; padding: 10px;
+    }
+    .app-quick-ic {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(61,130,247,0.16); display: grid; place-items: center; color: #3D82F7;
+    }
+    .app-quick-title { font-size: 12px; font-weight: 800; color: #F2F3F6; margin-top: 1px; }
+    .app-quick-sub { font-size: 9.5px; color: #A6ACBA; margin-top: 2px; line-height: 1.35; }
+    .app-quick-go { width: 28px; height: 28px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; flex-shrink: 0; color: #fff; }
+    .app-timeline-row { display: flex; gap: 10px; align-items: flex-start; }
+    .app-time-col { width: 34px; padding-top: 12px; font-size: 10px; font-weight: 700; color: #3D82F7; flex-shrink: 0; }
+    .app-workout-card {
+      flex: 1; background: #15181E; border-radius: 14px; border: 1px solid #2B313B;
+      border-left: 3px solid #3D82F7; padding: 10px; margin-bottom: 8px;
+    }
+    .app-wk-badge {
+      display: inline-block; font-size: 8px; font-weight: 700; color: #3D82F7;
+      letter-spacing: 0.5px; background: #191C22; border-radius: 999px; padding: 2px 7px; margin-bottom: 5px;
+    }
+    .app-wk-title { font-size: 15px; font-weight: 700; color: #F2F3F6; line-height: 1.2; letter-spacing: -0.2px; }
+    .app-wk-meta { display: flex; gap: 12px; margin: 7px 0 8px; }
+    .app-wk-meta-lbl { font-size: 8px; font-weight: 700; color: #767E8C; letter-spacing: 0.5px; }
+    .app-wk-meta-val { font-size: 11px; font-weight: 700; color: #F2F3F6; margin-top: 1px; }
+    .app-start-btn {
+      height: 34px; background: #3D82F7; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      font-size: 10px; font-weight: 700; color: #fff; letter-spacing: 0.3px;
+    }
+    .app-fab {
+      position: absolute; right: 14px; bottom: 58px; width: 42px; height: 42px;
+      border-radius: 50%; background: #3D82F7; display: grid; place-items: center; color: #fff;
+      box-shadow: 0 8px 24px rgba(0,88,188,0.28); z-index: 5;
+    }
 
-    /* Active session screen */
-    .app-act { background: #14110d; }
-    .app-act-hdr { background: #14110d; padding: 14px 16px 16px; flex-shrink: 0; }
-    .app-act-ex  { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 4px; }
-    .app-act-set { font-size: 12px; color: rgba(255,255,255,0.45); }
-    .app-act-wgt { background: #14110d; padding: 8px 16px 18px; text-align: center; flex-shrink: 0; }
-    .app-act-num { font-size: 54px; font-weight: 900; color: #fff; line-height: 1; }
-    .app-act-unt { font-size: 16px; color: rgba(255,255,255,0.4); }
-    .app-act-hist { background: #1d1813; padding: 14px 12px 0; flex: 1; }
-    .app-act-ct  { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px; }
-    .app-act-row { background: #29221c; border-radius: 10px; padding: 10px 13px; margin-bottom: 7px; display: flex; align-items: center; gap: 10px; }
-    .app-act-row.cur { background: #1e3a8a; border: 1px solid rgba(61,130,247,0.40); }
-    .app-act-sn  { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.3); width: 18px; }
-    .app-act-row.cur .app-act-sn { color: var(--accent); }
-    .app-act-sv  { flex: 1; font-size: 12px; color: rgba(255,255,255,0.6); }
-    .app-act-row.cur .app-act-sv { color: #fff; font-weight: 600; }
-    .app-act-ck  { font-size: 13px; color: #10B981; }
-    .app-act-now { font-size: 10px; color: var(--accent); font-weight: 700; }
+    /* Quick Workout screen */
+    .app-qw-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px 8px; flex-shrink: 0;
+    }
+    .app-qw-hdr-title { font-size: 13px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.2px; }
+    .app-qw-lead { font-size: 14px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-bottom: 4px; }
+    .app-qw-sub { font-size: 10px; color: #A6ACBA; line-height: 1.45; margin-bottom: 10px; }
+    .app-dur-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .app-dur-chip {
+      width: calc(20% - 4px); aspect-ratio: 1.1; border-radius: 12px;
+      background: #15181E; border: 1.5px solid #2B313B;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .app-dur-chip.on { background: #3D82F7; border-color: #3D82F7; }
+    .app-dur-num { font-size: 14px; font-weight: 800; color: #F2F3F6; line-height: 1; }
+    .app-dur-chip.on .app-dur-num, .app-dur-chip.on .app-dur-unit { color: #fff; }
+    .app-dur-unit { font-size: 8px; font-weight: 500; color: #767E8C; margin-top: 1px; }
+    .app-purpose-row { display: flex; gap: 5px; margin-bottom: 10px; overflow: hidden; }
+    .app-purpose {
+      display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+      background: #15181E; border: 1.5px solid #2B313B; border-radius: 999px;
+      padding: 5px 10px; font-size: 9px; font-weight: 700; color: #F2F3F6;
+    }
+    .app-purpose.on { background: #3D82F7; border-color: #3D82F7; color: #fff; }
+    .app-purpose svg { flex-shrink: 0; }
+    .app-preview-card {
+      background: #15181E; border: 1px solid #2B313B; border-radius: 18px; padding: 11px; margin-bottom: 8px;
+    }
+    .app-preview-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .app-purpose-badge {
+      display: flex; align-items: center; gap: 4px; font-size: 8px; font-weight: 700;
+      color: #3D82F7; letter-spacing: 0.5px; background: rgba(61,130,247,0.16);
+      border-radius: 999px; padding: 3px 8px;
+    }
+    .app-preview-est { font-size: 10px; font-weight: 700; color: #A6ACBA; }
+    .app-preview-title { font-size: 14px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-bottom: 7px; }
+    .app-why-box {
+      display: flex; gap: 6px; background: #191C22; border-radius: 12px; padding: 8px; margin-bottom: 8px;
+      font-size: 9px; color: #A6ACBA; line-height: 1.45;
+    }
+    .app-ex-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0;
+      border-bottom: 1px solid #2A2F39; font-size: 10px;
+    }
+    .app-ex-row:last-child { border-bottom: none; }
+    .app-ex-idx { width: 14px; font-weight: 700; color: #767E8C; text-align: center; }
+    .app-ex-name { font-weight: 700; color: #F2F3F6; }
+    .app-ex-meta { font-size: 8.5px; color: #A6ACBA; margin-top: 1px; }
+    .app-ex-dose { font-weight: 700; color: #3D82F7; margin-left: auto; flex-shrink: 0; }
+    .app-footer-btn {
+      margin: 0 12px 10px; height: 40px; background: #3D82F7; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
 
-    .app-bigbtn { margin: 12px; background: var(--accent); color: #fff; border-radius: 13px; padding: 13px; text-align: center; font-size: 14px; font-weight: 700; }
+    /* Active workout (Plan tab) */
+    .app-plan-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; flex-shrink: 0;
+    }
+    .app-logo-txt { font-size: 12px; font-weight: 800; color: #3D82F7; letter-spacing: 2px; }
+    .app-session-bar {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      padding: 0 12px 8px; flex-shrink: 0;
+    }
+    .app-session-title { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.2px; margin-top: 1px; }
+    .app-session-timer { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.4px; text-align: right; }
+    .app-session-est { font-size: 8px; font-weight: 700; color: #3D82F7; letter-spacing: 0.6px; text-align: right; }
+    .app-prog-track { height: 3px; background: #2A2F39; margin: 0 12px 10px; border-radius: 999px; flex-shrink: 0; }
+    .app-prog-fill { height: 3px; background: #3D82F7; border-radius: 999px; width: 42%; }
+    .app-ex-card {
+      background: #15181E; border: 1px solid #2B313B; border-radius: 18px; padding: 10px; margin-bottom: 8px;
+    }
+    .app-ex-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .app-ex-thumb {
+      width: 40px; height: 40px; border-radius: 10px; background: #191C22;
+      border: 1px solid #2B313B; display: grid; place-items: center; color: #767E8C; flex-shrink: 0;
+    }
+    .app-ex-hname { font-size: 12px; font-weight: 700; color: #F2F3F6; }
+    .app-ex-muscles { font-size: 8px; font-weight: 700; color: #A6ACBA; letter-spacing: 0.5px; margin-top: 2px; }
+    .app-ex-count { font-size: 10px; font-weight: 500; color: #767E8C; margin-left: auto; }
+    .app-target-card {
+      background: #EFF4FF; border-radius: 12px; padding: 8px; margin-bottom: 8px;
+    }
+    .app-target-lbl { font-size: 8px; font-weight: 700; color: #3D82F7; letter-spacing: 0.5px; }
+    .app-target-val { font-size: 10px; font-weight: 700; color: #1e3a8a; margin-top: 2px; }
+    .app-set-table { font-size: 8px; }
+    .app-set-hdr { display: flex; padding-bottom: 4px; border-bottom: 1px solid #2A2F39; color: #767E8C; font-weight: 700; letter-spacing: 0.5px; }
+    .app-set-hdr span, .app-set-row span { flex: 1; text-align: center; }
+    .app-set-hdr span:first-child, .app-set-row span:first-child { flex: 0.5; }
+    .app-set-hdr span:nth-child(2), .app-set-row span:nth-child(2) { flex: 1.3; text-align: left; padding-left: 4px; }
+    .app-set-row { display: flex; align-items: center; padding: 6px 0; font-size: 10px; font-weight: 700; color: #F2F3F6; }
+    .app-set-row.done span:nth-child(2) { color: #767E8C; font-weight: 500; }
+    .app-set-row.active {
+      background: #15181E; border: 1.5px solid #3D82F7; border-radius: 10px;
+      padding: 6px 4px; margin: 0 -4px;
+    }
+    .app-set-row.active span:first-child { color: #3D82F7; }
+    .app-check { width: 18px; height: 18px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; margin: 0 auto; color: #fff; }
+    .app-check-empty { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #2B313B; margin: 0 auto; }
+    .app-input-fake { display: block; width: 100%; height: 24px; background: #191C22; border: 1px solid #2B313B; border-radius: 6px; }
 
     /* Progress screen */
-    .app-prg-top { background: #fff; padding: 16px 14px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #ECECEF; flex-shrink: 0; }
-    .app-ring { width: 78px; height: 78px; border-radius: 50%; flex-shrink: 0; background: conic-gradient(var(--accent) 306deg, #E5E7EB 306deg); display: flex; align-items: center; justify-content: center; position: relative; }
-    .app-ring::before { content: ''; position: absolute; inset: 9px; background: #fff; border-radius: 50%; }
+    .app-prog-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; flex-shrink: 0;
+    }
+    .app-prog-hdr-right { display: flex; align-items: center; gap: 10px; color: #F2F3F6; }
+    .app-page-title { font-size: 16px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin: 4px 0 10px; }
+    .app-ring-card {
+      background: #191C22; border-radius: 18px; padding: 11px; margin-bottom: 8px; text-align: center;
+    }
+    .app-ring-card .app-eyebrow { display: block; text-align: left; margin-bottom: 8px; }
+    .app-ring {
+      width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 6px;
+      background: conic-gradient(#3D82F7 281deg, #2A2F39 281deg);
+      display: grid; place-items: center; position: relative;
+    }
+    .app-ring::before {
+      content: ''; position: absolute; inset: 9px; background: #191C22; border-radius: 50%;
+    }
     .app-ring-in { position: relative; z-index: 1; text-align: center; }
-    .app-ring-pct { font-size: 16px; font-weight: 900; color: #111827; line-height: 1; }
-    .app-ring-lbl { font-size: 8px; color: #9CA3AF; }
-    .app-streak   { flex: 1; }
-    .app-streak-n { font-size: 28px; font-weight: 900; color: #111827; line-height: 1; }
-    .app-streak-l { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
-    .app-prg-chart { padding: 14px 14px 0; flex-shrink: 0; }
-    .app-prg-ct   { font-size: 10px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px; }
-    .app-bars { display: flex; align-items: flex-end; gap: 5px; height: 60px; }
-    .app-bwrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-    .app-bar { width: 100%; border-radius: 3px 3px 0 0; background: #E5E7EB; }
-    .app-bar.done { background: var(--accent); }
-    .app-bar.cur  { background: var(--accent-ink); }
-    .app-blbl { font-size: 9px; color: #9CA3AF; }
-    .app-prg-stats { display: flex; gap: 8px; padding: 11px 14px 0; flex-shrink: 0; }
-    .app-scard { flex: 1; background: #fff; border-radius: 12px; padding: 10px 11px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .app-scard-n { font-size: 18px; font-weight: 800; color: #111827; }
-    .app-scard-l { font-size: 9px; color: #9CA3AF; margin-top: 2px; }
-
-    /* Quick-workout screen */
-    .app-qw-banner { margin: 13px 12px 4px; background: linear-gradient(135deg, #3D82F7, #2563EB); border-radius: 16px; padding: 15px 16px; color: #fff; }
-    .app-qw-banner .l1 { font-size: 11px; font-weight: 700; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
-    .app-qw-banner .l2 { font-size: 16px; font-weight: 800; line-height: 1.25; }
-    .app-qw-dur { display: flex; gap: 6px; padding: 14px 12px 6px; }
-    .app-qw-chip { flex: 1; text-align: center; background: #fff; border-radius: 11px; padding: 9px 0; font-size: 12px; font-weight: 700; color: #6c655b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .app-qw-chip.on { background: var(--accent); color: #fff; }
-    .app-ex { background: #fff; border-radius: 12px; padding: 11px 13px; margin: 0 12px 7px; display: flex; align-items: center; gap: 11px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .app-ex-n { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; background: var(--accent-soft); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
-    .app-ex-nm { font-size: 12.5px; font-weight: 600; color: #111827; }
-    .app-ex-s  { font-size: 11px; color: #9CA3AF; }
-    .app-qw-lbl { padding: 8px 14px 4px; font-size: 10px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .06em; }
+    .app-ring-pct { font-size: 18px; font-weight: 800; color: #3D82F7; line-height: 1; letter-spacing: -0.5px; }
+    .app-ring-lbl { font-size: 7px; font-weight: 700; color: #A6ACBA; letter-spacing: 0.5px; margin-top: 2px; }
+    .app-ring-cap { font-size: 9px; color: #A6ACBA; line-height: 1.4; }
+    .app-streak-card {
+      background: #3D82F7; border-radius: 18px; padding: 11px; margin-bottom: 8px;
+    }
+    .app-streak-card .app-eyebrow { color: rgba(255,255,255,0.7); }
+    .app-streak-num { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; margin-top: 2px; }
+    .app-streak-unit { font-size: 14px; font-weight: 400; color: rgba(255,255,255,0.8); }
+    .app-streak-cap { font-size: 9px; color: rgba(255,255,255,0.7); margin-top: 4px; line-height: 1.4; }
+    .app-stat-card {
+      background: #15181E; border-radius: 18px; padding: 11px; margin-bottom: 8px;
+    }
+    .app-stat-row { display: flex; justify-content: space-between; align-items: flex-end; margin: 4px 0 8px; }
+    .app-stat-val { font-size: 20px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.5px; line-height: 1; }
+    .app-stat-unit { font-size: 11px; font-weight: 400; color: #A6ACBA; }
+    .app-period-toggle { display: flex; background: #191C22; border-radius: 10px; padding: 2px; gap: 2px; }
+    .app-period-btn { padding: 3px 8px; border-radius: 7px; font-size: 9px; font-weight: 700; color: #767E8C; }
+    .app-period-btn.on { background: #3D82F7; color: #fff; }
+    .app-bars { display: flex; align-items: flex-end; gap: 4px; height: 44px; margin-top: 4px; }
+    .app-bwrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .app-bar { width: 100%; border-radius: 3px 3px 0 0; background: #2A2F39; min-height: 2px; }
+    .app-bar.done { background: #2A2F39; }
+    .app-bar.cur { background: #3D82F7; }
+    .app-blbl { font-size: 8px; color: #767E8C; font-weight: 500; }
+    .app-blbl.on { color: #3D82F7; font-weight: 700; }
 
     /* ── SUCCESS MODAL ─────────────────────────────────────── */
     .modal-overlay {
@@ -527,7 +708,7 @@
 <nav id="nav">
   <div class="wrap">
     <a href="#top" class="logo">
-      <div class="logo-mark">T</div>
+      <img class="logo-mark" src="tempo-logo.png" alt="Tempo" width="32" height="32">
       <span class="logo-name">Tempo</span>
     </a>
     <div class="nav-links">
@@ -579,40 +760,70 @@
         <div class="phone-frame">
           <div class="phone-screen-wrap">
             <div class="phone-island"></div>
-            <!-- Schedule screen -->
+            <!-- Schedule screen (home tab) -->
             <div class="app-screen">
               <div class="app-sb"></div>
-              <div class="app-nav"><span class="app-nav-title">This Week</span><span class="app-nav-add">＋</span></div>
-              <div class="app-week">
-                <div class="app-wday"><span class="app-wday-lbl">M</span><span class="app-wday-num">13</span></div>
-                <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">14</span></div>
-                <div class="app-wday today"><span class="app-wday-lbl">W</span><span class="app-wday-num">15</span><div class="app-wday-dot"></div></div>
-                <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">16</span></div>
-                <div class="app-wday"><span class="app-wday-lbl">F</span><span class="app-wday-num">17</span><div class="app-wday-dot"></div></div>
-                <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">18</span></div>
-                <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">19</span></div>
+              <div class="app-sched-hdr">
+                <div>
+                  <div class="app-eyebrow">GOOD MORNING</div>
+                  <div class="app-greeting-name">Jacob</div>
+                </div>
+                <div class="app-avatar">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
               </div>
-              <div class="app-scroll">
-                <div class="app-slabel">Today · around your 2pm meeting</div>
-                <div class="app-event app-ev-b">
-                  <div class="app-ev-time">10:30</div>
-                  <div class="app-ev-info"><div class="app-ev-title">Upper Body Power</div><div class="app-ev-sub">45 min · Gym</div></div>
-                  <div class="app-ev-badge">Booked</div>
+              <div class="app-scroll app-scroll-pad">
+                <div class="app-month-row">
+                  <div class="app-month-text">June 2026</div>
+                  <div class="app-month-nav">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  </div>
                 </div>
-                <div class="app-slabel">Tomorrow</div>
-                <div class="app-event app-ev-g">
-                  <div class="app-ev-time">07:00</div>
-                  <div class="app-ev-info"><div class="app-ev-title">Easy 5K Run</div><div class="app-ev-sub">30 min · Outdoor</div></div>
+                <div class="app-date-strip">
+                  <div class="app-day"><div class="app-day-lbl">MON</div><div class="app-day-num">16</div></div>
+                  <div class="app-day on"><div class="app-day-lbl">TUE</div><div class="app-day-num">17</div><div class="app-day-dot"></div></div>
+                  <div class="app-day"><div class="app-day-lbl">WED</div><div class="app-day-num">18</div><div class="app-day-dot" style="background:#3D82F7"></div></div>
+                  <div class="app-day"><div class="app-day-lbl">THU</div><div class="app-day-num">19</div></div>
+                  <div class="app-day"><div class="app-day-lbl">FRI</div><div class="app-day-num">20</div></div>
                 </div>
-                <div class="app-event app-ev-p">
-                  <div class="app-ev-time">12:30</div>
-                  <div class="app-ev-info"><div class="app-ev-title">Core &amp; Mobility</div><div class="app-ev-sub">20 min · Home</div></div>
+                <div class="app-quick-card">
+                  <div class="app-quick-ic">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div class="app-eyebrow" style="color:#3D82F7">QUICK WORKOUT</div>
+                    <div class="app-quick-title">20 min before your 1:30</div>
+                    <div class="app-quick-sub">Build a session for the gap you actually have.</div>
+                  </div>
+                  <div class="app-quick-go">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                  </div>
                 </div>
-                <div class="app-slabel">Thursday</div>
-                <div class="app-event app-ev-b">
-                  <div class="app-ev-time">18:30</div>
-                  <div class="app-ev-info"><div class="app-ev-title">Lower Body Strength</div><div class="app-ev-sub">50 min · Gym</div></div>
+                <div class="app-timeline-row">
+                  <div class="app-time-col">10:30</div>
+                  <div class="app-workout-card">
+                    <div class="app-wk-badge">SCHEDULED</div>
+                    <div class="app-wk-title">Upper Body Power</div>
+                    <div class="app-wk-meta">
+                      <div><div class="app-wk-meta-lbl">START TIME</div><div class="app-wk-meta-val">10:30 AM</div></div>
+                      <div><div class="app-wk-meta-lbl">DURATION</div><div class="app-wk-meta-val">45 min</div></div>
+                    </div>
+                    <div class="app-start-btn">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                      Start Session
+                    </div>
+                  </div>
                 </div>
+              </div>
+              <div class="app-fab">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+              </div>
+              <div class="app-tabbar">
+                <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
+                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
+                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
+                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
               </div>
             </div>
           </div>
@@ -719,6 +930,7 @@
       <div class="duration-row">
         <span class="duration-chip">5 min</span>
         <span class="duration-chip">10 min</span>
+        <span class="duration-chip">15 min</span>
         <span class="duration-chip on">20 min</span>
         <span class="duration-chip">30 min</span>
       </div>
@@ -746,27 +958,57 @@
             <div class="phone-island"></div>
             <div class="app-screen">
               <div class="app-sb"></div>
-              <div class="app-nav"><span class="app-nav-title">Quick Workout</span></div>
-              <div class="app-scroll">
-                <div class="app-qw-banner">
-                  <div class="l1">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                    Tight on time today
+              <div class="app-qw-hdr">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2F3F6" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                <div class="app-qw-hdr-title">Quick Workout</div>
+                <div style="width:18px"></div>
+              </div>
+              <div class="app-scroll app-scroll-pad">
+                <div class="app-qw-lead">How much time do you have?</div>
+                <div class="app-qw-sub">No setup. Tempo builds the highest-impact session for your window and goal.</div>
+                <div class="app-dur-grid">
+                  <div class="app-dur-chip"><div class="app-dur-num">5</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip"><div class="app-dur-num">10</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip"><div class="app-dur-num">15</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip on"><div class="app-dur-num">20</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip"><div class="app-dur-num">30</div><div class="app-dur-unit">min</div></div>
+                </div>
+                <div class="app-eyebrow" style="margin-bottom:6px">FOCUS</div>
+                <div class="app-purpose-row">
+                  <div class="app-purpose on">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
+                    Muscle
                   </div>
-                  <div class="l2">You&rsquo;ve got a free 20&nbsp;min before your 1:30. Here&rsquo;s a session that fits.</div>
+                  <div class="app-purpose">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
+                    Strength
+                  </div>
+                  <div class="app-purpose">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M8.5 14.5A5 5 0 0 1 12 6v0a5 5 0 0 1 3.5 8.5"/></svg>
+                    Conditioning
+                  </div>
                 </div>
-                <div class="app-qw-dur">
-                  <div class="app-qw-chip">5</div>
-                  <div class="app-qw-chip">10</div>
-                  <div class="app-qw-chip on">20</div>
-                  <div class="app-qw-chip">30</div>
+                <div class="app-preview-card">
+                  <div class="app-preview-top">
+                    <div class="app-purpose-badge">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 6.5h11v11h-11z"/></svg>
+                      MUSCLE
+                    </div>
+                    <div class="app-preview-est">~18 min</div>
+                  </div>
+                  <div class="app-preview-title">Upper Push Express</div>
+                  <div class="app-why-box">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
+                    Hits chest and triceps in your 20-min gap — keeps hypertrophy on track without blowing your afternoon.
+                  </div>
+                  <div class="app-ex-row"><div class="app-ex-idx">1</div><div><div class="app-ex-name">Incline DB Press</div><div class="app-ex-meta">Chest · Shoulders</div></div><div class="app-ex-dose">3 × 10–12</div></div>
+                  <div class="app-ex-row"><div class="app-ex-idx">2</div><div><div class="app-ex-name">Push-ups</div><div class="app-ex-meta">Chest · Triceps</div></div><div class="app-ex-dose">3 × 12–15</div></div>
+                  <div class="app-ex-row"><div class="app-ex-idx">3</div><div><div class="app-ex-name">Lateral Raises</div><div class="app-ex-meta">Shoulders</div></div><div class="app-ex-dose">3 × 12–15</div></div>
                 </div>
-                <div class="app-qw-lbl">Today&rsquo;s quick session · Full body</div>
-                <div class="app-ex"><div class="app-ex-n">1</div><div><div class="app-ex-nm">Goblet Squat</div><div class="app-ex-s">3 sets · 12 reps</div></div></div>
-                <div class="app-ex"><div class="app-ex-n">2</div><div><div class="app-ex-nm">Push-ups</div><div class="app-ex-s">3 sets · to failure</div></div></div>
-                <div class="app-ex"><div class="app-ex-n">3</div><div><div class="app-ex-nm">Dumbbell Row</div><div class="app-ex-s">3 sets · 10 reps</div></div></div>
-                <div class="app-ex"><div class="app-ex-n">4</div><div><div class="app-ex-nm">Plank</div><div class="app-ex-s">3 sets · 40 sec</div></div></div>
-                <div class="app-bigbtn">Start 20-minute workout</div>
+              </div>
+              <div class="app-footer-btn">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Start 20-Minute Workout
               </div>
             </div>
           </div>
@@ -782,7 +1024,7 @@
     <div class="s-head center" data-sr>
       <span class="eyebrow">Inside the app</span>
       <h2 class="s-title">Plan, train, and watch it stick.</h2>
-      <p class="s-body" style="margin-top:14px">A clean, focused app that gets out of your way — from your weekly plan to the set you&rsquo;re on right now.</p>
+      <p class="s-body" style="margin-top:14px">A dark, focused app that gets out of your way — from your daily schedule to the set you&rsquo;re logging right now.</p>
     </div>
 
     <div class="phone-row">
@@ -794,29 +1036,70 @@
               <div class="phone-island"></div>
               <div class="app-screen">
                 <div class="app-sb"></div>
-                <div class="app-nav"><span class="app-nav-title">This Week</span><span class="app-nav-add">＋</span></div>
-                <div class="app-week">
-                  <div class="app-wday"><span class="app-wday-lbl">M</span><span class="app-wday-num">13</span></div>
-                  <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">14</span></div>
-                  <div class="app-wday today"><span class="app-wday-lbl">W</span><span class="app-wday-num">15</span><div class="app-wday-dot"></div></div>
-                  <div class="app-wday"><span class="app-wday-lbl">T</span><span class="app-wday-num">16</span></div>
-                  <div class="app-wday"><span class="app-wday-lbl">F</span><span class="app-wday-num">17</span><div class="app-wday-dot"></div></div>
-                  <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">18</span></div>
-                  <div class="app-wday"><span class="app-wday-lbl">S</span><span class="app-wday-num">19</span></div>
+                <div class="app-sched-hdr">
+                  <div>
+                    <div class="app-eyebrow">GOOD AFTERNOON</div>
+                    <div class="app-greeting-name">Jacob</div>
+                  </div>
+                  <div class="app-avatar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
                 </div>
-                <div class="app-scroll">
-                  <div class="app-slabel">Today</div>
-                  <div class="app-event app-ev-b"><div class="app-ev-time">10:30</div><div class="app-ev-info"><div class="app-ev-title">Upper Body Power</div><div class="app-ev-sub">45 min · Gym</div></div><div class="app-ev-badge">Booked</div></div>
-                  <div class="app-slabel">Tomorrow</div>
-                  <div class="app-event app-ev-g"><div class="app-ev-time">07:00</div><div class="app-ev-info"><div class="app-ev-title">Easy 5K Run</div><div class="app-ev-sub">30 min · Outdoor</div></div></div>
-                  <div class="app-event app-ev-p"><div class="app-ev-time">12:30</div><div class="app-ev-info"><div class="app-ev-title">Core &amp; Mobility</div><div class="app-ev-sub">20 min · Home</div></div></div>
+                <div class="app-scroll app-scroll-pad">
+                  <div class="app-month-row">
+                    <div class="app-month-text">June 2026</div>
+                    <div class="app-month-nav">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </div>
+                  </div>
+                  <div class="app-date-strip">
+                    <div class="app-day"><div class="app-day-lbl">MON</div><div class="app-day-num">16</div></div>
+                    <div class="app-day on"><div class="app-day-lbl">TUE</div><div class="app-day-num">17</div><div class="app-day-dot"></div></div>
+                    <div class="app-day"><div class="app-day-lbl">WED</div><div class="app-day-num">18</div></div>
+                    <div class="app-day"><div class="app-day-lbl">THU</div><div class="app-day-num">19</div></div>
+                  </div>
+                  <div class="app-quick-card">
+                    <div class="app-quick-ic">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div class="app-eyebrow" style="color:#3D82F7">QUICK WORKOUT</div>
+                      <div class="app-quick-title">Short on time?</div>
+                      <div class="app-quick-sub">Build a session for the minutes you actually have.</div>
+                    </div>
+                    <div class="app-quick-go">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </div>
+                  </div>
+                  <div class="app-timeline-row">
+                    <div class="app-time-col">10:30</div>
+                    <div class="app-workout-card">
+                      <div class="app-wk-badge">SCHEDULED</div>
+                      <div class="app-wk-title">Upper Body Power</div>
+                      <div class="app-wk-meta">
+                        <div><div class="app-wk-meta-lbl">START TIME</div><div class="app-wk-meta-val">10:30 AM</div></div>
+                        <div><div class="app-wk-meta-lbl">DURATION</div><div class="app-wk-meta-val">45 min</div></div>
+                      </div>
+                      <div class="app-start-btn">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        Start Session
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="app-tabbar">
+                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <h4>Your week, planned</h4>
-        <p>Workouts slotted into the gaps your calendar actually has.</p>
+        <p>Greeting, date strip, quick workout entry, and scheduled sessions on a timeline.</p>
       </div>
 
       <!-- Active session -->
@@ -825,23 +1108,62 @@
           <div class="phone-frame">
             <div class="phone-screen-wrap">
               <div class="phone-island"></div>
-              <div class="app-screen app-act">
+              <div class="app-screen">
                 <div class="app-sb"></div>
-                <div class="app-act-hdr"><div class="app-act-ex">Barbell Bench Press</div><div class="app-act-set">Set 3 of 4 · 8&ndash;10 reps</div></div>
-                <div class="app-act-wgt"><div class="app-act-num">135</div><div class="app-act-unt">lbs</div></div>
-                <div class="app-act-hist">
-                  <div class="app-act-ct">Previous sets</div>
-                  <div class="app-act-row"><div class="app-act-sn">1</div><div class="app-act-sv">135 lbs · 10 reps</div><div class="app-act-ck">✓</div></div>
-                  <div class="app-act-row"><div class="app-act-sn">2</div><div class="app-act-sv">135 lbs · 9 reps</div><div class="app-act-ck">✓</div></div>
-                  <div class="app-act-row cur"><div class="app-act-sn">3</div><div class="app-act-sv">135 lbs · &mdash; reps</div><div class="app-act-now">Now</div></div>
-                  <div class="app-bigbtn">Log set</div>
+                <div class="app-plan-hdr">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2F3F6" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  <div class="app-logo-txt">TEMPO</div>
+                  <div class="app-avatar">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                </div>
+                <div class="app-session-bar">
+                  <div>
+                    <div class="app-eyebrow">ACTIVE SESSION</div>
+                    <div class="app-session-title">Upper Body Power</div>
+                  </div>
+                  <div>
+                    <div class="app-session-est">EST. 45 MINS</div>
+                    <div class="app-session-timer">18:42</div>
+                  </div>
+                </div>
+                <div class="app-prog-track"><div class="app-prog-fill"></div></div>
+                <div class="app-scroll app-scroll-pad">
+                  <div class="app-ex-card">
+                    <div class="app-ex-hdr">
+                      <div class="app-ex-thumb">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg>
+                      </div>
+                      <div>
+                        <div class="app-ex-hname">Barbell Bench Press</div>
+                        <div class="app-ex-muscles">CHEST · TRICEPS</div>
+                      </div>
+                      <div class="app-ex-count">2/4</div>
+                    </div>
+                    <div class="app-target-card">
+                      <div class="app-target-lbl">TODAY&rsquo;S TARGET</div>
+                      <div class="app-target-val">135 lbs · 8&ndash;10 reps × 4</div>
+                    </div>
+                    <div class="app-set-table">
+                      <div class="app-set-hdr"><span>SET</span><span>PREV</span><span>LBS</span><span>REPS</span><span>✓</span></div>
+                      <div class="app-set-row done"><span>1</span><span>130 × 10</span><span>135</span><span>10</span><span><div class="app-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></div></span></div>
+                      <div class="app-set-row done"><span>2</span><span>130 × 9</span><span>135</span><span>9</span><span><div class="app-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></div></span></div>
+                      <div class="app-set-row active"><span>3</span><span>130 × 8</span><span><div class="app-input-fake"></div></span><span><div class="app-input-fake"></div></span><span><div class="app-check-empty"></div></span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="app-tabbar">
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
+                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <h4>Guided sessions</h4>
-        <p>Exact weights and reps, logged set by set — no guessing.</p>
+        <p>Set-by-set logging with targets, previous weights, and adaptive coaching.</p>
       </div>
 
       <!-- Progress -->
@@ -852,39 +1174,58 @@
               <div class="phone-island"></div>
               <div class="app-screen">
                 <div class="app-sb"></div>
-                <div class="app-nav"><span class="app-nav-title">Progress</span></div>
-                <div class="app-scroll">
-                  <div class="app-prg-top">
-                    <div class="app-ring"><div class="app-ring-in"><div class="app-ring-pct">85%</div><div class="app-ring-lbl">on plan</div></div></div>
-                    <div class="app-streak">
-                      <div style="display:flex;align-items:center;gap:6px"><div class="app-streak-n">48</div><span style="font-size:20px">🔥</span></div>
-                      <div class="app-streak-l">day streak</div>
-                      <div style="font-size:11px;color:#10B981;margin-top:7px;font-weight:600">↑ 92% weekly adherence</div>
+                <div class="app-prog-hdr">
+                  <div class="app-logo-txt">TEMPO</div>
+                  <div class="app-prog-hdr-right">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <div class="app-avatar">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </div>
                   </div>
-                  <div class="app-prg-chart">
-                    <div class="app-prg-ct">This week</div>
+                </div>
+                <div class="app-scroll app-scroll-pad">
+                  <div class="app-eyebrow">YOUR PERFORMANCE</div>
+                  <div class="app-page-title">Progress Overview</div>
+                  <div class="app-ring-card">
+                    <div class="app-eyebrow">CONSISTENCY SCORE</div>
+                    <div class="app-ring"><div class="app-ring-in"><div class="app-ring-pct">78%</div><div class="app-ring-lbl">KEEP GOING</div></div></div>
+                    <div class="app-ring-cap">78% completion rate in the last 30 days.</div>
+                  </div>
+                  <div class="app-streak-card">
+                    <div class="app-eyebrow">CURRENT STREAK</div>
+                    <div class="app-streak-num">12 <span class="app-streak-unit">Days</span></div>
+                    <div class="app-streak-cap">12-day streak — keep the momentum going!</div>
+                  </div>
+                  <div class="app-stat-card">
+                    <div class="app-eyebrow">VOLUME LIFTED</div>
+                    <div class="app-stat-row">
+                      <div class="app-stat-val">24.8k <span class="app-stat-unit">lbs</span></div>
+                      <div class="app-period-toggle">
+                        <div class="app-period-btn">W</div>
+                        <div class="app-period-btn on">M</div>
+                        <div class="app-period-btn">6M</div>
+                      </div>
+                    </div>
                     <div class="app-bars">
-                      <div class="app-bwrap"><div class="app-bar done" style="height:50px"></div><div class="app-blbl">M</div></div>
-                      <div class="app-bwrap"><div class="app-bar done" style="height:38px"></div><div class="app-blbl">T</div></div>
-                      <div class="app-bwrap"><div class="app-bar cur" style="height:44px"></div><div class="app-blbl">W</div></div>
-                      <div class="app-bwrap"><div class="app-bar" style="height:34px"></div><div class="app-blbl">T</div></div>
-                      <div class="app-bwrap"><div class="app-bar" style="height:46px"></div><div class="app-blbl">F</div></div>
-                      <div class="app-bwrap"><div class="app-bar" style="height:24px;opacity:.3"></div><div class="app-blbl">S</div></div>
-                      <div class="app-bwrap"><div class="app-bar" style="height:24px;opacity:.3"></div><div class="app-blbl">S</div></div>
+                      <div class="app-bwrap"><div class="app-bar done" style="height:28px"></div><div class="app-blbl">W1</div></div>
+                      <div class="app-bwrap"><div class="app-bar done" style="height:34px"></div><div class="app-blbl">W2</div></div>
+                      <div class="app-bwrap"><div class="app-bar done" style="height:30px"></div><div class="app-blbl">W3</div></div>
+                      <div class="app-bwrap"><div class="app-bar cur" style="height:38px"></div><div class="app-blbl on">W4</div></div>
                     </div>
                   </div>
-                  <div class="app-prg-stats">
-                    <div class="app-scard"><div class="app-scard-n">12</div><div class="app-scard-l">Workouts this month</div></div>
-                    <div class="app-scard"><div class="app-scard-n" style="color:#10B981">↑15%</div><div class="app-scard-l">Volume increase</div></div>
-                  </div>
+                </div>
+                <div class="app-tabbar">
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
+                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
+                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <h4>Progress that proves it</h4>
-        <p>Streaks, consistency, and strength gains you can actually see.</p>
+        <p>Consistency rings, streaks, and volume trends that compound over time.</p>
       </div>
     </div>
   </div>
@@ -966,7 +1307,7 @@
   <div class="wrap">
     <div class="footer-top">
       <div class="footer-brand">
-        <a href="#top" class="logo"><div class="logo-mark">T</div><span class="logo-name">Tempo</span></a>
+        <a href="#top" class="logo"><img class="logo-mark" src="tempo-logo.png" alt="Tempo" width="32" height="32"><span class="logo-name">Tempo</span></a>
         <p>The fitness app that adapts around your real schedule — so a busy week never becomes a lost one.</p>
       </div>
       <div class="footer-cols">
