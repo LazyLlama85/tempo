@@ -31,6 +31,20 @@ export interface ConnectResult {
   error?: string
 }
 
+// Pull the real message out of a Supabase Functions error. On a non-2xx response
+// supabase-js wraps the Response on `.context`; our function returns { error },
+// so surfacing it tells the user exactly what failed (missing table, secret, …).
+async function fnErrorReason(err: unknown): Promise<string | null> {
+  const ctx = (err as { context?: { json?: () => Promise<{ error?: string }> } })?.context
+  try {
+    const body = ctx?.json ? await ctx.json() : null
+    if (body?.error) return String(body.error)
+  } catch {
+    /* body wasn't JSON / already consumed */
+  }
+  return (err as { message?: string })?.message ?? null
+}
+
 // 1) Connect — run Google OAuth (forcing re-consent) WITH the calendar.events
 // scope, capture the one-time provider_refresh_token, and hand it to the Edge
 // Function to store. Idempotent: re-running just refreshes the stored token.
@@ -51,30 +65,60 @@ export async function connectGoogleCalendar(): Promise<ConnectResult> {
   if (error || !data?.url) return { ok: false, error: error?.message ?? 'oauth_init_failed' }
 
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+  console.log('[gcal-connect] browser result:', result.type)
   if (result.type !== 'success') return { ok: false, error: 'cancelled' }
 
-  const code = new URL(result.url).searchParams.get('code')
-  if (!code) return { ok: false, error: 'no_code' }
+  const parsed = new URL(result.url)
 
-  const { data: sess, error: exErr } = await supabase.auth.exchangeCodeForSession(code)
-  if (exErr || !sess.session) return { ok: false, error: exErr?.message ?? 'exchange_failed' }
+  // Supabase returns either the PKCE flow (?code=…) or the implicit flow
+  // (#access_token=…&provider_refresh_token=…) depending on project config.
+  // The sign-in screen handles both, so connect must too — only handling `code`
+  // was the bug (it reported 'no_code' when the tokens came back in the hash).
+  let providerRefreshToken: string | null | undefined
+  let providerToken: string | null | undefined
 
-  const refreshToken = sess.session.provider_refresh_token
-  if (!refreshToken) {
-    // No refresh token came back — usually a stale grant that skipped consent.
-    // Surface it so the UI can ask the user to retry / re-grant access.
+  const code = parsed.searchParams.get('code')
+  if (code) {
+    const { data: sess, error: exErr } = await supabase.auth.exchangeCodeForSession(code)
+    if (exErr || !sess.session) {
+      console.log('[gcal-connect] exchange failed:', exErr?.message)
+      return { ok: false, error: exErr?.message ?? 'exchange_failed' }
+    }
+    providerRefreshToken = sess.session.provider_refresh_token
+    providerToken = sess.session.provider_token
+  } else {
+    // Implicit flow — the Google provider tokens arrive in the URL hash.
+    const hash = new URLSearchParams(parsed.hash.replace(/^#/, ''))
+    const access_token = hash.get('access_token')
+    const refresh_token = hash.get('refresh_token')
+    providerRefreshToken = hash.get('provider_refresh_token')
+    providerToken = hash.get('provider_token')
+    if (access_token && refresh_token) {
+      await supabase.auth.setSession({ access_token, refresh_token })
+    } else if (!providerRefreshToken) {
+      console.log('[gcal-connect] no code and no tokens in redirect:', result.url)
+      return { ok: false, error: 'no_code' }
+    }
+  }
+
+  console.log('[gcal-connect] hasRefreshToken:', !!providerRefreshToken, 'hasAccessToken:', !!providerToken)
+  if (!providerRefreshToken) {
+    // Consent succeeded but Google didn't return a refresh token — usually a
+    // stale grant that skipped re-consent. Revoke access and retry.
     return { ok: false, error: 'no_refresh_token' }
   }
 
   const { error: storeErr } = await supabase.functions.invoke(TOKEN_EDGE_FUNCTION, {
-    body: { action: 'store', refresh_token: refreshToken, scope: SCOPE_STRING },
+    body: { action: 'store', refresh_token: providerRefreshToken, scope: SCOPE_STRING },
   })
-  if (storeErr) return { ok: false, error: 'store_failed' }
+  if (storeErr) {
+    const reason = await fnErrorReason(storeErr)
+    return { ok: false, error: reason ?? 'store_failed' }
+  }
 
-  // We already hold a fresh access token from the exchange — cache it, refreshing
-  // a little early (Google access tokens last ~1h).
-  if (sess.session.provider_token) {
-    accessToken = sess.session.provider_token
+  // Cache the fresh access token we already hold (Google tokens last ~1h).
+  if (providerToken) {
+    accessToken = providerToken
     accessTokenExpiry = Date.now() + 55 * 60 * 1000
   }
   return { ok: true }

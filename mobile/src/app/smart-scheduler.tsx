@@ -94,7 +94,9 @@ function friendlyConnect(code?: string): string {
     case 'cancelled': return 'Sign-in was cancelled.'
     case 'no_refresh_token': return 'Google didn’t grant offline access — allow Calendar permission and try again.'
     case 'store_failed': return 'Couldn’t reach the scheduling service. Is the Edge Function deployed?'
-    default: return 'Something went wrong connecting. Please try again.'
+    // The Edge Function now returns a specific reason (e.g. missing table/secret) —
+    // surface it directly so the cause is obvious.
+    default: return code ? `Connection failed — ${code}` : 'Something went wrong connecting. Please try again.'
   }
 }
 function friendlyApi(e: unknown): string {

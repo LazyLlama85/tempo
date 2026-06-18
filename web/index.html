@@ -209,16 +209,16 @@
 
       /* TOP chip (calendar synced) */
       .float-chip.top {
-        top: 8%;
-        left: 0;
-        transform: translateX(-110%);
+        top: 0%;
+        left: 0%;
+        transform: translate(-20%, -20%);
       }
 
       /* BOTTOM chip (plan adapted) */
       .float-chip.bot {
-        bottom: 12%;
-        right: 0;
-        transform: translateX(110%);
+        bottom: 0%;
+        right: 0%;
+        transform: translate(30%, 30%);
       }
 
       /* optional: slight hover lift */
@@ -693,8 +693,50 @@
       .steps { grid-template-columns: 1fr; }
       .section { padding: 76px 0; }
       .hero-sub { font-size: 16.5px; }
-      .float-chip.top { left: 0; }
-      .float-chip.bot { right: 0; }
+      .float-chip {
+        position: static;
+        margin-bottom: 16px;
+        width: calc(100% - 8px);
+        margin-left: 4px;
+        margin-right: 4px;
+        padding: 12px 14px;
+        border-radius: 12px;
+      }
+      .float-chip .fc-ic {
+        width: 28px;
+        height: 28px;
+      }
+      .float-chip .fc-t {
+        font-size: 12px;
+      }
+      .float-chip .fc-s {
+        font-size: 10px;
+      }
+      .float-chip.top {
+        transform: none;
+        top: auto;
+        left: auto;
+        order: -1;
+      }
+      .float-chip.bot {
+        transform: none;
+        bottom: auto;
+        right: auto;
+        order: 3;
+      }
+      .float-chip:hover {
+        transform: translateY(-2px);
+      }
+      .hero-visual {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .hero-visual .phone {
+        order: 1;
+        width: 100% !important;
+        max-width: 300px;
+      }
       .modal-steps { flex-direction: column; }
       .cta-card { padding: 40px 22px; border-radius: 22px; }
       .email-row { flex-direction: column; }

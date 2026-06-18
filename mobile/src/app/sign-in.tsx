@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, ActivityIndicator, Platform, Alert } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, Image, ActivityIndicator, Platform, Alert } from 'react-native'
 import { Redirect } from 'expo-router'
 import { makeRedirectUri } from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
+import * as AppleAuthentication from 'expo-apple-authentication'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -14,7 +15,7 @@ const C = Colors.light
 
 export default function SignInScreen() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState<'google' | 'guest' | null>(null)
+  const [loading, setLoading] = useState<'google' | 'apple' | 'guest' | null>(null)
 
   if (session) return <Redirect href="/" />
 
@@ -52,6 +53,32 @@ export default function SignInScreen() {
     setLoading(null)
   }
 
+  const handleAppleSignIn = async () => {
+    try {
+      setLoading('apple')
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      })
+
+      if (credential.identityToken) {
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: credential.identityToken,
+        })
+        if (error) throw error
+      }
+    } catch (error: any) {
+      if (error.code !== 'ERR_CANCELED') {
+        Alert.alert('Apple Sign In Error', error.message)
+      }
+    } finally {
+      setLoading(null)
+    }
+  }
+
   const handleGuest = async () => {
     setLoading('guest')
     await supabase.auth.signInAnonymously()
@@ -62,10 +89,11 @@ export default function SignInScreen() {
     <SafeAreaView style={styles.container}>
       {/* Logo area */}
       <View style={styles.logoArea}>
-        <View style={styles.logoBox}>
-          <Text style={styles.logoLetter}>T</Text>
-          <View style={styles.pulseDot} />
-        </View>
+        <Image
+          source={require('@/assets/images/tempo-logo.png')}
+          style={styles.logoImage}
+          accessibilityLabel="Tempo logo"
+        />
       </View>
 
       {/* Hero text */}
@@ -81,13 +109,18 @@ export default function SignInScreen() {
         {/* Apple button */}
         {Platform.OS === 'ios' && (
           <TouchableOpacity
-          style={styles.appleButton}
-          activeOpacity={0.85}
-          disabled={loading !== null}
-          onPress={() => Alert.alert('Apple Sign In', 'Apple Sign In is coming soon.')}
-        >
-            <Text style={styles.appleIcon}>  </Text>
-            <Text style={styles.appleButtonText}>SIGN IN WITH APPLE</Text>
+            style={styles.appleButton}
+            activeOpacity={0.85}
+            disabled={loading !== null}
+            onPress={handleAppleSignIn}
+          >
+            {loading === 'apple'
+              ? <ActivityIndicator size="small" color={styles.appleButton.backgroundColor} />
+              : <>
+                  <Text style={styles.appleIcon}>  </Text>
+                  <Text style={styles.appleButtonText}>SIGN IN WITH APPLE</Text>
+                </>
+            }
           </TouchableOpacity>
         )}
 
@@ -136,33 +169,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Spacing['2xl'],
   },
-  logoBox: {
-    width: 72,
-    height: 72,
-    backgroundColor: C.primary,
+  logoImage: {
+    width: 88,
+    height: 88,
     borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0058BC',
+    shadowColor: '#3D82F7',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
     elevation: 8,
-  },
-  pulseDot: {
-    position: 'absolute',
-    right: 14,
-    bottom: 14,
-    width: 9,
-    height: 9,
-    borderRadius: 9,
-    backgroundColor: '#22C55E',
-  },
-  logoLetter: {
-    fontSize: 40,
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#FFFFFF',
-    lineHeight: 48,
   },
   hero: {
     alignItems: 'center',
