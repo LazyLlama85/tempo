@@ -6,7 +6,7 @@
   <title>Tempo — Fitness that fits your schedule</title>
   <meta name="description" content="Tempo builds your training around your real calendar and adapts the moment life gets busy. Most apps make you fit life around a plan — Tempo fits the plan around your life. Coming to iOS &amp; Android.">
 
-  <!-- Social preview -->
+
   <meta property="og:title" content="Tempo — Fitness that fits your schedule">
   <meta property="og:description" content="Most fitness apps expect your life to fit their plan. Tempo builds training around your real calendar — and adapts when life gets busy.">
   <meta property="og:type" content="website">
@@ -14,12 +14,12 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* Warm paper / ink system — calm, premium, trustworthy */
+
       --bg:        #faf8f4;
       --bg-2:      #f2ede4;
       --surface:   #ffffff;
@@ -29,12 +29,12 @@
       --line:      rgba(23,20,15,0.10);
       --line-2:    rgba(23,20,15,0.18);
 
-      /* Single accent — matched to the product UI */
+
       --accent:      #3D82F7;
       --accent-ink:  #2563EB;
       --accent-soft: rgba(61, 130, 247, 0.12);
 
-      /* Dark band (contrast section + footer) */
+
       --dark:        #14110d;
       --dark-2:      #1d1914;
       --dark-line:   rgba(255,255,255,0.10);
@@ -42,8 +42,11 @@
       --dark-muted:  #a79e92;
 
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
       --radius: 18px;
       --maxw: 1140px;
+      --shadow-soft: 0 1px 2px rgba(23,20,15,0.04), 0 8px 24px rgba(23,20,15,0.06);
+      --shadow-lift: 0 2px 6px rgba(23,20,15,0.06), 0 22px 48px rgba(23,20,15,0.12);
     }
 
     html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
@@ -55,11 +58,33 @@
       text-rendering: optimizeLegibility;
       overflow-x: hidden;
       line-height: 1.5;
+      position: relative;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background-image:
+        radial-gradient(rgba(23,20,15,0.035) 1px, transparent 1px);
+      background-size: 22px 22px;
+      mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 40%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 40%, transparent 100%);
+    }
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.5;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+      mix-blend-mode: multiply;
     }
     ::selection { background: var(--accent); color: #fff; }
     a { color: inherit; }
 
-    /* ── SCROLL REVEAL ─────────────────────────────────────── */
+    .scroll-progress {
+      position: fixed; top: 0; left: 0; height: 2px; z-index: 200;
+      width: var(--p, 0%);
+      background: linear-gradient(90deg, var(--accent), #60a5fa);
+      box-shadow: 0 0 12px rgba(61,130,247,0.6);
+      transition: width 0.1s linear;
+    }
+
+
     [data-sr] {
       opacity: 0;
       transform: translateY(22px);
@@ -75,7 +100,7 @@
 
     .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
 
-    /* ── BUTTONS ───────────────────────────────────────────── */
+
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       font: 600 15px/1 'Inter', sans-serif;
@@ -98,7 +123,7 @@
     .btn-sm { padding: 10px 16px; font-size: 14px; border-radius: 10px; }
     .btn-lg { padding: 16px 26px; font-size: 16px; }
 
-    /* ── NAV ───────────────────────────────────────────────── */
+
     nav {
       position: fixed; inset: 0 0 auto; z-index: 100; height: 66px;
       display: flex; align-items: center;
@@ -127,25 +152,52 @@
     .nav-link:hover { color: var(--ink); background: rgba(23,20,15,0.05); }
     .nav-right { display: flex; align-items: center; gap: 8px; }
 
-    /* ── HERO ──────────────────────────────────────────────── */
+
     .hero { padding: 132px 0 84px; position: relative; overflow: hidden; }
     .hero-grid {
       display: grid; grid-template-columns: 1.05fr 0.95fr;
       gap: 56px; align-items: center;
     }
     .pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--accent-soft); border: 1px solid rgba(61,130,247,0.22);
-      color: var(--accent-ink); border-radius: 999px;
-      padding: 6px 14px; font-size: 12.5px; font-weight: 600;
-      margin-bottom: 26px;
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--surface); border: 1px solid var(--line-2);
+      color: var(--ink-2); border-radius: 999px;
+      padding: 6px 8px 6px 13px; font-size: 12.5px; font-weight: 600;
+      margin-bottom: 26px; box-shadow: var(--shadow-soft);
     }
-    .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(238,74,38,0.18); }
+    .pill-dot {
+      position: relative; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); flex-shrink: 0;
+    }
+    .pill-dot::after {
+      content: ''; position: absolute; inset: 0; border-radius: 50%;
+      background: var(--accent); animation: pulse-ring 2.2s var(--ease) infinite;
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(1); opacity: 0.55; }
+      70%  { transform: scale(3.4); opacity: 0; }
+      100% { transform: scale(3.4); opacity: 0; }
+    }
+    .pill-arrow { color: var(--muted); display: inline-flex; transition: transform 0.22s var(--ease); }
+    .pill:hover .pill-arrow { transform: translateX(3px); color: var(--accent-ink); }
     h1.hero-title {
       font-size: clamp(42px, 6vw, 70px); font-weight: 800;
       line-height: 1.02; letter-spacing: -0.035em; margin-bottom: 22px;
     }
-    h1.hero-title em { font-style: normal; color: var(--accent); }
+    h1.hero-title em {
+      font-style: normal; position: relative; white-space: nowrap;
+      background: linear-gradient(105deg, var(--accent), #6aa6ff 60%, var(--accent-ink));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    h1.hero-title em .scribble {
+      position: absolute; left: -4%; bottom: -0.18em; width: 108%; height: 0.34em; overflow: visible;
+    }
+    h1.hero-title em .scribble path {
+      fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
+      stroke-dasharray: 320; stroke-dashoffset: 320;
+      animation: underline-in 1s var(--ease) 0.5s forwards;
+    }
+    @keyframes underline-in { to { stroke-dashoffset: 0; } }
     .hero-sub {
       font-size: clamp(16.5px, 2vw, 19px); color: var(--ink-2);
       line-height: 1.62; max-width: 540px; margin-bottom: 32px;
@@ -169,86 +221,156 @@
     .form-msg.ok  { color: #15803d; }
     .form-msg.err { color: #dc2626; }
 
-    /* Hero product visual */
     .hero-visual { position: relative; display: flex; justify-content: center; }
-    .hero-visual .phone { width: 300px; }
+    .hero-visual .phone { width: 300px; position: relative; z-index: 2; }
     .hero-visual::before {
-      content: ''; position: absolute; inset: -6% -10% -10% -10%;
-      background: radial-gradient(ellipse 70% 60% at 60% 40%, rgba(61,130,247,0.08), transparent 70%);
+      content: ''; position: absolute; inset: -14% -16% -10%;
       z-index: 0;
+      background:
+        radial-gradient(ellipse 52% 46% at 64% 32%, rgba(61,130,247,0.22), transparent 70%),
+        radial-gradient(ellipse 44% 40% at 30% 78%, rgba(106,166,255,0.16), transparent 72%);
+      filter: blur(6px);
+      animation: glow-drift 12s ease-in-out infinite alternate;
+    }
+    @keyframes glow-drift {
+      0%   { transform: translate(0,0) scale(1); }
+      100% { transform: translate(-3%, 3%) scale(1.06); }
+    }
+    .hero-visual::after {
+      content: ''; position: absolute; inset: 8% 4% 4%; z-index: 1;
+      border-radius: 48px; pointer-events: none;
+      background:
+        repeating-linear-gradient(115deg, transparent 0 26px, rgba(23,20,15,0.025) 26px 27px);
+      mask-image: radial-gradient(60% 60% at 50% 50%, #000, transparent 75%);
+      -webkit-mask-image: radial-gradient(60% 60% at 50% 50%, #000, transparent 75%);
     }
     .float-chip {
-        position: absolute;
-        z-index: 4;
-
-        display: flex;
-        align-items: center;
-        gap: 10px;
-
-        background: var(--surface);
-
-        /* clearer outline (more visible but still soft) */
-        border: 1px solid rgba(23, 20, 15, 0.18);
-
-        border-radius: 14px;
-        padding: 11px 14px;
-
-        /* stronger but still natural depth */
-        box-shadow:
-          0 16px 40px rgba(23, 20, 15, 0.14),
-          0 2px 6px rgba(23, 20, 15, 0.08);
-
-        /* subtle glass effect */
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-
-        /* smoother feel when animating */
-        transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
-        will-change: transform;
-      }
-
-      /* TOP chip (calendar synced) */
-      .float-chip.top {
-        top: 0%;
-        left: 0%;
-        transform: translate(-20%, -20%);
-      }
-
-      /* BOTTOM chip (plan adapted) */
-      .float-chip.bot {
-        bottom: 0%;
-        right: 0%;
-        transform: translate(30%, 30%);
-      }
-
-      /* optional: slight hover lift */
-      .float-chip:hover {
-        transform: translateX(var(--tx, 0)) translateY(-2px);
-        box-shadow:
-          0 22px 55px rgba(23, 20, 15, 0.18),
-          0 4px 10px rgba(23, 20, 15, 0.10);
-      }
+      position: absolute; z-index: 4;
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(23,20,15,0.10);
+      border-radius: 15px; padding: 10px 14px;
+      box-shadow: 0 1px 2px rgba(23,20,15,0.05), 0 18px 44px rgba(23,20,15,0.16);
+      backdrop-filter: blur(14px) saturate(160%);
+      -webkit-backdrop-filter: blur(14px) saturate(160%);
+      transition: box-shadow 0.3s var(--ease);
+      will-change: transform;
+    }
+    .float-chip.top { top: 6%; left: -9%; animation: floaty 7s ease-in-out infinite; }
+    .float-chip.bot { bottom: 9%; right: -7%; animation: floaty 7s ease-in-out infinite reverse; animation-delay: -2.5s; }
+    @keyframes floaty {
+      0%, 100% { transform: translate(var(--px,0px), var(--py,0px)) translateY(0) rotate(-0.4deg); }
+      50%      { transform: translate(var(--px,0px), var(--py,0px)) translateY(-12px) rotate(0.4deg); }
+    }
+    .float-chip:hover { box-shadow: 0 1px 2px rgba(23,20,15,0.06), 0 26px 60px rgba(23,20,15,0.22); }
     .float-chip .fc-ic {
-      width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-      background: var(--accent-soft); color: var(--accent-ink);
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(140deg, var(--accent), var(--accent-ink)); color: #fff;
       display: grid; place-items: center;
+      box-shadow: 0 4px 12px rgba(61,130,247,0.35);
     }
     .float-chip .fc-t { font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; }
     .float-chip .fc-s { font-size: 11px; color: var(--muted); margin-top: 1px; }
-    .float-chip.top { top: 0%; left: 0%; transform: translate(-20%, -20%);}
-    .float-chip.bot { bottom: 0%; right: 0%; transform: translate(30%, 30%);}
-
-    /* ── TRUST STRIP ───────────────────────────────────────── */
-    .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.5); }
-    .trust .wrap {
-      display: flex; flex-wrap: wrap; gap: 14px 36px;
-      align-items: center; justify-content: center;
-      padding-top: 22px; padding-bottom: 22px;
+    .float-chip .fc-live {
+      width: 6px; height: 6px; border-radius: 50%; background: #16a34a; margin-left: 2px;
+      box-shadow: 0 0 0 0 rgba(22,163,74,0.5); animation: live-blink 1.8s ease-in-out infinite;
     }
-    .trust-item { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
-    .trust-item svg { color: var(--accent); flex-shrink: 0; }
+    @keyframes live-blink {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
+      50%      { box-shadow: 0 0 0 5px rgba(22,163,74,0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .float-chip.top, .float-chip.bot, .hero-visual::before, .pill-dot::after, .fc-live { animation: none !important; }
+    }
 
-    /* ── SECTION SHELL ─────────────────────────────────────── */
+    .ann {
+      font-family: 'Caveat', cursive; font-weight: 700; color: var(--accent-ink);
+      line-height: 1; display: inline-block;
+    }
+    .hero-doodle {
+      position: absolute; pointer-events: none; z-index: 5;
+      font-family: 'Caveat', cursive; font-weight: 700; font-size: 22px; color: var(--accent-ink);
+      transform: rotate(-7deg);
+    }
+    .scribble path { stroke-dasharray: 1; stroke-dashoffset: 1; pathLength: 1; }
+    .in .scribble path { animation: draw 0.9s var(--ease) 0.4s forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+
+    .tilt-stage { perspective: 1200px; }
+    .tilt {
+      transform-style: preserve-3d;
+      transition: transform 0.4s var(--ease);
+      will-change: transform;
+    }
+    .depth { transition: transform 0.3s var(--ease); will-change: transform; }
+
+    .mag { will-change: transform; }
+
+    .duration-row .duration-chip {
+      cursor: pointer; user-select: none;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.18s var(--ease-spring), box-shadow 0.2s;
+    }
+    .duration-row .duration-chip:hover { border-color: var(--accent); color: var(--accent-ink); transform: translateY(-2px); }
+    .duration-row .duration-chip.on:hover { color: #fff; }
+    .duration-row .duration-chip:active { transform: scale(0.94); }
+    .duration-chip.on { box-shadow: 0 8px 20px rgba(61,130,247,0.28); }
+
+    .app-dur-chip, .app-purpose { cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.16s var(--ease-spring); }
+    .app-dur-chip:active, .app-purpose:active { transform: scale(0.92); }
+
+    .swap-fade { transition: opacity 0.22s var(--ease), transform 0.22s var(--ease); }
+    .swap-fade.swapping { opacity: 0; transform: translateY(6px); }
+
+    .phone-poke {
+      position: absolute; right: -8px; top: 38%; z-index: 6; pointer-events: none;
+      font-family: 'Caveat', cursive; font-weight: 700; font-size: 19px; color: var(--accent-ink);
+      transform: rotate(6deg); white-space: nowrap;
+    }
+    @media (max-width: 720px) { .hero-doodle, .phone-poke { display: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .tilt, .depth { transition: none !important; transform: none !important; }
+      .scribble path { stroke-dashoffset: 0 !important; animation: none !important; }
+    }
+
+    .trust {
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.55); overflow: hidden;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    }
+    .trust-track {
+      display: flex; align-items: center; gap: 0; width: max-content;
+      padding: 20px 0; animation: marquee 34s linear infinite;
+    }
+    .trust:hover .trust-track { animation-play-state: paused; }
+    @keyframes marquee { to { transform: translateX(-50%); } }
+    .trust-item {
+      display: inline-flex; align-items: center; gap: 10px; padding: 0 30px;
+      font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
+    }
+    .trust-item::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--line-2); margin-left: 30px; }
+    .trust-item svg { color: var(--accent); flex-shrink: 0; }
+    @media (prefers-reduced-motion: reduce) { .trust-track { animation: none; } }
+
+    .stats-band { padding: 56px 0; border-bottom: 1px solid var(--line); }
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    }
+    .stat {
+      position: relative; padding: 4px 22px; text-align: center;
+    }
+    .stat + .stat::before {
+      content: ''; position: absolute; left: 0; top: 12%; bottom: 12%; width: 1px; background: var(--line);
+    }
+    .stat-num {
+      font-size: clamp(30px, 4vw, 44px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+      background: linear-gradient(160deg, var(--ink), var(--accent-ink));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .stat-num .unit { font-size: 0.55em; font-weight: 700; -webkit-text-fill-color: var(--accent); }
+    .stat-lbl { margin-top: 9px; font-size: 13.5px; color: var(--muted); font-weight: 500; line-height: 1.4; }
+    @media (max-width: 720px) { .stats-grid { grid-template-columns: 1fr 1fr; gap: 28px 8px; } .stat + .stat::before { display: none; } }
+
     .section { padding: 104px 0; }
     .section-dark { background: var(--dark); color: var(--dark-text); }
     .section-alt  { background: var(--bg-2); }
@@ -266,24 +388,36 @@
     .center { text-align: center; margin-left: auto; margin-right: auto; }
     .center .eyebrow { justify-content: center; }
 
-    /* ── HOW IT WORKS ──────────────────────────────────────── */
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 58px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 58px; counter-reset: step; }
     .step {
       background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); padding: 30px 28px; position: relative;
-      transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s var(--ease);
+      border-radius: var(--radius); padding: 30px 28px; position: relative; overflow: hidden;
+      transition: border-color 0.25s, box-shadow 0.3s var(--ease), transform 0.3s var(--ease);
     }
-    .step:hover { border-color: var(--line-2); box-shadow: 0 14px 40px rgba(23,20,15,0.07); transform: translateY(-3px); }
+    .step::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), #6aa6ff);
+      transform: scaleX(0); transform-origin: left; transition: transform 0.4s var(--ease);
+    }
+    .step:hover { border-color: transparent; box-shadow: var(--shadow-lift); transform: translateY(-4px); }
+    .step:hover::before { transform: scaleX(1); }
     .step-ic {
-      width: 46px; height: 46px; border-radius: 12px; margin-bottom: 22px;
+      width: 48px; height: 48px; border-radius: 13px; margin-bottom: 22px;
       background: var(--accent-soft); color: var(--accent-ink);
       display: grid; place-items: center;
+      transition: background 0.3s, color 0.3s, transform 0.3s var(--ease-spring);
     }
-    .step-n { position: absolute; top: 26px; right: 28px; font-size: 13px; font-weight: 800; color: var(--line-2); letter-spacing: 0.05em; }
+    .step:hover .step-ic { background: linear-gradient(140deg, var(--accent), var(--accent-ink)); color: #fff; transform: scale(1.06) rotate(-3deg); }
+    .step-n {
+      position: absolute; top: 22px; right: 26px; font-size: 30px; font-weight: 800;
+      letter-spacing: -0.04em; line-height: 1;
+      color: transparent; -webkit-text-stroke: 1.4px var(--line-2);
+    }
     .step h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
     .step p { font-size: 15px; color: var(--muted); line-height: 1.62; }
 
-    /* ── WHY DIFFERENT (compare) ───────────────────────────── */
+
     .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 58px; align-items: stretch; }
     .cmp-card { border-radius: 22px; padding: 34px 32px; }
     .cmp-old {
@@ -310,7 +444,7 @@
     .cmp-new li { color: var(--dark-text); }
     .cmp-new .ic { color: #60a5fa; }
 
-    /* ── QUICK WORKOUT (split) ─────────────────────────────── */
+
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
     .split-visual { display: flex; justify-content: center; position: relative; }
     .split-visual .phone { width: 290px; }
@@ -331,7 +465,7 @@
     }
     .duration-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-    /* ── PRODUCT PREVIEW (phone row) ───────────────────────── */
+
     .phone-row {
       display: flex; justify-content: center; align-items: flex-end;
       gap: 28px; margin-top: 64px; flex-wrap: wrap;
@@ -341,7 +475,7 @@
     .phone-col h4 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
     .phone-col p { font-size: 14px; color: var(--muted); line-height: 1.55; }
 
-    /* ── FINAL CTA ─────────────────────────────────────────── */
+
     .cta-section { padding: 40px 0 110px; }
     .cta-card {
       max-width: var(--maxw); margin: 0 auto;
@@ -367,7 +501,7 @@
     .cta-card .form-note { color: var(--dark-muted); }
     .cta-card .form-msg.ok { color: #4ade80; }
 
-    /* ── FAQ ───────────────────────────────────────────────── */
+
     .faq { max-width: 760px; margin: 52px auto 0; }
     .faq-item { border-bottom: 1px solid var(--line); }
     .faq-q {
@@ -382,7 +516,7 @@
     .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s var(--ease); }
     .faq-a-inner { padding: 0 4px 24px; font-size: 16px; color: var(--muted); line-height: 1.65; max-width: 640px; }
 
-    /* ── FOOTER ────────────────────────────────────────────── */
+
     footer { background: var(--dark); color: var(--dark-muted); padding: 56px 0 40px; }
     .footer-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; flex-wrap: wrap; padding-bottom: 36px; border-bottom: 1px solid var(--dark-line); }
     .footer-brand { max-width: 320px; }
@@ -394,7 +528,7 @@
     .footer-col a:hover { color: var(--dark-text); }
     .footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 28px; font-size: 13px; }
 
-    /* ── PHONE COMPONENT (matches Tempo dark UI) ──────────── */
+
     .phone { position: relative; }
     .phone-frame {
       width: 100%; background: #0c0a09; border-radius: 44px;
@@ -404,7 +538,7 @@
     .phone-screen-wrap { position: relative; overflow: hidden; border-radius: 36px; aspect-ratio: 300/620; background: #0C0D10; }
     .phone-island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 92px; height: 26px; background: #000; border-radius: 16px; z-index: 10; }
 
-    /* App tokens — synced with mobile/src/constants/theme.ts */
+
     .app-screen {
       position: absolute; inset: 0; display: flex; flex-direction: column;
       background: #0C0D10; font-family: 'Inter', -apple-system, sans-serif;
@@ -414,7 +548,7 @@
     .app-scroll { flex: 1; overflow: hidden; padding: 0 12px; }
     .app-scroll-pad { padding-bottom: 8px; }
 
-    /* Shared */
+
     .app-eyebrow { font-size: 9px; font-weight: 700; color: #767E8C; letter-spacing: 0.6px; text-transform: uppercase; }
     .app-avatar { width: 28px; height: 28px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; flex-shrink: 0; }
     .app-avatar svg { color: #fff; }
@@ -427,7 +561,7 @@
     .app-tab.on svg, .app-tab.on .app-tab-lbl { color: #3D82F7; }
     .app-tab-lbl { font-size: 9px; font-weight: 500; color: #767E8C; }
 
-    /* Schedule (home tab) */
+
     .app-sched-hdr {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 12px 10px; border-bottom: 0.5px solid #2B313B; flex-shrink: 0;
@@ -481,7 +615,7 @@
       box-shadow: 0 8px 24px rgba(0,88,188,0.28); z-index: 5;
     }
 
-    /* Quick Workout screen */
+
     .app-qw-hdr {
       display: flex; align-items: center; justify-content: space-between;
       padding: 6px 12px 8px; flex-shrink: 0;
@@ -537,7 +671,7 @@
       font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
     }
 
-    /* Active workout (Plan tab) */
+
     .app-plan-hdr {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 12px; flex-shrink: 0;
@@ -584,7 +718,7 @@
     .app-check-empty { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #2B313B; margin: 0 auto; }
     .app-input-fake { display: block; width: 100%; height: 24px; background: #191C22; border: 1px solid #2B313B; border-radius: 6px; }
 
-    /* Progress screen */
+
     .app-prog-hdr {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 12px; flex-shrink: 0;
@@ -631,7 +765,7 @@
     .app-blbl { font-size: 8px; color: #767E8C; font-weight: 500; }
     .app-blbl.on { color: #3D82F7; font-weight: 700; }
 
-    /* ── SUCCESS MODAL ─────────────────────────────────────── */
+
     .modal-overlay {
       position: fixed; inset: 0; z-index: 200;
       display: flex; align-items: center; justify-content: center; padding: 24px;
@@ -678,7 +812,7 @@
     }
     @keyframes btnspin { to { transform: rotate(360deg); } }
 
-    /* ── RESPONSIVE ────────────────────────────────────────── */
+
     @media (max-width: 960px) {
       .hero-grid { grid-template-columns: 1fr; gap: 48px; }
       .hero-visual { order: 2; }
@@ -746,7 +880,8 @@
 </head>
 <body>
 
-<!-- ── NAV ────────────────────────────────────────────────────── -->
+<div class="scroll-progress" id="scroll-progress"></div>
+
 <nav id="nav">
   <div class="wrap">
     <a href="#top" class="logo">
@@ -760,17 +895,17 @@
       <a href="#faq" class="nav-link">FAQ</a>
     </div>
     <div class="nav-right">
-      <a href="#join" class="btn btn-primary btn-sm">Join the waitlist</a>
+      <a href="#join" class="btn btn-primary btn-sm mag">Join the waitlist</a>
     </div>
   </div>
 </nav>
 
-<!-- ── HERO ───────────────────────────────────────────────────── -->
+
 <header class="hero" id="top">
   <div class="wrap hero-grid">
     <div>
-      <span class="pill"><span class="pill-dot"></span> Coming soon to iOS &amp; Android</span>
-      <h1 class="hero-title">Fitness that fits <em>your</em> schedule.</h1>
+      <span class="pill"><span class="pill-dot"></span> Coming soon to iOS &amp; Android <span class="pill-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span>
+      <h1 class="hero-title">Fitness that fits <em>your<svg class="scribble" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true"><path d="M3 11 C 40 4, 70 14, 100 8 S 165 3, 197 9"/></svg></em> schedule.</h1>
       <p class="hero-sub">
         Most fitness apps hand you a fixed plan and expect your life to cooperate.
         <strong>Tempo does the opposite</strong> — it reads your calendar, builds training around the
@@ -779,7 +914,7 @@
       <div class="signup">
         <form class="email-row" id="hero-form">
           <input type="email" class="email-field" placeholder="you@email.com" autocomplete="email" required>
-          <button type="submit" class="btn btn-primary">Join the waitlist</button>
+          <button type="submit" class="btn btn-primary mag">Join the waitlist</button>
         </form>
         <p class="form-note">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -790,19 +925,20 @@
       </div>
     </div>
 
-    <div class="hero-visual">
-      <div class="float-chip top" data-sr style="--d:500ms">
+    <div class="hero-visual tilt-stage" id="hero-stage">
+      <span class="hero-doodle" style="top:-14px;right:4%">psst — move your mouse ✦</span>
+      <div class="float-chip top depth" data-depth="26" data-sr style="--d:500ms">
         <div class="fc-ic">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         </div>
-        <div><div class="fc-t">Calendar synced</div><div class="fc-s">Finds your free windows</div></div>
+        <div style="flex:1"><div class="fc-t" style="display:flex;align-items:center;gap:6px">Calendar synced<span class="fc-live"></span></div><div class="fc-s">Finds your free windows</div></div>
       </div>
 
-      <div class="phone">
+      <div class="phone tilt" id="hero-phone">
         <div class="phone-frame">
           <div class="phone-screen-wrap">
             <div class="phone-island"></div>
-            <!-- Schedule screen (home tab) -->
+
             <div class="app-screen">
               <div class="app-sb"></div>
               <div class="app-sched-hdr">
@@ -872,7 +1008,7 @@
         </div>
       </div>
 
-      <div class="float-chip bot" data-sr style="--d:650ms">
+      <div class="float-chip bot depth" data-depth="40" data-sr style="--d:650ms">
         <div class="fc-ic">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
         </div>
@@ -882,16 +1018,40 @@
   </div>
 </header>
 
-<!-- ── TRUST STRIP ────────────────────────────────────────────── -->
-<section class="trust">
-  <div class="wrap">
+<section class="trust" aria-label="Highlights">
+  <div class="trust-track" id="trust-track">
     <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google &amp; Apple Calendar</span>
     <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Reads free/busy only — never event details</span>
     <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> Free to join · No credit card</span>
+    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg> 5–30 minute Quick Workouts</span>
+    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg> Auto-reschedules a busy week</span>
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ───────────────────────────────────────────── -->
+<section class="stats-band">
+  <div class="wrap">
+    <div class="stats-grid">
+      <div class="stat" data-sr>
+        <div class="stat-num" data-count="3"><span class="cv">0</span></div>
+        <div class="stat-lbl">Taps from calendar to a full plan</div>
+      </div>
+      <div class="stat" data-sr style="--d:80ms">
+        <div class="stat-num" data-count="30"><span class="cv">0</span><span class="unit">min</span></div>
+        <div class="stat-lbl">Longest a workout needs to be</div>
+      </div>
+      <div class="stat" data-sr style="--d:160ms">
+        <div class="stat-num" data-count="0"><span class="cv">0</span></div>
+        <div class="stat-lbl">Times a missed day breaks your plan</div>
+      </div>
+      <div class="stat" data-sr style="--d:240ms">
+        <div class="stat-num" data-count="100"><span class="cv">0</span><span class="unit">%</span></div>
+        <div class="stat-lbl">Built around your real schedule</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
 <section class="section" id="how">
   <div class="wrap">
     <div class="s-head center" data-sr>
@@ -928,7 +1088,7 @@
   </div>
 </section>
 
-<!-- ── WHY TEMPO IS DIFFERENT ─────────────────────────────────── -->
+
 <section class="section section-dark" id="different">
   <div class="wrap">
     <div class="s-head center" data-sr>
@@ -961,7 +1121,7 @@
   </div>
 </section>
 
-<!-- ── QUICK WORKOUT FEATURE ──────────────────────────────────── -->
+
 <section class="section" id="quick">
   <div class="wrap split">
     <div data-sr>
@@ -969,12 +1129,13 @@
       <h2 class="s-title">A busy day shouldn&rsquo;t be a missed day.</h2>
       <p class="s-body" style="margin-top:16px">When your schedule tightens, Tempo doesn&rsquo;t cancel — it shrinks. Tell it how long you&rsquo;ve got and it builds a focused session that keeps your streak and your progress intact.</p>
 
-      <div class="duration-row">
-        <span class="duration-chip">5 min</span>
-        <span class="duration-chip">10 min</span>
-        <span class="duration-chip">15 min</span>
-        <span class="duration-chip on">20 min</span>
-        <span class="duration-chip">30 min</span>
+      <p class="ann" style="font-size:20px;margin:30px 0 -6px;transform:rotate(-2deg)">Tap a time — the phone rebuilds it live ↓</p>
+      <div class="duration-row" id="qw-durs">
+        <span class="duration-chip" data-dur="5">5 min</span>
+        <span class="duration-chip" data-dur="10">10 min</span>
+        <span class="duration-chip" data-dur="15">15 min</span>
+        <span class="duration-chip on" data-dur="20">20 min</span>
+        <span class="duration-chip" data-dur="30">30 min</span>
       </div>
 
       <ul class="qw-points">
@@ -1008,47 +1169,49 @@
               <div class="app-scroll app-scroll-pad">
                 <div class="app-qw-lead">How much time do you have?</div>
                 <div class="app-qw-sub">No setup. Tempo builds the highest-impact session for your window and goal.</div>
-                <div class="app-dur-grid">
-                  <div class="app-dur-chip"><div class="app-dur-num">5</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip"><div class="app-dur-num">10</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip"><div class="app-dur-num">15</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip on"><div class="app-dur-num">20</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip"><div class="app-dur-num">30</div><div class="app-dur-unit">min</div></div>
+                <div class="app-dur-grid" id="qw-phone-durs">
+                  <div class="app-dur-chip" data-dur="5"><div class="app-dur-num">5</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip" data-dur="10"><div class="app-dur-num">10</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip" data-dur="15"><div class="app-dur-num">15</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip on" data-dur="20"><div class="app-dur-num">20</div><div class="app-dur-unit">min</div></div>
+                  <div class="app-dur-chip" data-dur="30"><div class="app-dur-num">30</div><div class="app-dur-unit">min</div></div>
                 </div>
                 <div class="app-eyebrow" style="margin-bottom:6px">FOCUS</div>
-                <div class="app-purpose-row">
-                  <div class="app-purpose on">
+                <div class="app-purpose-row" id="qw-focus">
+                  <div class="app-purpose on" data-focus="muscle">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
                     Muscle
                   </div>
-                  <div class="app-purpose">
+                  <div class="app-purpose" data-focus="strength">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
                     Strength
                   </div>
-                  <div class="app-purpose">
+                  <div class="app-purpose" data-focus="conditioning">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M8.5 14.5A5 5 0 0 1 12 6v0a5 5 0 0 1 3.5 8.5"/></svg>
                     Conditioning
                   </div>
                 </div>
-                <div class="app-preview-card">
+                <div class="app-preview-card swap-fade" id="qw-card">
                   <div class="app-preview-top">
                     <div class="app-purpose-badge">
                       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 6.5h11v11h-11z"/></svg>
-                      MUSCLE
+                      <span id="qw-badge">MUSCLE</span>
                     </div>
-                    <div class="app-preview-est">~18 min</div>
+                    <div class="app-preview-est" id="qw-est">~18 min</div>
                   </div>
-                  <div class="app-preview-title">Upper Push Express</div>
+                  <div class="app-preview-title" id="qw-title">Upper Push Express</div>
                   <div class="app-why-box">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
-                    Hits chest and triceps in your 20-min gap — keeps hypertrophy on track without blowing your afternoon.
+                    <span id="qw-why">Hits chest and triceps in your 20-min gap — keeps hypertrophy on track without blowing your afternoon.</span>
                   </div>
-                  <div class="app-ex-row"><div class="app-ex-idx">1</div><div><div class="app-ex-name">Incline DB Press</div><div class="app-ex-meta">Chest · Shoulders</div></div><div class="app-ex-dose">3 × 10–12</div></div>
-                  <div class="app-ex-row"><div class="app-ex-idx">2</div><div><div class="app-ex-name">Push-ups</div><div class="app-ex-meta">Chest · Triceps</div></div><div class="app-ex-dose">3 × 12–15</div></div>
-                  <div class="app-ex-row"><div class="app-ex-idx">3</div><div><div class="app-ex-name">Lateral Raises</div><div class="app-ex-meta">Shoulders</div></div><div class="app-ex-dose">3 × 12–15</div></div>
+                  <div id="qw-ex">
+                    <div class="app-ex-row"><div class="app-ex-idx">1</div><div><div class="app-ex-name">Incline DB Press</div><div class="app-ex-meta">Chest · Shoulders</div></div><div class="app-ex-dose">3 × 10–12</div></div>
+                    <div class="app-ex-row"><div class="app-ex-idx">2</div><div><div class="app-ex-name">Push-ups</div><div class="app-ex-meta">Chest · Triceps</div></div><div class="app-ex-dose">3 × 12–15</div></div>
+                    <div class="app-ex-row"><div class="app-ex-idx">3</div><div><div class="app-ex-name">Lateral Raises</div><div class="app-ex-meta">Shoulders</div></div><div class="app-ex-dose">3 × 12–15</div></div>
+                  </div>
                 </div>
               </div>
-              <div class="app-footer-btn">
+              <div class="app-footer-btn" id="qw-btn">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 Start 20-Minute Workout
               </div>
@@ -1060,7 +1223,7 @@
   </div>
 </section>
 
-<!-- ── PRODUCT PREVIEW ────────────────────────────────────────── -->
+
 <section class="section section-alt" id="preview">
   <div class="wrap">
     <div class="s-head center" data-sr>
@@ -1070,7 +1233,7 @@
     </div>
 
     <div class="phone-row">
-      <!-- Schedule -->
+
       <div class="phone-col" data-sr style="--d:0ms">
         <div class="phone">
           <div class="phone-frame">
@@ -1144,7 +1307,7 @@
         <p>Greeting, date strip, quick workout entry, and scheduled sessions on a timeline.</p>
       </div>
 
-      <!-- Active session -->
+
       <div class="phone-col" data-sr style="--d:120ms">
         <div class="phone">
           <div class="phone-frame">
@@ -1208,7 +1371,7 @@
         <p>Set-by-set logging with targets, previous weights, and adaptive coaching.</p>
       </div>
 
-      <!-- Progress -->
+
       <div class="phone-col" data-sr style="--d:240ms">
         <div class="phone">
           <div class="phone-frame">
@@ -1273,7 +1436,7 @@
   </div>
 </section>
 
-<!-- ── FINAL CTA ──────────────────────────────────────────────── -->
+
 <section class="cta-section" id="join">
   <div class="wrap">
     <div class="cta-card" data-sr>
@@ -1289,7 +1452,7 @@
       <div>
         <form class="email-row" id="cta-form" style="flex-direction:column;gap:10px">
           <input type="email" class="email-field" placeholder="you@email.com" autocomplete="email" required>
-          <button type="submit" class="btn btn-primary btn-lg" style="width:100%">Join the waitlist</button>
+          <button type="submit" class="btn btn-primary btn-lg mag" style="width:100%">Join the waitlist</button>
         </form>
         <p class="form-note">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1302,7 +1465,7 @@
   </div>
 </section>
 
-<!-- ── FAQ ────────────────────────────────────────────────────── -->
+
 <section class="section" id="faq">
   <div class="wrap">
     <div class="s-head center" data-sr>
@@ -1344,7 +1507,7 @@
   </div>
 </section>
 
-<!-- ── FOOTER ─────────────────────────────────────────────────── -->
+
 <footer>
   <div class="wrap">
     <div class="footer-top">
@@ -1374,7 +1537,7 @@
   </div>
 </footer>
 
-<!-- ── SUCCESS MODAL ──────────────────────────────────────────── -->
+
 <div class="modal-overlay" id="success-modal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <button class="modal-close" id="modal-close" aria-label="Close">
@@ -1395,27 +1558,52 @@
 </div>
 
 <script>
-/* ── 1. NAV stuck state ─────────────────────────────────────── */
 const nav = document.getElementById('nav');
-const onScroll = () => nav.classList.toggle('stuck', scrollY > 12);
+const progress = document.getElementById('scroll-progress');
+const onScroll = () => {
+  nav.classList.toggle('stuck', scrollY > 12);
+  const max = document.documentElement.scrollHeight - innerHeight;
+  progress.style.setProperty('--p', (max > 0 ? (scrollY / max) * 100 : 0) + '%');
+};
 addEventListener('scroll', onScroll, { passive: true });
 onScroll();
 
-/* ── 2. Scroll reveal ───────────────────────────────────────── */
+const track = document.getElementById('trust-track');
+if (track) track.innerHTML += track.innerHTML;
+
+function countUp(el) {
+  const target = parseFloat(el.dataset.count);
+  const cv = el.querySelector('.cv');
+  if (!cv || isNaN(target)) return;
+  if (target === 0) { cv.textContent = '0'; return; }
+  const dur = 1100, start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    cv.textContent = Math.round(eased * target).toString();
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 const reveal = new IntersectionObserver((entries) => {
   entries.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('in'); reveal.unobserve(e.target); }
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      if (e.target.dataset.count !== undefined) countUp(e.target);
+      e.target.querySelectorAll?.('[data-count]').forEach(countUp);
+      reveal.unobserve(e.target);
+    }
   });
 }, { threshold: 0.12, rootMargin: '0px 0px -48px 0px' });
 document.querySelectorAll('[data-sr]').forEach(el => reveal.observe(el));
 
-/* ── 3. FAQ accordion ───────────────────────────────────────── */
+
 document.querySelectorAll('.faq-q').forEach(q => {
   q.addEventListener('click', () => {
     const item = q.parentElement;
     const answer = item.querySelector('.faq-a');
     const isOpen = item.classList.contains('open');
-    // close others
     document.querySelectorAll('.faq-item.open').forEach(o => {
       if (o !== item) {
         o.classList.remove('open');
@@ -1429,7 +1617,7 @@ document.querySelectorAll('.faq-q').forEach(q => {
   });
 });
 
-/* ── 4. Success modal ───────────────────────────────────────── */
+
 const successModal = document.getElementById('success-modal');
 function openSuccess(email) {
   const emailEl = document.getElementById('modal-email');
@@ -1449,7 +1637,7 @@ document.getElementById('modal-ok').addEventListener('click', closeSuccess);
 successModal.addEventListener('click', e => { if (e.target === successModal) closeSuccess(); });
 addEventListener('keydown', e => { if (e.key === 'Escape' && successModal.classList.contains('open')) closeSuccess(); });
 
-/* ── 5. Waitlist form submit ────────────────────────────────── */
+
 async function submit(form, okId, errId) {
   const email = form.querySelector('input').value.trim();
   const btn   = form.querySelector('button');
@@ -1483,6 +1671,128 @@ async function submit(form, okId, errId) {
 }
 document.getElementById('hero-form').addEventListener('submit', e => { e.preventDefault(); submit(e.target, 'h-ok', 'h-err'); });
 document.getElementById('cta-form').addEventListener('submit',  e => { e.preventDefault(); submit(e.target, 'c-ok', 'c-err'); });
+
+const QW = {
+  muscle: {
+    badge: 'MUSCLE', title: 'Upper Push Express', muscles: 'chest and triceps',
+    benefit: 'keeps hypertrophy on track without blowing your afternoon',
+    ex: [
+      ['Incline DB Press', 'Chest · Shoulders', '3 × 10–12'],
+      ['Push-ups', 'Chest · Triceps', '3 × 12–15'],
+      ['Lateral Raises', 'Shoulders', '3 × 12–15'],
+      ['Triceps Dips', 'Triceps', '3 × 10–12'],
+      ['Cable Fly', 'Chest', '2 × 15'],
+    ],
+  },
+  strength: {
+    badge: 'STRENGTH', title: 'Heavy Lower Focus', muscles: 'quads and glutes',
+    benefit: 'moves the big lifts so your strength keeps climbing',
+    ex: [
+      ['Back Squat', 'Quads · Glutes', '5 × 5'],
+      ['Romanian Deadlift', 'Hamstrings', '4 × 6'],
+      ['Walking Lunge', 'Quads · Glutes', '3 × 8'],
+      ['Hip Thrust', 'Glutes', '3 × 8'],
+      ['Calf Raise', 'Calves', '3 × 12'],
+    ],
+  },
+  conditioning: {
+    badge: 'CONDITIONING', title: 'Engine Builder', muscles: 'heart and legs',
+    benefit: 'spikes your heart rate and burns the clock efficiently',
+    ex: [
+      ['Rowing Intervals', 'Full Body', '4 × 250m'],
+      ['Kettlebell Swings', 'Posterior', '5 × 20'],
+      ['Burpees', 'Full Body', '4 × 12'],
+      ['Mountain Climbers', 'Core', '4 × 30s'],
+      ['Jump Rope', 'Calves · Cardio', '3 × 60s'],
+    ],
+  },
+};
+const QW_COUNT = { 5: 2, 10: 2, 15: 3, 20: 4, 30: 5 };
+let qwState = { dur: 20, focus: 'muscle' };
+
+const $ = id => document.getElementById(id);
+function syncOn(container, attr, val) {
+  if (!container) return;
+  container.querySelectorAll('[data-' + attr + ']').forEach(el => {
+    el.classList.toggle('on', el.dataset[attr] === String(val));
+  });
+}
+function renderQW() {
+  const f = QW[qwState.focus];
+  const card = $('qw-card');
+  if (!card) return;
+  syncOn($('qw-durs'), 'dur', qwState.dur);
+  syncOn($('qw-phone-durs'), 'dur', qwState.dur);
+  syncOn($('qw-focus'), 'focus', qwState.focus);
+  card.classList.add('swapping');
+  setTimeout(() => {
+    $('qw-badge').textContent = f.badge;
+    $('qw-est').textContent = '~' + Math.max(qwState.dur - 2, 4) + ' min';
+    $('qw-title').textContent = f.title;
+    $('qw-why').textContent = 'Hits ' + f.muscles + ' in your ' + qwState.dur +
+      '-min gap — ' + f.benefit + '.';
+    $('qw-ex').innerHTML = f.ex.slice(0, QW_COUNT[qwState.dur]).map((e, i) =>
+      '<div class="app-ex-row"><div class="app-ex-idx">' + (i + 1) +
+      '</div><div><div class="app-ex-name">' + e[0] +
+      '</div><div class="app-ex-meta">' + e[1] +
+      '</div></div><div class="app-ex-dose">' + e[2] + '</div></div>'
+    ).join('');
+    $('qw-btn').innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start ' +
+      qwState.dur + '-Minute Workout';
+    card.classList.remove('swapping');
+  }, 180);
+}
+['qw-durs', 'qw-phone-durs'].forEach(id => {
+  $(id)?.addEventListener('click', e => {
+    const c = e.target.closest('[data-dur]');
+    if (!c) return;
+    qwState.dur = +c.dataset.dur;
+    renderQW();
+  });
+});
+$('qw-focus')?.addEventListener('click', e => {
+  const c = e.target.closest('[data-focus]');
+  if (!c) return;
+  qwState.focus = c.dataset.focus;
+  renderQW();
+});
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fine = matchMedia('(pointer: fine)').matches;
+if (!reduce && fine) {
+  const stage = $('hero-stage');
+  const phone = $('hero-phone');
+  const depths = stage ? [...stage.querySelectorAll('.depth')] : [];
+  let raf = 0;
+  stage?.addEventListener('pointermove', e => {
+    const r = stage.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      if (phone) phone.style.transform =
+        'rotateY(' + (px * 12) + 'deg) rotateX(' + (-py * 12) + 'deg) translateZ(0)';
+      depths.forEach(d => {
+        const k = +d.dataset.depth || 20;
+        d.style.setProperty('--px', (-px * k) + 'px');
+        d.style.setProperty('--py', (-py * k) + 'px');
+      });
+    });
+  });
+  stage?.addEventListener('pointerleave', () => {
+    if (phone) phone.style.transform = '';
+    depths.forEach(d => { d.style.setProperty('--px', '0px'); d.style.setProperty('--py', '0px'); });
+  });
+
+  document.querySelectorAll('.mag').forEach(btn => {
+    btn.addEventListener('pointermove', e => {
+      const r = btn.getBoundingClientRect();
+      btn.style.transform = 'translate(' + ((e.clientX - r.left - r.width / 2) * 0.22) +
+        'px,' + ((e.clientY - r.top - r.height / 2) * 0.3) + 'px)';
+    });
+    btn.addEventListener('pointerleave', () => { btn.style.transform = ''; });
+  });
+}
 </script>
 </body>
 </html>
