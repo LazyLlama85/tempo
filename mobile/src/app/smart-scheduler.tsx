@@ -12,14 +12,17 @@ import {
   isGoogleCalendarConnected, connectGoogleCalendar, disconnectGoogleCalendar, getGoogleAccessToken,
 } from '@/services/googleCalendar/CalendarAuthService'
 import {
-  fetchUserBusySlots, findBestWorkoutSlot, autoScheduleWorkout, deleteCalendarEvent,
+  fetchUserBusySlots, autoScheduleWorkout, deleteCalendarEvent,
   type BusySlot, type TimeOfDay,
 } from '@/services/googleCalendar/CalendarApiService'
+import { findVariedSlot, type Availability } from '@/lib/smartSchedule'
 import {
   getProfileForQuick, generateQuickWorkout, goalToPurpose,
   snapToQuickMinutes, persistPlannedWorkout,
   type QuickWorkout, type MovementPattern,
 } from '@/lib/quickWorkout'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { UserProfile } from '@/types'
 
 const C = Colors.light
 
@@ -89,6 +92,47 @@ function defaultTod(goal?: string): TimeOfDay {
   return goal === 'strength' ? 'evening' : 'morning'
 }
 
+// Build the scheduling engine's Availability from the saved profile, overriding
+// the preferred time of day with the on-screen selection.
+function buildAvailability(p: UserProfile | null, tod: TimeOfDay): Availability {
+  return {
+    wakeTime: p?.wake_time ?? null,
+    bedtime: p?.bedtime ?? null,
+    workStart: p?.work_start ?? null,
+    workEnd: p?.work_end ?? null,
+    schoolStart: p?.school_start ?? null,
+    schoolEnd: p?.school_end ?? null,
+    preferredTimeOfDay: tod,
+    trainingDays: p?.training_days ?? [],
+  }
+}
+
+// A little breathing room after the session; strength work gets slightly more.
+function bufferForGoal(goal?: string): number {
+  return goal === 'strength' ? 15 : 10
+}
+
+// Delete the Smart Scheduler's OWN prior future sessions and their Google events,
+// so a re-run replaces them instead of stacking duplicates. Never touches the
+// user's plan workouts or ad-hoc Quick Workouts (only source = 'smart').
+async function clearPriorSmartSessions(client: SupabaseClient, userId: string, fromDate: string): Promise<void> {
+  const { data } = await client
+    .from('scheduled_workouts')
+    .select('id, calendar_event_id, calendar_provider')
+    .eq('user_id', userId)
+    .eq('status', 'scheduled')
+    .eq('source', 'smart')
+    .gte('planned_date', fromDate)
+  const rows = (data ?? []) as { id: string; calendar_event_id: string | null; calendar_provider: string | null }[]
+  if (!rows.length) return
+  for (const r of rows) {
+    if (r.calendar_event_id && r.calendar_provider === 'google') {
+      await deleteCalendarEvent(r.calendar_event_id).catch(() => {})
+    }
+  }
+  await client.from('scheduled_workouts').delete().eq('user_id', userId).in('id', rows.map(r => r.id))
+}
+
 function friendlyConnect(code?: string): string {
   switch (code) {
     case 'cancelled': return 'Sign-in was cancelled.'
@@ -123,7 +167,7 @@ export default function SmartSchedulerDashboard() {
   const [busy, setBusy] = useState<BusySlot[]>([])
   const [workouts, setWorkouts] = useState<DayWorkout[]>([])
   const [picked, setPicked] = useState<PickedWorkout[]>([])
-  const [tod, setTod] = useState<TimeOfDay>(defaultTod(profile?.goal))
+  const [tod, setTod] = useState<TimeOfDay>((profile?.preferred_time_of_day as TimeOfDay) ?? defaultTod(profile?.goal))
   const [error, setError] = useState<string | null>(null)
 
   // The next 7 calendar days, starting today.
@@ -205,28 +249,51 @@ export default function SmartSchedulerDashboard() {
         return
       }
 
+      const today0 = startOfDay(new Date())
+
+      // Replace our OWN prior auto-scheduled future sessions (and their Google
+      // events) so re-running cleans up instead of cluttering the calendar.
+      await clearPriorSmartSessions(supabase, userId, toDateStr(today0))
+
       const profileForQuick = await getProfileForQuick(supabase, userId)
       const genMinutes = snapToQuickMinutes(duration)
       const purpose = goalToPurpose(profileForQuick.goal)
 
-      // Occupied = real calendar events + Tempo workouts already scheduled, so we
-      // never overlap a meeting OR a workout that's already on the books.
-      const events = await fetchUserBusySlots(7)
-      const occupied: BusySlot[] = [...events, ...workouts.map(workoutToSlot)]
+      // Occupied = real calendar events + the user's remaining plan/Quick workouts
+      // (the smart ones were just cleared). Never overlap a meeting OR a workout.
+      const weekEnd = new Date(today0); weekEnd.setDate(today0.getDate() + 7)
+      const [events, { data: remainingData }] = await Promise.all([
+        fetchUserBusySlots(7),
+        supabase
+          .from('scheduled_workouts')
+          .select('id, planned_date, planned_start_time, planned_duration_min, focus')
+          .eq('user_id', userId)
+          .eq('status', 'scheduled')
+          .gte('planned_date', toDateStr(today0))
+          .lt('planned_date', toDateStr(weekEnd)),
+      ])
+      const remaining = (remainingData ?? []) as DayWorkout[]
+      const occupied: BusySlot[] = [...events, ...remaining.map(workoutToSlot)]
+
+      // Real availability: avoid sleep/work/school, only allowed training days,
+      // varied times biased to the chosen time of day.
+      const avail = buildAvailability(profile, tod)
+      const buffer = bufferForGoal(profile?.goal)
 
       const results: PickedWorkout[] = []
-      const today0 = startOfDay(new Date())
       let cursor = new Date() // first search starts "now" (respects the 60-min lead)
+      let lastMinute: number | undefined // skip yesterday's exact time → natural variation
 
       for (let i = 0; i < daysPerWeek; i++) {
         const dayIndex = Math.floor((startOfDay(cursor).getTime() - today0.getTime()) / DAY_MS)
         const horizonDays = 7 - dayIndex
         if (horizonDays <= 0) break
 
-        const slot = findBestWorkoutSlot(
+        const slot = findVariedSlot(
           occupied,
-          { durationMinutes: duration, timeOfDayPreference: tod, workoutGoal: goalLabel },
-          { now: cursor, horizonDays },
+          avail,
+          { durationMinutes: duration, bufferMinutes: buffer },
+          { now: cursor, horizonDays, seed: i, avoidStartMinute: lastMinute },
         )
         if (!slot) break
 
@@ -268,6 +335,7 @@ export default function SmartSchedulerDashboard() {
           durationMin: duration,
           focus,
           calendarEventId,
+          calendarProvider: calendarEventId ? 'google' : null,
         })
 
         // If the DB write failed, roll back the calendar event so we never leave
@@ -280,6 +348,7 @@ export default function SmartSchedulerDashboard() {
         }
 
         results.push({ startTime: slot.startTime, endTime: slot.endTime, title: focus, calendarEventId })
+        lastMinute = startDate.getHours() * 60 + startDate.getMinutes()
         cursor = startOfNextDay(slot.startTime)
       }
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Goal, Experience } from '@/types'
+import type { Goal, Experience, TimeOfDay } from '@/types'
 
 export interface PlanProfile {
   goal: Goal
@@ -7,6 +7,20 @@ export interface PlanProfile {
   equipment: string[]
   days_per_week: number
   preferred_duration_min: number
+  preferred_time_of_day?: TimeOfDay | null
+}
+
+// Varied default start times per time-of-day, so a fresh plan doesn't read as the
+// exact same hour every day. The Smart Scheduler later refines these around the
+// user's real calendar; this just keeps the base plan from feeling robotic.
+const START_TIMES: Record<TimeOfDay, string[]> = {
+  morning:   ['07:00:00', '08:00:00', '06:30:00', '07:30:00'],
+  afternoon: ['12:30:00', '15:30:00', '13:00:00', '16:00:00'],
+  evening:   ['17:30:00', '18:30:00', '19:00:00', '18:00:00'],
+}
+function startTimeFor(tod: TimeOfDay, idx: number): string {
+  const times = START_TIMES[tod]
+  return times[idx % times.length]
 }
 
 // Mon=1 … Sun=7. Spread days to maximise recovery between sessions.
@@ -284,10 +298,11 @@ export async function generatePlan(
         user_id: userId,
         user_plan_id: planRow.id,
         planned_date: formatDate(date),
-        planned_start_time: '07:00:00',
+        planned_start_time: startTimeFor(profile.preferred_time_of_day ?? 'morning', sessionCount),
         planned_duration_min: profile.preferred_duration_min,
         focus: template.focus,
         status: 'scheduled',
+        source: 'plan',
         exercise_ids: pickExercises(byPattern, template.patterns, sessionCount),
       })
 

@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, ScrollView, Platform } from 'react-native'
+import { useState, useEffect } from 'react'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView, Platform, ActivityIndicator, Alert } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { connectGoogleCalendar, isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
+import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
 
 const C = Colors.light
 
@@ -13,11 +15,63 @@ const WHY_SYNC = [
   'Privacy-first: We only see your busy blocks',
 ]
 
+// Map the connect error codes to plain language (mirrors the Smart Scheduler).
+function friendlyConnect(code?: string): string {
+  switch (code) {
+    case 'cancelled': return 'Sign-in was cancelled.'
+    case 'no_refresh_token': return 'Google didn’t grant offline access — allow Calendar permission and try again.'
+    case 'store_failed': return 'Couldn’t reach the scheduling service. Please try again.'
+    default: return code ? `Connection failed — ${code}` : 'Something went wrong connecting. Please try again.'
+  }
+}
+
 export default function ScheduleScreen() {
   const router = useRouter()
   const { goal, experience, equipment } = useLocalSearchParams<{ goal: string; experience: string; equipment: string }>()
   const [daysPerWeek, setDaysPerWeek] = useState(3)
-  const [calendarConnected, setCalendarConnected] = useState(false)
+  // Real connection state — which calendar is connected, and which (if any) is
+  // mid-connect. No more "just turn the button green".
+  const [connectedProvider, setConnectedProvider] = useState<'google' | 'device' | null>(null)
+  const [connecting, setConnecting] = useState<null | 'google' | 'device'>(null)
+
+  // Reflect any existing connection (e.g. re-running onboarding via "Change Plan").
+  useEffect(() => {
+    (async () => {
+      try {
+        if (await isGoogleCalendarConnected()) { setConnectedProvider('google'); return }
+        if ((await getCalendarPermissionStatus()) === 'granted') setConnectedProvider('device')
+      } catch { /* leave disconnected */ }
+    })()
+  }, [])
+
+  // Real Google OAuth — the exact same flow as Settings / Smart Scheduler.
+  const handleConnectGoogle = async () => {
+    if (connecting) return
+    setConnecting('google')
+    const r = await connectGoogleCalendar()
+    setConnecting(null)
+    if (r.ok) setConnectedProvider('google')
+    else Alert.alert('Couldn’t connect', friendlyConnect(r.error))
+  }
+
+  // Device (Apple) calendar — real OS permission prompt.
+  const handleConnectDevice = async () => {
+    if (connecting) return
+    setConnecting('device')
+    const granted = await requestCalendarPermissions()
+    setConnecting(null)
+    if (granted) setConnectedProvider('device')
+    else Alert.alert('Permission needed', 'Allow calendar access to sync workouts to your device calendar. You can enable this later in Settings.')
+  }
+
+  // Carry the connected calendar forward so plan-preview saves it as the default.
+  const goNext = () => router.push({
+    pathname: '/onboarding/plan-preview',
+    params: {
+      goal, experience, equipment, daysPerWeek: String(daysPerWeek),
+      ...(connectedProvider ? { preferredCalendar: connectedProvider } : {}),
+    },
+  })
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -61,24 +115,40 @@ export default function ScheduleScreen() {
           </View>
         </View>
 
-        {/* Calendar connect buttons */}
-        {calendarConnected ? (
+        {/* Calendar connect buttons — real auth, clear connected status */}
+        {connectedProvider ? (
           <View style={styles.connectedBadge}>
             <Ionicons name="checkmark-circle" size={20} color={C.success} />
-            <Text style={styles.connectedText}>Calendar connected</Text>
+            <Text style={styles.connectedText}>
+              {connectedProvider === 'google' ? 'Google Calendar connected' : 'Apple Calendar connected'}
+            </Text>
           </View>
         ) : (
           <View style={styles.calendarButtons}>
-            <TouchableOpacity style={styles.calendarBtn} onPress={() => setCalendarConnected(true)} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={[styles.calendarBtn, !!connecting && { opacity: 0.6 }]}
+              onPress={handleConnectGoogle}
+              disabled={!!connecting}
+              activeOpacity={0.7}
+            >
               <Ionicons name="calendar-outline" size={20} color="#EA4335" />
               <Text style={styles.calendarBtnText}>Connect Google Calendar</Text>
-              <Ionicons name="chevron-forward" size={16} color={C.outline} />
+              {connecting === 'google'
+                ? <ActivityIndicator color={C.primary} />
+                : <Ionicons name="chevron-forward" size={16} color={C.outline} />}
             </TouchableOpacity>
             {Platform.OS === 'ios' && (
-              <TouchableOpacity style={styles.calendarBtn} onPress={() => setCalendarConnected(true)} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={[styles.calendarBtn, !!connecting && { opacity: 0.6 }]}
+                onPress={handleConnectDevice}
+                disabled={!!connecting}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="calendar" size={20} color={C.text} />
                 <Text style={styles.calendarBtnText}>Connect Apple Calendar</Text>
-                <Ionicons name="chevron-forward" size={16} color={C.outline} />
+                {connecting === 'device'
+                  ? <ActivityIndicator color={C.primary} />
+                  : <Ionicons name="chevron-forward" size={16} color={C.outline} />}
               </TouchableOpacity>
             )}
           </View>
@@ -107,11 +177,11 @@ export default function ScheduleScreen() {
           {/* Timeline preview */}
           <View style={styles.previewTimeline}>
             <View style={styles.previewRow}>
-              <Text style={styles.previewTime}>08:00</Text>
+              <Text style={styles.previewTime}>8:00 AM</Text>
               <View style={styles.previewEvent}><Text style={styles.previewEventText}>Team Standup</Text></View>
             </View>
             <View style={styles.previewRow}>
-              <Text style={[styles.previewTime, { color: C.primary }]}>10:30</Text>
+              <Text style={[styles.previewTime, { color: C.primary }]}>10:30 AM</Text>
               <View style={styles.previewWorkout}>
                 <View style={styles.idealBadge}>
                   <Text style={styles.idealBadgeText}>IDEAL TRAINING WINDOW</Text>
@@ -122,7 +192,7 @@ export default function ScheduleScreen() {
               </View>
             </View>
             <View style={styles.previewRow}>
-              <Text style={styles.previewTime}>12:00</Text>
+              <Text style={styles.previewTime}>12:00 PM</Text>
               <View style={styles.previewEvent}><Text style={styles.previewEventText}>Project Review</Text></View>
             </View>
           </View>
@@ -130,14 +200,10 @@ export default function ScheduleScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.continueBtn}
-          onPress={() => router.push({ pathname: '/onboarding/plan-preview', params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek) } })}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.continueBtnText}>Continue to Schedule</Text>
+        <TouchableOpacity style={styles.continueBtn} onPress={goNext} activeOpacity={0.85}>
+          <Text style={styles.continueBtnText}>Continue</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push({ pathname: '/onboarding/plan-preview', params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek) } })}>
+        <TouchableOpacity onPress={goNext}>
           <Text style={styles.skipText}>Maybe later</Text>
         </TouchableOpacity>
       </View>
@@ -179,7 +245,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: Radius.full },
   previewTimeline: { gap: Spacing.sm },
   previewRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
-  previewTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: 40, paddingTop: 12 },
+  previewTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: 58, paddingTop: 12 },
   previewEvent: { flex: 1, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.md, padding: Spacing.sm },
   previewEventText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   previewWorkout: {

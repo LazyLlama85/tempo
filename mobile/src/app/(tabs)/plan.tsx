@@ -529,7 +529,7 @@ export default function WorkoutsScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? '#16A34A' : C.outline }}>
+                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? C.success : C.outline }}>
                     {doneCount}/{exSets.length}
                   </Text>
                   <Ionicons
@@ -555,17 +555,17 @@ export default function WorkoutsScreen() {
                         {p.direction !== 'new' && (
                           <View style={[
                             styles.dirBadge,
-                            p.direction === 'up' && { backgroundColor: '#F0FDF4' },
-                            p.direction === 'down' && { backgroundColor: '#FFF1F0' },
+                            p.direction === 'up' && { backgroundColor: C.successSoft },
+                            p.direction === 'down' && { backgroundColor: C.dangerSoft },
                           ]}>
                             <Ionicons
                               name={p.direction === 'up' ? 'trending-up' : p.direction === 'down' ? 'trending-down' : 'remove'}
                               size={13}
-                              color={p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary}
+                              color={p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary}
                             />
                             <Text style={[
                               styles.dirBadgeText,
-                              { color: p.direction === 'up' ? '#16A34A' : p.direction === 'down' ? C.error : C.textSecondary },
+                              { color: p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary },
                             ]}>
                               {p.direction === 'up' ? 'GO UP' : p.direction === 'down' ? 'BACK OFF' : 'HOLD'}
                             </Text>
@@ -761,8 +761,8 @@ const styles = StyleSheet.create({
   exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
   thumbWrap: {
     width: 58, height: 58, borderRadius: 12,
-    backgroundColor: '#F5F7FF',
-    borderWidth: 1, borderColor: '#E0E7FF',
+    backgroundColor: C.surfaceContainerLow,
+    borderWidth: 1, borderColor: C.outlineVariant,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'hidden', flexShrink: 0,
   },
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
 
   // ── Adaptive coaching (Track 1) ─────────────────────────────────────────────
   targetCard: {
-    backgroundColor: '#EFF4FF',
+    backgroundColor: C.primarySoft,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: 6,

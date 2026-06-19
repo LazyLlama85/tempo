@@ -23,6 +23,19 @@ export type WorkoutStatus =
   | 'skipped'
   | 'rescheduled'
 
+// When the user likes to train. A soft preference — the scheduler still varies
+// the exact time within the window so the week doesn't feel robotic.
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening'
+
+// How freely Tempo may move a workout to keep the user on track.
+//   strict   — protect the chosen day; only nudge the time.
+//   balanced — may move a workout within ±1 day.
+//   flexible — may move a workout anywhere in the same week.
+export type ScheduleFlexibility = 'strict' | 'balanced' | 'flexible'
+
+// Which calendar a synced workout event lives in.
+export type CalendarProvider = 'google' | 'device'
+
 export interface UserProfile {
   user_id: string
   display_name: string | null
@@ -36,6 +49,21 @@ export interface UserProfile {
   injuries: string[] | null
   onboarding_complete: boolean
   created_at: string
+  // ── Availability + scheduling preferences ──────────────────────────────────
+  // 'HH:MM:SS'. Sleep window — workouts are never placed between bedtime and wake.
+  wake_time: string
+  bedtime: string
+  // Recurring commitments to schedule around ('HH:MM:SS' or null = none).
+  work_start: string | null
+  work_end: string | null
+  school_start: string | null
+  school_end: string | null
+  preferred_time_of_day: TimeOfDay | null
+  schedule_flexibility: ScheduleFlexibility
+  // Weekdays the user will train, ISO 1=Mon … 7=Sun. Empty = no restriction.
+  training_days: number[]
+  // Which calendar new workout events sync to when both are connected.
+  preferred_calendar: CalendarProvider | null
 }
 
 export interface CalendarConnection {
@@ -79,6 +107,7 @@ export interface ScheduledWorkout {
   planned_duration_min: number
   focus: string
   calendar_event_id: string | null
+  calendar_provider: CalendarProvider | null
   status: WorkoutStatus
   completed_at: string | null
 }

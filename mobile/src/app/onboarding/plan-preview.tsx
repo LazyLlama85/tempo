@@ -36,11 +36,12 @@ function getProgramName(goal: string, experience: string, days: number): string 
 
 export default function PlanPreviewScreen() {
   const router = useRouter()
-  const { goal, experience, equipment, daysPerWeek } = useLocalSearchParams<{
+  const { goal, experience, equipment, daysPerWeek, preferredCalendar } = useLocalSearchParams<{
     goal: string
     experience: string
     equipment: string
     daysPerWeek: string
+    preferredCalendar?: string
   }>()
   const { session, refreshProfile } = useAuthStore()
   const [status, setStatus] = useState<'idle' | 'saving' | 'generating'>('idle')
@@ -64,6 +65,11 @@ export default function PlanPreviewScreen() {
         days_per_week: days,
         preferred_duration_min: 45,
         onboarding_complete: true,
+        // Persist the calendar the user connected during onboarding as the default
+        // sync target (only when it's a known provider).
+        ...(preferredCalendar === 'google' || preferredCalendar === 'device'
+          ? { preferred_calendar: preferredCalendar }
+          : {}),
       })
       if (profileErr) throw profileErr
 

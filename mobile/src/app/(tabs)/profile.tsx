@@ -48,6 +48,11 @@ function equipmentSummary(equipment: string[] | null | undefined): string {
     .join(', ')
 }
 
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+function availabilitySummary(tod: string | null | undefined, flex: string | null | undefined): string {
+  return `${tod ? cap(tod) : 'Any time'} · ${flex ? cap(flex) : 'Balanced'}`
+}
+
 const TIER_COLOR: Record<string, string> = {
   bronze: '#B45309',
   silver: '#64748B',
@@ -393,6 +398,13 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
           <View style={styles.card}>
+            <SettingRow
+              icon="time-outline"
+              label="AVAILABILITY & SCHEDULE"
+              value={availabilitySummary(profile?.preferred_time_of_day, profile?.schedule_flexibility)}
+              onPress={() => router.push('/availability')}
+            />
+            <View style={styles.divider} />
             <SettingRow
               icon="calendar-outline"
               label="DEVICE CALENDAR"

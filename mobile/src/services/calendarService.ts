@@ -1,6 +1,5 @@
-import * as Calendar from 'expo-calendar'
+import * as Calendar from 'expo-calendar/legacy'
 import { Platform } from 'react-native'
-import { supabase } from '@/lib/supabase'
 
 export interface WorkoutEventInput {
   id: string
@@ -31,9 +30,11 @@ export async function getCalendarPermissionStatus(): Promise<'granted' | 'denied
   return status as 'granted' | 'denied' | 'undetermined'
 }
 
-export async function createWorkoutEvent(
-  workout: WorkoutEventInput,
-  userId: string
+// Create a workout event on the DEVICE calendar and return its id (no DB write —
+// the unified calendarSync layer owns persisting calendar_event_id/provider).
+// Returns null if calendar permission isn't granted or there's no writable calendar.
+export async function createDeviceEvent(
+  workout: WorkoutEventInput
 ): Promise<string | null> {
   const granted = await requestCalendarPermissions()
   if (!granted) return null
@@ -46,21 +47,13 @@ export async function createWorkoutEvent(
   const startDate = new Date(y, m - 1, d, parseInt(hStr, 10), parseInt(mStr, 10))
   const endDate = new Date(startDate.getTime() + workout.planned_duration_min * 60 * 1000)
 
-  const eventId = await Calendar.createEventAsync(calendarId, {
+  return Calendar.createEventAsync(calendarId, {
     title: `Tempo: ${workout.focus}`,
     startDate,
     endDate,
     notes: `${workout.planned_duration_min} min workout · Tracked in Tempo`,
     alarms: [{ relativeOffset: -15 }],
   })
-
-  await supabase
-    .from('scheduled_workouts')
-    .update({ calendar_event_id: eventId })
-    .eq('id', workout.id)
-    .eq('user_id', userId)
-
-  return eventId
 }
 
 // ── Reading the calendar (schedule around real life) ──────────────────────────
@@ -150,20 +143,39 @@ export async function getDayEvents(date: Date): Promise<DayEvent[]> {
     .sort((a, b) => a.start.getTime() - b.start.getTime())
 }
 
-export async function deleteWorkoutEvent(
-  workoutId: string,
-  eventId: string,
-  userId: string
-): Promise<void> {
+// Timed events across a date range [start 00:00 … end 23:59], WITH titles, for
+// the unified home feed (a whole week in one query). Same filtering as
+// getDayEvents — all-day blocks and Tempo's own synced workouts are excluded.
+// Returns [] without calendar permission.
+export async function getRangeEvents(start: Date, end: Date): Promise<DayEvent[]> {
+  const status = await getCalendarPermissionStatus()
+  if (status !== 'granted') return []
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  const ids = calendars.map(c => c.id)
+  if (!ids.length) return []
+
+  const rangeStart = new Date(start); rangeStart.setHours(0, 0, 0, 0)
+  const rangeEnd = new Date(end); rangeEnd.setHours(23, 59, 59, 999)
+
+  const events = await Calendar.getEventsAsync(ids, rangeStart, rangeEnd)
+  return events
+    .filter(e => !e.allDay && !(e.title ?? '').startsWith('Tempo'))
+    .map(e => ({
+      id: e.id,
+      title: e.title || 'Busy',
+      start: new Date(e.startDate as string | number | Date),
+      end: new Date(e.endDate as string | number | Date),
+    }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+}
+
+// Delete a DEVICE-calendar event by id (no DB write — calendarSync clears the
+// pointer). A missing/already-deleted event is treated as success.
+export async function deleteDeviceEvent(eventId: string): Promise<void> {
   try {
     await Calendar.deleteEventAsync(eventId)
   } catch {
     // Event may have been manually deleted from the calendar already
   }
-
-  await supabase
-    .from('scheduled_workouts')
-    .update({ calendar_event_id: null })
-    .eq('id', workoutId)
-    .eq('user_id', userId)
 }

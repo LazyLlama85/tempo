@@ -481,6 +481,7 @@ export async function persistQuickWorkout(
       planned_duration_min: workout.minutes,
       focus: workout.title,
       status: 'scheduled',
+      source: 'quick',
       exercise_ids: workout.exercises.map(e => e.id),
     })
     .select('id')
@@ -513,6 +514,8 @@ export async function persistPlannedWorkout(
     durationMin: number
     focus?: string
     calendarEventId?: string | null
+    calendarProvider?: 'google' | 'device' | null
+    source?: 'plan' | 'quick' | 'smart'
   },
 ): Promise<string | null> {
   const { data, error } = await client
@@ -525,8 +528,13 @@ export async function persistPlannedWorkout(
       planned_duration_min: opts.durationMin,
       focus: opts.focus ?? workout.title,
       status: 'scheduled',
+      // Defaults to 'smart' — the Smart Scheduler is this function's only caller.
+      source: opts.source ?? 'smart',
       exercise_ids: workout.exercises.map(e => e.id),
       calendar_event_id: opts.calendarEventId ?? null,
+      // Default to 'google' when an event was created but provider wasn't given —
+      // the Smart Scheduler (the caller) syncs to Google Calendar.
+      calendar_provider: opts.calendarProvider ?? (opts.calendarEventId ? 'google' : null),
     })
     .select('id')
     .single()

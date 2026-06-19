@@ -4,7 +4,10 @@
 // No-shame: a miss quietly becomes a new slot instead of a guilt trip.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { findFreeWindows, getCalendarPermissionStatus } from '@/services/calendarService'
+import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarService'
+import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
+import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
+import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 
 export interface SlotSuggestion {
   date: string         // 'YYYY-MM-DD'
@@ -38,67 +41,92 @@ function labelFor(day: Date, dt: Date): string {
   return `${dayName} at ${label12(dt)}`
 }
 
-// Next open day in the coming week with no scheduled/completed workout. Prefers
-// a real free calendar window; otherwise falls back to a default morning time.
+// How far Tempo may move a workout, by the user's schedule_flexibility:
+//   strict   — keep it tight (next ~2 days),
+//   balanced — within a few days,
+//   flexible — anywhere in the coming week.
+const FLEX_HORIZON: Record<string, number> = { strict: 2, balanced: 4, flexible: 7 }
+
+// Busy blocks from whichever calendar is connected (Google preferred, else device).
+async function gatherBusy(horizonDays: number, from: Date): Promise<{ busy: BusySlot[]; fromCalendar: boolean }> {
+  try {
+    if (await isGoogleCalendarConnected()) {
+      return { busy: await fetchUserBusySlots(horizonDays), fromCalendar: true }
+    }
+  } catch { /* fall through to device */ }
+  try {
+    if ((await getCalendarPermissionStatus()) === 'granted') {
+      const busy: BusySlot[] = []
+      for (let i = 0; i < horizonDays; i++) {
+        const d = new Date(from); d.setDate(from.getDate() + i)
+        busy.push(...await getBusyBlocks(d))
+      }
+      return { busy, fromCalendar: true }
+    }
+  } catch { /* no calendar access */ }
+  return { busy: [], fromCalendar: false }
+}
+
+// Suggest the next workout slot, honouring the user's availability (never during
+// sleep/work/school) and how far their schedule_flexibility lets the workout move.
+// Keeps one workout per day by blocking out days that already have one.
 export async function suggestNextSlot(
   client: SupabaseClient,
   userId: string,
   durationMin: number,
-  defaultTime = '07:00:00',
 ): Promise<SlotSuggestion | null> {
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  const horizonEnd = new Date(today); horizonEnd.setDate(today.getDate() + 8)
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
 
+  const { data: p } = await client
+    .from('user_profiles')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, schedule_flexibility')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const horizon = FLEX_HORIZON[(p?.schedule_flexibility as string) ?? 'balanced'] ?? 4
+  const availability: Availability = {
+    wakeTime: p?.wake_time ?? null,
+    bedtime: p?.bedtime ?? null,
+    workStart: p?.work_start ?? null,
+    workEnd: p?.work_end ?? null,
+    schoolStart: p?.school_start ?? null,
+    schoolEnd: p?.school_end ?? null,
+    preferredTimeOfDay: (p?.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
+    trainingDays: (p?.training_days as number[]) ?? [],
+  }
+
+  // Days that already hold a workout → block them out so we suggest a fresh day.
+  const horizonEnd = new Date(tomorrow); horizonEnd.setDate(tomorrow.getDate() + horizon)
   const { data: existing } = await client
     .from('scheduled_workouts')
     .select('planned_date, status')
     .eq('user_id', userId)
     .gte('planned_date', toDateStr(today))
     .lte('planned_date', toDateStr(horizonEnd))
-
   const takenDays = new Set(
     (existing ?? [])
       .filter(w => w.status === 'scheduled' || w.status === 'completed')
       .map(w => w.planned_date as string),
   )
 
-  // Calendar reads go through the native module (expo-calendar). Wrap every call
-  // so a permissions race or a device with no calendars can never reject the
-  // whole reschedule — we just fall back to the default-time pass below.
-  let canRead = false
-  try {
-    canRead = (await getCalendarPermissionStatus()) === 'granted'
-  } catch {
-    canRead = false
+  const { busy, fromCalendar } = await gatherBusy(horizon, tomorrow)
+  for (const ds of takenDays) {
+    const d = new Date(`${ds}T00:00:00`)
+    busy.push({ start: d, end: new Date(d.getTime() + 86_400_000) })
   }
 
-  // Pass 1: prefer a real free window if we can read the calendar
-  if (canRead) {
-    for (let i = 1; i <= 7; i++) {
-      const d = new Date(today); d.setDate(today.getDate() + i)
-      if (takenDays.has(toDateStr(d))) continue
-      try {
-        const windows = await findFreeWindows(d, durationMin)
-        if (windows.length) {
-          const start = windows[0].start
-          return { date: toDateStr(d), start_time: fmtTime(start), label: labelFor(d, start), fromCalendar: true }
-        }
-      } catch {
-        break // calendar read failed — stop trying and use the default-time pass
-      }
-    }
-  }
+  const slot = findVariedSlot(
+    busy,
+    availability,
+    { durationMinutes: durationMin, bufferMinutes: 10 },
+    { now: tomorrow, horizonDays: horizon, leadMinutes: 0, seed: today.getDate() },
+  )
+  if (!slot) return null
 
-  // Pass 2: first open day at the default time
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(today); d.setDate(today.getDate() + i)
-    if (takenDays.has(toDateStr(d))) continue
-    const [h, m] = defaultTime.split(':').map(Number)
-    const dt = new Date(d); dt.setHours(h, m, 0, 0)
-    return { date: toDateStr(d), start_time: defaultTime, label: labelFor(d, dt), fromCalendar: false }
-  }
-
-  return null
+  const start = new Date(slot.startTime)
+  const day = new Date(start); day.setHours(0, 0, 0, 0)
+  return { date: toDateStr(start), start_time: fmtTime(start), label: labelFor(day, start), fromCalendar }
 }
 
 // Move a workout to the suggested slot and record an adaptation event for the
