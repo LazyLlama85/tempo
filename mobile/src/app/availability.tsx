@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import {
-  ScrollView, View, Text, StyleSheet, TouchableOpacity, Switch, Alert, ActivityIndicator,
+  ScrollView, View, Text, StyleSheet, TouchableOpacity, Switch, Alert, ActivityIndicator, TextInput,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,7 +16,11 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
-import type { TimeOfDay, ScheduleFlexibility, CalendarProvider } from '@/types'
+import { describeBlock } from '@/lib/unavailability'
+import type { TimeOfDay, ScheduleFlexibility, CalendarProvider, UnavailableBlock } from '@/types'
+
+// Local id for a new block (no server round-trip needed — these live in JSON).
+const genId = () => `${Date.now()}-${Math.round(Math.random() * 1e6)}`
 
 const C = Colors.light
 
@@ -35,7 +39,7 @@ const FLEX: { id: ScheduleFlexibility; label: string; desc: string }[] = [
   { id: 'flexible', label: 'Flexible', desc: 'Move workouts anywhere that week to keep me on track.' },
 ]
 
-type PickerField = 'wake' | 'bed' | 'workStart' | 'workEnd' | 'schoolStart' | 'schoolEnd'
+type PickerField = 'wake' | 'bed' | 'workStart' | 'workEnd' | 'schoolStart' | 'schoolEnd' | 'unavailStart' | 'unavailEnd'
 
 export default function AvailabilityScreen() {
   const router = useRouter()
@@ -53,8 +57,40 @@ export default function AvailabilityScreen() {
   const [flex, setFlex] = useState<ScheduleFlexibility>(profile?.schedule_flexibility ?? 'balanced')
   const [calendar, setCalendar] = useState<CalendarProvider | null>(profile?.preferred_calendar ?? null)
 
+  // "Completely unavailable" blocks + the inline add-form state.
+  const [blocks, setBlocks] = useState<UnavailableBlock[]>(profile?.unavailable_blocks ?? [])
+  const [adding, setAdding] = useState(false)
+  const [uDays, setUDays] = useState<number[]>([])
+  const [uAllDay, setUAllDay] = useState(true)
+  const [uStart, setUStart] = useState<string | null>('09:00:00')
+  const [uEnd, setUEnd] = useState<string | null>('17:00:00')
+  const [uLabel, setULabel] = useState('')
+
   const [picker, setPicker] = useState<PickerField | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const toggleUDay = (iso: number) =>
+    setUDays(prev => prev.includes(iso) ? prev.filter(d => d !== iso) : [...prev, iso].sort((a, b) => a - b))
+
+  // Create one block per chosen weekday so "every Sat & Sun" is two clean rows.
+  const addUnavailable = () => {
+    if (!uDays.length) { Alert.alert('Pick a day', 'Choose at least one day you’re unavailable.'); return }
+    if (!uAllDay && !(uStart && uEnd && uStart < uEnd)) {
+      Alert.alert('Check the times', 'The “from” time needs to be before the “until” time.'); return
+    }
+    const created: UnavailableBlock[] = uDays.map(wd => ({
+      id: genId(),
+      scope: 'weekday',
+      weekday: wd,
+      allDay: uAllDay,
+      ...(uAllDay ? {} : { start: uStart ?? undefined, end: uEnd ?? undefined }),
+      ...(uLabel.trim() ? { label: uLabel.trim() } : {}),
+    }))
+    setBlocks(prev => [...prev, ...created])
+    setAdding(false); setUDays([]); setUAllDay(true); setUStart('09:00:00'); setUEnd('17:00:00'); setULabel('')
+  }
+
+  const removeBlock = (id: string) => setBlocks(prev => prev.filter(b => b.id !== id))
 
   const workOn = workStart != null && workEnd != null
   const schoolOn = schoolStart != null && schoolEnd != null
@@ -79,6 +115,8 @@ export default function AvailabilityScreen() {
       case 'workEnd': return workEnd
       case 'schoolStart': return schoolStart
       case 'schoolEnd': return schoolEnd
+      case 'unavailStart': return uStart
+      case 'unavailEnd': return uEnd
       default: return null
     }
   }
@@ -90,6 +128,8 @@ export default function AvailabilityScreen() {
       case 'workEnd': setWorkEnd(v); break
       case 'schoolStart': setSchoolStart(v); break
       case 'schoolEnd': setSchoolEnd(v); break
+      case 'unavailStart': setUStart(v); break
+      case 'unavailEnd': setUEnd(v); break
     }
     setPicker(null)
   }
@@ -98,6 +138,7 @@ export default function AvailabilityScreen() {
     wake: 'Wake-up time', bed: 'Bedtime',
     workStart: 'Work starts', workEnd: 'Work ends',
     schoolStart: 'School starts', schoolEnd: 'School ends',
+    unavailStart: 'Unavailable from', unavailEnd: 'Unavailable until',
   }
 
   const handleSave = async () => {
@@ -114,6 +155,7 @@ export default function AvailabilityScreen() {
           training_days: days,
           schedule_flexibility: flex,
           preferred_calendar: calendar,
+          unavailable_blocks: blocks,
         })
         .eq('user_id', userId)
       if (error) throw error
@@ -240,6 +282,97 @@ export default function AvailabilityScreen() {
         </View>
         <Text style={styles.hint}>{days.length ? 'Workouts land only on the days you pick.' : 'Any day is fair game.'}</Text>
 
+        {/* Completely unavailable */}
+        <Text style={styles.sectionLabel}>TIMES I'M COMPLETELY UNAVAILABLE</Text>
+        <Text style={styles.hint}>
+          Days or times Tempo should never schedule a workout — for religious observance
+          (e.g. Shabbat), standing commitments, or any time you simply don't train.
+        </Text>
+
+        {blocks.length > 0 && (
+          <View style={styles.card}>
+            {blocks.map((b, i) => (
+              <View key={b.id}>
+                {i > 0 && <View style={styles.divider} />}
+                <View style={styles.blockRow}>
+                  <View style={styles.blockIcon}>
+                    <Ionicons name="moon-outline" size={16} color={C.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.blockWhen}>{describeBlock(b)}</Text>
+                    {b.label ? <Text style={styles.blockLabel}>{b.label}</Text> : null}
+                  </View>
+                  <TouchableOpacity onPress={() => removeBlock(b.id)} hitSlop={8}>
+                    <Ionicons name="close-circle" size={20} color={C.outline} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {adding ? (
+          <View style={styles.addCard}>
+            <Text style={styles.addCardLabel}>WHICH DAYS?</Text>
+            <View style={styles.daysRow}>
+              {DAYS.map(d => {
+                const on = uDays.includes(d.iso)
+                return (
+                  <TouchableOpacity
+                    key={d.iso}
+                    style={[styles.dayChip, on && styles.dayChipOn]}
+                    onPress={() => toggleUDay(d.iso)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.dayChipText, on && styles.dayChipTextOn]}>{d.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <View style={styles.addSwitchRow}>
+              <Text style={styles.timeRowLabel}>All day</Text>
+              <Switch
+                value={uAllDay}
+                onValueChange={setUAllDay}
+                trackColor={{ true: C.primary, false: C.surfaceContainerHigh }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {!uAllDay && (
+              <View style={styles.card}>
+                <TimeRow label="From" value={uStart} field="unavailStart" />
+                <View style={styles.divider} />
+                <TimeRow label="Until" value={uEnd} field="unavailEnd" />
+              </View>
+            )}
+
+            <TextInput
+              style={styles.labelInput}
+              value={uLabel}
+              onChangeText={setULabel}
+              placeholder="Label (optional) — e.g. Shabbat"
+              placeholderTextColor={C.outline}
+              maxLength={28}
+            />
+
+            <View style={styles.addActions}>
+              <TouchableOpacity style={styles.addCancel} onPress={() => setAdding(false)} activeOpacity={0.8}>
+                <Text style={styles.addCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addConfirm} onPress={addUnavailable} activeOpacity={0.85}>
+                <Text style={styles.addConfirmText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.addBtn} onPress={() => setAdding(true)} activeOpacity={0.8}>
+            <Ionicons name="add-circle-outline" size={18} color={C.primary} />
+            <Text style={styles.addBtnText}>Add an unavailable time</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Schedule flexibility */}
         <Text style={styles.sectionLabel}>SCHEDULE FLEXIBILITY</Text>
         <View style={{ gap: Spacing.xs }}>
@@ -344,6 +477,43 @@ const styles = StyleSheet.create({
   dayChipOn: { backgroundColor: C.primary, borderColor: C.primary },
   dayChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   dayChipTextOn: { color: C.onPrimary },
+
+  // Unavailable blocks
+  blockRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  blockIcon: {
+    width: 32, height: 32, borderRadius: Radius.md, backgroundColor: C.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  blockWhen: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
+  blockLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+    paddingVertical: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5,
+    borderColor: C.primary, borderStyle: 'dashed', backgroundColor: C.surfaceContainerLow,
+  },
+  addBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
+  addCard: {
+    backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
+    padding: Spacing.md, gap: Spacing.sm, ...CardShadow,
+  },
+  addCardLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  addSwitchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  labelInput: {
+    height: 46, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.md,
+    fontFamily: 'Inter_500Medium', fontSize: 15, color: C.text,
+  },
+  addActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
+  addCancel: {
+    flex: 1, height: 46, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surfaceContainerLow,
+  },
+  addCancelText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.textSecondary },
+  addConfirm: {
+    flex: 1, height: 46, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.primary,
+  },
+  addConfirmText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.onPrimary },
 
   flexCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md,

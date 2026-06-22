@@ -13,7 +13,7 @@
 // choice by a seed (and skip the previous pick's time), so a week reads like a
 // human planned it.
 
-import type { TimeOfDay } from '@/types'
+import type { TimeOfDay, UnavailableBlock } from '@/types'
 
 export interface BusySlot { start: Date; end: Date }
 
@@ -26,6 +26,9 @@ export interface Availability {
   schoolEnd: string | null
   preferredTimeOfDay: TimeOfDay | null
   trainingDays: number[]       // ISO 1=Mon … 7=Sun; empty = any day
+  // Hard "never schedule here" windows (recurring weekday or one-off date). The
+  // scheduler blocks these out like a meeting, so a workout never lands on them.
+  unavailable?: UnavailableBlock[]
 }
 
 export interface SlotConstraints {
@@ -64,6 +67,9 @@ function hmToMin(t: string | null | undefined, fallback: number): number {
 }
 
 function isoWeekday(d: Date): number { return ((d.getDay() + 6) % 7) + 1 } // Mon=1 … Sun=7
+function dateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 function atMinute(day: Date, min: number): Date { const x = startOfDay(day); x.setMinutes(min); return x }
 function minuteOfDay(d: Date): number { return d.getHours() * 60 + d.getMinutes() }
@@ -78,6 +84,23 @@ function recurringBlocks(avail: Availability): Interval[] {
   const ss = hmToMin(avail.schoolStart, -1), se = hmToMin(avail.schoolEnd, -1)
   if (ss >= 0 && se > ss) blocks.push({ start: ss, end: se })
   return blocks
+}
+
+// Hard user-defined unavailability falling on `day`: a recurring-weekday match or
+// a one-off date match. All-day blocks the whole day; a time range blocks its span.
+function unavailableForDay(day: Date, blocks: UnavailableBlock[] | undefined): Interval[] {
+  if (!blocks?.length) return []
+  const wd = isoWeekday(day)
+  const ds = dateStr(day)
+  const out: Interval[] = []
+  for (const b of blocks) {
+    const matches = b.scope === 'weekday' ? b.weekday === wd : b.date === ds
+    if (!matches) continue
+    if (b.allDay) { out.push({ start: 0, end: 24 * 60 }); continue }
+    const s = hmToMin(b.start, -1), e = hmToMin(b.end, -1)
+    if (s >= 0 && e > s) out.push({ start: s, end: e })
+  }
+  return out
 }
 
 function mergeIntervals(xs: Interval[]): Interval[] {
@@ -97,7 +120,7 @@ function mergeIntervals(xs: Interval[]): Interval[] {
 function blocksForDay(day: Date, avail: Availability, busy: BusySlot[]): Interval[] {
   const d0 = startOfDay(day).getTime()
   const dayEnd = d0 + 24 * 60 * 60 * 1000
-  const out = recurringBlocks(avail)
+  const out = [...recurringBlocks(avail), ...unavailableForDay(day, avail.unavailable)]
   for (const b of busy) {
     const bs = b.start.getTime(), be = b.end.getTime()
     if (be <= d0 || bs >= dayEnd) continue

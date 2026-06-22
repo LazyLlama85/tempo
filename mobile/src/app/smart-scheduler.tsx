@@ -104,6 +104,7 @@ function buildAvailability(p: UserProfile | null, tod: TimeOfDay): Availability 
     schoolEnd: p?.school_end ?? null,
     preferredTimeOfDay: tod,
     trainingDays: p?.training_days ?? [],
+    unavailable: p?.unavailable_blocks ?? [],
   }
 }
 

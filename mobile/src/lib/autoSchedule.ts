@@ -15,6 +15,7 @@ import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarS
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
+import { getUnavailableBlocks } from '@/lib/unavailability'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
@@ -79,6 +80,7 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
     .maybeSingle()
   if (!p) return 0
 
+  const unavailable = await getUnavailableBlocks(client, userId)
   const availability: Availability = {
     wakeTime: p.wake_time ?? null,
     bedtime: p.bedtime ?? null,
@@ -90,14 +92,14 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
     // The plan already chose the DAY; we only optimise the TIME on it, so don't let
     // the training-day filter veto a day a workout already lives on.
     trainingDays: [],
+    unavailable,
   }
 
   const busy = await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today)
 
-  // Nothing to schedule around (no calendar connected, no work/school hours set) →
-  // leave the plan's curated, time-of-day-aware template times alone rather than
-  // shuffling them for no reason.
-  if (busy.length === 0 && !p.work_start && !p.school_start) return 0
+  // Nothing to schedule around (no calendar, no work/school hours, no blocked-off
+  // times) → leave the plan's curated, time-of-day-aware template times alone.
+  if (busy.length === 0 && !p.work_start && !p.school_start && unavailable.length === 0) return 0
 
   const { data: workouts } = await client
     .from('scheduled_workouts')
@@ -174,6 +176,7 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
     schoolEnd: p.school_end ?? null,
     preferredTimeOfDay: (p.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
     trainingDays: [],
+    unavailable: await getUnavailableBlocks(client, userId),
   }
 
   // Conflicts are with real calendar EVENTS only ("a new meeting overlaps it") —

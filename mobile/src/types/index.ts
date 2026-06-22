@@ -36,6 +36,21 @@ export type ScheduleFlexibility = 'strict' | 'balanced' | 'flexible'
 // Which calendar a synced workout event lives in.
 export type CalendarProvider = 'google' | 'device'
 
+// A window the user is never available to train — recurring (a weekday, e.g. every
+// Saturday for Shabbat) or a one-off date; all-day or a time range. Distinct from
+// work/school hours (routine Tempo works around): these are hard "do not schedule
+// here, ever" blocks — religious observance, standing commitments, protected time.
+export interface UnavailableBlock {
+  id: string
+  scope: 'weekday' | 'date'
+  weekday?: number        // 1=Mon … 7=Sun, when scope = 'weekday'
+  date?: string           // 'YYYY-MM-DD', when scope = 'date'
+  allDay: boolean
+  start?: string          // 'HH:MM:SS' when not all-day
+  end?: string            // 'HH:MM:SS' when not all-day
+  label?: string          // optional, e.g. "Shabbat", "Family dinner"
+}
+
 export interface UserProfile {
   user_id: string
   display_name: string | null
@@ -64,6 +79,9 @@ export interface UserProfile {
   training_days: number[]
   // Which calendar new workout events sync to when both are connected.
   preferred_calendar: CalendarProvider | null
+  // Hard "never schedule here" windows (religious observance, standing commitments).
+  // Optional so the app keeps working before the column migration is applied.
+  unavailable_blocks?: UnavailableBlock[] | null
 }
 
 export interface CalendarConnection {

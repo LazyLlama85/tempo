@@ -8,6 +8,7 @@ import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarS
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
+import { getUnavailableBlocks } from '@/lib/unavailability'
 
 export interface SlotSuggestion {
   date: string         // 'YYYY-MM-DD'
@@ -94,6 +95,7 @@ export async function suggestNextSlot(
     schoolEnd: p?.school_end ?? null,
     preferredTimeOfDay: (p?.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
     trainingDays: (p?.training_days as number[]) ?? [],
+    unavailable: await getUnavailableBlocks(client, userId),
   }
 
   // Days that already hold a workout → block them out so we suggest a fresh day.
