@@ -44,7 +44,7 @@ export default function EquipmentScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 3 OF 5</Text>
+        <Text style={styles.stepLabel}>STEP 3 OF 6</Text>
         <Text style={styles.title}>What equipment do you have?</Text>
         <Text style={styles.subtitle}>Select all that apply. We'll only program what you can actually use.</Text>
 

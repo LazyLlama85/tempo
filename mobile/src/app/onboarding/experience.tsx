@@ -38,7 +38,7 @@ export default function ExperienceScreen() {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.stepLabel}>STEP 2 OF 5</Text>
+        <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
         <Text style={styles.title}>How much experience do you have?</Text>
         <Text style={styles.subtitle}>We'll tailor your starting weights and complexity accordingly.</Text>
 

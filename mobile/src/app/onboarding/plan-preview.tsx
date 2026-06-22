@@ -147,7 +147,7 @@ export default function PlanPreviewScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 5 OF 5</Text>
+        <Text style={styles.stepLabel}>STEP 6 OF 6</Text>
         <Text style={styles.title}>Your plan is ready.</Text>
         <Text style={styles.subtitle}>Here's what we built for you.</Text>
 

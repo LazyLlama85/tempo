@@ -64,9 +64,9 @@ export default function ScheduleScreen() {
     else Alert.alert('Permission needed', 'Allow calendar access to sync workouts to your device calendar. You can enable this later in Settings.')
   }
 
-  // Carry the connected calendar forward so plan-preview saves it as the default.
+  // Carry the connected calendar forward so the availability + plan steps can use it.
   const goNext = () => router.push({
-    pathname: '/onboarding/plan-preview',
+    pathname: '/onboarding/availability',
     params: {
       goal, experience, equipment, daysPerWeek: String(daysPerWeek),
       ...(connectedProvider ? { preferredCalendar: connectedProvider } : {}),
@@ -86,11 +86,11 @@ export default function ScheduleScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '80%' }]} />
+        <View style={[styles.progressFill, { width: '66%' }]} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 4 OF 5</Text>
+        <Text style={styles.stepLabel}>STEP 4 OF 6</Text>
         <Text style={styles.title}>Choose your calendar.</Text>
         <Text style={styles.subtitle}>
           Pick the calendar you actually use. Tempo reads your free time from it and
