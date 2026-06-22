@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { generatePlan } from '@/lib/generatePlan'
+import { autoScheduleUpcoming } from '@/lib/autoSchedule'
 import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from '@/lib/notifications'
 import type { ScheduledWorkout } from '@/lib/notifications'
 import type { Equipment, Experience, Goal } from '@/types'
@@ -81,6 +82,11 @@ export default function PlanPreviewScreen() {
         days_per_week: days,
         preferred_duration_min: 45,
       })
+
+      // Automatically place those workouts at real, calendar-aware times around the
+      // calendar the user just connected — no "schedule my week" button. Best-effort:
+      // if no calendar is connected or a read fails, the template times stand.
+      try { await autoScheduleUpcoming(supabase, session.user.id) } catch { /* keep template times */ }
 
       // Schedule reminders — best-effort, never blocks onboarding
       try {

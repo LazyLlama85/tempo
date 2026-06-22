@@ -9,10 +9,10 @@ import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/servi
 
 const C = Colors.light
 
-const WHY_SYNC = [
-  'Intelligent workout slotting based on availability',
-  'Automatic rescheduling for meeting conflicts',
-  'Privacy-first: We only see your busy blocks',
+const WHY_CONNECT = [
+  'Tempo schedules your workouts automatically around your real events',
+  'When a meeting moves, your workout quietly reschedules itself',
+  'Your calendar stays on your device — your events are never uploaded',
 ]
 
 // Map the connect error codes to plain language (mirrors the Smart Scheduler).
@@ -91,9 +91,10 @@ export default function ScheduleScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 4 OF 5</Text>
-        <Text style={styles.title}>Sync your schedule.</Text>
+        <Text style={styles.title}>Choose your calendar.</Text>
         <Text style={styles.subtitle}>
-          Tempo adapts your fitness plan to your free time, not the other way around.
+          Pick the calendar you actually use. Tempo reads your free time from it and
+          schedules your workouts around your real life — automatically.
         </Text>
 
         {/* Days per week selector */}
@@ -120,7 +121,7 @@ export default function ScheduleScreen() {
           <View style={styles.connectedBadge}>
             <Ionicons name="checkmark-circle" size={20} color={C.success} />
             <Text style={styles.connectedText}>
-              {connectedProvider === 'google' ? 'Google Calendar connected' : 'Apple Calendar connected'}
+              {connectedProvider === 'google' ? 'Google Calendar connected' : 'Device Calendar connected'}
             </Text>
           </View>
         ) : (
@@ -145,7 +146,7 @@ export default function ScheduleScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="calendar" size={20} color={C.text} />
-                <Text style={styles.calendarBtnText}>Connect Apple Calendar</Text>
+                <Text style={styles.calendarBtnText}>Connect Device Calendar</Text>
                 {connecting === 'device'
                   ? <ActivityIndicator color={C.primary} />
                   : <Ionicons name="chevron-forward" size={16} color={C.outline} />}
@@ -154,10 +155,10 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* Why sync */}
+        {/* Why connect */}
         <View style={styles.whySection}>
-          <Text style={styles.whyLabel}>WHY SYNC?</Text>
-          {WHY_SYNC.map((item) => (
+          <Text style={styles.whyLabel}>WHY CONNECT?</Text>
+          {WHY_CONNECT.map((item) => (
             <View key={item} style={styles.whyRow}>
               <Ionicons name="checkmark-circle-outline" size={18} color={C.primary} />
               <Text style={styles.whyText}>{item}</Text>

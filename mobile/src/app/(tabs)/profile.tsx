@@ -1,5 +1,5 @@
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator } from 'react-native'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
+import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { ACHIEVEMENTS, computeLevel, unlockedCount, type AchievementStats } from '@/lib/achievements'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue } from '@/lib/avatar'
 import {
@@ -81,6 +82,7 @@ export default function ProfileScreen() {
   const userId = session?.user.id ?? ''
   const { stats, isLoading: statsLoading } = useProgressStats(userId)
   const [calendarStatus, setCalendarStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null)
+  const [googleConnected, setGoogleConnected] = useState(false)
 
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
@@ -110,9 +112,14 @@ export default function ProfileScreen() {
   const [altsLoading, setAltsLoading] = useState(false)
   const [swapBusy, setSwapBusy] = useState(false)
 
-  useEffect(() => {
-    getCalendarPermissionStatus().then(setCalendarStatus)
-  }, [])
+  // Refresh both calendar connections on focus so the row reflects a connect/
+  // disconnect made elsewhere (Smart Scheduler, Settings) without a reload.
+  useFocusEffect(
+    useCallback(() => {
+      getCalendarPermissionStatus().then(setCalendarStatus)
+      isGoogleCalendarConnected().then(setGoogleConnected).catch(() => setGoogleConnected(false))
+    }, []),
+  )
 
   const loadSwaps = useCallback(() => {
     if (userId) getSavedSwaps(supabase, userId).then(setSwaps)
@@ -199,20 +206,59 @@ export default function ProfileScreen() {
     }
   }
 
-  const handleCalendarIntegration = async () => {
-    if (calendarStatus === 'granted') {
-      Alert.alert('Calendar Connected', 'Add workouts to your device calendar from the Schedule tab.')
-    } else if (calendarStatus === 'denied') {
-      Alert.alert('Permission Denied', 'Allow Tempo to access your calendar in Settings.', [
+  // Which calendar Tempo schedules around — prefer the user's chosen provider,
+  // else whichever is actually connected.
+  const connectedCalendar =
+    profile?.preferred_calendar === 'google' && googleConnected ? 'Google Calendar'
+      : profile?.preferred_calendar === 'device' && calendarStatus === 'granted' ? 'Device Calendar'
+        : googleConnected ? 'Google Calendar'
+          : calendarStatus === 'granted' ? 'Device Calendar'
+            : null
+  const calendarValue = connectedCalendar
+    ? `${connectedCalendar} · auto-scheduling on`
+    : 'Connect to auto-schedule'
+
+  const setPreferredCalendar = async (provider: 'google' | 'device') => {
+    if (!userId) return
+    try {
+      await supabase.from('user_profiles').update({ preferred_calendar: provider }).eq('user_id', userId)
+      await refreshProfile()
+    } catch { /* best-effort — the connection still works without the default set */ }
+  }
+
+  const connectDeviceCalendar = async () => {
+    if (calendarStatus === 'granted') { await setPreferredCalendar('device'); return }
+    const granted = await requestCalendarPermissions()
+    setCalendarStatus(granted ? 'granted' : 'denied')
+    if (granted) {
+      await setPreferredCalendar('device')
+      Alert.alert('Device Calendar connected', 'Tempo will schedule your workouts around this calendar.')
+    } else {
+      Alert.alert('Permission needed', 'Allow calendar access in Settings to use your device calendar.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ])
-    } else {
-      const granted = await requestCalendarPermissions()
-      const newStatus = granted ? 'granted' : 'denied'
-      setCalendarStatus(newStatus)
-      if (granted) Alert.alert('Calendar Connected', 'Add workouts to your device calendar from the Schedule tab.')
     }
+  }
+
+  // One calendar concept, two backends. Tempo schedules around whichever you pick —
+  // both are first-class; neither is "the smart one".
+  const handleChooseCalendar = () => {
+    Alert.alert(
+      'Your Calendar',
+      'Tempo schedules your workouts automatically around the calendar you choose. Pick the one you actually use.',
+      [
+        {
+          text: googleConnected ? 'Google Calendar ✓' : 'Use Google Calendar',
+          onPress: () => router.push('/smart-scheduler'),
+        },
+        {
+          text: calendarStatus === 'granted' ? 'Device Calendar ✓' : 'Use Device Calendar',
+          onPress: connectDeviceCalendar,
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    )
   }
 
   const statValue = (v: string | number) => (statsLoading ? '—' : String(v))
@@ -407,12 +453,10 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow
               icon="calendar-outline"
-              label="DEVICE CALENDAR"
-              value={calendarStatus === 'granted' ? 'Connected' : calendarStatus === 'denied' ? 'Permission denied' : 'Not connected'}
-              onPress={handleCalendarIntegration}
+              label="CALENDAR"
+              value={calendarValue}
+              onPress={handleChooseCalendar}
             />
-            <View style={styles.divider} />
-            <SettingRow icon="sparkles-outline" label="SMART SCHEDULER" value="Auto-schedule in Google Calendar" onPress={() => router.push('/smart-scheduler')} />
             <View style={styles.divider} />
             <SettingRow icon="notifications-outline" label="NOTIFICATIONS" value="On" onPress={() => Linking.openSettings()} />
             <View style={styles.divider} />

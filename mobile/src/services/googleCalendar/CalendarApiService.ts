@@ -119,6 +119,47 @@ export async function fetchUserBusySlots(daysAhead = 7): Promise<BusySlot[]> {
     .sort((a, b) => a.start.getTime() - b.start.getTime())
 }
 
+// ── 1b) Read titled events for the home timeline ────────────────────────────────
+//
+// Same source as fetchUserBusySlots, but keeps event *titles* so a user's real
+// Google events render on the dashboard alongside (and behind) Tempo's workouts.
+// All-day events and Tempo's own sessions (colorId 11 / "Tempo …") are excluded —
+// workouts come from the DB, and all-day items don't sit on a timed timeline.
+// This is display-only, so we keep "free"/transparent events too (they're still
+// visible in the user's Google Calendar, so they belong on the timeline).
+
+export interface GcalDisplayEvent { id: string; title: string; start: Date; end: Date }
+
+export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDisplayEvent[]> {
+  const params = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    singleEvents: 'true',   // expand recurring events into real instances
+    orderBy: 'startTime',   // requires singleEvents
+    maxResults: '250',
+  })
+
+  const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
+  if (!resp.ok) throw new Error(`gcal_fetch_failed_${resp.status}`)
+
+  const data = await resp.json()
+  const items = (data.items ?? []) as GoogleEvent[]
+
+  return items
+    .filter(e =>
+      !!e.start?.dateTime && !!e.end?.dateTime &&
+      e.status !== 'cancelled' &&
+      e.colorId !== WORKOUT_EVENT_COLOR_ID &&
+      !(e.summary ?? '').startsWith('Tempo'))
+    .map(e => ({
+      id: e.id,
+      title: e.summary || 'Busy',
+      start: new Date(e.start!.dateTime!),
+      end: new Date(e.end!.dateTime!),
+    }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+}
+
 // ── 2) The algorithm: find the best open slot (PURE — no network) ───────────────
 
 export function findBestWorkoutSlot(

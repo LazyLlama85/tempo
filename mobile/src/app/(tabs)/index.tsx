@@ -10,10 +10,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { requestCalendarPermissions, getRangeEvents, type DayEvent } from '@/services/calendarService'
-import { addWorkoutToCalendar, removeWorkoutFromCalendar } from '@/services/calendarSync'
+import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
+import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
+import { resolveCalendarConflicts } from '@/lib/autoSchedule'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
 import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
 import { getTodayCheckin } from '@/lib/recovery'
@@ -184,10 +185,13 @@ export default function ScheduleScreen() {
   })
 
   // Calendar events for the visible feed range — shown inline with workouts but
-  // de-emphasised. Tempo's own synced events are filtered out in getRangeEvents.
+  // de-emphasised. Pulls from EVERY connected calendar (device + in-app Google),
+  // so a meeting on the user's Google Calendar shows up here even when Google was
+  // connected in-app rather than mirrored into iOS. Tempo's own synced workouts
+  // are filtered out (they render from scheduled_workouts).
   const { data: events = [] } = useQuery<DayEvent[]>({
     queryKey: ['range_events', userId, feedRange.start, feedRange.end],
-    queryFn: () => getRangeEvents(parseLocal(feedRange.start), parseLocal(feedRange.end)),
+    queryFn: () => getCalendarEventsForRange(parseLocal(feedRange.start), parseLocal(feedRange.end)),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
@@ -226,7 +230,11 @@ export default function ScheduleScreen() {
     ;(async () => {
       const removed = await dedupeScheduledWorkouts(supabase, userId)
       const missedCount = await checkMissedWorkouts(supabase, userId)
-      if (removed > 0 || missedCount > 0) {
+      // Quietly re-slot only the workouts a real calendar event now overlaps (same
+      // day). Best-effort — a calendar/network hiccup never blocks the feed.
+      let conflictsMoved = 0
+      try { conflictsMoved = await resolveCalendarConflicts(supabase, userId) } catch { /* leave times as-is */ }
+      if (removed > 0 || missedCount > 0 || conflictsMoved > 0) {
         queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
       }
       queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
@@ -276,7 +284,11 @@ export default function ScheduleScreen() {
   // ── Actions ──────────────────────────────────────────────────────────────--
   const handleRefresh = async () => {
     setRefreshing(true)
-    await refetch()
+    await Promise.all([
+      refetch(),
+      // Re-pull calendar events too, so a just-connected Google Calendar appears.
+      queryClient.invalidateQueries({ queryKey: ['range_events', userId] }),
+    ])
     setRefreshing(false)
   }
 

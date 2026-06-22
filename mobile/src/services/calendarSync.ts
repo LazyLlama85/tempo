@@ -10,10 +10,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CalendarProvider } from '@/types'
 import {
-  createDeviceEvent, deleteDeviceEvent, getCalendarPermissionStatus,
+  createDeviceEvent, deleteDeviceEvent, getCalendarPermissionStatus, getRangeEvents, type DayEvent,
 } from './calendarService'
 import { isGoogleCalendarConnected } from './googleCalendar/CalendarAuthService'
-import { autoScheduleWorkout, deleteCalendarEvent } from './googleCalendar/CalendarApiService'
+import { autoScheduleWorkout, deleteCalendarEvent, fetchUserEvents } from './googleCalendar/CalendarApiService'
 
 export interface SyncWorkout {
   id: string
@@ -120,4 +120,40 @@ export async function removeWorkoutFromCalendar(
     .update({ calendar_event_id: null, calendar_provider: null })
     .eq('id', workout.id)
     .eq('user_id', userId)
+}
+
+// ── Reading events for display (the home timeline) ────────────────────────────
+//
+// Titled events across [start … end] from EVERY connected calendar — the on-device
+// calendar AND the user's in-app Google Calendar — merged and de-duplicated. The
+// home feed renders Tempo workouts emphasised; these are the muted "real life"
+// events to schedule around. Fail-soft: a provider that isn't connected — or that
+// errors — simply contributes nothing, so the timeline degrades to whatever's
+// available rather than going blank.
+//
+// This is the gap the dashboard had: events were only ever read from the *device*
+// calendar, so a user who connected Google in-app (without mirroring it into iOS)
+// saw none of their meetings. Routing through here pulls in both.
+export async function getCalendarEventsForRange(start: Date, end: Date): Promise<DayEvent[]> {
+  const s = new Date(start); s.setHours(0, 0, 0, 0)
+  const e = new Date(end); e.setHours(23, 59, 59, 999)
+
+  const connected = await getConnectedProviders()
+  const [deviceEvents, googleEvents] = await Promise.all([
+    connected.device ? getRangeEvents(s, e).catch(() => [] as DayEvent[]) : Promise.resolve([] as DayEvent[]),
+    connected.google ? fetchUserEvents(s, e).catch(() => []) : Promise.resolve([]),
+  ])
+
+  // When a Google account is ALSO mirrored into the device calendar, the same
+  // meeting comes back from both providers — collapse by title + start-minute so
+  // it shows once. (IDs differ across providers, so we can't dedupe on those.)
+  const seen = new Set<string>()
+  const merged: DayEvent[] = []
+  for (const ev of [...deviceEvents, ...googleEvents]) {
+    const key = `${ev.title}|${Math.round(ev.start.getTime() / 60_000)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push({ id: ev.id, title: ev.title, start: ev.start, end: ev.end })
+  }
+  return merged.sort((a, b) => a.start.getTime() - b.start.getTime())
 }
