@@ -15,7 +15,8 @@ import { buildPrescription, type ExercisePrescription, type SetPerformance } fro
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
-import type { Goal } from '@/types'
+import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
+import type { Goal, TravelMode } from '@/types'
 
 const C = Colors.light
 
@@ -65,6 +66,38 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s}`
 }
 
+// Travel mode: replace any planned exercise the user can't do with their current
+// equipment with a same-pattern alternative they can (curated substitute first).
+// Done in memory only — the saved plan is untouched, so it reverts when they're home.
+async function adaptToTravelEquipment(list: ExerciseRow[], equipment: string[]): Promise<ExerciseRow[]> {
+  const have = new Set<string>([...equipment, 'bodyweight'])
+  const undoable = list.filter(e => !e.required_equipment.some(eq => have.has(eq)))
+  if (!undoable.length) return list
+
+  const patterns = [...new Set(undoable.map(e => e.movement_pattern))]
+  const { data: cands } = await supabase
+    .from('exercises')
+    .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
+    .in('movement_pattern', patterns)
+  const all = (cands ?? []) as ExerciseRow[]
+
+  const used = new Set(list.map(e => e.id))
+  return list.map(e => {
+    if (e.required_equipment.some(eq => have.has(eq))) return e
+    const doable = all
+      .filter(s => !used.has(s.id) && s.movement_pattern === e.movement_pattern && s.required_equipment.some(eq => have.has(eq)))
+      .sort((a, b) => {
+        const ai = e.substitute_ids?.includes(a.id) ? 0 : 1
+        const bi = e.substitute_ids?.includes(b.id) ? 0 : 1
+        return ai - bi
+      })
+    const pick = doable[0]
+    if (!pick) return e          // nothing fits — keep it; the user can still skip
+    used.add(pick.id)
+    return pick
+  })
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function WorkoutsScreen() {
@@ -90,6 +123,7 @@ export default function WorkoutsScreen() {
   const [swapping, setSwapping] = useState(false)
   const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
+  const [travel, setTravel] = useState<TravelMode | null>(null)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
 
@@ -148,9 +182,15 @@ export default function WorkoutsScreen() {
           .in('id', exerciseIds)
       : { data: [] }
 
-    const ordered = exerciseIds
+    const orderedRaw = exerciseIds
       .map(id => (exRows ?? []).find((e: any) => e.id === id))
       .filter(Boolean) as ExerciseRow[]
+
+    // If the user is travelling, adapt the session in memory to the gear they have.
+    const tm = await getActiveTravelMode(supabase, userId)
+    setTravel(tm)
+    const ordered = tm ? await adaptToTravelEquipment(orderedRaw, tm.equipment) : orderedRaw
+    const effectiveIds = ordered.map(e => e.id)
 
     setExercises(ordered)
     setExpandedId(ordered[0]?.id ?? null)
@@ -169,11 +209,11 @@ export default function WorkoutsScreen() {
     const prevBySetMap: Record<string, string[]> = {}
     const targetMap: Record<string, ExercisePrescription> = {}
 
-    if (exerciseIds.length) {
+    if (effectiveIds.length) {
       const { data: history } = await supabase
         .from('set_logs')
         .select('exercise_id, workout_log_id, set_number, weight_lbs, reps_completed, rpe, completed_at')
-        .in('exercise_id', exerciseIds)
+        .in('exercise_id', effectiveIds)
         .order('completed_at', { ascending: false })
 
       for (const ex of ordered) {
@@ -282,11 +322,11 @@ export default function WorkoutsScreen() {
     if (swapping) return
     setSwapping(true)
     try {
-      const { data: profileRow } = await supabase
-        .from('user_profiles')
-        .select('equipment')
-        .eq('user_id', userId)
-        .maybeSingle()
+      // When travelling, swaps are offered against the equipment on hand, not home.
+      const baseEquipment = travel ? travel.equipment : null
+      const { data: profileRow } = baseEquipment
+        ? { data: { equipment: baseEquipment } }
+        : await supabase.from('user_profiles').select('equipment').eq('user_id', userId).maybeSingle()
       const equipment = new Set<string>([...(profileRow?.equipment ?? []), 'bodyweight'])
       const inWorkout = new Set(exercises.map(e => e.id))
 
@@ -494,6 +534,14 @@ export default function WorkoutsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {travel && (
+          <View style={styles.travelBanner}>
+            <Ionicons name="airplane" size={15} color={C.primary} />
+            <Text style={styles.travelBannerText}>
+              Travel mode — this session is adapted to {describeTravelEquipment(travel.equipment)}.
+            </Text>
+          </View>
+        )}
         {exercises.map((ex) => {
           const exSets = sets[ex.id] ?? []
           const doneCount = exSets.filter(s => s.done).length
@@ -739,6 +787,11 @@ export default function WorkoutsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 120 },
+  travelBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.sm,
+  },
+  travelBannerText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, lineHeight: 17 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,

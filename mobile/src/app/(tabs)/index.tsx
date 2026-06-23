@@ -21,6 +21,8 @@ import { getTodayCheckin } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
 import { getQuickSuggestion, type QuickSuggestion } from '@/lib/quickSuggestion'
 import { parseAvatar } from '@/lib/avatar'
+import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
+import { restDayAdvice, consecutiveTrainingDays } from '@/lib/trainingLoad'
 
 const C = Colors.light
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -224,6 +226,35 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: travel } = useQuery({
+    queryKey: ['travel_mode', userId],
+    queryFn: () => getActiveTravelMode(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Rest-day recommendation — looks at the recent unbroken training run and whether
+  // today already has a session, then advises rest when recovery is overdue.
+  const { data: restAdvice } = useQuery({
+    queryKey: ['rest_advice', userId],
+    queryFn: async () => {
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const since = new Date(today); since.setDate(today.getDate() - 8)
+      const { data } = await supabase
+        .from('scheduled_workouts')
+        .select('planned_date, status')
+        .eq('user_id', userId)
+        .gte('planned_date', toDateStr(since))
+        .lte('planned_date', toDateStr(today))
+      const rows = (data ?? []) as { planned_date: string; status: string }[]
+      const trained = new Set(rows.filter(r => r.status === 'completed').map(r => r.planned_date))
+      const trainsToday = rows.some(r => r.planned_date === toDateStr(today) && (r.status === 'scheduled' || r.status === 'completed'))
+      return restDayAdvice(consecutiveTrainingDays(trained, today), trainsToday)
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // On entry: collapse duplicate days, then mark past-due 'scheduled' as 'missed'.
   useEffect(() => {
     if (!userId) return
@@ -349,14 +380,18 @@ export default function ScheduleScreen() {
     if (rescheduling) return
     setRescheduling(true)
     try {
-      const slot = await suggestNextSlot(supabase, userId, workout.planned_duration_min)
+      const slot = await suggestNextSlot(supabase, userId, workout.planned_duration_min, workout.id)
       if (!slot) {
         Alert.alert('No open days', 'Your next week is full. Complete or skip a workout to free up a slot.')
         return
       }
+      // Lead with the recovery reasoning so the move feels coached, not random.
+      const why = slot.reason
+        ? `${slot.reason}.`
+        : (slot.fromCalendar ? 'Tempo found this free window in your calendar.' : '')
       Alert.alert(
         'Reschedule workout',
-        `Move "${workout.focus}" to ${slot.label}?${slot.fromCalendar ? '\n\nTempo found this free window in your calendar.' : ''}`,
+        `Move "${workout.focus}" to ${slot.label}?${why ? `\n\n${why}` : ''}`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -644,6 +679,16 @@ export default function ScheduleScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
       >
+        {travel && (
+          <TouchableOpacity style={styles.travelBanner} onPress={() => router.push('/travel-mode')} activeOpacity={0.8}>
+            <Ionicons name="airplane" size={16} color={C.primary} />
+            <Text style={styles.travelBannerText}>
+              Travel mode · {describeTravelEquipment(travel.equipment)} · {describeTravelUntil(travel.until)}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={C.outline} />
+          </TouchableOpacity>
+        )}
+
         {/* Range header + navigation */}
         <View style={styles.rangeRow}>
           <Text style={styles.rangeText}>{rangeLabel}</Text>
@@ -709,6 +754,19 @@ export default function ScheduleScreen() {
             >
               <Text style={styles.missedBtnText}>Reschedule</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Rest-day recommendation — clear, and only when recovery is actually due */}
+        {restAdvice && (
+          <View style={styles.restBanner}>
+            <View style={styles.restIcon}>
+              <Ionicons name="bed-outline" size={18} color={C.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.restTitle}>{restAdvice.title}</Text>
+              <Text style={styles.restBody}>{restAdvice.body}</Text>
+            </View>
           </View>
         )}
 
@@ -847,6 +905,13 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: C.onPrimary },
 
   // ── Range row ──────────────────────────────────────────────────────────────
+  travelBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    marginHorizontal: Spacing.containerPadding, marginTop: Spacing.md,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+  },
+  travelBannerText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
   rangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -945,6 +1010,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
   },
   missedBtnText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.onPrimary },
+
+  // ── Rest-day banner ─────────────────────────────────────────────────────────
+  restBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
+    backgroundColor: C.successSoft, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  restIcon: {
+    width: 36, height: 36, borderRadius: Radius.md,
+    backgroundColor: C.background, alignItems: 'center', justifyContent: 'center',
+  },
+  restTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.success, letterSpacing: -0.1 },
+  restBody: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
 
   // ── Feed / day groups ──────────────────────────────────────────────────────
   feed: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm },

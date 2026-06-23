@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience } from '@/types'
+import { effectiveEquipment } from '@/lib/travelMode'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -340,10 +341,15 @@ export async function getProfileForQuick(
     injuries = undefined
   }
 
+  // If the user is travelling, program with the equipment they have right now
+  // instead of their home setup — so a Quick Workout in a hotel uses the dumbbells
+  // there, not the barbell at home.
+  const { equipment } = await effectiveEquipment(client, userId, (data?.equipment ?? []) as string[])
+
   return {
     goal: (data?.goal ?? 'general_fitness') as Goal,
     experience: (data?.experience ?? 'beginner') as Experience,
-    equipment: (data?.equipment ?? []) as string[],
+    equipment,
     injuries,
   }
 }

@@ -82,6 +82,19 @@ export interface UserProfile {
   // Hard "never schedule here" windows (religious observance, standing commitments).
   // Optional so the app keeps working before the column migration is applied.
   unavailable_blocks?: UnavailableBlock[] | null
+  // Temporary equipment override while away from home (see TravelMode). Optional so
+  // the app keeps working before the column migration is applied.
+  travel_mode?: TravelMode | null
+}
+
+// A temporary "I'm away from my usual setup" override. While active, this equipment
+// replaces the profile's home equipment everywhere Tempo picks exercises — so a week
+// in a hotel with only dumbbells doesn't break the plan. `until` is an inclusive
+// 'YYYY-MM-DD' end date (null = stays on until the user turns it off).
+export interface TravelMode {
+  equipment: Equipment[]
+  until: string | null
+  label: string | null
 }
 
 export interface CalendarConnection {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,6 +9,9 @@ import { useProgressStats, type ChartPeriod } from '@/hooks/useProgressStats'
 import { ACHIEVEMENTS, type AchievementStats } from '@/lib/achievements'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
+import { supabase } from '@/lib/supabase'
+import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
+import { ShareCardSheet } from '@/components/ShareCardSheet'
 
 const C = Colors.light
 
@@ -94,6 +97,13 @@ export default function ProgressScreen() {
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const { stats, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const [cards, setCards] = useState<WrappedCard[]>([])
+  const [shareOpen, setShareOpen] = useState(false)
+
+  useEffect(() => {
+    if (!userId) return
+    buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
+  }, [userId])
 
   const consistency_pct = stats?.consistency_pct ?? 0
   const streak = stats?.streak ?? 0
@@ -130,6 +140,9 @@ export default function ProgressScreen() {
       <View style={styles.header}>
         <Text style={styles.headerLogo}>TEMPO</Text>
         <View style={styles.headerRight}>
+          {cards.length > 0 && (
+            <TouchableOpacity onPress={() => setShareOpen(true)} hitSlop={6}><Ionicons name="share-outline" size={22} color={C.text} /></TouchableOpacity>
+          )}
           <TouchableOpacity onPress={() => Alert.alert('Notifications', 'No new notifications.')}><Ionicons name="notifications-outline" size={22} color={C.text} /></TouchableOpacity>
           <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')}><Ionicons name="person" size={16} color={C.onPrimary} /></TouchableOpacity>
         </View>
@@ -337,6 +350,8 @@ export default function ProgressScreen() {
           </>
         )}
       </ScrollView>
+
+      <ShareCardSheet visible={shareOpen} cards={cards} onClose={() => setShareOpen(false)} />
     </SafeAreaView>
   )
 }

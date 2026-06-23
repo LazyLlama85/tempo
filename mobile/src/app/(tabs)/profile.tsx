@@ -16,6 +16,8 @@ import {
   getSavedSwaps, getAlternatives, saveSubstitution, removeSubstitution,
   type SavedSwap, type AltExercise,
 } from '@/lib/substitutions'
+import { describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
+import type { TravelMode } from '@/types'
 
 const C = Colors.light
 
@@ -47,6 +49,15 @@ function equipmentSummary(equipment: string[] | null | undefined): string {
   return equipment
     .map(e => EQUIPMENT_OPTIONS.find(o => o.id === e)?.label ?? e)
     .join(', ')
+}
+
+// Travel-mode status for the settings row — "Off" when none or the end date passed.
+function travelSummary(tm: TravelMode | null | undefined): string {
+  if (!tm?.equipment?.length) return 'Off'
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  if (tm.until && tm.until < today) return 'Off'
+  return `${describeTravelEquipment(tm.equipment)} · ${describeTravelUntil(tm.until)}`
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -425,6 +436,13 @@ export default function ProfileScreen() {
             <SettingRow icon="calendar-outline" label="DAYS PER WEEK" value={profile?.days_per_week ? `${profile.days_per_week} days` : '—'} />
             <View style={styles.divider} />
             <SettingRow icon="fitness-outline" label="EQUIPMENT" value={equipmentSummary(profile?.equipment)} onPress={openEquip} />
+            <View style={styles.divider} />
+            <SettingRow
+              icon="airplane-outline"
+              label="TRAVEL MODE"
+              value={travelSummary(profile?.travel_mode)}
+              onPress={() => router.push('/travel-mode')}
+            />
             <View style={styles.divider} />
             <TouchableOpacity
               style={styles.changePlanRow}

@@ -8,6 +8,7 @@
 // than break the session.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { effectiveEquipment } from '@/lib/travelMode'
 
 // original_exercise_id → substitute_exercise_id
 export async function getSubstitutions(
@@ -127,7 +128,9 @@ export async function getAlternatives(
       .select('equipment')
       .eq('user_id', userId)
       .maybeSingle()
-    const equipment = new Set<string>([...((profileRow?.equipment as string[]) ?? []), 'bodyweight'])
+    // Respect travel mode: offer alternatives for the equipment the user has now.
+    const { equipment: effective } = await effectiveEquipment(client, userId, (profileRow?.equipment as string[]) ?? [])
+    const equipment = new Set<string>([...effective, 'bodyweight'])
     const curatedSet = new Set<string>((orig.substitute_ids as string[]) ?? [])
 
     const { data: subs } = await client

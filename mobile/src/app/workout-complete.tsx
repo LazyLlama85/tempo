@@ -8,6 +8,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { supabase } from '@/lib/supabase'
 import { recordWorkoutFeedback, type WorkoutFeel } from '@/lib/adaptation'
+import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
+import { ShareCardSheet } from '@/components/ShareCardSheet'
 
 const C = Colors.light
 
@@ -29,10 +31,18 @@ export default function WorkoutCompleteScreen() {
 
   const { stats, refetch } = useProgressStats(userId)
   const [feel, setFeel] = useState<WorkoutFeel | null>(null)
+  const [cards, setCards] = useState<WrappedCard[]>([])
+  const [shareOpen, setShareOpen] = useState(false)
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
   useEffect(() => { refetch() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build the shareable cards from the freshly-updated data.
+  useEffect(() => {
+    if (!userId) return
+    buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
+  }, [userId])
 
   const handleFeel = (f: WorkoutFeel) => {
     setFeel(f)
@@ -143,10 +153,18 @@ export default function WorkoutCompleteScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {cards.length > 0 && (
+          <TouchableOpacity style={styles.shareBtn} onPress={() => setShareOpen(true)} activeOpacity={0.85}>
+            <Ionicons name="share-outline" size={18} color={C.primary} />
+            <Text style={styles.shareBtnText}>Share a card</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace('/(tabs)')} activeOpacity={0.85}>
           <Text style={styles.doneBtnText}>Done</Text>
         </TouchableOpacity>
       </View>
+
+      <ShareCardSheet visible={shareOpen} cards={cards} onClose={() => setShareOpen(false)} />
     </SafeAreaView>
   )
 }
@@ -195,7 +213,12 @@ const styles = StyleSheet.create({
   noteBox: { flexDirection: 'row', gap: 8, backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md },
   noteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
 
-  footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
+  footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.sm },
+  shareBtn: {
+    height: 52, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: Spacing.xs, borderWidth: 1.5, borderColor: C.primary, backgroundColor: C.surfaceContainerLow,
+  },
+  shareBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.primary },
   doneBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   doneBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
 })

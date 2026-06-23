@@ -9,12 +9,19 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
+import { musclesToRegions, scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
 
 export interface SlotSuggestion {
   date: string         // 'YYYY-MM-DD'
   start_time: string   // 'HH:MM:SS'
   label: string        // "Tomorrow at 7:00 AM"
   fromCalendar: boolean
+  reason?: string      // why this day — recovery/balance ("More recovery for legs")
+}
+
+// Movement pattern → coarse recovery region (complements the muscle-name mapping).
+const PATTERN_REGION: Record<string, Region> = {
+  push: 'push', pull: 'pull', squat: 'legs', hinge: 'legs', core: 'core', carry: 'core', cardio: 'other',
 }
 
 function toDateStr(d: Date): string {
@@ -68,13 +75,19 @@ async function gatherBusy(horizonDays: number, from: Date): Promise<{ busy: Busy
   return { busy: [], fromCalendar: false }
 }
 
-// Suggest the next workout slot, honouring the user's availability (never during
-// sleep/work/school) and how far their schedule_flexibility lets the workout move.
-// Keeps one workout per day by blocking out days that already have one.
+function isoWeekday(d: Date): number { return ((d.getDay() + 6) % 7) + 1 }
+
+// Suggest the next workout slot — but like a coach, not a calendar. It honours the
+// user's availability (never during sleep/work/school), respects how far their
+// schedule_flexibility lets a workout move, keeps one workout per day, AND prefers
+// the day that gives the best recovery: it avoids stacking the same muscle region on
+// back-to-back days and breaking the week into a 3-in-a-row grind. Pass the moving
+// workout's id so its muscles inform the choice (without it, falls back to "soonest").
 export async function suggestNextSlot(
   client: SupabaseClient,
   userId: string,
   durationMin: number,
+  movingWorkoutId?: string,
 ): Promise<SlotSuggestion | null> {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
@@ -86,6 +99,7 @@ export async function suggestNextSlot(
     .maybeSingle()
 
   const horizon = FLEX_HORIZON[(p?.schedule_flexibility as string) ?? 'balanced'] ?? 4
+  const allowDays = new Set((p?.training_days as number[]) ?? [])
   const availability: Availability = {
     wakeTime: p?.wake_time ?? null,
     bedtime: p?.bedtime ?? null,
@@ -94,41 +108,89 @@ export async function suggestNextSlot(
     schoolStart: p?.school_start ?? null,
     schoolEnd: p?.school_end ?? null,
     preferredTimeOfDay: (p?.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
-    trainingDays: (p?.training_days as number[]) ?? [],
+    // We pick the DAY ourselves below (recovery-aware), so don't let findVariedSlot's
+    // own day filter override it — we only ask it to place the TIME on a given day.
+    trainingDays: [],
     unavailable: await getUnavailableBlocks(client, userId),
   }
 
-  // Days that already hold a workout → block them out so we suggest a fresh day.
+  // Look back two days too, so the recovery check can see a session that already
+  // happened (e.g. yesterday's legs) when scoring the next few days.
   const horizonEnd = new Date(tomorrow); horizonEnd.setDate(tomorrow.getDate() + horizon)
+  const lookback = new Date(today); lookback.setDate(today.getDate() - 2)
   const { data: existing } = await client
     .from('scheduled_workouts')
-    .select('planned_date, status')
+    .select('id, planned_date, status, exercise_ids')
     .eq('user_id', userId)
-    .gte('planned_date', toDateStr(today))
+    .gte('planned_date', toDateStr(lookback))
     .lte('planned_date', toDateStr(horizonEnd))
+
+  const rows = (existing ?? []) as { id: string; planned_date: string; status: string; exercise_ids: string[] | null }[]
+
+  // Days that already hold a (future) workout → block them so we suggest a fresh day.
   const takenDays = new Set(
-    (existing ?? [])
-      .filter(w => w.status === 'scheduled' || w.status === 'completed')
-      .map(w => w.planned_date as string),
+    rows
+      .filter(w => (w.status === 'scheduled' || w.status === 'completed') && w.planned_date >= toDateStr(today))
+      .map(w => w.planned_date),
   )
 
-  const { busy, fromCalendar } = await gatherBusy(horizon, tomorrow)
-  for (const ds of takenDays) {
-    const d = new Date(`${ds}T00:00:00`)
-    busy.push({ start: d, end: new Date(d.getTime() + 86_400_000) })
+  // Resolve every involved exercise's muscle regions in one query.
+  const movingRow = movingWorkoutId ? rows.find(r => r.id === movingWorkoutId) : undefined
+  const allExIds = [...new Set(rows.flatMap(r => r.exercise_ids ?? []))]
+  const exRegion = new Map<string, Region[]>()
+  if (allExIds.length) {
+    const { data: exRows } = await client
+      .from('exercises')
+      .select('id, primary_muscles, secondary_muscles, movement_pattern')
+      .in('id', allExIds)
+    for (const e of (exRows ?? []) as any[]) {
+      const regions = musclesToRegions([...(e.primary_muscles ?? []), ...(e.secondary_muscles ?? [])])
+      const pr = PATTERN_REGION[e.movement_pattern as string]
+      if (pr) regions.add(pr)
+      exRegion.set(e.id as string, [...regions])
+    }
+  }
+  const regionsOf = (ids: string[] | null | undefined): Set<Region> => {
+    const out = new Set<Region>()
+    for (const id of ids ?? []) for (const r of exRegion.get(id) ?? []) out.add(r)
+    return out
   }
 
-  const slot = findVariedSlot(
-    busy,
-    availability,
-    { durationMinutes: durationMin, bufferMinutes: 10 },
-    { now: tomorrow, horizonDays: horizon, leadMinutes: 0, seed: today.getDate() },
-  )
-  if (!slot) return null
+  const movingRegions = regionsOf(movingRow?.exercise_ids)
+  // The week's training load (real sessions only), excluding the workout being moved.
+  const loads: DayLoad[] = rows
+    .filter(w => (w.status === 'scheduled' || w.status === 'completed') && w.id !== movingWorkoutId)
+    .map(w => ({ date: w.planned_date, regions: regionsOf(w.exercise_ids) }))
 
-  const start = new Date(slot.startTime)
-  const day = new Date(start); day.setHours(0, 0, 0, 0)
-  return { date: toDateStr(start), start_time: fmtTime(start), label: labelFor(day, start), fromCalendar }
+  // Rank candidate days by recovery score (then soonest), instead of just taking the
+  // first open day. This is the heart of "smart" rescheduling.
+  const candidates: { day: Date; score: number; reason: string }[] = []
+  for (let off = 1; off <= horizon; off++) {
+    const day = new Date(today); day.setDate(today.getDate() + off)
+    const ds = toDateStr(day)
+    if (takenDays.has(ds)) continue
+    if (allowDays.size && !allowDays.has(isoWeekday(day))) continue
+    const { score, reason } = scoreDay(day, movingRegions, loads)
+    candidates.push({ day, score, reason })
+  }
+  candidates.sort((a, b) => a.score - b.score || a.day.getTime() - b.day.getTime())
+
+  const { busy, fromCalendar } = await gatherBusy(horizon, tomorrow)
+
+  // Try days best-recovery-first; the first one with a real opening wins.
+  for (const c of candidates) {
+    const slot = findVariedSlot(
+      busy,
+      availability,
+      { durationMinutes: durationMin, bufferMinutes: 10 },
+      { now: c.day, horizonDays: 1, leadMinutes: 0, seed: c.day.getDate() },
+    )
+    if (!slot) continue
+    const start = new Date(slot.startTime)
+    const day = new Date(start); day.setHours(0, 0, 0, 0)
+    return { date: toDateStr(start), start_time: fmtTime(start), label: labelFor(day, start), fromCalendar, reason: c.reason }
+  }
+  return null
 }
 
 // Move a workout to the suggested slot and record an adaptation event for the
