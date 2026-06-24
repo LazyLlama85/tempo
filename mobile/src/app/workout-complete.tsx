@@ -7,8 +7,11 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { supabase } from '@/lib/supabase'
-import { recordWorkoutFeedback, type WorkoutFeel } from '@/lib/adaptation'
+import { recordWorkoutFeedback, refreshAdaptation, type WorkoutFeel } from '@/lib/adaptation'
+import { track } from '@/lib/analytics'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
+import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
+import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 
 const C = Colors.light
@@ -25,7 +28,7 @@ export default function WorkoutCompleteScreen() {
   const router = useRouter()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
-  const { minutes, quick } = useLocalSearchParams<{ minutes?: string; quick?: string }>()
+  const { minutes, quick, logId } = useLocalSearchParams<{ minutes?: string; quick?: string; logId?: string }>()
   const isQuick = quick === '1'
   const mins = Number(minutes) || 0
 
@@ -33,20 +36,34 @@ export default function WorkoutCompleteScreen() {
   const [feel, setFeel] = useState<WorkoutFeel | null>(null)
   const [cards, setCards] = useState<WrappedCard[]>([])
   const [shareOpen, setShareOpen] = useState(false)
+  const [report, setReport] = useState<WeeklyReport | null>(null)
+  const [prs, setPrs] = useState<SessionPR[]>([])
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
   useEffect(() => { refetch() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build the shareable cards from the freshly-updated data.
+  // The session is logged by the time this screen mounts — record it once.
+  useEffect(() => {
+    track('session_end', { type: isQuick ? 'quick' : 'planned', duration_min: mins || undefined })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build the shareable cards + this week's momentum + any PRs from this session.
   useEffect(() => {
     if (!userId) return
     buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
-  }, [userId])
+    computeWeeklyReport(supabase, userId).then(setReport).catch(() => {})
+    detectSessionPRs(supabase, userId, logId || undefined).then(setPrs).catch(() => {})
+  }, [userId, logId])
 
-  const handleFeel = (f: WorkoutFeel) => {
+  const handleFeel = async (f: WorkoutFeel) => {
     setFeel(f)
-    if (userId) recordWorkoutFeedback(supabase, userId, f)
+    track('workout_feedback_submitted', { feel: f })
+    if (!userId) return
+    await recordWorkoutFeedback(supabase, userId, f)
+    // Let this feedback feed the mesocycle: repeated "too hard" can flip the
+    // coming weeks into recovery/deload. Best-effort, never blocks the UI.
+    refreshAdaptation(supabase, userId).catch(() => {})
   }
 
   const FEEL_OPTIONS: { key: WorkoutFeel; label: string; icon: string }[] = [
@@ -66,10 +83,22 @@ export default function WorkoutCompleteScreen() {
 
   if (!session) return <Redirect href="/sign-in" />
 
-  // Lead line ties the effort back to the long-term goal — short work still counts.
-  const lead = isQuick
-    ? `${mins} minutes completed. You stayed on track with your ${goalLabel} goal.`
-    : `Session complete. Every rep moves your ${goalLabel} goal forward.`
+  // Momentum lead — make people *feel* progress, not just "Workout Complete".
+  // Prefer the most motivating true statement we can make from this week's data.
+  const lead = (() => {
+    if (report && report.missed > 0 && report.workouts > 0) {
+      return `You trained ${report.workouts} day${report.workouts === 1 ? '' : 's'} this week despite missing ${report.missed} — Tempo adjusted your plan to keep you on track.`
+    }
+    if (report && report.volumeDeltaPct != null && report.volumeDeltaPct > 0) {
+      return `${report.volumeDeltaPct}% more volume than last week. You're building real momentum.`
+    }
+    if (stats.streak > 1) {
+      return `${stats.streak} days in a row — momentum is on your side.`
+    }
+    return isQuick
+      ? `${mins} minutes completed. You stayed on track with your ${goalLabel} goal.`
+      : `Session complete. Every rep moves your ${goalLabel} goal forward.`
+  })()
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -79,6 +108,22 @@ export default function WorkoutCompleteScreen() {
         </View>
         <Text style={styles.title}>Nice work.</Text>
         <Text style={styles.lead}>{lead}</Text>
+
+        {/* PRs — celebrate them aggressively */}
+        {prs.length > 0 && (
+          <View style={styles.prCard}>
+            <View style={styles.prHeader}>
+              <Ionicons name="trophy" size={18} color="#fff" />
+              <Text style={styles.prHeaderText}>{prs.length === 1 ? 'NEW PERSONAL RECORD' : `${prs.length} NEW PERSONAL RECORDS`}</Text>
+            </View>
+            {prs.slice(0, 3).map((pr) => (
+              <View key={pr.exercise + pr.kind} style={styles.prRow}>
+                <Ionicons name="arrow-up-circle" size={16} color="#fff" />
+                <Text style={styles.prText}>{prLine(pr)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Streak impact */}
         <View style={[styles.card, styles.streakCard]}>
@@ -154,7 +199,7 @@ export default function WorkoutCompleteScreen() {
 
       <View style={styles.footer}>
         {cards.length > 0 && (
-          <TouchableOpacity style={styles.shareBtn} onPress={() => setShareOpen(true)} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.shareBtn} onPress={() => { track('share_card_opened'); setShareOpen(true) }} activeOpacity={0.85}>
             <Ionicons name="share-outline" size={18} color={C.primary} />
             <Text style={styles.shareBtnText}>Share a card</Text>
           </TouchableOpacity>
@@ -182,6 +227,12 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.xs },
   streakCard: { backgroundColor: C.primary, borderColor: C.primary },
+
+  prCard: { backgroundColor: '#B8860B', borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.xs, marginTop: Spacing.xs },
+  prHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  prHeaderText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: '#fff', letterSpacing: 0.6 },
+  prRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  prText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: '#fff' },
   streakRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   streakTag: { fontFamily: 'Inter_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.6 },
   streakNum: { fontFamily: 'Inter_800ExtraBold', fontSize: 44, color: '#fff', letterSpacing: -1.5, lineHeight: 48 },

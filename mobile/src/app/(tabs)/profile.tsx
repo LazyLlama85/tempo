@@ -1,4 +1,4 @@
-import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator } from 'react-native'
+import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator, Switch } from 'react-native'
 import { useState, useCallback } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -17,7 +17,13 @@ import {
   type SavedSwap, type AltExercise,
 } from '@/lib/substitutions'
 import { describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
-import type { TravelMode } from '@/types'
+import { deleteAccount } from '@/lib/account'
+import {
+  fetchMeasurements, logMeasurement, computeWeightTrend, computeMetricTrend, formatTrend,
+} from '@/lib/bodyMeasurements'
+import { getPushEnabled, setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
+import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
+import type { TravelMode, BodyMeasurement } from '@/types'
 
 const C = Colors.light
 
@@ -48,6 +54,27 @@ function equipmentSummary(equipment: string[] | null | undefined): string {
   if (equipment.includes('full_gym')) return 'Full Gym'
   return equipment
     .map(e => EQUIPMENT_OPTIONS.find(o => o.id === e)?.label ?? e)
+    .join(', ')
+}
+
+// Body areas the Quick Workout engine knows how to program around (see
+// injuriesToRestrictions in lib/quickWorkout.ts — these keywords map to avoided
+// muscles/patterns). The stored value is the lowercase id.
+const INJURY_OPTIONS: { id: string; label: string; icon: string }[] = [
+  { id: 'knee', label: 'Knees', icon: 'walk-outline' },
+  { id: 'back', label: 'Lower back', icon: 'body-outline' },
+  { id: 'shoulder', label: 'Shoulders', icon: 'barbell-outline' },
+  { id: 'elbow', label: 'Elbows', icon: 'fitness-outline' },
+  { id: 'wrist', label: 'Wrists', icon: 'hand-left-outline' },
+  { id: 'hip', label: 'Hips', icon: 'accessibility-outline' },
+  { id: 'hamstring', label: 'Hamstrings', icon: 'walk-outline' },
+  { id: 'ankle', label: 'Ankles / calves', icon: 'footsteps-outline' },
+]
+
+function injurySummary(injuries: string[] | null | undefined): string {
+  if (!injuries || !injuries.length) return 'None — train everything'
+  return injuries
+    .map(i => INJURY_OPTIONS.find(o => o.id === i)?.label ?? i)
     .join(', ')
 }
 
@@ -123,6 +150,62 @@ export default function ProfileScreen() {
   const [altsLoading, setAltsLoading] = useState(false)
   const [swapBusy, setSwapBusy] = useState(false)
 
+  // Body measurement history + log-entry modal
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
+  const [bodyModal, setBodyModal] = useState(false)
+  const [weightInput, setWeightInput] = useState('')
+  const [bodyFatInput, setBodyFatInput] = useState('')
+  const [waistInput, setWaistInput] = useState('')
+  const [bodySaving, setBodySaving] = useState(false)
+  const [photoPath, setPhotoPath] = useState<string | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  // Injuries / limitations modal
+  const [injuryModal, setInjuryModal] = useState(false)
+  const [injurySel, setInjurySel] = useState<string[]>([])
+  const [injurySaving, setInjurySaving] = useState(false)
+
+  // Server-driven push toggle for this device
+  const [pushEnabled, setPushEnabled] = useState(true)
+
+  const [deleting, setDeleting] = useState(false)
+
+  // App Store-required account deletion. Double-confirm (it's irreversible and wipes
+  // all data), then call the server function and sign out on success.
+  const runDelete = async () => {
+    setDeleting(true)
+    const res = await deleteAccount(supabase)
+    setDeleting(false)
+    if (res.ok) {
+      await signOut()
+    } else {
+      Alert.alert('Couldn’t delete account', `Something went wrong (${res.error}). Please try again, or contact support if it continues.`)
+    }
+  }
+  const handleDeleteAccount = () => {
+    if (deleting) return
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and all your data — plans, workouts, logs, and progress. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => Alert.alert(
+            'Are you absolutely sure?',
+            'Your account and every workout you’ve logged will be erased immediately. There’s no way to recover it.',
+            [
+              { text: 'Keep my account', style: 'cancel' },
+              { text: 'Delete forever', style: 'destructive', onPress: runDelete },
+            ],
+          ),
+        },
+      ],
+    )
+  }
+
   // Refresh both calendar connections on focus so the row reflects a connect/
   // disconnect made elsewhere (Smart Scheduler, Settings) without a reload.
   useFocusEffect(
@@ -137,6 +220,101 @@ export default function ProfileScreen() {
   }, [userId])
   // Refresh on focus so a swap just made in a workout shows up here immediately.
   useFocusEffect(loadSwaps)
+
+  const loadMeasurements = useCallback(() => {
+    if (userId) fetchMeasurements(supabase, userId, 120).then(setMeasurements).catch(() => {})
+  }, [userId])
+  useFocusEffect(loadMeasurements)
+
+  // Reflect this device's push on/off state when the screen gains focus.
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) getPushEnabled(supabase).then(setPushEnabled).catch(() => {})
+    }, [userId]),
+  )
+
+  // 4-week regression: weekly trend, smoothed current weight, and total change.
+  const trend = computeWeightTrend(measurements)
+  // Optional body-composition trends (only render when the user has logged them).
+  const bodyFatTrend = computeMetricTrend(measurements, 'body_fat_pct')
+  const waistTrend = computeMetricTrend(measurements, 'waist_in')
+
+  const togglePush = async (next: boolean) => {
+    setPushEnabled(next) // optimistic
+    if (userId) await applyPushEnabled(supabase, userId, next)
+  }
+
+  const openInjuries = () => {
+    setInjurySel(profile?.injuries ?? [])
+    setInjuryModal(true)
+  }
+  const toggleInjury = (id: string) =>
+    setInjurySel(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  const saveInjuries = async () => {
+    if (!userId || injurySaving) return
+    setInjurySaving(true)
+    try {
+      await supabase.from('user_profiles').update({ injuries: injurySel }).eq('user_id', userId)
+      await refreshProfile()
+      setInjuryModal(false)
+    } catch {
+      Alert.alert('Could not save', 'Please try again.')
+    } finally {
+      setInjurySaving(false)
+    }
+  }
+
+  // Reset the log-entry modal (inputs + any attached photo) before opening it.
+  const openBody = () => {
+    setWeightInput(''); setBodyFatInput(''); setWaistInput('')
+    setPhotoPath(null); setPhotoPreview(null)
+    setBodyModal(true)
+  }
+
+  const attachPhoto = async () => {
+    if (photoBusy || !userId) return
+    setPhotoBusy(true)
+    const res = await pickAndUploadProgressPhoto(supabase, userId)
+    setPhotoBusy(false)
+    if (res.status === 'ok') {
+      setPhotoPath(res.path)
+      progressPhotoUrl(supabase, res.path).then(setPhotoPreview)
+    } else if (res.status === 'denied') {
+      Alert.alert('Photo access needed', 'Allow photo access in Settings to attach a progress photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ])
+    } else if (res.status === 'error') {
+      Alert.alert('Upload failed', 'Could not upload that photo. Please try again.')
+    }
+  }
+
+  const saveBodyEntry = async () => {
+    if (!userId || bodySaving) return
+    const weight = parseFloat(weightInput)
+    const bf = parseFloat(bodyFatInput)
+    const waist = parseFloat(waistInput)
+    // Allow an entry with just a photo (no numbers) too.
+    if (![weight, bf, waist].some(Number.isFinite) && !photoPath) { setBodyModal(false); return }
+    setBodySaving(true)
+    try {
+      await logMeasurement(supabase, userId, {
+        weight_lbs: Number.isFinite(weight) ? weight : null,
+        body_fat_pct: Number.isFinite(bf) ? bf : null,
+        waist_in: Number.isFinite(waist) ? waist : null,
+        photo_url: photoPath,
+      })
+      setWeightInput(''); setBodyFatInput(''); setWaistInput('')
+      setPhotoPath(null); setPhotoPreview(null)
+      setBodyModal(false)
+      loadMeasurements()
+      refreshProfile()  // keep the cached profile weight current
+    } catch {
+      Alert.alert('Could not save', 'Please try again.')
+    } finally {
+      setBodySaving(false)
+    }
+  }
 
   const openSwap = async (swap: SavedSwap) => {
     setSwapModal(swap)
@@ -373,6 +551,61 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Body stats (weight trend over time) ─────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Body Stats</Text>
+            <TouchableOpacity onPress={openBody}>
+              <Text style={styles.sectionLink}>Log entry</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.card}>
+            {trend.currentAvg != null ? (
+              <>
+              <View style={styles.bodyRow}>
+                <View style={styles.bodyCell}>
+                  <Text style={styles.bodyCellLabel}>CURRENT (7-DAY AVG)</Text>
+                  <Text style={styles.bodyCellValue}>{trend.currentAvg} <Text style={styles.bodyCellUnit}>lb</Text></Text>
+                </View>
+                <View style={styles.bodyCellDivider} />
+                <View style={styles.bodyCell}>
+                  <Text style={styles.bodyCellLabel}>WEEKLY TREND</Text>
+                  <Text style={[styles.bodyCellValue, trend.lbsPerWeek != null && trend.lbsPerWeek < 0 && { color: C.primary }]}>
+                    {formatTrend(trend.lbsPerWeek)}
+                  </Text>
+                  {trend.totalChange != null && (
+                    <Text style={styles.bodyCellSub}>
+                      {trend.totalChange > 0 ? '+' : ''}{trend.totalChange} lb over {trend.samples} weigh-ins
+                    </Text>
+                  )}
+                </View>
+              </View>
+              {(bodyFatTrend.latest != null || waistTrend.latest != null) && (
+                <View style={styles.bodyMetricRow}>
+                  {bodyFatTrend.latest != null && (
+                    <Text style={styles.bodyMetric}>
+                      Body fat <Text style={styles.bodyMetricVal}>{bodyFatTrend.latest}%</Text>
+                      {bodyFatTrend.perWeek != null ? `  ${bodyFatTrend.perWeek > 0 ? '+' : ''}${bodyFatTrend.perWeek}/wk` : ''}
+                    </Text>
+                  )}
+                  {waistTrend.latest != null && (
+                    <Text style={styles.bodyMetric}>
+                      Waist <Text style={styles.bodyMetricVal}>{waistTrend.latest}"</Text>
+                      {waistTrend.perWeek != null ? `  ${waistTrend.perWeek > 0 ? '+' : ''}${waistTrend.perWeek}/wk` : ''}
+                    </Text>
+                  )}
+                </View>
+              )}
+              </>
+            ) : (
+              <Text style={styles.emptyHint}>
+                Log your weight to start tracking trends. Tempo smooths daily noise and shows your real
+                weekly rate — the feedback loop that tells you if your plan is working.
+              </Text>
+            )}
+          </View>
+        </View>
+
         {/* ── Personal records ────────────────────────────────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
@@ -437,6 +670,8 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow icon="fitness-outline" label="EQUIPMENT" value={equipmentSummary(profile?.equipment)} onPress={openEquip} />
             <View style={styles.divider} />
+            <SettingRow icon="medkit-outline" label="INJURIES & LIMITATIONS" value={injurySummary(profile?.injuries)} onPress={openInjuries} />
+            <View style={styles.divider} />
             <SettingRow
               icon="airplane-outline"
               label="TRAVEL MODE"
@@ -476,16 +711,151 @@ export default function ProfileScreen() {
               onPress={handleChooseCalendar}
             />
             <View style={styles.divider} />
-            <SettingRow icon="notifications-outline" label="NOTIFICATIONS" value="On" onPress={() => Linking.openSettings()} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="notifications-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>NOTIFICATIONS</Text>
+                <Text style={styles.settingValue}>{pushEnabled ? 'Reminders & nudges on' : 'Off for this device'}</Text>
+              </View>
+              <Switch
+                value={pushEnabled}
+                onValueChange={togglePush}
+                trackColor={{ true: C.primary, false: C.outlineVariant }}
+                thumbColor="#fff"
+              />
+            </View>
             <View style={styles.divider} />
-            <SettingRow icon="shield-outline" label="PRIVACY" value="tempo.app/privacy" onPress={() => Alert.alert('Privacy Policy', 'Review our privacy policy at tempo.app/privacy.')} />
+            <SettingRow icon="shield-outline" label="PRIVACY & TERMS" value="View" onPress={() => router.push('/legal')} />
           </View>
         </View>
 
         <TouchableOpacity style={styles.signOutBtn} onPress={signOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        {/* App Store-required: delete account + all data from within the app. */}
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+          disabled={deleting}
+        >
+          {deleting ? (
+            <ActivityIndicator color={C.error} />
+          ) : (
+            <Text style={styles.deleteText}>Delete Account</Text>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.deleteHint}>Permanently erases your account and all data.</Text>
       </ScrollView>
+
+      {/* ── Log body measurement modal ────────────────────────────────────── */}
+      <Modal visible={bodyModal} animationType="slide" transparent onRequestClose={() => setBodyModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setBodyModal(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Log Measurement</Text>
+            <Text style={styles.modalHint}>Weigh in regularly — even a few times a week is enough for Tempo to read your real trend. Body fat and waist are optional.</Text>
+
+            <Text style={styles.modalLabel}>WEIGHT (LB)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={weightInput}
+              onChangeText={setWeightInput}
+              placeholder="e.g. 175"
+              placeholderTextColor={C.outline}
+              keyboardType="decimal-pad"
+              maxLength={6}
+            />
+
+            <Text style={styles.modalLabel}>BODY FAT % (OPTIONAL)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={bodyFatInput}
+              onChangeText={setBodyFatInput}
+              placeholder="e.g. 18"
+              placeholderTextColor={C.outline}
+              keyboardType="decimal-pad"
+              maxLength={5}
+            />
+
+            <Text style={styles.modalLabel}>WAIST (IN, OPTIONAL)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={waistInput}
+              onChangeText={setWaistInput}
+              placeholder="e.g. 32"
+              placeholderTextColor={C.outline}
+              keyboardType="decimal-pad"
+              maxLength={5}
+            />
+
+            <Text style={styles.modalLabel}>PROGRESS PHOTO (OPTIONAL)</Text>
+            <TouchableOpacity style={styles.photoBtn} onPress={attachPhoto} disabled={photoBusy} activeOpacity={0.8}>
+              {photoBusy ? (
+                <ActivityIndicator color={C.primary} />
+              ) : photoPreview ? (
+                <>
+                  <Image source={{ uri: photoPreview }} style={styles.photoThumb} contentFit="cover" />
+                  <Text style={styles.photoBtnText}>Photo attached · tap to change</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={18} color={C.primary} />
+                  <Text style={styles.photoBtnText}>Add a progress photo</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.saveBtn, bodySaving && { opacity: 0.6 }]} onPress={saveBodyEntry} disabled={bodySaving} activeOpacity={0.85}>
+              <Text style={styles.saveBtnText}>{bodySaving ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Injuries / limitations modal ──────────────────────────────────── */}
+      <Modal visible={injuryModal} animationType="slide" transparent onRequestClose={() => setInjuryModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setInjuryModal(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Injuries & Limitations</Text>
+            <Text style={styles.modalHint}>Tell Tempo what to work around. We'll steer your Quick Workouts away from the muscles and movements that aggravate these areas.</Text>
+
+            <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
+              {INJURY_OPTIONS.map((o) => {
+                const sel = injurySel.includes(o.id)
+                return (
+                  <TouchableOpacity
+                    key={o.id}
+                    style={[styles.equipRow, sel && styles.equipRowSel]}
+                    onPress={() => toggleInjury(o.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.equipIcon, sel && { backgroundColor: C.primary }]}>
+                      <Ionicons name={o.icon as any} size={18} color={sel ? '#fff' : C.primary} />
+                    </View>
+                    <Text style={[styles.equipLabel, sel && { color: C.primary }]}>{o.label}</Text>
+                    <Ionicons
+                      name={sel ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={22}
+                      color={sel ? C.primary : C.outlineVariant}
+                    />
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <TouchableOpacity style={[styles.saveBtn, injurySaving && { opacity: 0.6 }]} onPress={saveInjuries} disabled={injurySaving} activeOpacity={0.85}>
+              <Text style={styles.saveBtnText}>{injurySaving ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Edit profile modal ────────────────────────────────────────────── */}
       <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
@@ -687,6 +1057,25 @@ const styles = StyleSheet.create({
   prUnit: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
   emptyHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, padding: Spacing.md, lineHeight: 19 },
 
+  // Body stats
+  bodyRow: { flexDirection: 'row', alignItems: 'stretch', padding: Spacing.md },
+  bodyCell: { flex: 1, gap: 3 },
+  bodyCellDivider: { width: 1, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.md },
+  bodyCellLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.5 },
+  bodyCellValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.5 },
+  bodyCellUnit: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary },
+  bodyCellSub: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, marginTop: 1 },
+  bodyMetricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md, marginTop: -Spacing.xs },
+  bodyMetric: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, overflow: 'hidden' },
+  bodyMetricVal: { fontFamily: 'Inter_700Bold', color: C.text },
+  photoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, height: 48,
+    backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
+    paddingHorizontal: Spacing.md, justifyContent: 'center',
+  },
+  photoThumb: { width: 32, height: 32, borderRadius: Radius.sm },
+  photoBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
+
   // Exercise swaps
   swapRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   swapIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
@@ -718,6 +1107,9 @@ const styles = StyleSheet.create({
 
   signOutBtn: { marginHorizontal: Spacing.containerPadding, height: 52, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   signOutText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.error },
+  deleteBtn: { marginHorizontal: Spacing.containerPadding, marginTop: Spacing.sm, height: 48, alignItems: 'center', justifyContent: 'center' },
+  deleteText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.error },
+  deleteHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, textAlign: 'center', marginTop: 2 },
 
   // Modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },

@@ -29,7 +29,7 @@ export type QuickMinutes = 5 | 10 | 15 | 20 | 30 | 40 | 50 | 60
 export const QUICK_DURATIONS: QuickMinutes[] = [5, 10, 15, 20, 30, 40, 50, 60]
 
 export type MovementPattern =
-  | 'push' | 'pull' | 'hinge' | 'squat' | 'carry' | 'core' | 'cardio'
+  | 'push' | 'pull' | 'hinge' | 'squat' | 'carry' | 'core' | 'cardio' | 'mobility'
 
 export interface QuickRestrictions {
   avoidMuscles: string[]
@@ -103,11 +103,11 @@ const PURPOSE_SCHEME: Record<QuickPurpose, PurposeScheme> = {
   },
   recovery: {
     sets: 2, repLow: 10, repHigh: 15, repUnit: 'reps', restSeconds: 45, setSeconds: 40,
-    structure: 'circuit', patternPriority: ['core', 'cardio', 'pull', 'push', 'squat', 'hinge'], lowImpact: true,
+    structure: 'circuit', patternPriority: ['mobility', 'core', 'cardio', 'pull', 'push', 'squat', 'hinge'], lowImpact: true,
   },
   mobility: {
     sets: 2, repLow: 30, repHigh: 45, repUnit: 'sec', restSeconds: 25, setSeconds: 45,
-    structure: 'circuit', patternPriority: ['core', 'hinge', 'squat', 'pull'], lowImpact: true,
+    structure: 'circuit', patternPriority: ['mobility', 'core', 'hinge', 'squat', 'pull'], lowImpact: true,
   },
 }
 

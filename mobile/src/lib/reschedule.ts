@@ -9,6 +9,7 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
+import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { musclesToRegions, scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
 
 export interface SlotSuggestion {
@@ -175,7 +176,9 @@ export async function suggestNextSlot(
   }
   candidates.sort((a, b) => a.score - b.score || a.day.getTime() - b.day.getTime())
 
-  const { busy, fromCalendar } = await gatherBusy(horizon, tomorrow)
+  const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, tomorrow)
+  // Events the user crossed off ("ignore") don't block — let workouts use that time.
+  const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
 
   // Try days best-recovery-first; the first one with a real opening wins.
   for (const c of candidates) {

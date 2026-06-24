@@ -85,6 +85,10 @@ export interface UserProfile {
   // Temporary equipment override while away from home (see TravelMode). Optional so
   // the app keeps working before the column migration is applied.
   travel_mode?: TravelMode | null
+  // Calendar events the user has marked "ignore" — content keys (see lib/ignoredEvents)
+  // for events that shouldn't block workout scheduling. Optional so the app keeps
+  // working before the column migration is applied.
+  ignored_events?: string[] | null
 }
 
 // A temporary "I'm away from my usual setup" override. While active, this equipment
@@ -108,7 +112,7 @@ export interface CalendarConnection {
 export interface Exercise {
   id: string
   name: string
-  movement_pattern: 'push' | 'pull' | 'hinge' | 'squat' | 'carry' | 'core' | 'cardio'
+  movement_pattern: 'push' | 'pull' | 'hinge' | 'squat' | 'carry' | 'core' | 'cardio' | 'mobility'
   primary_muscles: string[]
   secondary_muscles: string[]
   required_equipment: Equipment[]
@@ -162,6 +166,20 @@ export interface SetLog {
   weight_lbs: number | null
   rpe: number | null
   completed_at: string
+}
+
+// A single point in a user's body-measurement time series. Weight is the primary
+// metric; body fat / waist / a progress photo are optional extras on the same entry.
+export interface BodyMeasurement {
+  id: string
+  user_id: string
+  weight_lbs: number | null
+  body_fat_pct: number | null
+  waist_in: number | null
+  photo_url: string | null
+  note: string | null
+  measured_at: string  // ISO timestamp
+  created_at: string
 }
 
 export interface TimeSlot {

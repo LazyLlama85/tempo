@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
   goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
@@ -60,6 +61,9 @@ export default function QuickWorkoutScreen() {
       )
       setWorkout(w)
       setEmpty(w.exercises.length === 0)
+      if (w.exercises.length > 0) {
+        track('quick_workout_generated', { minutes: m, purpose: effectivePurpose })
+      }
     } catch {
       setEmpty(true)
     } finally {
@@ -89,6 +93,11 @@ export default function QuickWorkoutScreen() {
     setStarting(true)
     const id = await persistQuickWorkout(supabase, userId, workout)
     if (!id) { setStarting(false); return }
+    track('session_start', {
+      type: 'quick',
+      duration_min: workout.estimatedMinutes,
+      purpose: workout.purpose,
+    })
     router.replace({ pathname: '/(tabs)/plan', params: { workoutId: id, quick: '1' } })
   }
 

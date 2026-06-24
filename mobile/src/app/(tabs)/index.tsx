@@ -23,9 +23,22 @@ import { getQuickSuggestion, type QuickSuggestion } from '@/lib/quickSuggestion'
 import { parseAvatar } from '@/lib/avatar'
 import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
 import { restDayAdvice, consecutiveTrainingDays } from '@/lib/trainingLoad'
+import { eventKey, getIgnoredEventKeys, setEventIgnored } from '@/lib/ignoredEvents'
+import { useProgressStats } from '@/hooks/useProgressStats'
+import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
+import { projectGoal } from '@/lib/goalProjection'
+import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
 const C = Colors.light
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+const GOAL_LABELS: Record<string, string> = {
+  muscle_gain: 'Build Muscle',
+  fat_loss: 'Lose Fat',
+  strength: 'Get Stronger',
+  general_fitness: 'General Fitness',
+  athletic: 'Athletic Performance',
+}
 type IconName = keyof typeof Ionicons.glyphMap
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -58,6 +71,14 @@ function startOfWeek(d: Date): Date {
 function getWeekDays(d: Date): Date[] {
   const s = startOfWeek(d)
   return Array.from({ length: 7 }, (_, i) => addDays(s, i))
+}
+
+// 'YYYY-MM-DD' → 'Today' / 'Tomorrow' / weekday, for the next-workout card.
+function relativeDayLabel(dateStr: string): string {
+  const today = new Date()
+  if (dateStr === toDateStr(today)) return 'Today'
+  if (dateStr === toDateStr(addDays(today, 1))) return 'Tomorrow'
+  return parseLocal(dateStr).toLocaleDateString('en-US', { weekday: 'long' })
 }
 
 // 6-row month grid (42 cells) starting on the Sunday on/before the 1st, so the
@@ -229,6 +250,80 @@ export default function ScheduleScreen() {
   const { data: travel } = useQuery({
     queryKey: ['travel_mode', userId],
     queryFn: () => getActiveTravelMode(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Where the user is in their training block right now — the next plan workout's
+  // progression directive plus the plan's adaptation mode. Drives the phase banner
+  // so the periodization (overload / deload / recovery) is visible, not hidden.
+  const { data: blockPhase } = useQuery({
+    queryKey: ['block_phase', userId, todayStr],
+    queryFn: async () => {
+      const [{ data: plan }, { data: nextW }] = await Promise.all([
+        supabase.from('user_plans').select('adaptation_mode')
+          .eq('user_id', userId).eq('status', 'active')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('scheduled_workouts').select('progression, week_index')
+          .eq('user_id', userId).eq('source', 'plan').eq('status', 'scheduled')
+          .gte('planned_date', todayStr)
+          .order('planned_date', { ascending: true }).limit(1).maybeSingle(),
+      ])
+      return {
+        mode: (plan?.adaptation_mode ?? 'normal') as AdaptationMode,
+        progression: (nextW?.progression ?? null) as WeekProgression | null,
+      }
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Aggregate stats (streak, benchMax, totals) — powers the rich empty state and
+  // the goal countdown.
+  const { stats } = useProgressStats(userId)
+
+  // The very next workout regardless of the visible range, so an empty current week
+  // never reads as "nothing here" — there's always a next step to show.
+  const { data: nextWorkout } = useQuery({
+    queryKey: ['next_workout', userId, todayStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('scheduled_workouts')
+        .select('id, focus, planned_date, planned_start_time, planned_duration_min')
+        .eq('user_id', userId).eq('status', 'scheduled')
+        .gte('planned_date', todayStr)
+        .order('planned_date', { ascending: true }).order('planned_start_time', { ascending: true })
+        .limit(1).maybeSingle()
+      return (data ?? null) as { id: string; focus: string; planned_date: string; planned_start_time: string; planned_duration_min: number } | null
+    },
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  })
+
+  // Goal countdown — projects an ETA from the weight trend (+ strength max for
+  // strength goals). Cached; null when there isn't enough signal.
+  const { data: projection } = useQuery({
+    queryKey: ['goal_projection', userId, profile?.goal, stats.benchMax],
+    queryFn: async () => {
+      let weightPerWeek: number | null = null
+      try { weightPerWeek = computeWeightTrend(await fetchMeasurements(supabase, userId, 90)).lbsPerWeek } catch {}
+      if (!profile) return null
+      return projectGoal({
+        goal: profile.goal,
+        experience: profile.experience,
+        weightPerWeek,
+        benchMax: stats.benchMax || null,
+      })
+    },
+    enabled: !!userId && !!profile,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Events the user has crossed off ("ignore") — Tempo may schedule over these. Stored
+  // as a Set of content keys; the timeline shows them struck through with an Undo.
+  const { data: ignoredKeys = new Set<string>() } = useQuery<Set<string>>({
+    queryKey: ['ignored_events', userId],
+    queryFn: () => getIgnoredEventKeys(supabase, userId),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
@@ -415,6 +510,26 @@ export default function ScheduleScreen() {
     }
   }
 
+  // Cross an event off (or restore it). Ignoring frees that time so Tempo MAY place a
+  // workout there; the event still shows, struck through, with an Undo. Optimistic so
+  // the toggle feels instant, then persisted; scheduled workouts refresh so a later
+  // re-slot can use the freed window.
+  const toggleIgnoreEvent = async (e: DayEvent, currentlyIgnored: boolean) => {
+    const key = eventKey(e.start, e.end)
+    queryClient.setQueryData<Set<string>>(['ignored_events', userId], (old) => {
+      const next = new Set(old ?? [])
+      if (currentlyIgnored) next.delete(key); else next.add(key)
+      return next
+    })
+    try {
+      await setEventIgnored(supabase, userId, key, !currentlyIgnored)
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+    } catch {
+      // Roll the optimistic toggle back on failure.
+      queryClient.invalidateQueries({ queryKey: ['ignored_events', userId] })
+    }
+  }
+
   const goQuick = (s?: QuickSuggestion | null) => {
     if (s) {
       router.push({
@@ -529,17 +644,29 @@ export default function ScheduleScreen() {
   }
 
   function renderEvent(e: DayEvent) {
+    const ignored = ignoredKeys.has(eventKey(e.start, e.end))
     return (
       <View style={styles.row}>
-        <Text style={styles.railTime} numberOfLines={1}>{time12(e.start)}</Text>
-        <View style={styles.eventCard}>
+        <Text style={[styles.railTime, ignored && styles.railTimeIgnored]} numberOfLines={1}>{time12(e.start)}</Text>
+        <View style={[styles.eventCard, ignored && styles.eventCardIgnored]}>
           <View style={styles.eventIconWrap}>
-            <Ionicons name={eventIcon(e.title)} size={15} color={C.outline} />
+            <Ionicons name={ignored ? 'eye-off-outline' : eventIcon(e.title)} size={15} color={C.outline} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eventTitle} numberOfLines={1}>{e.title}</Text>
-            <Text style={styles.eventTime}>{time12(e.start)} – {time12(e.end)}</Text>
+            <Text style={[styles.eventTitle, ignored && styles.eventTitleIgnored]} numberOfLines={1}>{e.title}</Text>
+            <Text style={styles.eventTime}>
+              {ignored ? 'Ignored · Tempo may schedule here' : `${time12(e.start)} – ${time12(e.end)}`}
+            </Text>
           </View>
+          <TouchableOpacity
+            style={styles.ignoreBtn}
+            onPress={() => toggleIgnoreEvent(e, ignored)}
+            hitSlop={8}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={ignored ? 'arrow-undo-outline' : 'close-circle-outline'} size={15} color={ignored ? C.primary : C.outline} />
+            <Text style={[styles.ignoreBtnText, ignored && { color: C.primary }]}>{ignored ? 'Undo' : 'Ignore'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
     )
@@ -723,6 +850,63 @@ export default function ScheduleScreen() {
           </View>
         )}
 
+        {/* Block phase — tap to see the full "why this week" explanation */}
+        {blockPhase?.progression && (
+          <TouchableOpacity
+            style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
+            onPress={() => router.push('/plan-explainer' as any)} /* typed-routes regen on next run */
+            activeOpacity={0.85}
+          >
+            <View style={[styles.phaseIcon, blockPhase.progression.isDeload && { backgroundColor: C.successSoft }]}>
+              <Ionicons
+                name={blockPhase.progression.isDeload ? 'leaf' : blockPhase.progression.phase === 'peak' ? 'trending-up' : 'barbell'}
+                size={18}
+                color={blockPhase.progression.isDeload ? C.success : C.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.phaseTitle}>
+                Week {blockPhase.progression.weekIndex + 1} · {blockPhase.progression.label}
+                {(blockPhase.mode === 'recovery' || blockPhase.mode === 'deload') ? ' · auto-adjusted' : ''}
+              </Text>
+              <Text style={styles.phaseBody} numberOfLines={2}>{blockPhase.progression.note}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={C.outline} />
+          </TouchableOpacity>
+        )}
+
+        {/* Goal countdown — an ETA people can chase */}
+        {projection && (
+          <View style={styles.goalCard}>
+            <View style={styles.goalIcon}>
+              <Ionicons name={projection.icon as IconName} size={18} color={C.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.goalHeadline} numberOfLines={1}>{projection.headline}</Text>
+              <Text style={styles.goalSub} numberOfLines={1}>{projection.sub}</Text>
+              {projection.pct != null && (
+                <View style={styles.goalTrack}>
+                  <View style={[styles.goalFill, { width: `${Math.max(2, Math.min(100, projection.pct))}%` as `${number}%` }]} />
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Weekly progress report — prominent on Sun/Mon, when the recap lands best */}
+        {stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1) && (
+          <TouchableOpacity style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} activeOpacity={0.9}>
+            <View style={styles.reportIcon}>
+              <Ionicons name="stats-chart" size={18} color={C.onPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reportTitle}>Your weekly progress report</Text>
+              <Text style={styles.reportSub} numberOfLines={1}>See how this week stacked up — and share it.</Text>
+            </View>
+            <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
+          </TouchableOpacity>
+        )}
+
         {/* Quick Workout — the wedge: build a session for the time you have */}
         <TouchableOpacity style={styles.quickRow} onPress={() => goQuick(suggestion)} activeOpacity={0.9}>
           <View style={styles.quickIcon}>
@@ -782,14 +966,54 @@ export default function ScheduleScreen() {
             </TouchableOpacity>
           </View>
         ) : !feedHasItems ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="moon-outline" size={26} color={C.outline} />
-            <Text style={[styles.emptyText, { marginTop: Spacing.xs }]}>
-              {workouts.length === 0
-                ? 'Your plan is loading. Pull down to refresh.'
-                : 'Nothing scheduled here — enjoy the recovery.'}
-            </Text>
-          </View>
+          nextWorkout ? (
+            // Never a dead screen: show the plan at a glance + one clear action.
+            <View style={styles.planCard}>
+              <View style={styles.planTopRow}>
+                <Text style={styles.planEyebrow}>YOUR PLAN</Text>
+                {profile?.goal ? <Text style={styles.planGoal}>{GOAL_LABELS[profile.goal] ?? 'Training'}</Text> : null}
+              </View>
+              <View style={styles.planChips}>
+                {blockPhase?.progression && (
+                  <View style={styles.planChip}>
+                    <Ionicons name="podium-outline" size={13} color={C.primary} />
+                    <Text style={styles.planChipText}>{blockPhase.progression.label} week</Text>
+                  </View>
+                )}
+                {stats.streak > 0 && (
+                  <View style={styles.planChip}>
+                    <Ionicons name="flame" size={13} color={C.primary} />
+                    <Text style={styles.planChipText}>{stats.streak}-day streak</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.planNext}>
+                <Text style={styles.planNextLabel}>NEXT WORKOUT · {relativeDayLabel(nextWorkout.planned_date).toUpperCase()}</Text>
+                <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
+                <Text style={styles.planNextMeta}>{formatTime(nextWorkout.planned_start_time)} · {nextWorkout.planned_duration_min} min</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.planStartBtn}
+                onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="play" size={15} color={C.onPrimary} />
+                <Text style={styles.planStartText}>{relativeDayLabel(nextWorkout.planned_date) === 'Today' ? 'Start now' : 'Start this session'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => goQuick(suggestion)} activeOpacity={0.7}>
+                <Text style={styles.planQuickText}>Only have a few minutes? Quick Workout →</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="moon-outline" size={26} color={C.outline} />
+              <Text style={[styles.emptyText, { marginTop: Spacing.xs }]}>
+                {workouts.length === 0
+                  ? 'Your plan is loading. Pull down to refresh.'
+                  : 'Nothing scheduled here — enjoy the recovery.'}
+              </Text>
+            </View>
+          )
         ) : (
           dayGroups.map((g) => {
             // Day mode already names the day in the range row; week/month show a per-day header.
@@ -985,6 +1209,65 @@ const styles = StyleSheet.create({
   quickTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, letterSpacing: -0.1 },
   quickSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
 
+  // ── Block-phase banner ───────────────────────────────────────────────────────
+  phaseBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
+    backgroundColor: C.background, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    padding: Spacing.md,
+  },
+  phaseBannerDeload: { borderColor: C.success, backgroundColor: C.successSoft },
+  phaseIcon: {
+    width: 36, height: 36, borderRadius: Radius.md,
+    backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center',
+  },
+  phaseTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, letterSpacing: -0.1 },
+  phaseBody: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
+
+  // ── Goal countdown ───────────────────────────────────────────────────────────
+  goalCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
+    backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
+    padding: Spacing.md,
+  },
+  goalIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  goalHeadline: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.text, letterSpacing: -0.2 },
+  goalSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  goalTrack: { height: 6, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6, overflow: 'hidden' },
+  goalFill: { height: 6, backgroundColor: C.primary, borderRadius: Radius.full },
+
+  // ── Weekly report entry ──────────────────────────────────────────────────────
+  reportRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
+    backgroundColor: C.primary, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  reportIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  reportTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.onPrimary, letterSpacing: -0.2 },
+  reportSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+
+  // ── Rich empty state (plan at a glance) ──────────────────────────────────────
+  planCard: {
+    marginHorizontal: Spacing.containerPadding, marginTop: Spacing.sm,
+    backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
+    padding: Spacing.lg, gap: Spacing.sm, ...CardShadow,
+  },
+  planTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  planEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  planGoal: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+  planChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  planChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
+  planChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
+  planNext: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md, gap: 2, marginTop: 2 },
+  planNextLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
+  planNextTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  planNextMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  planStartBtn: { height: 50, backgroundColor: C.primary, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 2 },
+  planStartText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
+  planQuickText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, textAlign: 'center', paddingVertical: 4 },
+
   // ── Missed banner ──────────────────────────────────────────────────────────
   missedBanner: {
     flexDirection: 'row',
@@ -1063,6 +1346,11 @@ const styles = StyleSheet.create({
   },
   eventTitle: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
   eventTime: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, marginTop: 1 },
+  eventCardIgnored: { opacity: 0.6, borderWidth: 1, borderColor: C.outlineVariant, borderStyle: 'dashed', backgroundColor: 'transparent' },
+  eventTitleIgnored: { textDecorationLine: 'line-through' },
+  railTimeIgnored: { textDecorationLine: 'line-through' },
+  ignoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingLeft: Spacing.xs },
+  ignoreBtnText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline },
 
   // ── Emphasised workout card ──────────────────────────────────────────────────
   workoutCard: {

@@ -13,9 +13,11 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCalendarsUsageDescription": "Tempo uses your calendar to schedule workouts around your life.",
         "NSRemindersUsageDescription": "Tempo sends reminders before your scheduled workouts.",
-        "NSUserNotificationsUsageDescription": "Tempo sends reminders before your scheduled workouts."
+        "NSUserNotificationsUsageDescription": "Tempo sends reminders before your scheduled workouts.",
+        "NSPhotoLibraryUsageDescription": "Tempo lets you attach progress photos to your measurements. Photos stay private to your account."
       }
     },
     "android": {
@@ -64,7 +66,8 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true,

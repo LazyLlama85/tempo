@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import { generatePlan } from '@/lib/generatePlan'
 import { autoScheduleUpcoming } from '@/lib/autoSchedule'
 import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from '@/lib/notifications'
@@ -106,6 +107,12 @@ export default function PlanPreviewScreen() {
       } catch {
         // Notification errors must not block the user from entering the app
       }
+
+      track('onboarding_complete', {
+        goal: goal ?? '',
+        experience: experience ?? '',
+        days_per_week: days,
+      })
 
       await refreshProfile()
       // Finish with a quick "make it yours" profile step before entering the app.

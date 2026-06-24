@@ -108,6 +108,50 @@ function Body({ card }: { card: CardModel }) {
           </View>
         </>
       )
+    case 'monthVolume':
+      return (
+        <>
+          <Eyebrow icon="🏋️" text={`${card.monthLabel} VOLUME`} />
+          <Text style={styles.hero}>{wrappedFmt.num(card.lbs)}</Text>
+          <Text style={styles.heroUnit}>lbs lifted this month</Text>
+          <View style={styles.stats}>
+            <Stat value={`${card.workouts}`} label="Workouts this month" />
+          </View>
+          <View style={styles.highlight}>
+            <Text style={styles.highlightText}>That's the work behind the progress.</Text>
+          </View>
+        </>
+      )
+    case 'topLifts':
+      return (
+        <>
+          <Eyebrow icon="💪" text={`${card.monthLabel} TOP LIFTS`} />
+          <View style={[styles.stats, { marginTop: 22 }]}>
+            {card.lifts.map((l, i) => (
+              <View key={l.name} style={styles.liftRow}>
+                <Text style={styles.liftRank}>{i + 1}</Text>
+                <Text style={styles.liftName} numberOfLines={1}>{l.name}</Text>
+                <Text style={styles.liftWeight}>{wrappedFmt.num(l.weight)} lbs</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )
+    case 'weightTrend': {
+      const diff = Math.round((card.nowLbs - card.startLbs) * 10) / 10
+      return (
+        <>
+          <Eyebrow icon="📉" text="WEIGHT TREND" />
+          <Text style={styles.hero}>{diff < 0 ? '' : '+'}{diff}</Text>
+          <Text style={styles.heroUnit}>lbs over {card.weeks} week{card.weeks === 1 ? '' : 's'}</Text>
+          <View style={styles.stats}>
+            <Stat value={`${card.startLbs}`} unit="lbs" label="Where I started" />
+            <Stat value={`${card.nowLbs}`} unit="lbs" label="Where I am now" />
+            {card.perWeek != null && <Stat value={`${card.perWeek > 0 ? '+' : ''}${card.perWeek}`} unit="lb/wk" label="Current pace" />}
+          </View>
+        </>
+      )
+    }
   }
 }
 
@@ -168,6 +212,11 @@ const styles = StyleSheet.create({
 
   progressTrack: { height: 8, backgroundColor: CARD, borderRadius: Radius.full, marginTop: 16, overflow: 'hidden' },
   progressFill: { height: 8, backgroundColor: BLUE, borderRadius: Radius.full },
+
+  liftRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  liftRank: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: BLUE, width: 20 },
+  liftName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 17, color: TEXT },
+  liftWeight: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: TEXT, letterSpacing: -0.3 },
 
   footer: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   brandDot: {

@@ -8,9 +8,6 @@ import { useRef, useState } from 'react'
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform,
 } from 'react-native'
-import { captureRef } from 'react-native-view-shot'
-import * as Sharing from 'expo-sharing'
-import * as Clipboard from 'expo-clipboard'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { WrappedCard } from '@/components/WrappedCard'
@@ -18,8 +15,31 @@ import { captionFor, type WrappedCard as CardModel } from '@/lib/wrapped'
 
 const C = Colors.light
 
+// react-native-view-shot, expo-sharing and expo-clipboard are native modules:
+// they're only present once the dev/standalone client has been rebuilt to include
+// them. Requiring them lazily means a client that predates these deps shows a
+// friendly "update the app" message instead of crashing the whole screen at import.
+type NativeShare = {
+  captureRef: (ref: unknown, opts: Record<string, unknown>) => Promise<string>
+  Sharing: { isAvailableAsync: () => Promise<boolean>; shareAsync: (uri: string, opts?: Record<string, unknown>) => Promise<void> }
+  Clipboard: { setStringAsync: (s: string) => Promise<boolean> }
+}
+function loadNativeShare(): NativeShare | null {
+  try {
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      captureRef: require('react-native-view-shot').captureRef,
+      Sharing: require('expo-sharing'),
+      Clipboard: require('expo-clipboard'),
+    }
+  } catch {
+    return null
+  }
+}
+
 const CARD_LABEL: Record<CardModel['kind'], string> = {
   weekly: 'Weekly', streak: 'Streak', pr: 'PR', goal: 'Goal',
+  monthVolume: 'Month', topLifts: 'Top Lifts', weightTrend: 'Weight',
 }
 
 interface Props {
@@ -39,16 +59,21 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
 
   const handleShare = async () => {
     if (!card || busy) return
+    const native = loadNativeShare()
+    if (!native) {
+      Alert.alert('Update needed', 'Image sharing comes with the latest app build. Update the app to share your card — your caption is ready to copy below in the meantime.')
+      return
+    }
     setBusy(true)
     try {
-      const uri = await captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' })
+      const uri = await native.captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' })
       // Pre-load the caption onto the clipboard so it's ready to paste alongside.
-      await Clipboard.setStringAsync(caption)
-      if (!(await Sharing.isAvailableAsync())) {
+      await native.Clipboard.setStringAsync(caption)
+      if (!(await native.Sharing.isAvailableAsync())) {
         Alert.alert('Caption copied', 'Sharing isn’t available here, but your caption is on the clipboard.')
         return
       }
-      await Sharing.shareAsync(uri, {
+      await native.Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         UTI: 'public.png',
         dialogTitle: 'Share your Tempo card',
@@ -62,7 +87,12 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
 
   const handleCopy = async () => {
     if (!caption) return
-    await Clipboard.setStringAsync(caption)
+    const native = loadNativeShare()
+    if (!native) {
+      Alert.alert('Update needed', 'Copying the caption comes with the latest app build — update the app to enable it.')
+      return
+    }
+    await native.Clipboard.setStringAsync(caption)
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
   }

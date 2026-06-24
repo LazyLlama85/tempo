@@ -7,10 +7,12 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
+import { getLocalExerciseGif } from '@/data/exerciseMedia'
 
 const C = Colors.light
 
 export interface FormExercise {
+  id?: string
   name: string
   movement_pattern: string
   primary_muscles: string[]
@@ -27,6 +29,9 @@ interface Props {
 
 export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const visible = exercise !== null
+  // Our own bundled clip for this movement (the 8 the remote library lacked). When
+  // present it's shown instantly — no API call, works offline.
+  const localGif = getLocalExerciseGif(exercise?.id)
   const [gifId, setGifId] = useState<string | null>(null)
   const [gifLoading, setGifLoading] = useState(false)
   const fadeAnim = useRef(new Animated.Value(0)).current
@@ -36,6 +41,12 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   useEffect(() => {
     if (!exercise) {
       setGifId(null)
+      return
+    }
+    // Local clip wins — skip the remote lookup entirely.
+    if (getLocalExerciseGif(exercise.id)) {
+      setGifId(null)
+      setGifLoading(false)
       return
     }
     setGifLoading(true)
@@ -88,8 +99,25 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
 
               {/* GIF hero */}
               <View style={styles.mediaContainer}>
+                {/* Our own bundled clip — shown instantly when available */}
+                {localGif && (
+                  <View style={styles.gifWrapper}>
+                    <Image source={localGif} style={styles.gifImage} contentFit="contain" />
+                    {exercise.video_url && (
+                      <TouchableOpacity
+                        style={styles.playPill}
+                        onPress={() => Linking.openURL(exercise.video_url!)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="play-circle" size={15} color="#fff" />
+                        <Text style={styles.playPillText}>Watch video</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
                 {/* Loading skeleton */}
-                {gifLoading && (
+                {!localGif && gifLoading && (
                   <Animated.View style={[styles.skeleton, { opacity: pulseAnim }]}>
                     <View style={styles.skeletonIcon}>
                       <Ionicons name="barbell-outline" size={36} color={C.outlineVariant} />
@@ -99,7 +127,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* GIF with fade-in */}
-                {!gifLoading && gifId && (
+                {!localGif && !gifLoading && gifId && (
                   <Animated.View style={[styles.gifWrapper, { opacity: fadeAnim }]}>
                     <Image
                       source={gifSource(gifId)}
@@ -120,7 +148,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* No GIF fallback */}
-                {!gifLoading && !gifId && (
+                {!localGif && !gifLoading && !gifId && (
                   <TouchableOpacity
                     style={styles.noGifFallback}
                     activeOpacity={exercise.video_url ? 0.8 : 1}

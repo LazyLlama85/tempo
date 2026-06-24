@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience, TimeOfDay } from '@/types'
+import { weekProgression } from '@/lib/periodization'
 
 export interface PlanProfile {
   goal: Goal
@@ -34,12 +35,16 @@ const DAY_SLOTS: Record<number, number[]> = {
 const EXPERIENCE_ORDER: Experience[] = ['beginner', 'intermediate', 'advanced']
 
 function getStartMonday(): Date {
+  // Always anchor to THIS week's Monday. Past-dated sessions in the start week are
+  // skipped at insert time (see the loop below), so a mid-week signup never gets
+  // workouts dated before today — which the missed-workout sweep would otherwise
+  // immediately flag as "missed" on day one. Late-week signups simply start their
+  // first sessions on the remaining training days this week (or next Monday).
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const monBased = (today.getDay() + 6) % 7 // Mon=0 … Sun=6
   const monday = new Date(today)
-  // Start this Monday if still early in the week (Mon–Wed), else next Monday
-  monday.setDate(today.getDate() - (monBased <= 2 ? monBased : -(7 - monBased)))
+  monday.setDate(today.getDate() - monBased)
   return monday
 }
 
@@ -288,22 +293,35 @@ export async function generatePlan(
   const workouts: object[] = []
   let sessionCount = 0
 
+  // A fresh plan starts a normal mesocycle (overload weeks 1–3, deload week 4).
+  // The adaptation engine re-stamps these later if signals call for recovery/deload.
+  const todayStr = formatDate(new Date())
   for (let week = 0; week < 4; week++) {
+    const progression = weekProgression(week, profile.experience, 'normal')
     for (const slot of slots) {
-      const template = templates[sessionCount % templates.length]
       const date = new Date(startMonday)
       date.setDate(startMonday.getDate() + week * 7 + (slot - 1))
+
+      // Never create a past-dated session (mid-week signups): it would be marked
+      // "missed" instantly. Skip without consuming a template so rotation stays intact.
+      if (formatDate(date) < todayStr) continue
+
+      const template = templates[sessionCount % templates.length]
 
       workouts.push({
         user_id: userId,
         user_plan_id: planRow.id,
         planned_date: formatDate(date),
         planned_start_time: startTimeFor(profile.preferred_time_of_day ?? 'morning', sessionCount),
-        planned_duration_min: profile.preferred_duration_min,
-        focus: template.focus,
+        planned_duration_min: progression.isDeload
+          ? Math.round(profile.preferred_duration_min * 0.85)  // deload sessions run shorter
+          : profile.preferred_duration_min,
+        focus: progression.isDeload ? `${template.focus} (Deload)` : template.focus,
         status: 'scheduled',
         source: 'plan',
         exercise_ids: pickExercises(byPattern, template.patterns, sessionCount),
+        week_index: week,
+        progression,
       })
 
       sessionCount++

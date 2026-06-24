@@ -18,7 +18,7 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
-import type { TimeOfDay, UnavailableBlock } from '@/types'
+import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
 const C = Colors.light
 
@@ -109,8 +109,17 @@ export default function OnboardingAvailabilityScreen() {
       id: genId(), scope: 'weekday', weekday: wd, allDay: true,
     }))
     try {
+      // Include the required (NOT NULL) profile fields from the onboarding params —
+      // this is the FIRST write to user_profiles, so the row doesn't exist yet. Without
+      // goal/experience/days_per_week the insert violates NOT NULL and silently drops
+      // all availability (this was happening for every new user). plan-preview later
+      // re-upserts the same row to add onboarding_complete.
       const { error } = await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
+        goal: params.goal,
+        experience: params.experience,
+        equipment: (params.equipment ?? '').split(',').filter(Boolean) as Equipment[],
+        days_per_week: parseInt(params.daysPerWeek ?? '3', 10) || 3,
         wake_time: wake,
         bedtime: bed,
         work_start: workStart,

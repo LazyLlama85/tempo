@@ -16,6 +16,7 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
+import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
@@ -95,7 +96,12 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
     unavailable,
   }
 
-  const busy = await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today)
+  // Events the user crossed off ("ignore") shouldn't block scheduling — drop them.
+  const ignored = await getIgnoredEventKeys(client, userId)
+  const busy = filterIgnoredBusy(
+    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today),
+    ignored,
+  )
 
   // Nothing to schedule around (no calendar, no work/school hours, no blocked-off
   // times) → leave the plan's curated, time-of-day-aware template times alone.
@@ -180,8 +186,13 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
   }
 
   // Conflicts are with real calendar EVENTS only ("a new meeting overlaps it") —
-  // not work/school, which are availability the re-slot already routes around.
-  const busy = await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today)
+  // not work/school, which are availability the re-slot already routes around. Events
+  // the user has crossed off ("ignore") are dropped, so a workout may sit over them.
+  const ignored = await getIgnoredEventKeys(client, userId)
+  const busy = filterIgnoredBusy(
+    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today),
+    ignored,
+  )
   if (!busy.length) return 0
 
   const { data: workouts } = await client

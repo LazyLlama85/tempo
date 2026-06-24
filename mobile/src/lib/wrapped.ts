@@ -8,12 +8,16 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal } from '@/types'
+import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 
 export type WrappedCard =
   | { kind: 'weekly'; workouts: number; minutes: number; volumeLbs: number; adherencePct: number; prs: number; topExercise: string | null; topDeltaLbs: number | null }
   | { kind: 'streak'; days: number; workouts: number; hours: number }
   | { kind: 'pr'; exercise: string; weight: number; deltaLbs: number | null }
   | { kind: 'goal'; goal: Goal; title: string; pct: number; weeksRemaining: number; workoutsCompleted: number }
+  | { kind: 'monthVolume'; lbs: number; workouts: number; monthLabel: string }
+  | { kind: 'topLifts'; monthLabel: string; lifts: { name: string; weight: number }[] }
+  | { kind: 'weightTrend'; startLbs: number; nowLbs: number; perWeek: number | null; weeks: number }
 
 const GOAL_TITLES: Record<Goal, string> = {
   muscle_gain: 'BUILD MUSCLE',
@@ -165,6 +169,43 @@ export async function buildWrappedCards(client: SupabaseClient, userId: string):
       }
     }
 
+    // ── This month: total volume + top lifts ────────────────────────────────────
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+    const monthStartIso = monthStart.toISOString()
+    const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'long' }).toUpperCase()
+    let monthVolume = 0
+    const monthMaxByEx = new Map<string, number>()
+    for (const s of setRows) {
+      if (s.weight_lbs == null || (s.completed_at ?? '') < monthStartIso) continue
+      monthVolume += s.weight_lbs * s.reps_completed
+      if (s.weight_lbs > (monthMaxByEx.get(s.exercise_id) ?? 0)) monthMaxByEx.set(s.exercise_id, s.weight_lbs)
+    }
+    const monthWorkouts = wk.filter(w => w.status === 'completed' && w.planned_date >= toDateStr(monthStart)).length
+    if (monthVolume > 0) {
+      cards.push({ kind: 'monthVolume', lbs: Math.round(monthVolume), workouts: monthWorkouts, monthLabel })
+    }
+    const topLifts = [...monthMaxByEx.entries()]
+      .map(([id, weight]) => ({ name: exName.get(id) ?? 'Lift', weight }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 3)
+    if (topLifts.length >= 2) {
+      cards.push({ kind: 'topLifts', monthLabel, lifts: topLifts })
+    }
+
+    // ── Weight trend (before → now) ─────────────────────────────────────────────
+    try {
+      const ms = await fetchMeasurements(client, userId, 90)
+      const weighed = ms.filter(m => m.weight_lbs != null)
+        .sort((a, b) => a.measured_at.localeCompare(b.measured_at))
+      if (weighed.length >= 2) {
+        const startLbs = weighed[0].weight_lbs as number
+        const t = computeWeightTrend(ms)
+        const nowLbs = t.currentAvg ?? (weighed[weighed.length - 1].weight_lbs as number)
+        const weeks = Math.max(1, Math.round((Date.parse(weighed[weighed.length - 1].measured_at) - Date.parse(weighed[0].measured_at)) / (7 * 86400000)))
+        cards.push({ kind: 'weightTrend', startLbs: Math.round(startLbs * 10) / 10, nowLbs, perWeek: t.lbsPerWeek, weeks })
+      }
+    } catch { /* trend optional */ }
+
     return cards
   } catch {
     return []
@@ -199,6 +240,17 @@ export function captionFor(card: WrappedCard): string {
         : `First ${card.exercise} at ${fmtNum(card.weight)} lbs logged. Building from here. 🏆`
     case 'goal':
       return `${card.pct}% of the way to my goal with ${card.weeksRemaining} week${card.weeksRemaining === 1 ? '' : 's'} to go. ${card.workoutsCompleted} workouts down. Locked in. 🎯`
+    case 'monthVolume':
+      return `${fmtNum(card.lbs)} lbs moved this month across ${card.workouts} workout${card.workouts === 1 ? '' : 's'}. The work adds up. 🏋️`
+    case 'topLifts': {
+      const top = card.lifts[0]
+      return `Top lifts this month — ${card.lifts.map(l => `${l.name} ${fmtNum(l.weight)}`).join(', ')}.${top ? ` ${top.name} leading the way. 💪` : ''}`
+    }
+    case 'weightTrend': {
+      const diff = Math.round((card.nowLbs - card.startLbs) * 10) / 10
+      const dir = diff < 0 ? 'down' : 'up'
+      return `${card.startLbs} → ${card.nowLbs} lbs over ${card.weeks} week${card.weeks === 1 ? '' : 's'} (${dir} ${Math.abs(diff)}). Trusting the process. 📉`
+    }
   }
 }
 

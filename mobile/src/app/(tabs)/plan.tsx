@@ -12,9 +12,12 @@ import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
+import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
+import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
+import { getLocalExerciseGif } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import type { Goal, TravelMode } from '@/types'
 
@@ -30,6 +33,7 @@ interface WorkoutRow {
   planned_duration_min: number
   exercise_ids: string[]
   status: string
+  progression: WeekProgression | null
 }
 
 interface ExerciseRow {
@@ -123,6 +127,7 @@ export default function WorkoutsScreen() {
   const [swapping, setSwapping] = useState(false)
   const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
+  const [bias, setBias] = useState<IntensityBias>(0)
   const [travel, setTravel] = useState<TravelMode | null>(null)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
@@ -156,22 +161,26 @@ export default function WorkoutsScreen() {
 
     const { data: workoutRow } = await supabase
       .from('scheduled_workouts')
-      .select('id, focus, planned_duration_min, exercise_ids, status')
+      .select('id, focus, planned_duration_min, exercise_ids, status, progression')
       .eq('id', targetId)
       .single()
 
     if (!workoutRow) { setNotFound(true); setLoading(false); return }
     setWorkout(workoutRow as WorkoutRow)
+    const progression = (workoutRow.progression ?? null) as WeekProgression | null
 
     const exerciseIds: string[] = workoutRow.exercise_ids ?? []
 
-    // The user's goal drives rep/rest schemes; a rough recovery day trims volume.
-    const [{ data: profileRow }, readiness] = await Promise.all([
+    // The user's goal drives rep/rest schemes; a rough recovery day trims volume;
+    // their last "too easy / too hard" feedback biases this session's volume.
+    const [{ data: profileRow }, readiness, intensityBias] = await Promise.all([
       supabase.from('user_profiles').select('goal').eq('user_id', userId).maybeSingle(),
       getTodayReadiness(userId),
+      getIntensityBias(supabase, userId),
     ])
     const goal = (profileRow?.goal ?? 'general_fitness') as Goal
     setGoal(goal)
+    setBias(intensityBias)
     const readinessLow = readiness != null && readiness < 50
 
     // Fetch full exercise rows and restore the plan's original order
@@ -198,6 +207,7 @@ export default function WorkoutsScreen() {
 
     // Pre-fetch exercise IDs in the background; expo-image handles the actual GIF download with auth headers
     ordered.forEach(ex => {
+      if (getLocalExerciseGif(ex.id)) return // our own clip — no remote lookup needed
       fetchExerciseId(ex.name).then(id => {
         if (id) setGifIds(prev => ({ ...prev, [ex.id]: id }))
       })
@@ -227,7 +237,7 @@ export default function WorkoutsScreen() {
         }))
         prevBySetMap[ex.id] = lastSets.map(r =>
           r.weight_lbs != null ? `${r.weight_lbs}×${r.reps_completed}` : `${r.reps_completed}`)
-        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow)
+        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression)
       }
     }
 
@@ -368,7 +378,7 @@ export default function WorkoutsScreen() {
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false)
+    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression)
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))
@@ -418,10 +428,14 @@ export default function WorkoutsScreen() {
 
     cancelWorkoutReminder(workout.id).catch(() => {})
 
+    // Re-evaluate the block's adaptation mode now that another session is logged —
+    // may shift the coming weeks into recovery/deload (best-effort, never blocks).
+    refreshAdaptation(supabase, userId).catch(() => {})
+
     // Motivational summary — streak impact, consistency, weekly target progress.
     router.replace({
       pathname: '/workout-complete',
-      params: { minutes: String(mins), quick: quickParam === '1' ? '1' : '0' },
+      params: { minutes: String(mins), quick: quickParam === '1' ? '1' : '0', logId: workoutLogId ?? '' },
     })
   }
 
@@ -542,6 +556,21 @@ export default function WorkoutsScreen() {
             </Text>
           </View>
         )}
+        {workout.progression?.isDeload ? (
+          <View style={[styles.travelBanner, styles.deloadBanner]}>
+            <Ionicons name="leaf" size={15} color={C.success} />
+            <Text style={styles.travelBannerText}>
+              Deload week — weights and volume are intentionally lighter so you recover and come back stronger.
+            </Text>
+          </View>
+        ) : workout.progression?.phase === 'peak' ? (
+          <View style={styles.travelBanner}>
+            <Ionicons name="trending-up" size={15} color={C.primary} />
+            <Text style={styles.travelBannerText}>
+              Peak week — an extra set per lift to push this block's overload. Bring it.
+            </Text>
+          </View>
+        ) : null}
         {exercises.map((ex) => {
           const exSets = sets[ex.id] ?? []
           const doneCount = exSets.filter(s => s.done).length
@@ -559,7 +588,13 @@ export default function WorkoutsScreen() {
               >
                 {/* GIF thumbnail */}
                 <View style={styles.thumbWrap}>
-                  {gifIds[ex.id] ? (
+                  {getLocalExerciseGif(ex.id) ? (
+                    <Image
+                      source={getLocalExerciseGif(ex.id)!}
+                      style={styles.thumb}
+                      contentFit="contain"
+                    />
+                  ) : gifIds[ex.id] ? (
                     <Image
                       source={gifSource(gifIds[ex.id]!)}
                       style={styles.thumb}
@@ -792,6 +827,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.sm,
   },
   travelBannerText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, lineHeight: 17 },
+  deloadBanner: { backgroundColor: C.successSoft },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,

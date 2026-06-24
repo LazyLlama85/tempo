@@ -64,19 +64,23 @@ export const EXERCISE_MEDIA: Record<string, ExerciseMedia> = {
   [UUID('48')]: { exdbId: '2612' }, // Jump Rope
 }
 
-// Exercises we intentionally do NOT show a clip for (no accurate match in the
-// source library). Kept here so the gap is visible in code, mirrored in
-// supabase/MISSING_EXERCISE_MEDIA.md.
-export const MISSING_MEDIA_UUIDS: string[] = [
-  UUID('02'), // Bodyweight Squat
-  UUID('04'), // Plank
-  UUID('28'), // Face Pull
-  UUID('32'), // Bulgarian Split Squat
-  UUID('36'), // Pause Squat
-  UUID('43'), // Hollow Body Hold
-  UUID('49'), // Box Jump
-  UUID('50'), // Rowing Machine
-]
+// Locally-bundled form clips — our own GIFs (split from a single demo video) for the
+// 8 movements the remote library had no accurate clip for. These take priority over
+// any remote source and work offline / without an API key. require() returns the
+// bundled asset id, which expo-image accepts directly as a source.
+const LOCAL_GIFS: Record<string, number> = {
+  [UUID('02')]: require('@/assets/exercise-gifs/bodyweight-squat.gif'),      // Bodyweight Squat
+  [UUID('04')]: require('@/assets/exercise-gifs/plank.gif'),                 // Plank
+  [UUID('28')]: require('@/assets/exercise-gifs/face-pull.gif'),             // Face Pull
+  [UUID('32')]: require('@/assets/exercise-gifs/bulgarian-split-squat.gif'), // Bulgarian Split Squat
+  [UUID('36')]: require('@/assets/exercise-gifs/pause-squat.gif'),           // Pause Squat
+  [UUID('43')]: require('@/assets/exercise-gifs/hollow-body-hold.gif'),      // Hollow Body Hold
+  [UUID('49')]: require('@/assets/exercise-gifs/box-jump.gif'),              // Box Jump
+  [UUID('50')]: require('@/assets/exercise-gifs/rowing-machine.gif'),        // Rowing Machine
+}
+
+// Every previously-missing movement now has a local clip, so there are no gaps left.
+export const MISSING_MEDIA_UUIDS: string[] = []
 
 const EXDB_IMAGE_HOST = 'exercisedb.p.rapidapi.com'
 const RAPIDAPI_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY
@@ -91,12 +95,21 @@ export function getExerciseMedia(exerciseId: string | null | undefined): Exercis
   return EXERCISE_MEDIA[exerciseId] ?? null
 }
 
+// Our own bundled clip for an exercise (by id), or null. Used by the form guide +
+// runner thumbnail to show local GIFs for the movements the remote library lacked.
+export function getLocalExerciseGif(exerciseId: string | null | undefined): number | null {
+  if (exerciseId && LOCAL_GIFS[exerciseId] != null) return LOCAL_GIFS[exerciseId]
+  return null
+}
+
 // Returns an expo-image source (uri + auth headers) for an exercise's form clip,
 // or null when we have no verified clip or the API key isn't configured.
 export function getExerciseGifSource(
   exerciseId: string | null | undefined,
   resolution: 180 | 360 | 720 = 360,
-): GifSource | null {
+): number | GifSource | null {
+  // Prefer our own bundled clip when we have one (offline, no API key required).
+  if (exerciseId && LOCAL_GIFS[exerciseId] != null) return LOCAL_GIFS[exerciseId]
   const media = getExerciseMedia(exerciseId)
   if (!media || !RAPIDAPI_KEY) return null
   return {
