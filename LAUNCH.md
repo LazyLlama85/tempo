@@ -59,7 +59,9 @@ public privacy URL.
 2. `npm i -g eas-cli && eas login && eas init` (links the project to **your** Expo account).
 3. (Optional) add `EXPO_PUBLIC_POSTHOG_KEY` / `EXPO_PUBLIC_SENTRY_DSN` to `eas.json` →
    `build.production.env`. For symbolicated crash stacks also set `SENTRY_ORG` / `SENTRY_PROJECT` /
-   `SENTRY_AUTH_TOKEN` as EAS secrets.
+   `SENTRY_AUTH_TOKEN` as EAS secrets **and remove `SENTRY_DISABLE_AUTO_UPLOAD` from the
+   `preview`/`production` env** — that flag is currently set so release builds skip the Sentry
+   source-map upload (which otherwise fails the Gradle build when the token is absent).
 4. All Supabase migrations are already applied — nothing to run.
 
 ### iOS
@@ -74,7 +76,7 @@ public privacy URL.
 5. Submit for review. In review notes, tell them to use **guest mode** (no login needed).
 
 ### Android
-1. Create the Play Console app (`com.tempo.app`).
+1. Create the Play Console app (`com.fittempo.app`).
 2. `eas build --profile production --platform android` (app-bundle).
    For push: upload the **FCM v1 service-account JSON** (`eas credentials` or Play/Firebase console).
 3. Complete Play **Data safety**, content rating, target audience, privacy URL, store listing +

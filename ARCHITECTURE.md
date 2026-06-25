@@ -11,7 +11,7 @@ from your performance and recovery, and — the wedge feature — turns any spar
 purposeful **Quick Workout**. One shared promise: *"no matter how busy your day gets, Tempo keeps
 you moving."*
 
-- **Platforms:** iOS + Android (Expo/React Native), bundle id `com.tempo.app`, v1.0.0. A separate
+- **Platforms:** iOS + Android (Expo/React Native), iOS bundle id `com.tempo.app` / Android package `com.fittempo.app`, v1.0.0. A separate
   static **web** marketing site lives in `web/`.
 - **Auth modes:** Apple Sign In, Google OAuth, and guest/anonymous.
 

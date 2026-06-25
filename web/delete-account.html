@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Your Account &amp; Data — Tempo</title>
+  <meta name="description" content="How to delete your Tempo account and associated data.">
+  <meta name="robots" content="index, follow">
+  <link rel="icon" href="tempo-logo.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #faf8f4; --surface: #ffffff; --ink: #17140f; --ink-2: #423c33;
+      --muted: #6c655b; --line: rgba(23,20,15,0.10); --accent: #3D82F7; --accent-ink: #2563EB;
+    }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--ink); line-height: 1.65;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+    header {
+      border-bottom: 1px solid var(--line); background: rgba(250,248,244,0.9);
+      backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 10;
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+    .logo img { width: 30px; height: 30px; border-radius: 8px; object-fit: contain; }
+    .logo span { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
+    .back { font-size: 14px; font-weight: 600; color: var(--accent-ink); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    main { padding: 56px 0 96px; }
+    h1 { font-size: clamp(32px, 5vw, 44px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; }
+    .lead { margin-top: 24px; font-size: 18px; color: var(--ink-2); }
+    h2 { margin-top: 44px; margin-bottom: 12px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    p { margin-top: 12px; color: var(--ink-2); font-size: 16px; }
+    ol, ul { margin: 14px 0 0 22px; color: var(--ink-2); font-size: 16px; }
+    li { margin-bottom: 10px; }
+    a { color: var(--accent-ink); }
+    strong { color: var(--ink); font-weight: 600; }
+    .steps {
+      margin-top: 20px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; padding: 8px 26px 18px;
+    }
+    .steps ol { counter-reset: s; list-style: none; margin-left: 0; }
+    .steps li { position: relative; padding: 14px 0 14px 44px; border-bottom: 1px solid var(--line); }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      counter-increment: s; content: counter(s);
+      position: absolute; left: 0; top: 13px;
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--accent); color: #fff; font-weight: 700; font-size: 14px;
+      display: grid; place-items: center;
+    }
+    .note {
+      margin-top: 22px; background: rgba(61,130,247,0.08); border: 1px solid rgba(61,130,247,0.25);
+      border-radius: 14px; padding: 16px 18px; font-size: 15px; color: var(--ink-2);
+    }
+    footer { border-top: 1px solid var(--line); padding: 32px 0; font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="logo" href="index.html"><img src="tempo-logo.png" alt="Tempo"><span>Tempo</span></a>
+      <a class="back" href="index.html">&larr; Back to site</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Delete your account &amp; data</h1>
+    <p class="lead">
+      You can permanently delete your Tempo account and the data associated with it at any time.
+      This page explains how, what gets removed, and how to request deletion if you can no longer
+      access the app.
+    </p>
+
+    <h2>Delete your account in the app</h2>
+    <p>The fastest way is directly inside Tempo:</p>
+    <div class="steps">
+      <ol>
+        <li>Open the <strong>Tempo</strong> app and make sure you're signed in.</li>
+        <li>Go to the <strong>Profile</strong> tab.</li>
+        <li>Tap <strong>Delete Account</strong>.</li>
+        <li>Confirm. Your account and associated personal data are permanently removed.</li>
+      </ol>
+    </div>
+
+    <h2>Request deletion by email</h2>
+    <p>
+      If you can't access the app (for example, you've uninstalled it), email us from the address linked
+      to your account and we'll process the deletion for you:
+    </p>
+    <p>
+      <a href="mailto:jacobalexanderroberts2011@gmail.com?subject=Delete%20my%20Tempo%20account">jacobalexanderroberts2011@gmail.com</a>
+      &nbsp;— subject line "Delete my Tempo account."
+    </p>
+    <p>We'll verify your request and complete the deletion, typically within 30 days.</p>
+
+    <h2>What gets deleted</h2>
+    <p>When you delete your account, we permanently remove the personal data tied to it, including:</p>
+    <ul>
+      <li>Your account and profile (email, name, goals, and preferences).</li>
+      <li>Your training plan, scheduled and completed workouts, and session feedback.</li>
+      <li>Your body measurements and weight history.</li>
+      <li>Any progress photos you uploaded.</li>
+      <li>Your registered notification/device tokens.</li>
+    </ul>
+
+    <h2>Deleting specific data instead</h2>
+    <p>
+      If you'd rather keep your account but remove particular information, you can delete individual
+      measurements, progress photos, and logged workouts within the app, or email us to request removal
+      of specific data.
+    </p>
+
+    <div class="note">
+      <strong>Retention note:</strong> Deletion is permanent and cannot be undone. We may retain a limited
+      amount of information where required to comply with legal obligations, after which it is deleted.
+      For more detail, see our <a href="privacy.html">Privacy Policy</a>.
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">&copy; 2026 Tempo. All rights reserved.</div>
+  </footer>
+</body>
+</html>

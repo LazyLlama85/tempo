@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "package": "com.tempo.app",
+      "package": "com.fittempo.app",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -78,6 +78,7 @@
       "eas": {
         "projectId": "bdb2dc2b-4340-4191-8a7f-4411fb56734f"
       }
-    }
+    },
+    "owner": "jacobr0911"
   }
 }

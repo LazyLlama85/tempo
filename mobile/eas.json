@@ -11,7 +11,8 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://rtoahppnekykgmjukujm.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0b2FocHBuZWt5a2dtanVrdWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjE0MzQsImV4cCI6MjA5NjkzNzQzNH0.G6XiXIOK0Kk3r3eT2E_BPhsvTcsW7VoyzbhQzsFdYFo",
-        "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab"
+        "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -20,7 +21,8 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://rtoahppnekykgmjukujm.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0b2FocHBuZWt5a2dtanVrdWptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjE0MzQsImV4cCI6MjA5NjkzNzQzNH0.G6XiXIOK0Kk3r3eT2E_BPhsvTcsW7VoyzbhQzsFdYFo",
-        "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab"
+        "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
