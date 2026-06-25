@@ -17,7 +17,7 @@ import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
-import { getLocalExerciseGif } from '@/data/exerciseMedia'
+import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import type { Goal, TravelMode } from '@/types'
 
@@ -207,7 +207,7 @@ export default function WorkoutsScreen() {
 
     // Pre-fetch exercise IDs in the background; expo-image handles the actual GIF download with auth headers
     ordered.forEach(ex => {
-      if (getLocalExerciseGif(ex.id)) return // our own clip — no remote lookup needed
+      if (getExerciseGifSource(ex.id)) return // verified clip by id — no name lookup needed
       fetchExerciseId(ex.name).then(id => {
         if (id) setGifIds(prev => ({ ...prev, [ex.id]: id }))
       })
@@ -415,11 +415,11 @@ export default function WorkoutsScreen() {
     if (!workout || !workoutLogId || completing) return
     setCompleting(true)
     const now = new Date().toISOString()
-    const mins = Math.round(elapsed / 60)
+    const mins = Math.max(1, Math.round(elapsed / 60))
 
     await Promise.all([
       supabase.from('scheduled_workouts')
-        .update({ status: 'completed', completed_at: now })
+        .update({ status: 'completed', completed_at: now, actual_duration_min: mins })
         .eq('id', workout.id),
       supabase.from('workout_logs')
         .update({ completed_at: now })
@@ -588,9 +588,9 @@ export default function WorkoutsScreen() {
               >
                 {/* GIF thumbnail */}
                 <View style={styles.thumbWrap}>
-                  {getLocalExerciseGif(ex.id) ? (
+                  {getExerciseGifSource(ex.id) ? (
                     <Image
-                      source={getLocalExerciseGif(ex.id)!}
+                      source={getExerciseGifSource(ex.id)!}
                       style={styles.thumb}
                       contentFit="contain"
                     />

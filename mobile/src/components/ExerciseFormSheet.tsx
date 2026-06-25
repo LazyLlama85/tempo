@@ -7,7 +7,7 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
-import { getLocalExerciseGif } from '@/data/exerciseMedia'
+import { getExerciseGifSource, getExerciseMedia } from '@/data/exerciseMedia'
 
 const C = Colors.light
 
@@ -29,9 +29,11 @@ interface Props {
 
 export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const visible = exercise !== null
-  // Our own bundled clip for this movement (the 8 the remote library lacked). When
-  // present it's shown instantly — no API call, works offline.
-  const localGif = getLocalExerciseGif(exercise?.id)
+  // The verified clip for this movement, by id: our own bundled GIF for the 8 the
+  // remote library lacked, or the curated ExerciseDB clip for everything else.
+  // Shown directly — far more reliable than a fuzzy name search.
+  const curated = getExerciseGifSource(exercise?.id)
+  const curatedNote = getExerciseMedia(exercise?.id)?.note ?? null
   const [gifId, setGifId] = useState<string | null>(null)
   const [gifLoading, setGifLoading] = useState(false)
   const fadeAnim = useRef(new Animated.Value(0)).current
@@ -43,8 +45,8 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
       setGifId(null)
       return
     }
-    // Local clip wins — skip the remote lookup entirely.
-    if (getLocalExerciseGif(exercise.id)) {
+    // We have a verified clip by id — skip the name lookup entirely.
+    if (getExerciseGifSource(exercise.id)) {
       setGifId(null)
       setGifLoading(false)
       return
@@ -99,10 +101,10 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
 
               {/* GIF hero */}
               <View style={styles.mediaContainer}>
-                {/* Our own bundled clip — shown instantly when available */}
-                {localGif && (
+                {/* Verified clip by id (local or curated) — shown directly */}
+                {curated && (
                   <View style={styles.gifWrapper}>
-                    <Image source={localGif} style={styles.gifImage} contentFit="contain" />
+                    <Image source={curated} style={styles.gifImage} contentFit="contain" />
                     {exercise.video_url && (
                       <TouchableOpacity
                         style={styles.playPill}
@@ -117,7 +119,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* Loading skeleton */}
-                {!localGif && gifLoading && (
+                {!curated && gifLoading && (
                   <Animated.View style={[styles.skeleton, { opacity: pulseAnim }]}>
                     <View style={styles.skeletonIcon}>
                       <Ionicons name="barbell-outline" size={36} color={C.outlineVariant} />
@@ -127,7 +129,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* GIF with fade-in */}
-                {!localGif && !gifLoading && gifId && (
+                {!curated && !gifLoading && gifId && (
                   <Animated.View style={[styles.gifWrapper, { opacity: fadeAnim }]}>
                     <Image
                       source={gifSource(gifId)}
@@ -148,7 +150,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* No GIF fallback */}
-                {!localGif && !gifLoading && !gifId && (
+                {!curated && !gifLoading && !gifId && (
                   <TouchableOpacity
                     style={styles.noGifFallback}
                     activeOpacity={exercise.video_url ? 0.8 : 1}
@@ -165,6 +167,14 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                   </TouchableOpacity>
                 )}
               </View>
+
+              {/* Caveat when the clip is a close variant (e.g. loaded version) */}
+              {curated && curatedNote && (
+                <View style={styles.noteRow}>
+                  <Ionicons name="information-circle-outline" size={13} color={C.outline} />
+                  <Text style={styles.noteText}>{curatedNote}</Text>
+                </View>
+              )}
 
               {/* Muscles worked */}
               <Text style={styles.sectionLabel}>MUSCLES WORKED</Text>
@@ -305,6 +315,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   playPillText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff' },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -2, marginBottom: 2 },
+  noteText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, lineHeight: 16 },
 
   // ── Sections ───────────────────────────────────────────────────────────────
   sectionLabel: {

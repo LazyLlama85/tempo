@@ -132,6 +132,7 @@ interface ScheduledWorkout {
   status: string
   exercise_ids: string[]
   planned_duration_min: number
+  actual_duration_min: number | null
   calendar_event_id: string | null
   calendar_provider: 'google' | 'device' | null
 }
@@ -705,7 +706,8 @@ export default function ScheduleScreen() {
             </View>
             <View style={styles.metaChip}>
               <Ionicons name="hourglass-outline" size={13} color={C.textSecondary} />
-              <Text style={styles.metaText}>{w.planned_duration_min} min</Text>
+              {/* Completed: show how long it actually took; otherwise the estimate. */}
+              <Text style={styles.metaText}>{(done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min)} min</Text>
             </View>
           </View>
 
