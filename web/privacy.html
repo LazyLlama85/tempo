@@ -69,7 +69,7 @@
 
   <main class="wrap">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: June 25, 2026</p>
+    <p class="updated">Last updated: July 5, 2026</p>
 
     <p class="lead">
       Tempo ("Tempo," "we," "us") builds your training schedule around your real life.
@@ -93,8 +93,12 @@
 
     <h3>Information accessed on your device</h3>
     <ul>
-      <li><strong>Calendar.</strong> With your permission, Tempo reads your calendar to schedule workouts around
-        your commitments. Calendar events are used on your device to plan sessions and are not sold.</li>
+      <li><strong>Calendar.</strong> With your permission, Tempo reads your calendar's busy times to schedule
+        workouts around your commitments, and &mdash; only if you turn it on &mdash; adds the workouts you schedule to
+        your calendar. If you connect <strong>Google Calendar</strong>, Tempo requests the <code>calendar.events</code>
+        permission for this; your Google authorization is stored securely server-side and removed when you disconnect
+        or delete your account. Calendar data is used only to schedule your training and is never sold or used for
+        advertising.</li>
       <li><strong>Notifications.</strong> With your permission, Tempo sends pre-workout reminders and retention
         nudges. You can disable notifications in your device settings at any time.</li>
     </ul>
@@ -132,6 +136,17 @@
     <p>We may also disclose information if required by law or to protect the rights, safety, and security of
       our users and our service.</p>
 
+    <div class="card" style="border-color: rgba(61,130,247,0.35);">
+      <h3 style="margin-top:0;">Google API Services User Data Policy</h3>
+      <p>Tempo's use and transfer to any other app of information received from Google APIs will adhere to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data
+        Policy</a>, including the <strong>Limited Use</strong> requirements. Tempo accesses Google Calendar (the
+        <code>calendar.events</code> scope) only to read your events' times so it can schedule workouts around them
+        and, when you opt in, to add your scheduled workouts to your calendar. We do not use Google user data for
+        advertising, we do not sell it, and we do not transfer it to third parties except as necessary to provide
+        these features or as required by law. Humans do not read your Google Calendar data.</p>
+    </div>
+
     <h2>4. Data security</h2>
     <p>Data is encrypted in transit (HTTPS/TLS) and stored with our cloud provider under access controls. No method
       of transmission or storage is 100% secure, but we take reasonable measures to protect your information.</p>
@@ -163,11 +178,18 @@
 
     <h2>9. Contact us</h2>
     <p>If you have questions about this policy or your data, contact us at
-      <a href="mailto:jacobalexanderroberts2011@gmail.com">jacobalexanderroberts2011@gmail.com</a>.</p>
+      <a href="mailto:fittempo.app@gmail.com">fittempo.app@gmail.com</a>.</p>
   </main>
 
   <footer>
-    <div class="wrap">&copy; 2026 Tempo. All rights reserved.</div>
+    <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <span>&copy; 2026 Tempo. All rights reserved.</span>
+      <span>
+        <a href="index.html" style="color:var(--muted);text-decoration:none;margin-left:16px;">Home</a>
+        <a href="terms.html" style="color:var(--muted);text-decoration:none;margin-left:16px;">Terms</a>
+        <a href="delete-account.html" style="color:var(--muted);text-decoration:none;margin-left:16px;">Delete account</a>
+      </span>
+    </div>
   </footer>
 </body>
 </html>
