@@ -214,7 +214,13 @@ function VariantRow({ ex, styles, C, onPress }: { ex: Exercise; styles: any; C: 
 function Chip({ label, on, onPress, styles, small }: { label: string; on: boolean; onPress: () => void; styles: any; small?: boolean }) {
   return (
     <TouchableOpacity style={[styles.chip, small && styles.chipSmall, on && styles.chipOn]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={[styles.chipText, small && styles.chipTextSmall, on && styles.chipTextOn]}>{label}</Text>
+      <Text
+        style={[styles.chipText, small && styles.chipTextSmall, on && styles.chipTextOn]}
+        numberOfLines={1}
+        allowFontScaling={false}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   )
 }
@@ -236,15 +242,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   searchInput: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, color: C.text },
   chipScroll: { flexGrow: 0 },
-  chipRow: { gap: Spacing.xs, paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xs },
+  chipRow: { gap: Spacing.xs, paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.sm, alignItems: 'center' },
   chip: {
     borderRadius: Radius.full, borderWidth: 1.5, borderColor: C.outlineVariant,
-    backgroundColor: C.background, paddingHorizontal: Spacing.md + 2, paddingVertical: 10,
+    backgroundColor: C.background, paddingHorizontal: Spacing.md + 2,
+    minHeight: 40, alignItems: 'center', justifyContent: 'center',
   },
-  chipSmall: { paddingVertical: 9, borderWidth: 1.5 },
+  chipSmall: { minHeight: 38, borderWidth: 1.5 },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },
-  chipText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.textSecondary },
-  chipTextSmall: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  chipText: { fontFamily: 'Inter_700Bold', fontSize: 14.5, lineHeight: 20, color: C.textSecondary },
+  chipTextSmall: { fontSize: 13.5, lineHeight: 19 },
   chipTextOn: { color: C.onPrimary },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl },
   countText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, paddingVertical: Spacing.xs },
