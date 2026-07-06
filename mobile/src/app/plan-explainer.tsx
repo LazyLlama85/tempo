@@ -6,16 +6,18 @@
 // the volume/intensity is set the way it is, and when your next deload lands.
 
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { PulseLoader } from '@/components/brand'
+import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import type { WeekProgression, Phase, AdaptationMode } from '@/lib/periodization'
 
-const C = Colors.light
 
 // Plain-language explanation per phase.
 const PHASE_COPY: Record<Phase, { title: string; what: string }> = {
@@ -38,6 +40,8 @@ function fmtDate(s: string): string {
 }
 
 export default function PlanExplainerScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
@@ -76,7 +80,7 @@ export default function PlanExplainerScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Plan</Text>
@@ -84,11 +88,10 @@ export default function PlanExplainerScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={C.primary} /></View>
+        <View style={styles.center}><PulseLoader caption="Loading your plan…" /></View>
       ) : !current ? (
         <View style={styles.center}>
-          <Ionicons name="sparkles-outline" size={30} color={C.outline} />
-          <Text style={styles.emptyText}>No active plan week to explain yet. Generate a plan from onboarding and check back.</Text>
+          <EmptyState kind="calendar" title="No plan week yet" body="Generate a plan from onboarding and Tempo will explain exactly why each week is built the way it is." />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -136,6 +139,8 @@ export default function PlanExplainerScreen() {
 }
 
 function Dial({ icon, label, value }: { icon: string; label: string; value: string }) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.dialRow}>
       <View style={styles.dialIcon}><Ionicons name={icon as any} size={16} color={C.primary} /></View>
@@ -145,10 +150,10 @@ function Dial({ icon, label, value }: { icon: string; label: string; value: stri
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.xl },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
@@ -157,7 +162,7 @@ const styles = StyleSheet.create({
   phaseCardDeload: { borderColor: C.success },
   phaseIconWrap: { width: 52, height: 52, borderRadius: Radius.full, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
   phaseEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
-  phaseTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.4 },
+  phaseTitle: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.4 },
   phaseWhat: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
 
   card: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm },

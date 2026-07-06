@@ -1,19 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark, TempoPulse } from '@/components/brand'
+import { FadeInView, PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { generatePlan } from '@/lib/generatePlan'
 import { autoScheduleUpcoming } from '@/lib/autoSchedule'
 import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from '@/lib/notifications'
+import { registerPushToken } from '@/lib/pushTokens'
 import type { ScheduledWorkout } from '@/lib/notifications'
+
+// Prime before the one-shot OS permission prompt: explain the value in our own
+// words first, so the system dialog isn't the first thing the user sees. iOS only
+// asks once — a reflex "Don't Allow" here would kill reminders AND every retention
+// push forever, so this framing moment matters.
+function askForReminders(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Get a nudge before each workout?',
+      'Tempo reminds you 30 minutes before each scheduled session — on busy days that heads-up is most of the battle.',
+      [
+        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Remind me', onPress: () => resolve(true) },
+      ],
+      { cancelable: false },
+    )
+  })
+}
 import type { Equipment, Experience, Goal } from '@/types'
 
-const C = Colors.light
 
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
@@ -37,16 +58,35 @@ function getProgramName(goal: string, experience: string, days: number): string 
 }
 
 export default function PlanPreviewScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { goal, experience, equipment, daysPerWeek, preferredCalendar } = useLocalSearchParams<{
+  const { goal, experience, equipment, daysPerWeek, preferredCalendar, schedulingMode } = useLocalSearchParams<{
     goal: string
     experience: string
     equipment: string
     daysPerWeek: string
     preferredCalendar?: string
+    schedulingMode?: string
   }>()
   const { session, refreshProfile } = useAuthStore()
   const [status, setStatus] = useState<'idle' | 'saving' | 'generating'>('idle')
+
+  // While the plan generates, narrate what's actually happening — the wait
+  // becomes the moment the coach proves it's working, not a dead spinner.
+  const BUILD_STEPS = [
+    'Reading your schedule…',
+    'Choosing your lifts…',
+    'Balancing your training week…',
+    'Placing sessions around your day…',
+  ]
+  const [buildStep, setBuildStep] = useState(0)
+  useEffect(() => {
+    if (status !== 'generating') { setBuildStep(0); return }
+    const t = setInterval(() => setBuildStep(s => (s + 1) % BUILD_STEPS.length), 1400)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
 
   if (!session) return <Redirect href="/sign-in" />
 
@@ -67,6 +107,8 @@ export default function PlanPreviewScreen() {
         days_per_week: days,
         preferred_duration_min: 45,
         onboarding_complete: true,
+        // Connecting a calendar doesn't force auto — persist the user's choice.
+        scheduling_mode: schedulingMode === 'manual' ? 'manual' : 'auto',
         // Persist the calendar the user connected during onboarding as the default
         // sync target (only when it's a known provider).
         ...(preferredCalendar === 'google' || preferredCalendar === 'device'
@@ -84,15 +126,21 @@ export default function PlanPreviewScreen() {
         preferred_duration_min: 45,
       })
 
-      // Automatically place those workouts at real, calendar-aware times around the
-      // calendar the user just connected — no "schedule my week" button. Best-effort:
-      // if no calendar is connected or a read fails, the template times stand.
-      try { await autoScheduleUpcoming(supabase, session.user.id) } catch { /* keep template times */ }
+      // In auto mode, place those workouts at real, calendar-aware times around the
+      // calendar the user just connected. In manual mode the user owns the times, so
+      // we leave the curated template times. (autoScheduleUpcoming also self-guards on
+      // scheduling_mode; this just skips the work entirely.) Best-effort either way.
+      if (schedulingMode !== 'manual') {
+        try { await autoScheduleUpcoming(supabase, session.user.id) } catch { /* keep template times */ }
+      }
 
-      // Schedule reminders — best-effort, never blocks onboarding
+      // Schedule reminders — best-effort, never blocks onboarding. Primed ask
+      // first, then the OS prompt; on grant, also register this device for the
+      // server-driven retention pushes (sign-in no longer prompts for this).
       try {
-        const granted = await requestPermissions()
+        const granted = (await askForReminders()) && (await requestPermissions())
         if (granted) {
+          registerPushToken(supabase, session.user.id).catch(() => {})
           // Clear any reminders tied to the previous plan's (now-retired) workout
           // IDs first, so re-generating a plan can't leave stale notifications
           // firing for sessions that no longer exist.
@@ -141,10 +189,10 @@ export default function PlanPreviewScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} disabled={busy}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back" disabled={busy}>
           <Ionicons name="arrow-back" size={22} color={busy ? C.outlineVariant : C.text} />
         </TouchableOpacity>
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <View style={{ width: 38 }} />
       </View>
 
@@ -153,12 +201,14 @@ export default function PlanPreviewScreen() {
         <View style={[styles.progressFill, { width: '100%' }]} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 6 OF 6</Text>
-        <Text style={styles.title}>Your plan is ready.</Text>
-        <Text style={styles.subtitle}>Here's what we built for you.</Text>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <FadeInView>
+          <Text style={styles.stepLabel}>STEP 6 OF 6</Text>
+          <Text style={styles.title}>Your plan is ready.</Text>
+          <Text style={styles.subtitle}>Here's what we built for you.</Text>
+        </FadeInView>
 
-        <View style={styles.planCard}>
+        <FadeInView delay={100} style={styles.planCard}>
           <Text style={styles.programEyebrow}>PROGRAM</Text>
           <Text style={styles.programName}>{programName}</Text>
           <View style={styles.divider} />
@@ -170,23 +220,26 @@ export default function PlanPreviewScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </FadeInView>
 
         {/* Reinforce the core promise right at the finish line */}
-        <View style={styles.adaptNote}>
+        <FadeInView delay={200} style={styles.adaptNote}>
           <Ionicons name="sparkles" size={16} color={C.primary} style={{ marginTop: 1 }} />
           <Text style={styles.adaptNoteText}>
             This is a starting point, not a contract. Tempo reshapes it around your real
             schedule — and when life gets busy, a Quick Workout keeps you moving.
           </Text>
-        </View>
+        </FadeInView>
       </ScrollView>
 
       <View style={styles.footer}>
         {status === 'generating' && (
-          <Text style={styles.buildingText}>Building your plan…</Text>
+          <View style={styles.buildingRow}>
+            <TempoPulse size={18} />
+            <Text style={styles.buildingText}>{BUILD_STEPS[buildStep]}</Text>
+          </View>
         )}
-        <TouchableOpacity
+        <PressableScale
           style={[styles.confirmBtn, busy && { opacity: 0.6 }]}
           onPress={handleConfirm}
           disabled={busy}
@@ -197,32 +250,32 @@ export default function PlanPreviewScreen() {
           ) : (
             <Text style={styles.confirmText}>Let's Go →</Text>
           )}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   planCard: {
     backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
     borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm, marginTop: Spacing.xs,
   },
   programEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  programName: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -2 },
+  programName: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -2 },
   divider: { height: 1, backgroundColor: C.surfaceContainerHigh, marginVertical: Spacing.xs },
   details: { gap: Spacing.sm },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -231,7 +284,8 @@ const styles = StyleSheet.create({
   adaptNote: { flexDirection: 'row', gap: 8, backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md },
   adaptNoteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.xs },
-  buildingText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center' },
+  buildingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: 4 },
+  buildingText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary, textAlign: 'center' },
   confirmBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
 })

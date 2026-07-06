@@ -1,15 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Animated,
+  TextInput, Alert, ActivityIndicator, Animated, Easing, LayoutAnimation, Vibration,
+  type StyleProp, type ViewStyle,
 } from 'react-native'
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
+import { useReducedMotion, PressableScale, PopIn, FadeInView, ScreenTransition } from '@/components/motion'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { Avatar } from '@/components/Avatar'
+import { TempoWordmark, PulseLoader } from '@/components/brand'
+import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
-import { cancelWorkoutReminder } from '@/lib/notifications'
+import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
@@ -19,9 +28,12 @@ import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
-import type { Goal, TravelMode } from '@/types'
+import { metricsFor } from '@/lib/customExercises'
+import { expandEquipment } from '@/lib/equipmentMatch'
+import { useUnitStore, unitLabel, displayWeight, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
+import type { Goal, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
+import { workoutOrigin } from '@/lib/workoutOrigin'
 
-const C = Colors.light
 
 const RPE_OPTIONS = [6, 7, 8, 9, 10]
 
@@ -33,7 +45,9 @@ interface WorkoutRow {
   planned_duration_min: number
   exercise_ids: string[]
   status: string
+  source: WorkoutSource | null
   progression: WeekProgression | null
+  exercise_config: WorkoutExerciseConfig[] | null
 }
 
 interface ExerciseRow {
@@ -47,13 +61,42 @@ interface ExerciseRow {
   instructions: string[]
   video_url: string | null
   substitute_ids: string[]
+  tracking_metrics?: MetricKey[]
 }
 
 interface SetState {
   lbs: string
   reps: string
+  durationSec: string
+  distanceM: string
   rpe: number | null
   done: boolean
+}
+
+// Logged input columns for a set, by tracked metric (RPE is captured separately).
+const METRIC_COLS: { key: MetricKey; label: string; field: 'lbs' | 'reps' | 'durationSec' | 'distanceM'; kbd: 'decimal-pad' | 'number-pad' }[] = [
+  { key: 'weight', label: 'LBS', field: 'lbs', kbd: 'decimal-pad' },
+  { key: 'reps', label: 'REPS', field: 'reps', kbd: 'number-pad' },
+  { key: 'duration', label: 'SEC', field: 'durationSec', kbd: 'number-pad' },
+  { key: 'distance', label: 'DIST', field: 'distanceM', kbd: 'decimal-pad' },
+]
+function columnsFor(metrics: MetricKey[] | undefined): typeof METRIC_COLS {
+  const cols = METRIC_COLS.filter(c => metrics?.includes(c.key))
+  return cols.length ? cols : [METRIC_COLS[0], METRIC_COLS[1]]
+}
+
+// A readable "today's target" line that matches what the exercise actually tracks —
+// so a run reads "400 m · 60s × 3", not "0–0 reps × 3", and a fixed-rep target reads
+// "10 reps" rather than "10–10 reps". Weights render in the user's unit.
+function formatTarget(p: ExercisePrescription, metrics: MetricKey[] | undefined, firstSet: SetState | undefined, unit: WeightUnit): string {
+  const m = metrics?.length ? metrics : ['weight', 'reps']
+  const parts: string[] = []
+  if (m.includes('weight') && p.suggestedWeight != null) parts.push(`${displayWeight(p.suggestedWeight, unit)} ${unitLabel(unit)}`)
+  if (m.includes('reps')) parts.push(p.repLow === p.repHigh ? `${p.repHigh} reps` : `${p.repLow}–${p.repHigh} reps`)
+  if (m.includes('duration') && firstSet?.durationSec) parts.push(`${firstSet.durationSec}s`)
+  if (m.includes('distance') && firstSet?.distanceM) parts.push(`${firstSet.distanceM} m`)
+  const main = parts.join(' · ')
+  return main ? `${main} × ${p.sets}` : `${p.sets} set${p.sets === 1 ? '' : 's'}`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,7 +117,7 @@ function formatElapsed(seconds: number): string {
 // equipment with a same-pattern alternative they can (curated substitute first).
 // Done in memory only — the saved plan is untouched, so it reverts when they're home.
 async function adaptToTravelEquipment(list: ExerciseRow[], equipment: string[]): Promise<ExerciseRow[]> {
-  const have = new Set<string>([...equipment, 'bodyweight'])
+  const have = expandEquipment(equipment)
   const undoable = list.filter(e => !e.required_equipment.some(eq => have.has(eq)))
   if (!undoable.length) return list
 
@@ -102,11 +145,36 @@ async function adaptToTravelEquipment(list: ExerciseRow[], equipment: string[]):
   })
 }
 
+// A progress fill that eases to its new width whenever a set is logged — the
+// session header visibly moves with every rep you bank.
+function AnimatedFill({ pct, style }: { pct: number; style?: StyleProp<ViewStyle> }) {
+  const width = useRef(new Animated.Value(pct)).current
+  useEffect(() => {
+    const anim = Animated.timing(width, {
+      toValue: pct, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    })
+    anim.start()
+    return () => anim.stop()
+  }, [pct, width])
+  return (
+    <Animated.View
+      style={[style, { width: width.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]}
+    />
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function WorkoutsScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { workoutId: workoutIdParam, quick: quickParam } = useLocalSearchParams<{ workoutId?: string; quick?: string }>()
+  const queryClient = useQueryClient()
+  const params = useLocalSearchParams<{ workoutId?: string; quick?: string }>()
+  // Params are consumed (cleared) once acted on, so pushing the same workoutId
+  // twice still re-triggers; '' therefore means "no param".
+  const workoutIdParam = params.workoutId || undefined
+  const quickParam = params.quick || undefined
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
 
@@ -114,6 +182,18 @@ export default function WorkoutsScreen() {
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null)
   const [sets, setSets] = useState<Record<string, SetState[]>>({})
+  const [exMetrics, setExMetrics] = useState<Record<string, MetricKey[]>>({})
+  const reduceMotion = useReducedMotion()
+
+  // Smoothly grow/shrink the exercise card when its accordion toggles.
+  const toggleExpand = (id: string) => {
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(200, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+      )
+    }
+    setExpandedId((cur) => (cur === id ? null : id))
+  }
   const [prevBySet, setPrevBySet] = useState<Record<string, string[]>>({})
   const [targets, setTargets] = useState<Record<string, ExercisePrescription>>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -121,29 +201,98 @@ export default function WorkoutsScreen() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [completing, setCompleting] = useState(false)
+  // Whether the live logging session is open. Tapping the Workouts tab lands on the
+  // hub (false); you enter the session deliberately and can leave it back to the hub.
+  const [sessionActive, setSessionActive] = useState(false)
+  // Rest timer is wall-clock: we store WHEN it ends, and derive the display from
+  // that — so locking the phone between sets can't freeze the countdown.
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null)
   const [restSecondsLeft, setRestSecondsLeft] = useState<number | null>(null)
+  // Original rest length, so the pill can show time draining as a bar.
+  const [restTotal, setRestTotal] = useState(90)
   const [rpePrompt, setRpePrompt] = useState<{ exId: string; idx: number } | null>(null)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
   const [bias, setBias] = useState<IntensityBias>(0)
+  const unit = useUnitStore(s => s.unit)
   const [travel, setTravel] = useState<TravelMode | null>(null)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
+  // Wall-clock session timing: seconds banked from earlier stretches of this
+  // session (pauses at the hub, app restarts) + when the current stretch resumed.
+  const accumulatedSec = useRef(0)
+  const resumedAtMs = useRef<number | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
-  // Reload when the target workout changes too — otherwise navigating into an
-  // already-mounted Workouts tab with a new workoutId (e.g. starting a Quick
-  // Workout, or a second "Start Session") would keep showing the stale session.
+  // Lifecycle guards, kept in a ref so the focus effect can read the latest
+  // values without re-arming itself every render (which would loop).
+  const lifecycle = useRef({ sessionActive: false, hasParam: false, inFlight: false, lastLoadAt: 0 })
+  useEffect(() => { lifecycle.current.sessionActive = sessionActive }, [sessionActive])
+  useEffect(() => { lifecycle.current.hasParam = !!workoutIdParam }, [workoutIdParam])
+  // Whether the running session came from a Quick Workout — survives param
+  // consumption so the completion screen still knows.
+  const isQuickSession = useRef(false)
+
+  const runLoad = async (explicitId?: string): Promise<{ id: string | null; resumedLogId: string | null }> => {
+    const l = lifecycle.current
+    if (l.inFlight) return { id: null, resumedLogId: null }
+    l.inFlight = true
+    try {
+      const res = await loadWorkout(explicitId)
+      l.lastLoadAt = Date.now()
+      return res
+    } finally {
+      l.inFlight = false
+    }
+  }
+
+  // Explicit starts: Home's "Start Session" and Quick Workouts push a workoutId,
+  // which drops straight into the live session (resuming an already-open log
+  // rather than opening a phantom second one). The param is then consumed via
+  // setParams so starting the same workout again re-triggers cleanly.
   useEffect(() => {
-    if (!userId) return
-    loadWorkout()
+    if (!userId || !workoutIdParam) return
+    isQuickSession.current = quickParam === '1'
+    ;(async () => {
+      const { id, resumedLogId } = await runLoad(workoutIdParam)
+      if (id) {
+        if (resumedLogId) setSessionActive(true)
+        else await beginSession(id)
+      }
+      router.setParams({ workoutId: '', quick: '' })
+    })()
   }, [userId, workoutIdParam])
 
-  async function loadWorkout() {
-    let targetId: string | undefined = workoutIdParam
+  // Hub freshness. All tabs mount at app start (lazy: false), so load once on
+  // mount for a warm first visit, then re-check on every tab focus — a finished
+  // workout, a new plan, or a date change must never leave yesterday's session
+  // on screen. A live logging session is never disturbed.
+  useEffect(() => {
+    if (!userId || workoutIdParam) return
+    runLoad()
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return
+      const l = lifecycle.current
+      if (l.sessionActive || l.hasParam || l.inFlight) return
+      if (Date.now() - l.lastLoadAt < 15_000) return // fresh enough — skip the churn
+      runLoad()
+    }, [userId]), // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  // Prepare a workout for the hub/session: loads the row, exercises, targets and
+  // pre-filled sets, but does NOT open a workout_logs row — that happens on start,
+  // so merely viewing the hub never creates a phantom session. If a log row is
+  // already open for this workout (app killed mid-session), it's adopted and its
+  // logged sets rehydrated, so nothing is lost and no duplicate log is created.
+  async function loadWorkout(explicitId?: string): Promise<{ id: string | null; resumedLogId: string | null }> {
+    setNotFound(false)
+    let targetId: string | undefined = explicitId
 
     if (!targetId) {
       // Fall back to today's first scheduled workout
@@ -155,19 +304,57 @@ export default function WorkoutsScreen() {
         .eq('status', 'scheduled')
         .limit(1)
         .maybeSingle()
-      if (!found) { setNotFound(true); setLoading(false); return }
+      if (!found) { setNotFound(true); setLoading(false); return { id: null, resumedLogId: null } }
       targetId = found.id
     }
 
     const { data: workoutRow } = await supabase
       .from('scheduled_workouts')
-      .select('id, focus, planned_duration_min, exercise_ids, status, progression')
+      .select('id, focus, planned_duration_min, exercise_ids, status, source, progression, exercise_config')
       .eq('id', targetId)
       .single()
 
-    if (!workoutRow) { setNotFound(true); setLoading(false); return }
+    if (!workoutRow) { setNotFound(true); setLoading(false); return { id: null, resumedLogId: null } }
     setWorkout(workoutRow as WorkoutRow)
     const progression = (workoutRow.progression ?? null) as WeekProgression | null
+
+    // An open (never-completed) log for this workout means a session was already
+    // running when the app died or the user walked away. Adopt a fresh one;
+    // close out a stale one so it stops haunting the data.
+    let resumedLog: { id: string; started_at: string } | null = null
+    try {
+      const { data: openLog } = await supabase
+        .from('workout_logs')
+        .select('id, started_at')
+        .eq('user_id', userId)
+        .eq('scheduled_workout_id', workoutRow.id)
+        .is('completed_at', null)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (openLog) {
+        const ageMs = Date.now() - new Date(openLog.started_at as string).getTime()
+        if (ageMs < 12 * 60 * 60 * 1000) {
+          resumedLog = openLog as { id: string; started_at: string }
+        } else {
+          // Too old to resume — zero-length close so it never counts as time trained.
+          await supabase.from('workout_logs')
+            .update({ completed_at: openLog.started_at })
+            .eq('id', openLog.id)
+        }
+      }
+    } catch { /* resume is best-effort; worst case is the old behaviour */ }
+
+    if (resumedLog) {
+      setWorkoutLogId(resumedLog.id)
+      startedAt.current = new Date(resumedLog.started_at)
+      accumulatedSec.current = Math.max(0, Math.floor((Date.now() - startedAt.current.getTime()) / 1000))
+      setElapsed(accumulatedSec.current)
+    } else {
+      setWorkoutLogId(null)
+      accumulatedSec.current = 0
+      setElapsed(0)
+    }
 
     const exerciseIds: string[] = workoutRow.exercise_ids ?? []
 
@@ -187,9 +374,15 @@ export default function WorkoutsScreen() {
     const { data: exRows } = exerciseIds.length
       ? await supabase
           .from('exercises')
-          .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
+          .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids, tracking_metrics')
           .in('id', exerciseIds)
       : { data: [] }
+
+    // A user-built ("custom") workout carries its own per-exercise prescription +
+    // metrics; honor those instead of the autoregulated plan targets.
+    const cfgByEx = new Map<string, WorkoutExerciseConfig>(
+      ((workoutRow.exercise_config ?? []) as WorkoutExerciseConfig[]).map(c => [c.exercise_id, c]),
+    )
 
     const orderedRaw = exerciseIds
       .map(id => (exRows ?? []).find((e: any) => e.id === id))
@@ -218,11 +411,19 @@ export default function WorkoutsScreen() {
     // current session can't contaminate it.
     const prevBySetMap: Record<string, string[]> = {}
     const targetMap: Record<string, ExercisePrescription> = {}
+    const metricsMap: Record<string, MetricKey[]> = {}
+
+    // Metrics per exercise: a custom workout's config wins; otherwise the exercise's
+    // own tracking_metrics (built-ins default to weight + reps).
+    for (const ex of ordered) {
+      const cfg = cfgByEx.get(ex.id)
+      metricsMap[ex.id] = cfg?.metrics?.length ? cfg.metrics : metricsFor(ex as any)
+    }
 
     if (effectiveIds.length) {
       const { data: history } = await supabase
         .from('set_logs')
-        .select('exercise_id, workout_log_id, set_number, weight_lbs, reps_completed, rpe, completed_at')
+        .select('exercise_id, workout_log_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m, completed_at')
         .in('exercise_id', effectiveIds)
         .order('completed_at', { ascending: false })
 
@@ -235,58 +436,145 @@ export default function WorkoutsScreen() {
         const perf: SetPerformance[] = lastSets.map(r => ({
           weight_lbs: r.weight_lbs, reps: r.reps_completed, rpe: r.rpe,
         }))
+        // PREV column renders in the user's display unit (storage stays lbs).
+        const u = useUnitStore.getState().unit
         prevBySetMap[ex.id] = lastSets.map(r =>
-          r.weight_lbs != null ? `${r.weight_lbs}×${r.reps_completed}` : `${r.reps_completed}`)
-        targetMap[ex.id] = buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression)
+          r.weight_lbs != null ? `${displayWeight(r.weight_lbs, u)}×${r.reps_completed}`
+            : r.duration_sec != null ? `${r.duration_sec}s`
+              : r.distance_m != null ? `${r.distance_m}m`
+                : `${r.reps_completed}`)
+
+        const cfg = cfgByEx.get(ex.id)
+        targetMap[ex.id] = cfg
+          ? {
+              sets: Math.max(1, cfg.sets), repLow: cfg.rep_low, repHigh: cfg.rep_high,
+              restSeconds: 90, suggestedWeight: cfg.weight_lbs, direction: 'new',
+              reason: 'Your target for this workout.', lastSummary: null,
+            }
+          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression)
+      }
+    } else {
+      for (const ex of ordered) {
+        const cfg = cfgByEx.get(ex.id)
+        if (cfg) targetMap[ex.id] = {
+          sets: Math.max(1, cfg.sets), repLow: cfg.rep_low, repHigh: cfg.rep_high,
+          restSeconds: 90, suggestedWeight: cfg.weight_lbs, direction: 'new',
+          reason: 'Your target for this workout.', lastSummary: null,
+        }
       }
     }
 
     setPrevBySet(prevBySetMap)
     setTargets(targetMap)
+    setExMetrics(metricsMap)
 
     // Pre-fill sets from each prescription so logging is a one-tap confirm, not
     // manual entry — matching the "least manual input" principle.
     const initialSets: Record<string, SetState[]> = {}
     for (const ex of ordered) {
       const p = targetMap[ex.id]
+      const cfg = cfgByEx.get(ex.id)
       const count = p?.sets ?? 3
       restDefaults.current[ex.id] = p?.restSeconds ?? 90
       initialSets[ex.id] = Array.from({ length: count }, () => ({
-        lbs: p?.suggestedWeight != null ? String(p.suggestedWeight) : '',
+        // Weight inputs hold the DISPLAY unit; converted back to lbs on log.
+        lbs: toInputString(p?.suggestedWeight, useUnitStore.getState().unit),
         reps: p ? String(p.repHigh) : '',
+        durationSec: cfg?.duration_sec != null ? String(cfg.duration_sec) : '',
+        distanceM: cfg?.distance_m != null ? String(cfg.distance_m) : '',
         rpe: null,
         done: false,
       }))
     }
+
+    // Resuming an open session: lay the already-logged sets back over the grid so
+    // the user picks up exactly where the session died — nothing re-logged twice.
+    if (resumedLog) {
+      try {
+        const { data: loggedSets } = await supabase
+          .from('set_logs')
+          .select('exercise_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m')
+          .eq('workout_log_id', resumedLog.id)
+          .order('set_number')
+        for (const s of (loggedSets ?? []) as any[]) {
+          const arr = initialSets[s.exercise_id as string]
+          if (!arr) continue
+          const idx = Math.max(0, (s.set_number as number) - 1)
+          while (arr.length <= idx) {
+            arr.push({ lbs: '', reps: '', durationSec: '', distanceM: '', rpe: null, done: false })
+          }
+          arr[idx] = {
+            lbs: toInputString(s.weight_lbs as number | null, useUnitStore.getState().unit),
+            reps: s.reps_completed != null ? String(s.reps_completed) : '',
+            durationSec: s.duration_sec != null ? String(s.duration_sec) : '',
+            distanceM: s.distance_m != null ? String(s.distance_m) : '',
+            rpe: (s.rpe as number | null) ?? null,
+            done: true,
+          }
+        }
+      } catch { /* worst case: previously logged sets show as unlogged */ }
+    }
     setSets(initialSets)
 
-    // Create the workout log for this session
+    setLoading(false)
+    return { id: workoutRow.id, resumedLogId: resumedLog?.id ?? null }
+  }
+
+  // Open the live logging session for a prepared workout: stamp the start time, open
+  // a workout_logs row, and switch into the session view. Called on an explicit start
+  // or from the hub's "Start session" — never just from viewing the hub.
+  async function beginSession(scheduledId: string) {
     startedAt.current = new Date()
+    accumulatedSec.current = 0
+    setElapsed(0)
     const { data: logRow } = await supabase
       .from('workout_logs')
       .insert({
-        scheduled_workout_id: workoutRow.id,
+        scheduled_workout_id: scheduledId,
         user_id: userId,
         started_at: startedAt.current.toISOString(),
       })
       .select('id')
       .single()
     if (logRow) setWorkoutLogId(logRow.id)
-
-    setLoading(false)
+    setSessionActive(true)
   }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!workoutLogId) return
-    const iv = setInterval(() => setElapsed(e => e + 1), 1000)
-    return () => clearInterval(iv)
-  }, [workoutLogId])
+    // Timer only runs while the session view is open — leaving to the hub pauses it.
+    // Wall-clock based: locking the phone between sets must not stop the clock, so
+    // each tick derives elapsed from real timestamps instead of counting intervals.
+    if (!workoutLogId || !sessionActive) return
+    resumedAtMs.current = Date.now()
+    const tick = () => {
+      const running = resumedAtMs.current != null ? (Date.now() - resumedAtMs.current) / 1000 : 0
+      setElapsed(Math.floor(accumulatedSec.current + running))
+    }
+    tick()
+    const iv = setInterval(tick, 1000)
+    return () => {
+      clearInterval(iv)
+      // Bank the stretch that just ended so a hub pause doesn't lose (or double) time.
+      if (resumedAtMs.current != null) {
+        accumulatedSec.current += (Date.now() - resumedAtMs.current) / 1000
+        resumedAtMs.current = null
+      }
+    }
+  }, [workoutLogId, sessionActive])
+
+  // Keep the screen awake during a live session — a dimming phone mid-set is how
+  // people lose their place (and their rest timer).
+  useEffect(() => {
+    if (!sessionActive) return
+    activateKeepAwakeAsync('tempo-session').catch(() => {})
+    return () => { deactivateKeepAwake('tempo-session') }
+  }, [sessionActive])
 
   // ── Set actions ────────────────────────────────────────────────────────────
 
-  const updateSet = (exId: string, idx: number, field: 'lbs' | 'reps', value: string) => {
+  const updateSet = (exId: string, idx: number, field: 'lbs' | 'reps' | 'durationSec' | 'distanceM', value: string) => {
     setSets(prev => ({
       ...prev,
       [exId]: prev[exId].map((s, i) => i === idx ? { ...s, [field]: value } : s),
@@ -306,14 +594,17 @@ export default function WorkoutsScreen() {
     }))
 
     // Auto-start the rest timer using this exercise's prescribed rest
-    setRestSecondsLeft(restDefaults.current[exId] ?? 90)
+    startRest(restDefaults.current[exId] ?? 90)
 
     await supabase.from('set_logs').insert({
       workout_log_id: workoutLogId,
       exercise_id: exId,
       set_number: idx + 1,
       reps_completed: parseInt(set.reps) || 0,
-      weight_lbs: set.lbs ? parseFloat(set.lbs) : null,
+      // The input holds the display unit — storage is always lbs.
+      weight_lbs: set.lbs ? inputToLbs(set.lbs, useUnitStore.getState().unit) : null,
+      duration_sec: set.durationSec ? parseInt(set.durationSec) : null,
+      distance_m: set.distanceM ? parseFloat(set.distanceM) : null,
       rpe,
       completed_at: new Date().toISOString(),
     })
@@ -322,7 +613,7 @@ export default function WorkoutsScreen() {
   const addSet = (exId: string) => {
     setSets(prev => ({
       ...prev,
-      [exId]: [...prev[exId], { lbs: '', reps: '', rpe: null, done: false }],
+      [exId]: [...prev[exId], { lbs: '', reps: '', durationSec: '', distanceM: '', rpe: null, done: false }],
     }))
   }
 
@@ -337,7 +628,7 @@ export default function WorkoutsScreen() {
       const { data: profileRow } = baseEquipment
         ? { data: { equipment: baseEquipment } }
         : await supabase.from('user_profiles').select('equipment').eq('user_id', userId).maybeSingle()
-      const equipment = new Set<string>([...(profileRow?.equipment ?? []), 'bodyweight'])
+      const equipment = expandEquipment(profileRow?.equipment ?? [])
       const inWorkout = new Set(exercises.map(e => e.id))
 
       // Prefer curated substitutes; fall back to same-pattern lifts the user can do.
@@ -395,9 +686,13 @@ export default function WorkoutsScreen() {
       return {
         ...rest,
         [next.id]: Array.from({ length: prescription.sets }, () => ({
-          lbs: '', reps: String(prescription.repHigh), rpe: null, done: false,
+          lbs: '', reps: String(prescription.repHigh), durationSec: '', distanceM: '', rpe: null, done: false,
         })),
       }
+    })
+    setExMetrics(prev => {
+      const { [oldId]: _, ...rest } = prev
+      return { ...rest, [next.id]: metricsFor(next as any) }
     })
     setExpandedId(cur => cur === oldId ? next.id : cur)
 
@@ -411,11 +706,14 @@ export default function WorkoutsScreen() {
 
   // ── Complete workout ───────────────────────────────────────────────────────
 
-  const handleCompleteWorkout = async () => {
-    if (!workout || !workoutLogId || completing) return
+  const finishWorkout = async () => {
+    if (!workout || !workoutLogId) return
     setCompleting(true)
+    stopRest()
     const now = new Date().toISOString()
-    const mins = Math.max(1, Math.round(elapsed / 60))
+    // Wall-clock minutes, capped so a session resumed hours later can't log an
+    // absurd duration.
+    const mins = Math.min(240, Math.max(1, Math.round(elapsed / 60)))
 
     await Promise.all([
       supabase.from('scheduled_workouts')
@@ -428,6 +726,10 @@ export default function WorkoutsScreen() {
 
     cancelWorkoutReminder(workout.id).catch(() => {})
 
+    // Every screen keyed on training data (Home schedule, Progress, streak,
+    // next-workout) refreshes NOW — not whenever it happens to remount.
+    invalidateTrainingData(queryClient)
+
     // Re-evaluate the block's adaptation mode now that another session is logged —
     // may shift the coming weeks into recovery/deload (best-effort, never blocks).
     refreshAdaptation(supabase, userId).catch(() => {})
@@ -435,32 +737,89 @@ export default function WorkoutsScreen() {
     // Motivational summary — streak impact, consistency, weekly target progress.
     router.replace({
       pathname: '/workout-complete',
-      params: { minutes: String(mins), quick: quickParam === '1' ? '1' : '0', logId: workoutLogId ?? '' },
+      params: { minutes: String(mins), quick: isQuickSession.current ? '1' : '0', logId: workoutLogId ?? '' },
     })
+
+    // Reset the logger behind the summary so returning to this tab shows a fresh
+    // hub (the focus reload repopulates it), not the completed session's grid.
+    setSessionActive(false)
+    setWorkoutLogId(null)
+    setLoading(true)
+    lifecycle.current.lastLoadAt = 0
+    setCompleting(false)
+  }
+
+  // Guardrails: an accidental tap must not mint a fake completed session — that
+  // would inflate the streak/consistency and feed junk into adaptation.
+  const handleCompleteWorkout = () => {
+    if (!workout || !workoutLogId || completing) return
+    const all = Object.values(sets)
+    const total = all.reduce((n, arr) => n + arr.length, 0)
+    const done = all.reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
+
+    if (done === 0) {
+      Alert.alert(
+        'No sets logged yet',
+        'Tap the ✓ on a set to log it first — an empty workout would still count toward your streak and stats.',
+      )
+      return
+    }
+    if (total > 0 && done < total / 2) {
+      Alert.alert(
+        'Finish early?',
+        `Only ${done} of ${total} sets are logged. Complete the workout anyway?`,
+        [
+          { text: 'Keep training', style: 'cancel' },
+          { text: 'Complete workout', onPress: () => { finishWorkout().catch(() => setCompleting(false)) } },
+        ],
+      )
+      return
+    }
+    finishWorkout().catch(() => setCompleting(false))
   }
 
   // ── Rest timer ─────────────────────────────────────────────────────────────
 
+  // The countdown derives from the wall-clock end time, so backgrounding never
+  // freezes it; the scheduled OS notification covers a locked phone. In the
+  // foreground, completion is a vibration — not an Alert that steals the screen.
   useEffect(() => {
-    if (restSecondsLeft === null) return
-    if (restSecondsLeft === 0) {
-      setRestSecondsLeft(null)
-      Alert.alert('Rest Complete!', 'Time for your next set.')
-      return
+    if (restEndsAt === null) { setRestSecondsLeft(null); return }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000))
+      if (left <= 0) {
+        setRestEndsAt(null)
+        setRestSecondsLeft(null)
+        Vibration.vibrate([0, 250, 150, 250])
+        cancelRestDoneNotification().catch(() => {})
+      } else {
+        setRestSecondsLeft(left)
+      }
     }
-    const timer = setTimeout(() => setRestSecondsLeft(s => (s ?? 1) - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [restSecondsLeft])
+    tick()
+    const iv = setInterval(tick, 500)
+    return () => clearInterval(iv)
+  }, [restEndsAt])
+
+  const startRest = (seconds: number) => {
+    setRestTotal(seconds)
+    setRestEndsAt(Date.now() + seconds * 1000)
+    scheduleRestDoneNotification(seconds).catch(() => {})
+  }
+  const stopRest = () => {
+    setRestEndsAt(null)
+    cancelRestDoneNotification().catch(() => {})
+  }
 
   const handleRestTimer = () => {
-    if (restSecondsLeft !== null) {
-      setRestSecondsLeft(null)
+    if (restEndsAt !== null) {
+      stopRest()
       return
     }
     Alert.alert('Rest Timer', 'How long to rest?', [
-      { text: '60s', onPress: () => setRestSecondsLeft(60) },
-      { text: '90s', onPress: () => setRestSecondsLeft(90) },
-      { text: '120s', onPress: () => setRestSecondsLeft(120) },
+      { text: '60s', onPress: () => startRest(60) },
+      { text: '90s', onPress: () => startRest(90) },
+      { text: '120s', onPress: () => startRest(120) },
       { text: 'Cancel', style: 'cancel' },
     ])
   }
@@ -481,51 +840,154 @@ export default function WorkoutsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={C.text} />
+          <TempoWordmark size={18} pulse={false} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+            <Avatar size={32} iconSize={16} />
           </TouchableOpacity>
-          <Text style={styles.headerLogo}>TEMPO</Text>
-          <View style={styles.avatar}><Ionicons name="person" size={16} color={C.onPrimary} /></View>
         </View>
         <View style={styles.emptyStateContainer}>
-          <ActivityIndicator size="large" color={C.primary} />
+          <PulseLoader caption="Loading today's session…" />
         </View>
-      </SafeAreaView>
+      </ScreenTransition>
+    </SafeAreaView>
     )
   }
 
   if (notFound || !workout) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={C.text} />
+          <TempoWordmark size={18} pulse={false} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+            <Avatar size={32} iconSize={16} />
           </TouchableOpacity>
-          <Text style={styles.headerLogo}>TEMPO</Text>
-          <View style={styles.avatar}><Ionicons name="person" size={16} color={C.onPrimary} /></View>
         </View>
         <View style={styles.emptyStateContainer}>
-          <Text style={styles.emptyStateText}>No workout scheduled today.</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Check the Schedule tab to see upcoming workouts.
-          </Text>
+          <EmptyState
+            kind="flash"
+            title="Nothing scheduled right now"
+            body="Got a spare 10–45 minutes? Start a Quick Workout and Tempo builds the highest-impact session for the time you have."
+            actionLabel="Start a Quick Workout"
+            onAction={() => router.push('/quick-workout')}
+          />
+          <View style={styles.emptyLinksRow}>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-workouts' as any)} activeOpacity={0.7}>
+              <Ionicons name="construct-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>My Workouts</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
+              <Ionicons name="repeat-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>My Splits</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/(tabs)')} activeOpacity={0.7}>
+              <Ionicons name="calendar-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>Schedule</Text>
+            </PressableScale>
+          </View>
         </View>
-      </SafeAreaView>
+      </ScreenTransition>
+    </SafeAreaView>
     )
   }
 
-  // ── Main render ────────────────────────────────────────────────────────────
+  // ── Hub (pre-session) ───────────────────────────────────────────────────────
+  // Landing on the Workouts tab shows the day's session ready to go. You start it
+  // deliberately here, and can step back out of the live session to this hub at any
+  // time — so being on a workout day never traps you in the exercise logger.
+  if (!sessionActive) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
+        <View style={styles.header}>
+          <TempoWordmark size={18} pulse={false} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+            <Avatar size={32} iconSize={16} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <FadeInView style={styles.hubHero}>
+            <View style={styles.hubEyebrowRow}>
+              <Text style={styles.hubEyebrow}>{workoutLogId ? 'IN PROGRESS' : "TODAY'S SESSION"}</Text>
+              {(() => {
+                const origin = workoutOrigin(workout.source)
+                return (
+                  <View style={[styles.originChip, origin.byTempo ? styles.originChipTempo : styles.originChipYours]}>
+                    <Ionicons name={origin.icon as any} size={11} color={origin.byTempo ? C.primary : C.textSecondary} />
+                    <Text style={[styles.originText, { color: origin.byTempo ? C.primary : C.textSecondary }]}>{origin.label}</Text>
+                  </View>
+                )
+              })()}
+            </View>
+            <Text style={styles.hubTitle}>{workout.focus}</Text>
+            <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{workout.planned_duration_min} min</Text>
+          </FadeInView>
+
+          <FadeInView delay={70} style={styles.hubList}>
+            {exercises.map((ex, i) => (
+              <View key={ex.id} style={[styles.hubRow, i > 0 && styles.hubRowDivider]}>
+                <Text style={styles.hubRowNum}>{i + 1}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.hubRowName} numberOfLines={1}>{ex.name}</Text>
+                  <Text style={styles.hubRowMuscle} numberOfLines={1}>{ex.primary_muscles.join(' · ').toUpperCase()}</Text>
+                </View>
+                <Text style={styles.hubRowSets}>{sets[ex.id]?.length ?? targets[ex.id]?.sets ?? 3} sets</Text>
+              </View>
+            ))}
+          </FadeInView>
+
+          <FadeInView delay={140}>
+            <PressableScale
+              style={styles.hubStartBtn}
+              onPress={() => (workoutLogId ? setSessionActive(true) : beginSession(workout.id))}
+            >
+              <Ionicons name={workoutLogId ? 'play' : 'barbell'} size={18} color={C.onPrimary} />
+              <Text style={styles.hubStartText}>{workoutLogId ? 'Resume session' : 'Start session'}</Text>
+            </PressableScale>
+          </FadeInView>
+
+          <View style={styles.emptyLinksRow}>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/quick-workout')} activeOpacity={0.7}>
+              <Ionicons name="flash" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>Quick Workout</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-workouts' as any)} activeOpacity={0.7}>
+              <Ionicons name="construct-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>My Workouts</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
+              <Ionicons name="repeat-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>My Splits</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/workout-history' as any)} activeOpacity={0.7}>
+              <Ionicons name="journal-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>History</Text>
+            </PressableScale>
+            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/exercise-library' as any)} activeOpacity={0.7}>
+              <Ionicons name="book-outline" size={15} color={C.textSecondary} />
+              <Text style={styles.emptyLinkText}>Library</Text>
+            </PressableScale>
+          </View>
+        </ScrollView>
+      </ScreenTransition>
+    </SafeAreaView>
+    )
+  }
+
+  // ── Main render (live session) ──────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={C.text} />
+        <TouchableOpacity onPress={() => setSessionActive(false)} accessibilityRole="button" accessibilityLabel="Leave session and go back to the hub">
+          <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.headerLogo}>TEMPO</Text>
-        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')}>
+        <TempoWordmark size={18} pulse={false} />
+        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open your profile">
           <Ionicons name="person" size={16} color={C.onPrimary} />
         </TouchableOpacity>
       </View>
@@ -542,9 +1004,9 @@ export default function WorkoutsScreen() {
         </View>
       </View>
 
-      {/* Progress bar */}
+      {/* Progress bar — sweeps forward as sets are logged */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` as `${number}%` }]} />
+        <AnimatedFill pct={Math.round(progress * 100)} style={styles.progressFill} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -577,13 +1039,14 @@ export default function WorkoutsScreen() {
           const isExpanded = expandedId === ex.id
           const allDone = exSets.length > 0 && doneCount === exSets.length
           const p = targets[ex.id]
+          const cols = columnsFor(exMetrics[ex.id])
 
           return (
             <View key={ex.id} style={styles.exerciseCard}>
               {/* Accordion header */}
               <TouchableOpacity
                 style={styles.exerciseHeader}
-                onPress={() => setExpandedId(isExpanded ? null : ex.id)}
+                onPress={() => toggleExpand(ex.id)}
                 activeOpacity={0.7}
               >
                 {/* GIF thumbnail */}
@@ -612,9 +1075,16 @@ export default function WorkoutsScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: allDone ? C.success : C.outline }}>
-                    {doneCount}/{exSets.length}
-                  </Text>
+                  {allDone ? (
+                    <PopIn style={styles.doneChip}>
+                      <Ionicons name="checkmark-circle" size={14} color={C.success} />
+                      <Text style={styles.doneChipText}>Done</Text>
+                    </PopIn>
+                  ) : (
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline }}>
+                      {doneCount}/{exSets.length}
+                    </Text>
+                  )}
                   <Ionicons
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}
                     size={18}
@@ -632,7 +1102,7 @@ export default function WorkoutsScreen() {
                         <View style={styles.targetLeft}>
                           <Text style={styles.targetEyebrow}>TODAY'S TARGET</Text>
                           <Text style={styles.targetValue}>
-                            {p.suggestedWeight != null ? `${p.suggestedWeight} lbs · ` : ''}{p.repLow}–{p.repHigh} reps × {p.sets}
+                            {formatTarget(p, exMetrics[ex.id], exSets[0], unit)}
                           </Text>
                         </View>
                         {p.direction !== 'new' && (
@@ -656,35 +1126,37 @@ export default function WorkoutsScreen() {
                         )}
                       </View>
                       <Text style={styles.targetReason}>{p.reason}</Text>
+                      {p.direction === 'new' && p.suggestedWeight == null && (exMetrics[ex.id]?.includes('weight') ?? true) && (
+                        <Text style={styles.firstTimeHint}>
+                          First time on this lift? Start light — a weight you could do ~15 times —
+                          and treat your first set or two as warm-ups. Tempo calibrates from what you log.
+                        </Text>
+                      )}
                     </View>
                   )}
 
                   {/* Form guide + smart swap */}
                   <View style={styles.exActions}>
-                    <TouchableOpacity style={styles.exActionBtn} onPress={() => setFormSheetEx(ex)}>
+                    <PressableScale style={styles.exActionBtn} onPress={() => setFormSheetEx(ex)} scaleTo={0.93}>
                       <Ionicons name="book-outline" size={15} color={C.primary} />
                       <Text style={styles.exActionText}>Form guide</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.exActionBtn} onPress={() => handleSwap(ex)} disabled={swapping}>
+                    </PressableScale>
+                    <PressableScale style={styles.exActionBtn} onPress={() => handleSwap(ex)} disabled={swapping} scaleTo={0.93}>
                       <Ionicons name="swap-horizontal" size={15} color={C.primary} />
                       <Text style={styles.exActionText}>Swap</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   </View>
 
-                  {/* Table header */}
+                  {/* Table header — columns follow this exercise's tracked metrics */}
                   <View style={styles.tableHeader}>
-                    {(['SET', 'PREV', 'LBS', 'REPS', '✓'] as const).map((h) => (
-                      <Text
-                        key={h}
-                        style={[
-                          styles.tableHeadCell,
-                          (h === 'SET' || h === '✓') && { flex: 0.5 },
-                          h === 'PREV' && { flex: 1.5 },
-                        ]}
-                      >
-                        {h}
+                    <Text style={[styles.tableHeadCell, { flex: 0.5 }]}>SET</Text>
+                    <Text style={[styles.tableHeadCell, { flex: 1.5 }]}>PREV</Text>
+                    {cols.map((c) => (
+                      <Text key={c.key} style={styles.tableHeadCell}>
+                        {c.key === 'weight' ? unitLabel(unit).toUpperCase() : c.label}
                       </Text>
                     ))}
+                    <Text style={[styles.tableHeadCell, { flex: 0.5 }]}>✓</Text>
                   </View>
 
                   {/* Set rows */}
@@ -702,40 +1174,35 @@ export default function WorkoutsScreen() {
 
                         {set.done ? (
                           <>
-                            <Text style={styles.setCell}>{set.lbs || '0'}</Text>
-                            <Text style={styles.setCell}>{set.reps || '0'}</Text>
-                            <View style={styles.checkCircleFilled}>
+                            {cols.map((c) => <Text key={c.key} style={styles.setCell}>{set[c.field] || '0'}</Text>)}
+                            {/* Mounts the moment the set is logged — springs in */}
+                            <PopIn style={styles.checkCircleFilled}>
                               <Ionicons name="checkmark" size={14} color={C.onPrimary} />
-                            </View>
+                            </PopIn>
                           </>
                         ) : (
                           <>
-                            <View style={styles.inputBox}>
-                              <TextInput
-                                style={styles.inputText}
-                                value={set.lbs}
-                                onChangeText={v => updateSet(ex.id, idx, 'lbs', v)}
-                                keyboardType="decimal-pad"
-                                placeholder="0"
-                                placeholderTextColor={C.outline}
-                              />
-                            </View>
-                            <View style={styles.inputBox}>
-                              <TextInput
-                                style={styles.inputText}
-                                value={set.reps}
-                                onChangeText={v => updateSet(ex.id, idx, 'reps', v)}
-                                keyboardType="number-pad"
-                                placeholder="0"
-                                placeholderTextColor={C.outline}
-                              />
-                            </View>
-                            <TouchableOpacity
+                            {cols.map((c) => (
+                              <View key={c.key} style={styles.inputBox}>
+                                <TextInput
+                                  style={styles.inputText}
+                                  value={set[c.field]}
+                                  onChangeText={v => updateSet(ex.id, idx, c.field, v)}
+                                  keyboardType={c.kbd}
+                                  placeholder="0"
+                                  placeholderTextColor={C.outline}
+                                />
+                              </View>
+                            ))}
+                            <PressableScale
                               style={[styles.emptyCircle, prompting && styles.emptyCircleActive]}
                               onPress={() => setRpePrompt(prompting ? null : { exId: ex.id, idx })}
+                              scaleTo={0.8}
+                              hitSlop={6}
+                              accessibilityLabel={`Log set ${idx + 1}`}
                             >
                               {prompting && <Ionicons name="chevron-up" size={14} color={C.primary} />}
-                            </TouchableOpacity>
+                            </PressableScale>
                           </>
                         )}
                       </View>
@@ -745,9 +1212,9 @@ export default function WorkoutsScreen() {
                         <View style={styles.rpeBar}>
                           <Text style={styles.rpeBarLabel}>How hard?</Text>
                           {RPE_OPTIONS.map(n => (
-                            <TouchableOpacity key={n} style={styles.rpeChip} onPress={() => handleSetDone(ex.id, idx, n)}>
+                            <PressableScale key={n} style={styles.rpeChip} onPress={() => handleSetDone(ex.id, idx, n)} scaleTo={0.88}>
                               <Text style={styles.rpeChipText}>{n}</Text>
-                            </TouchableOpacity>
+                            </PressableScale>
                           ))}
                           <TouchableOpacity style={styles.rpeSkip} onPress={() => handleSetDone(ex.id, idx, null)}>
                             <Text style={styles.rpeSkipText}>skip</Text>
@@ -763,55 +1230,72 @@ export default function WorkoutsScreen() {
                   })}
 
                   {/* Add Set */}
-                  <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(ex.id)}>
+                  <PressableScale style={styles.addSetBtn} onPress={() => addSet(ex.id)} scaleTo={0.95}>
                     <Text style={styles.addSetBtnText}>+ Add Set</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </>
               )}
             </View>
           )
         })}
 
-        {/* Complete Workout */}
-        <TouchableOpacity
-          style={[styles.completeButton, completing && { opacity: 0.6 }]}
+        {/* Complete Workout — shifts to sage the moment every set is banked */}
+        <PressableScale
+          style={[
+            styles.completeButton,
+            progress === 1 && styles.completeButtonReady,
+            completing && { opacity: 0.6 },
+          ]}
           onPress={handleCompleteWorkout}
           disabled={completing}
-          activeOpacity={0.8}
         >
           {completing ? (
             <ActivityIndicator color={C.onPrimary} />
           ) : (
             <>
-              <Text style={styles.completeButtonText}>COMPLETE WORKOUT</Text>
+              <Text style={styles.completeButtonText}>
+                {progress === 1 ? 'ALL SETS DONE — FINISH' : 'COMPLETE WORKOUT'}
+              </Text>
               <Ionicons name="checkmark" size={16} color={C.onPrimary} />
             </>
           )}
-        </TouchableOpacity>
+        </PressableScale>
       </ScrollView>
 
       {restSecondsLeft !== null && (
-        <View style={styles.restPill} pointerEvents="box-none">
-          <Ionicons name="timer-outline" size={18} color="#fff" />
-          <Text style={styles.restPillText}>Rest · {formatElapsed(restSecondsLeft)}</Text>
-          <TouchableOpacity onPress={() => setRestSecondsLeft(null)}>
-            <Text style={styles.restPillSkip}>Skip</Text>
-          </TouchableOpacity>
-        </View>
+        <PopIn style={styles.restPill}>
+          <View style={styles.restPillRow}>
+            <Ionicons name="timer-outline" size={18} color="#fff" />
+            <Text style={styles.restPillText}>Rest · {formatElapsed(restSecondsLeft)}</Text>
+            <TouchableOpacity onPress={stopRest}>
+              <Text style={styles.restPillSkip}>Skip</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Time draining out of the bar — you can feel the next set coming */}
+          <View style={styles.restPillTrack}>
+            <AnimatedFill
+              pct={Math.max(0, Math.min(100, (restSecondsLeft / Math.max(1, restTotal)) * 100))}
+              style={styles.restPillFill}
+            />
+          </View>
+        </PopIn>
       )}
       <View style={styles.floatingTools}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.floatingTool, restSecondsLeft !== null && styles.floatingToolActive]}
           onPress={handleRestTimer}
+          scaleTo={0.85}
+          accessibilityLabel={restSecondsLeft !== null ? 'Stop rest timer' : 'Start rest timer'}
         >
           <Ionicons name="timer-outline" size={22} color={C.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.floatingTool} onPress={handleShowExerciseList}>
+        </PressableScale>
+        <PressableScale style={styles.floatingTool} onPress={handleShowExerciseList} scaleTo={0.85} accessibilityLabel="Show exercise list">
           <Ionicons name="list-outline" size={22} color={C.primary} />
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <ExerciseFormSheet exercise={formSheetEx} onClose={() => setFormSheetEx(null)} />
+    </ScreenTransition>
     </SafeAreaView>
   )
 }
@@ -819,9 +1303,9 @@ export default function WorkoutsScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 // All original styles preserved. New styles appended at the bottom.
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 120 },
+  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 150 },
   travelBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
     backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.sm,
@@ -832,7 +1316,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
-  headerLogo: { fontFamily: 'Inter_800ExtraBold', fontSize: 16, color: C.primary, letterSpacing: 2 },
+  headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   avatar: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   sessionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
@@ -840,10 +1324,10 @@ const styles = StyleSheet.create({
   },
   sessionLeft: { gap: 2 },
   sessionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  sessionTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.24 },
+  sessionTitle: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.24 },
   sessionRight: { alignItems: 'flex-end', gap: 2 },
   estLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
-  timerText: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.5 },
+  timerText: { fontFamily: C.fontNumeric, fontSize: 24, color: C.text, letterSpacing: -0.5 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.md },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   exerciseCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow, borderWidth: 1, borderColor: C.outlineVariant },
@@ -881,7 +1365,7 @@ const styles = StyleSheet.create({
   upNextInfo: { flex: 1 },
   upNextName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   upNextMeta: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 2 },
-  floatingTools: { position: 'absolute', right: Spacing.containerPadding, bottom: 100, gap: Spacing.sm },
+  floatingTools: { position: 'absolute', right: Spacing.containerPadding, bottom: 112, gap: Spacing.sm },
   floatingTool: { width: 44, height: 44, borderRadius: Radius.full, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center', ...CardShadow, shadowOpacity: 0.08 },
 
   // ── New ───────────────────────────────────────────────────────────────────
@@ -894,29 +1378,42 @@ const styles = StyleSheet.create({
   addSetBtn: { paddingVertical: Spacing.sm, alignItems: 'center' },
   addSetBtnText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
   emptyStateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  emptyIconWrap: { width: 64, height: 64, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
   emptyStateText: { fontFamily: 'Inter_700Bold', fontSize: 18, color: C.text, textAlign: 'center', marginBottom: Spacing.xs },
   emptyStateSubtext: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 22 },
+  quickCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: C.primary, borderRadius: Radius.lg, height: 52, paddingHorizontal: Spacing.xl, marginTop: Spacing.lg, alignSelf: 'stretch' },
+  quickCtaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
+  // Wraps: four links (Quick Workout / My Workouts / My Splits / History) must fit
+  // any screen width — chips flow onto a second line instead of running off-screen.
+  emptyLinksRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.xs, marginTop: Spacing.lg },
+  emptyLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+  },
+  emptyLinkText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   floatingToolActive: { borderWidth: 1.5, borderColor: C.primary },
   restPill: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 112,           // floats above the tab dock
     alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#1B1B1C',
-    borderRadius: Radius.full,
+    minWidth: 230,
+    gap: 8,
+    backgroundColor: '#1B1C20',
+    borderRadius: Radius.xl,
     paddingVertical: 12,
     paddingHorizontal: 20,
     zIndex: 40,
-    shadowColor: '#1A1A1B',
+    shadowColor: '#101114',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.3,
     shadowRadius: 40,
     elevation: 8,
   },
+  restPillRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   restPillText: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: C.fontNumeric,
     fontSize: 15,
     color: '#FFFFFF',
     flex: 1,
@@ -926,6 +1423,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8DB4FF',
   },
+  restPillTrack: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  restPillFill: { height: 3, borderRadius: 2, backgroundColor: '#4E8BFF' },
+  doneChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.successSoft, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.xs, paddingVertical: 3,
+  },
+  doneChipText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.success },
+  completeButtonReady: { backgroundColor: C.success },
 
   // ── Adaptive coaching (Track 1) ─────────────────────────────────────────────
   targetCard: {
@@ -937,7 +1443,7 @@ const styles = StyleSheet.create({
   targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   targetLeft: { flex: 1, gap: 2 },
   targetEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
-  targetValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  targetValue: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   dirBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
@@ -945,6 +1451,7 @@ const styles = StyleSheet.create({
   },
   dirBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
   targetReason: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+  firstTimeHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, lineHeight: 17, fontStyle: 'italic' },
   exActions: { flexDirection: 'row', gap: Spacing.sm },
   exActionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -967,4 +1474,33 @@ const styles = StyleSheet.create({
   rpeSkip: { paddingHorizontal: 4 },
   rpeSkipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline },
   rpeLogged: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, textAlign: 'right', marginTop: -2, marginBottom: 4 },
+
+  // ── Hub (pre-session) ───────────────────────────────────────────────────────
+  hubHero: { gap: 4 },
+  hubEyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  hubEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
+  originChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1,
+  },
+  originChipTempo: { backgroundColor: C.primarySoft, borderColor: 'transparent' },
+  originChipYours: { backgroundColor: C.surfaceContainerLow, borderColor: C.outlineVariant },
+  originText: { fontFamily: 'Inter_700Bold', fontSize: 10.5, letterSpacing: 0.3 },
+  hubTitle: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.4 },
+  hubMeta: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  hubList: {
+    backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
+    paddingHorizontal: Spacing.md, ...CardShadow,
+  },
+  hubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
+  hubRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
+  hubRowNum: { fontFamily: C.fontDisplay, fontSize: 14, color: C.outline, width: 20, textAlign: 'center' },
+  hubRowName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  hubRowMuscle: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, letterSpacing: 0.4, marginTop: 1 },
+  hubRowSets: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  hubStartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    height: 56, borderRadius: Radius.lg, backgroundColor: C.primary,
+  },
+  hubStartText: { fontFamily: C.fontDisplay, fontSize: 16, color: C.onPrimary, letterSpacing: 0.2 },
 })

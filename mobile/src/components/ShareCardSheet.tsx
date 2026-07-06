@@ -10,10 +10,10 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { WrappedCard } from '@/components/WrappedCard'
 import { captionFor, type WrappedCard as CardModel } from '@/lib/wrapped'
 
-const C = Colors.light
 
 // react-native-view-shot, expo-sharing and expo-clipboard are native modules:
 // they're only present once the dev/standalone client has been rebuilt to include
@@ -49,6 +49,8 @@ interface Props {
 }
 
 export function ShareCardSheet({ visible, cards, onClose }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [index, setIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -167,7 +169,7 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
   },
   handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
 
   chips: { gap: Spacing.xs, paddingBottom: Spacing.sm },
   chip: {

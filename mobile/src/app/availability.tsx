@@ -9,10 +9,11 @@ import { useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, Switch, Alert, ActivityIndicator, TextInput,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
@@ -22,7 +23,6 @@ import type { TimeOfDay, ScheduleFlexibility, CalendarProvider, UnavailableBlock
 // Local id for a new block (no server round-trip needed — these live in JSON).
 const genId = () => `${Date.now()}-${Math.round(Math.random() * 1e6)}`
 
-const C = Colors.light
 
 const DAYS: { iso: number; label: string }[] = [
   { iso: 1, label: 'Mon' }, { iso: 2, label: 'Tue' }, { iso: 3, label: 'Wed' },
@@ -42,7 +42,10 @@ const FLEX: { id: ScheduleFlexibility; label: string; desc: string }[] = [
 type PickerField = 'wake' | 'bed' | 'workStart' | 'workEnd' | 'schoolStart' | 'schoolEnd' | 'unavailStart' | 'unavailEnd'
 
 export default function AvailabilityScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { profile, session, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
 
@@ -181,14 +184,14 @@ export default function AvailabilityScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Availability</Text>
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
           Tell Tempo about your day. Workouts are scheduled around your sleep, work, and
           classes — never on top of them.
@@ -415,10 +418,10 @@ export default function AvailabilityScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.hint}>Used when both calendars are connected. Connect one from the Smart Scheduler or Settings.</Text>
+        <Text style={styles.hint}>Used when both calendars are connected. Connect one from Profile → Calendar.</Text>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm }]}>
         <TouchableOpacity
           style={[styles.saveBtn, saving && { opacity: 0.6 }]}
           onPress={handleSave}
@@ -440,13 +443,14 @@ export default function AvailabilityScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   scroll: { padding: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.sm },
   intro: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21, marginBottom: Spacing.xs },
 

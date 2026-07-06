@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Colors, Spacing } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
-const C = Colors.light
 
 interface Props {
   message: string
@@ -9,6 +9,8 @@ interface Props {
 }
 
 export function ErrorBanner({ message, onRetry }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.card}>
       <Text style={styles.message}>{message}</Text>
@@ -19,7 +21,7 @@ export function ErrorBanner({ message, onRetry }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   card: {
     backgroundColor: C.dangerSoft,
     borderColor: 'rgba(255,107,107,0.35)',

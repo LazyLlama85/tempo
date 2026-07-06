@@ -11,11 +11,12 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar } from '@/services/calendarSync'
+import { scheduleWorkoutReminders, cancelWorkoutReminder, requestPermissions } from '@/lib/notifications'
 import type { CalendarProvider } from '@/types'
 
-const C = Colors.light
 
 export interface EditableWorkout {
   id: string
@@ -45,6 +46,8 @@ function toDateStr(d: Date): string {
 const NEXT_DAYS = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d })
 
 export function EditWorkoutSheet({ visible, workout, userId, client, preferredCalendar, onClose, onSaved }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('07:00:00')
   const [showTime, setShowTime] = useState(false)
@@ -81,6 +84,17 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
           workout.calendar_provider ?? preferredCalendar,
         ).catch(() => {})
       }
+
+      // Move the pre-workout reminder to the new time too (best-effort).
+      cancelWorkoutReminder(workout.id)
+        .then(() => requestPermissions())
+        .then((granted) => {
+          if (granted) return scheduleWorkoutReminders([
+            { id: workout.id, focus: workout.focus, planned_date: date, planned_start_time: time, planned_duration_min: workout.planned_duration_min, status: 'scheduled' },
+          ])
+        })
+        .catch(() => {})
+
       onSaved()
       onClose()
     } catch {
@@ -101,6 +115,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
           setSaving(true)
           try {
             if (workout.calendar_event_id) await removeWorkoutFromCalendar(client, workout, userId).catch(() => {})
+            cancelWorkoutReminder(workout.id).catch(() => {})
             await client
               .from('scheduled_workouts')
               .update({ status: 'skipped' })
@@ -175,7 +190,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
@@ -183,7 +198,7 @@ const styles = StyleSheet.create({
   },
   handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.xs },
+  title: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.xs },
   label: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.sm },
   daysRow: { gap: Spacing.xs, paddingVertical: 4 },
   dayChip: {
@@ -192,7 +207,7 @@ const styles = StyleSheet.create({
   },
   dayChipOn: { backgroundColor: C.primary, borderColor: C.primary },
   dayWd: { fontFamily: 'Inter_500Medium', fontSize: 10, color: C.outline },
-  dayNum: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text },
+  dayNum: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text },
   dayTextOn: { color: C.onPrimary },
   timeBtn: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md,

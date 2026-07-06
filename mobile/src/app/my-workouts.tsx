@@ -1,0 +1,191 @@
+// Tempo — My Workouts (modal).
+//
+// Manage saved workout templates (schedule / edit / duplicate / delete) and custom
+// exercises (edit / delete). Entry point for the whole user-created-workout feature.
+
+import { useCallback, useState } from 'react'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { PulseLoader } from '@/components/brand'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter, useFocusEffect } from 'expo-router'
+import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { useTheme, useThemedStyles } from '@/theme'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth'
+import { fetchTemplates, deleteTemplate, duplicateTemplate } from '@/lib/workoutBuilder'
+import { fetchCustomExercises, deleteCustomExercise } from '@/lib/customExercises'
+import { CustomExerciseSheet } from '@/components/CustomExerciseSheet'
+import { PressableScale } from '@/components/motion'
+import type { WorkoutTemplate, Exercise } from '@/types'
+
+const todayStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export default function MyWorkoutsScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const router = useRouter()
+  const { session } = useAuthStore()
+  const userId = session?.user.id ?? ''
+
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editEx, setEditEx] = useState<Exercise | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+
+  const load = useCallback(() => {
+    if (!userId) return
+    Promise.all([fetchTemplates(supabase, userId), fetchCustomExercises(supabase, userId)])
+      .then(([t, e]) => { setTemplates(t); setExercises(e) })
+      .finally(() => setLoading(false))
+  }, [userId])
+  useFocusEffect(load)
+
+  const templateActions = (t: WorkoutTemplate) => {
+    Alert.alert(t.name, `${t.exercise_ids.length} exercise${t.exercise_ids.length === 1 ? '' : 's'} · ~${t.est_duration_min} min`, [
+      { text: 'Edit', onPress: () => router.push(`/workout-builder?templateId=${t.id}` as any) },
+      { text: 'Add to calendar', onPress: () => router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}` as any) },
+      { text: 'Duplicate', onPress: async () => { await duplicateTemplate(supabase, userId, t); load() } },
+      { text: 'Delete', style: 'destructive', onPress: () => confirmDeleteTemplate(t) },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+  const confirmDeleteTemplate = (t: WorkoutTemplate) =>
+    Alert.alert('Delete workout?', `“${t.name}” will be removed. Already-scheduled sessions stay on your calendar.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { if (await deleteTemplate(supabase, t.id)) load() } },
+    ])
+
+  const exerciseActions = (e: Exercise) => {
+    Alert.alert(e.name, e.category ?? 'Custom exercise', [
+      { text: 'Edit', onPress: () => { setEditEx(e); setEditOpen(true) } },
+      { text: 'Delete', style: 'destructive', onPress: () => confirmDeleteExercise(e) },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+  const confirmDeleteExercise = (e: Exercise) =>
+    Alert.alert('Delete exercise?', `“${e.name}” will be removed from your library.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          const res = await deleteCustomExercise(supabase, e.id)
+          if (res.ok) load()
+          else if (res.reason === 'has_history') Alert.alert('Can’t delete', 'This exercise has logged history, so it’s kept to preserve your records. You can edit it instead.')
+          else Alert.alert('Could not delete', 'Please try again.')
+        },
+      },
+    ])
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"><Ionicons name="chevron-down" size={26} color={C.text} /></TouchableOpacity>
+        <Text style={styles.headerTitle}>My Workouts</Text>
+        <View style={{ width: 26 }} />
+      </View>
+
+      {loading ? (
+        <View style={styles.center}><PulseLoader caption="Loading your workouts…" /></View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <PressableScale style={styles.bigBtn} onPress={() => router.push('/workout-builder' as any)}>
+            <Ionicons name="add" size={20} color={C.onPrimary} />
+            <Text style={styles.bigBtnText}>Build a new workout</Text>
+          </PressableScale>
+
+          {/* Splits — the program layer */}
+          <Text style={styles.sectionLabel}>MY SPLITS</Text>
+          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
+            <View style={styles.rowIcon}><Ionicons name="repeat-outline" size={18} color={C.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowName}>My Splits</Text>
+              <Text style={styles.rowMeta}>Build a weekly schedule — PPL, Upper/Lower, custom</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.outline} />
+          </TouchableOpacity>
+
+          {/* Templates */}
+          <Text style={styles.sectionLabel}>SAVED WORKOUTS</Text>
+          {templates.length === 0 ? (
+            <Text style={styles.empty}>No saved workouts yet. Build one and save it as a template to reuse and schedule it anytime.</Text>
+          ) : (
+            <View style={styles.card}>
+              {templates.map((t, i) => (
+                <View key={t.id}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <TouchableOpacity style={styles.row} onPress={() => templateActions(t)} activeOpacity={0.7}>
+                    <View style={styles.rowIcon}><Ionicons name="barbell-outline" size={18} color={C.primary} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowName} numberOfLines={1}>{t.name}</Text>
+                      <Text style={styles.rowMeta}>{t.exercise_ids.length} exercise{t.exercise_ids.length === 1 ? '' : 's'} · ~{t.est_duration_min} min</Text>
+                    </View>
+                    <Ionicons name="ellipsis-horizontal" size={18} color={C.outline} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Custom exercises */}
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionLabel}>MY EXERCISES</Text>
+            <TouchableOpacity onPress={() => { setEditEx(null); setEditOpen(true) }} hitSlop={6}><Text style={styles.link}>New</Text></TouchableOpacity>
+          </View>
+          {exercises.length === 0 ? (
+            <Text style={styles.empty}>No custom exercises yet. Create exercises for anything not in the library — they work everywhere built-ins do.</Text>
+          ) : (
+            <View style={styles.card}>
+              {exercises.map((e, i) => (
+                <View key={e.id}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <TouchableOpacity style={styles.row} onPress={() => exerciseActions(e)} activeOpacity={0.7}>
+                    <View style={styles.rowIcon}><Ionicons name="fitness-outline" size={18} color={C.primary} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowName} numberOfLines={1}>{e.name}</Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>{e.category ?? e.movement_pattern}{e.tracking_metrics?.length ? ` · ${e.tracking_metrics.join(', ')}` : ''}</Text>
+                    </View>
+                    <Ionicons name="ellipsis-horizontal" size={18} color={C.outline} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      <CustomExerciseSheet
+        visible={editOpen}
+        userId={userId}
+        client={supabase}
+        exercise={editEx}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => { setEditOpen(false); load() }}
+      />
+    </SafeAreaView>
+  )
+}
+
+const makeStyles = (C: Palette) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.surface },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
+  scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.sm },
+  bigBtn: { height: 54, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: C.primary, marginTop: Spacing.xs },
+  bigBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
+  sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.md },
+  link: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  empty: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, paddingVertical: Spacing.xs },
+  card: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden', ...CardShadow },
+  divider: { height: 1, backgroundColor: C.surfaceContainerHigh, marginLeft: 60 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow },
+  rowIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
+  rowName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  rowMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize', marginTop: 1 },
+})

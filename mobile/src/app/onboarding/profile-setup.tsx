@@ -7,11 +7,14 @@ import { useRouter, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
+import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { AVATAR_PRESETS, buildAvatarValue, parseAvatar } from '@/lib/avatar'
+import { logMeasurement } from '@/lib/bodyMeasurements'
 
-const C = Colors.light
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
 // new user put a name + avatar on their profile before entering the app. It's
@@ -19,6 +22,8 @@ const C = Colors.light
 // just drops straight into the app. onboarding_complete was already set when the
 // plan was generated, so bailing here never traps the user back in onboarding.
 export default function ProfileSetupScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session, profile, refreshProfile } = useAuthStore()
 
@@ -31,6 +36,10 @@ export default function ProfileSetupScreen() {
     profile?.display_name ?? (session?.user.user_metadata?.full_name as string | undefined) ?? ''
   )
   const [avatarId, setAvatarId] = useState(presetMatch?.id ?? AVATAR_PRESETS[0].id)
+  // Starting weight (optional): the seed for the weight-trend engine and the goal
+  // countdown — without it those flagship surfaces stay dark until the user finds
+  // "Log entry" in Profile → Body Stats, which most never do.
+  const [weight, setWeight] = useState('')
   const [saving, setSaving] = useState(false)
 
   if (!session) return <Redirect href="/sign-in" />
@@ -44,13 +53,21 @@ export default function ProfileSetupScreen() {
     if (saving) return
     setSaving(true)
     try {
+      const weightNum = parseFloat(weight)
+      const validWeight = Number.isFinite(weightNum) && weightNum >= 50 && weightNum <= 1000
       await supabase
         .from('user_profiles')
         .update({
           display_name: name.trim() || null,
           avatar_url: buildAvatarValue(preset.icon, preset.color),
+          ...(validWeight ? { bodyweight_lbs: weightNum } : {}),
         })
         .eq('user_id', session.user.id)
+      // First body-measurement entry — powers the weight trend + goal countdown
+      // from day one. Best-effort; profile save above is what matters.
+      if (validWeight) {
+        try { await logMeasurement(supabase, session.user.id, { weight_lbs: weightNum }) } catch {}
+      }
       await refreshProfile()
       enterApp()
     } catch {
@@ -64,7 +81,7 @@ export default function ProfileSetupScreen() {
       {/* Header — no back: the plan is already built, this is the finish line */}
       <View style={styles.header}>
         <View style={{ width: 38 }} />
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <TouchableOpacity onPress={enterApp} disabled={saving} hitSlop={8}>
           <Text style={[styles.skipTop, saving && { opacity: 0.4 }]}>Skip</Text>
         </TouchableOpacity>
@@ -75,7 +92,7 @@ export default function ProfileSetupScreen() {
         <View style={[styles.progressFill, { width: '100%' }]} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>LAST STEP</Text>
         <Text style={styles.title}>Make it yours.</Text>
         <Text style={styles.subtitle}>Add a name and pick an avatar — you'll see these across your profile and progress.</Text>
@@ -99,6 +116,24 @@ export default function ProfileSetupScreen() {
           autoCapitalize="words"
           returnKeyType="done"
         />
+
+        <Text style={styles.fieldLabel}>CURRENT WEIGHT (OPTIONAL)</Text>
+        <View style={styles.weightRow}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={weight}
+            onChangeText={setWeight}
+            placeholder="e.g. 165"
+            placeholderTextColor={C.outline}
+            keyboardType="decimal-pad"
+            maxLength={6}
+            returnKeyType="done"
+          />
+          <Text style={styles.weightUnit}>lbs</Text>
+        </View>
+        <Text style={styles.weightHint}>
+          Starts your weight trend and goal countdown — Tempo projects when you'll hit your goal.
+        </Text>
 
         <Text style={styles.fieldLabel}>AVATAR</Text>
         <View style={styles.avatarGrid}>
@@ -124,7 +159,7 @@ export default function ProfileSetupScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.continueBtn, saving && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={saving}
@@ -135,25 +170,25 @@ export default function ProfileSetupScreen() {
           ) : (
             <Text style={styles.continueBtnText}>Enter Tempo →</Text>
           )}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   skipTop: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.textSecondary },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
 
   preview: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
@@ -161,7 +196,7 @@ const styles = StyleSheet.create({
     width: 84, height: 84, borderRadius: Radius.full,
     alignItems: 'center', justifyContent: 'center', ...CardShadow,
   },
-  previewName: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.2 },
+  previewName: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.2 },
 
   fieldLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
   input: {
@@ -169,6 +204,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.md,
     fontFamily: 'Inter_500Medium', fontSize: 16, color: C.text,
   },
+
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  weightUnit: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.textSecondary },
+  weightHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, lineHeight: 17 },
 
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   avatarPick: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },

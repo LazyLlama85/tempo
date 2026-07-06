@@ -1,14 +1,21 @@
 // Tempo — exercise form-guide media.
 //
-// Maps each seeded exercise (by its fixed UUID) to a verified ExerciseDB clip.
-// Every id here was matched to our exercise and confirmed to return a real GIF
-// (see scripts/sync-exercise-media.mjs). Exercises with no accurate match are
-// deliberately absent — the UI falls back to an illustration rather than show a
-// misleading demo. The current gaps are tracked in supabase/MISSING_EXERCISE_MEDIA.md.
+// THREE sources, in priority order:
+//   1. LOCAL_GIFS — our own bundled clips (offline, no API key).
+//   2. EXERCISE_MEDIA — curated UUID → ExerciseDB-clip mapping for the original
+//      seeded movements (each verified by scripts/sync-exercise-media.mjs), with
+//      an optional caveat note when the demo is a close variant.
+//   3. Derivation — the 1200+ imported library rows EMBED their ExerciseDB id in
+//      their UUID (edb00000-0000-4000-8000-<id>), so their clip needs no mapping
+//      at all (see lib/exerciseDb.ts).
+// Exercises with no accurate clip anywhere fall back to an illustration rather
+// than show a misleading demo (gaps tracked in supabase/MISSING_EXERCISE_MEDIA.md).
 //
 // GIFs are served by the ExerciseDB image endpoint, which requires the RapidAPI
 // auth headers, so we attach them to the image request. EXPO_PUBLIC_ vars are
 // inlined into the bundle at build time.
+
+import { exdbIdForExercise } from '@/lib/exerciseDb'
 
 const UUID = (suffix: string) => `00000000-0000-0000-0000-0000000000${suffix}`
 
@@ -62,6 +69,17 @@ export const EXERCISE_MEDIA: Record<string, ExerciseMedia> = {
   [UUID('46')]: { exdbId: '0687' }, // Russian Twist
   [UUID('47')]: { exdbId: '0175' }, // Cable Crunch
   [UUID('48')]: { exdbId: '2612' }, // Jump Rope
+  // Seeded mobility movement with a verified catalog clip.
+  ['1d8c9b44-c59d-4504-94f6-04ce75865422']: { exdbId: '1604' }, // World's Greatest Stretch
+  // Hand-written staples (no exact catalog clip) borrowing a close variant.
+  ['edb00000-0000-4000-8000-900000000001']: {
+    exdbId: '1409',
+    note: 'Demo shows the barbell glute bridge from the floor — same hip drive with your upper back on a bench.',
+  }, // Barbell Hip Thrust
+  ['edb00000-0000-4000-8000-900000000004']: {
+    exdbId: '1460',
+    note: 'Demo shows the unloaded walking lunge — hold a dumbbell in each hand.',
+  }, // Dumbbell Walking Lunge
 }
 
 // Locally-bundled form clips — our own GIFs (split from a single demo video) for the
@@ -79,8 +97,23 @@ const LOCAL_GIFS: Record<string, number> = {
   [UUID('50')]: require('@/assets/exercise-gifs/rowing-machine.gif'),        // Rowing Machine
 }
 
-// Every previously-missing movement now has a local clip, so there are no gaps left.
-export const MISSING_MEDIA_UUIDS: string[] = []
+// Seeded **mobility** movements with no form clip yet — no accurate ExerciseDB
+// match (verified by hand; close-but-wrong demos are worse than none) and no
+// bundled local GIF — so the form guide falls back to its illustration for these.
+// Tracked here + in supabase/MISSING_EXERCISE_MEDIA.md. (The original 50 strength
+// movements are all covered: 42 remote + 8 local; World's Greatest Stretch is
+// mapped to catalog clip 1604 above.)
+export const MISSING_MEDIA_UUIDS: string[] = [
+  '201e20f5-d4de-4a80-838a-04b7034a35ca', // Ankle Mobility Rock
+  '39272408-f1db-4f3f-a2c4-0a7950b3fadc', // Shoulder Pass-Through
+  '42b3596f-6ebc-4b04-95ec-cdbe9417afd1', // Downward Dog to Cobra
+  '47f2cdd7-367c-44f4-9fea-9cb231e04fbf', // Deep Squat Hold
+  '6444cccc-7a7f-4484-a45e-1c46e34054d5', // Thoracic Rotation
+  '9488f1e5-0bad-4a6e-b4fb-9628d56f7b1b', // 90/90 Hip Switch
+  '9971c614-10b0-4e62-a1d5-286056361b0e', // Standing Hamstring Stretch
+  'd1380065-975c-4310-9682-907415b39c86', // Hip Flexor Stretch
+  'ed3798cf-4b37-4e5c-b245-067656480e0d', // Cat-Cow
+]
 
 const EXDB_IMAGE_HOST = 'exercisedb.p.rapidapi.com'
 const RAPIDAPI_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY
@@ -110,10 +143,11 @@ export function getExerciseGifSource(
 ): number | GifSource | null {
   // Prefer our own bundled clip when we have one (offline, no API key required).
   if (exerciseId && LOCAL_GIFS[exerciseId] != null) return LOCAL_GIFS[exerciseId]
-  const media = getExerciseMedia(exerciseId)
-  if (!media || !RAPIDAPI_KEY) return null
+  // Curated mapping first, then the id embedded in imported-library UUIDs.
+  const exdbId = getExerciseMedia(exerciseId)?.exdbId ?? exdbIdForExercise(exerciseId)
+  if (!exdbId || !RAPIDAPI_KEY) return null
   return {
-    uri: `https://${EXDB_IMAGE_HOST}/image?exerciseId=${media.exdbId}&resolution=${resolution}`,
+    uri: `https://${EXDB_IMAGE_HOST}/image?exerciseId=${exdbId}&resolution=${resolution}`,
     headers: {
       'x-rapidapi-key': RAPIDAPI_KEY,
       'x-rapidapi-host': EXDB_IMAGE_HOST,

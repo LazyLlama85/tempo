@@ -4,17 +4,22 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { supabase } from '@/lib/supabase'
 import { recordWorkoutFeedback, refreshAdaptation, type WorkoutFeel } from '@/lib/adaptation'
+import { maybePromoteExperience, LEVEL_UP_COPY, type ExperiencePromotion } from '@/lib/experienceProgression'
 import { track } from '@/lib/analytics'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
 import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
+import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
+import { PopIn, FadeInView, PressableScale } from '@/components/motion'
+import { ConfettiBurst, CountUp } from '@/components/celebration'
+import { AnimatedRing } from '@/components/AnimatedRing'
 
-const C = Colors.light
 
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'muscle-building',
@@ -25,19 +30,23 @@ const GOAL_LABELS: Record<string, string> = {
 }
 
 export default function WorkoutCompleteScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { session, profile } = useAuthStore()
+  const { session, profile, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const { minutes, quick, logId } = useLocalSearchParams<{ minutes?: string; quick?: string; logId?: string }>()
   const isQuick = quick === '1'
   const mins = Number(minutes) || 0
 
   const { stats, refetch } = useProgressStats(userId)
+  const unit = useWeightUnit()
   const [feel, setFeel] = useState<WorkoutFeel | null>(null)
   const [cards, setCards] = useState<WrappedCard[]>([])
   const [shareOpen, setShareOpen] = useState(false)
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [prs, setPrs] = useState<SessionPR[]>([])
+  const [promotion, setPromotion] = useState<ExperiencePromotion | null>(null)
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
@@ -55,6 +64,21 @@ export default function WorkoutCompleteScreen() {
     computeWeeklyReport(supabase, userId).then(setReport).catch(() => {})
     detectSessionPRs(supabase, userId, logId || undefined).then(setPrs).catch(() => {})
   }, [userId, logId])
+
+  // The "you earned it" moment: with this session banked, has the user graduated to
+  // a harder experience level? If so, the plan was already re-stamped — celebrate it
+  // and refresh the profile so the whole app reflects the new level. Best-effort.
+  useEffect(() => {
+    if (!userId) return
+    maybePromoteExperience(supabase, userId)
+      .then((p) => {
+        if (!p) return
+        setPromotion(p)
+        track('experience_promoted', { from: p.from, to: p.to })
+        refreshProfile().catch(() => {})
+      })
+      .catch(() => {})
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFeel = async (f: WorkoutFeel) => {
     setFeel(f)
@@ -93,7 +117,7 @@ export default function WorkoutCompleteScreen() {
       return `${report.volumeDeltaPct}% more volume than last week. You're building real momentum.`
     }
     if (stats.streak > 1) {
-      return `${stats.streak} days in a row — momentum is on your side.`
+      return `${stats.streak} sessions in a row — momentum is on your side.`
     }
     return isQuick
       ? `${mins} minutes completed. You stayed on track with your ${goalLabel} goal.`
@@ -102,16 +126,35 @@ export default function WorkoutCompleteScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.badge}>
+      {/* The moment of celebration — confetti falls once as the summary lands */}
+      <ConfettiBurst count={prs.length > 0 ? 40 : 26} />
+      {/* A bigger, gold-tinted second fall the instant a level-up lands */}
+      {promotion && <ConfettiBurst count={72} colors={[C.gold, C.primary, C.primaryBright, C.success]} />}
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <PopIn style={styles.badge}>
           <Ionicons name="checkmark" size={44} color={C.onPrimary} />
-        </View>
-        <Text style={styles.title}>Nice work.</Text>
-        <Text style={styles.lead}>{lead}</Text>
+        </PopIn>
+        <FadeInView delay={120}><Text style={styles.title}>Nice work.</Text></FadeInView>
+        <FadeInView delay={200}><Text style={styles.lead}>{lead}</Text></FadeInView>
+
+        {/* Level up — the plan grew with you. The biggest moment on the screen. */}
+        {promotion && (
+          <PopIn delay={240} style={styles.levelCard}>
+            <View style={styles.levelBadge}>
+              <Ionicons name="trending-up" size={26} color="#1a1a1a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.levelTag}>LEVEL UP</Text>
+              <Text style={styles.levelTitle}>{LEVEL_UP_COPY[promotion.to as 'intermediate' | 'advanced'].title}</Text>
+              <Text style={styles.levelBody}>{LEVEL_UP_COPY[promotion.to as 'intermediate' | 'advanced'].body}</Text>
+            </View>
+          </PopIn>
+        )}
 
         {/* PRs — celebrate them aggressively */}
         {prs.length > 0 && (
-          <View style={styles.prCard}>
+          <PopIn delay={260} style={styles.prCard}>
             <View style={styles.prHeader}>
               <Ionicons name="trophy" size={18} color="#fff" />
               <Text style={styles.prHeaderText}>{prs.length === 1 ? 'NEW PERSONAL RECORD' : `${prs.length} NEW PERSONAL RECORDS`}</Text>
@@ -119,52 +162,70 @@ export default function WorkoutCompleteScreen() {
             {prs.slice(0, 3).map((pr) => (
               <View key={pr.exercise + pr.kind} style={styles.prRow}>
                 <Ionicons name="arrow-up-circle" size={16} color="#fff" />
-                <Text style={styles.prText}>{prLine(pr)}</Text>
+                <Text style={styles.prText}>{prLine(pr, unit)}</Text>
               </View>
             ))}
-          </View>
+          </PopIn>
         )}
 
-        {/* Streak impact */}
-        <View style={[styles.card, styles.streakCard]}>
+        {/* Streak impact — the number ticks up to today */}
+        <FadeInView delay={280} style={[styles.card, styles.streakCard]}>
           <View style={styles.streakRow}>
             <Ionicons name="flame" size={22} color="#fff" />
             <Text style={styles.streakTag}>STREAK</Text>
           </View>
-          <Text style={styles.streakNum}>{stats.streak} <Text style={styles.streakUnit}>days</Text></Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+            <CountUp value={stats.streak} delay={500} duration={700} style={styles.streakNum} />
+            <Text style={styles.streakUnit}>{stats.streak === 1 ? 'session' : 'sessions'}</Text>
+          </View>
           <Text style={styles.streakCaption}>
             {stats.streak > 1
-              ? `This workout preserved your ${stats.streak}-day streak. Keep it alive.`
-              : 'Your streak starts today — come back tomorrow to build it.'}
+              ? `That's ${stats.streak} sessions in a row with no misses. Rest days don't break it — missed ones do.`
+              : 'Your streak starts now — complete your next scheduled session to build it.'}
           </Text>
-        </View>
+        </FadeInView>
 
-        {/* Two stat tiles */}
-        <View style={styles.tileRow}>
+        {/* Stat tiles + the weekly ring */}
+        <FadeInView delay={360} style={styles.tileRow}>
           <View style={styles.tile}>
             <Text style={styles.tileLabel}>CONSISTENCY</Text>
-            <Text style={styles.tileValue}>{stats.consistency_pct}%</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <CountUp value={stats.consistency_pct} delay={600} style={styles.tileValue} />
+              <Text style={styles.tileValue}>%</Text>
+            </View>
             <Text style={styles.tileSub}>{stats.deltaStr}</Text>
           </View>
           <View style={styles.tile}>
-            <Text style={styles.tileLabel}>THIS WEEK</Text>
-            <Text style={styles.tileValue}>{stats.thisWeek}<Text style={styles.tileValueUnit}>/{weeklyTarget}</Text></Text>
-            <Text style={styles.tileSub}>{weekPct}% of weekly target</Text>
+            <Text style={styles.tileLabel}>DURATION</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <CountUp value={mins} delay={600} style={styles.tileValue} />
+              <Text style={styles.tileValueUnit}> min</Text>
+            </View>
+            <Text style={styles.tileSub}>logged today</Text>
           </View>
-        </View>
+        </FadeInView>
 
-        {/* Weekly target progress bar */}
-        <View style={styles.card}>
-          <Text style={styles.weekLabel}>WEEKLY TRAINING TARGET</Text>
-          <View style={styles.barTrack}>
-            <View style={[styles.barFill, { width: `${weekPct}%` as `${number}%` }]} />
+        {/* Weekly target — a ring that sweeps to where this session put you */}
+        <FadeInView delay={430} style={[styles.card, styles.weekCard]}>
+          <AnimatedRing
+            value={weekPct}
+            size={104}
+            stroke={11}
+            delay={650}
+            color={weekPct >= 100 ? C.success : C.primary}
+            holeColor={C.background}
+          >
+            <Text style={styles.ringValue}>{stats.thisWeek}<Text style={styles.ringUnit}>/{weeklyTarget}</Text></Text>
+          </AnimatedRing>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.weekLabel}>WEEKLY TARGET</Text>
+            <Text style={styles.weekCaption}>
+              {weekPct >= 100
+                ? 'Full weekly target hit — outstanding. Anything more is bonus ground.'
+                : `${stats.thisWeek} of ${weeklyTarget} sessions down. The week is yours to win.`}
+            </Text>
           </View>
-          <Text style={styles.weekCaption}>
-            {weekPct >= 100
-              ? `You've hit your full weekly target — outstanding.`
-              : `You've completed ${weekPct}% of this week's training target.`}
-          </Text>
-        </View>
+        </FadeInView>
 
         {/* Difficulty check-in — coarse signal that tunes the next session's volume */}
         <View style={styles.card}>
@@ -177,10 +238,10 @@ export default function WorkoutCompleteScreen() {
           ) : (
             <View style={styles.feelRow}>
               {FEEL_OPTIONS.map((o) => (
-                <TouchableOpacity key={o.key} style={styles.feelBtn} onPress={() => handleFeel(o.key)} activeOpacity={0.8}>
+                <PressableScale key={o.key} style={styles.feelBtn} onPress={() => handleFeel(o.key)} scaleTo={0.92}>
                   <Ionicons name={o.icon as any} size={20} color={C.primary} />
                   <Text style={styles.feelBtnText}>{o.label}</Text>
-                </TouchableOpacity>
+                </PressableScale>
               ))}
             </View>
           )}
@@ -199,14 +260,14 @@ export default function WorkoutCompleteScreen() {
 
       <View style={styles.footer}>
         {cards.length > 0 && (
-          <TouchableOpacity style={styles.shareBtn} onPress={() => { track('share_card_opened'); setShareOpen(true) }} activeOpacity={0.85}>
+          <PressableScale style={styles.shareBtn} onPress={() => { track('share_card_opened'); setShareOpen(true) }} scaleTo={0.97}>
             <Ionicons name="share-outline" size={18} color={C.primary} />
             <Text style={styles.shareBtnText}>Share a card</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
-        <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace('/(tabs)')} activeOpacity={0.85}>
+        <PressableScale style={styles.doneBtn} onPress={() => router.replace('/(tabs)')}>
           <Text style={styles.doneBtnText}>Done</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <ShareCardSheet visible={shareOpen} cards={cards} onClose={() => setShareOpen(false)} />
@@ -214,41 +275,56 @@ export default function WorkoutCompleteScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.xl, paddingBottom: 120, gap: Spacing.md, alignItems: 'stretch' },
   badge: {
     width: 88, height: 88, borderRadius: Radius.full, backgroundColor: C.primary,
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
-    shadowColor: '#0058BC', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 24, elevation: 8,
+    shadowColor: '#4E8BFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.32, shadowRadius: 24, elevation: 8,
   },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center', marginTop: Spacing.sm },
+  title: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center', marginTop: Spacing.sm },
   lead: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xs },
 
   card: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.xs },
   streakCard: { backgroundColor: C.primary, borderColor: C.primary },
 
+  levelCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.primary, borderRadius: Radius.xl, padding: Spacing.lg, marginTop: Spacing.xs,
+    shadowColor: '#4E8BFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.34, shadowRadius: 22, elevation: 9,
+  },
+  levelBadge: {
+    width: 52, height: 52, borderRadius: Radius.full, backgroundColor: C.gold,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: C.gold, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 10, elevation: 4,
+  },
+  levelTag: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.gold, letterSpacing: 1.2 },
+  levelTitle: { fontFamily: C.fontDisplay, fontSize: 19, color: '#fff', letterSpacing: -0.3, marginTop: 2, marginBottom: 4 },
+  levelBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: 'rgba(255,255,255,0.86)', lineHeight: 19 },
+
   prCard: { backgroundColor: '#B8860B', borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.xs, marginTop: Spacing.xs },
   prHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  prHeaderText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: '#fff', letterSpacing: 0.6 },
+  prHeaderText: { fontFamily: C.fontDisplay, fontSize: 12, color: '#fff', letterSpacing: 0.6 },
   prRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: '#fff' },
   streakRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   streakTag: { fontFamily: 'Inter_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.6 },
-  streakNum: { fontFamily: 'Inter_800ExtraBold', fontSize: 44, color: '#fff', letterSpacing: -1.5, lineHeight: 48 },
+  streakNum: { fontFamily: C.fontDisplay, fontSize: 44, color: '#fff', letterSpacing: -1.5, lineHeight: 48 },
   streakUnit: { fontFamily: 'Inter_400Regular', fontSize: 22, color: 'rgba(255,255,255,0.8)' },
   streakCaption: { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 20 },
 
   tileRow: { flexDirection: 'row', gap: Spacing.md },
   tile: { flex: 1, backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: 2 },
   tileLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
-  tileValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 30, color: C.text, letterSpacing: -1 },
+  tileValue: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -1 },
   tileValueUnit: { fontFamily: 'Inter_400Regular', fontSize: 18, color: C.textSecondary },
   tileSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary },
 
   weekLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  barTrack: { height: 8, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 4 },
-  barFill: { height: 8, backgroundColor: C.primary, borderRadius: Radius.full },
+  weekCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  ringValue: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.5 },
+  ringUnit: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary },
   weekCaption: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 18 },
 
   feelRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.xs },

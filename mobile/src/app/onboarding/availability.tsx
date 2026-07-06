@@ -15,12 +15,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
+import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
-const C = Colors.light
 
 const genId = () => `${Date.now()}-${Math.round(Math.random() * 1e6)}`
 
@@ -36,10 +38,12 @@ const TODS: { id: TimeOfDay; label: string }[] = [
 type PickerField = 'wake' | 'bed' | 'workStart' | 'workEnd' | 'schoolStart' | 'schoolEnd'
 
 export default function OnboardingAvailabilityScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session, refreshProfile } = useAuthStore()
   const params = useLocalSearchParams<{
-    goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string
+    goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string; schedulingMode?: string
   }>()
 
   const [wake, setWake] = useState<string | null>('06:30:00')
@@ -128,6 +132,7 @@ export default function OnboardingAvailabilityScreen() {
         school_end: schoolEnd,
         preferred_time_of_day: tod,
         unavailable_blocks: unavailable,
+        scheduling_mode: params.schedulingMode === 'manual' ? 'manual' : 'auto',
       })
       if (error) throw error
       await refreshProfile()
@@ -156,10 +161,10 @@ export default function OnboardingAvailabilityScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} disabled={saving}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back" disabled={saving}>
           <Ionicons name="arrow-back" size={22} color={saving ? C.outlineVariant : C.text} />
         </TouchableOpacity>
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <TouchableOpacity onPress={goNext} disabled={saving} hitSlop={8}>
           <Text style={[styles.skipTop, saving && { opacity: 0.4 }]}>Skip</Text>
         </TouchableOpacity>
@@ -169,7 +174,7 @@ export default function OnboardingAvailabilityScreen() {
         <View style={[styles.progressFill, { width: '83%' }]} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 5 OF 6</Text>
         <Text style={styles.title}>When does life happen?</Text>
         <Text style={styles.subtitle}>
@@ -269,14 +274,14 @@ export default function OnboardingAvailabilityScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.continueBtn, saving && { opacity: 0.6 }]}
           onPress={handleContinue}
           disabled={saving}
           activeOpacity={0.85}
         >
           {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.continueBtnText}>Continue</Text>}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <TimePickerSheet
@@ -290,20 +295,20 @@ export default function OnboardingAvailabilityScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   skipTop: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.textSecondary },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.sm },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, marginBottom: Spacing.xs },
 
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },

@@ -179,3 +179,31 @@ export async function deleteDeviceEvent(eventId: string): Promise<void> {
     // Event may have been manually deleted from the calendar already
   }
 }
+
+// A calendar event Tempo created. Device events are titled "Tempo: <focus>" and
+// Google events "Tempo · <focus>" — both start with "Tempo" + a separator. Matching
+// on that lets "remove all Tempo events" sweep up orphans (events we lost the DB
+// pointer to after a reinstall / manual DB edit), not just ones we still track.
+export function isTempoEventTitle(title: string | null | undefined): boolean {
+  return /^tempo\s*[·•:\-]/i.test((title ?? '').trim())
+}
+
+// Delete EVERY Tempo-titled event on the device calendar within [start, end],
+// regardless of whether the app still has a DB pointer to it. Returns how many were
+// removed. Best-effort per event; no-op without calendar permission.
+export async function deleteTempoDeviceEvents(start: Date, end: Date): Promise<number> {
+  const status = await getCalendarPermissionStatus()
+  if (status !== 'granted') return 0
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  const ids = calendars.filter(c => c.allowsModifications).map(c => c.id)
+  if (!ids.length) return 0
+
+  const events = await Calendar.getEventsAsync(ids, start, end)
+  let removed = 0
+  for (const e of events) {
+    if (!isTempoEventTitle(e.title)) continue
+    try { await Calendar.deleteEventAsync(e.id); removed++ } catch { /* already gone */ }
+  }
+  return removed
+}

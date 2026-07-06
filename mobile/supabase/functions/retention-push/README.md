@@ -9,12 +9,12 @@ notifications a retention driver instead of device-local alarms.
 On each run (scheduled hourly) it evaluates four rules per user, each
 de-duplicated to **at most once per user per day** via `notification_log`:
 
-| Type             | Trigger                                                        | Deep link      |
-|------------------|---------------------------------------------------------------|----------------|
-| `missed_workout` | A plan session was due earlier today and isn't completed.     | `plan`         |
-| `streak_at_risk` | Trained yesterday, not yet today, and it's evening.           | `quick-workout`|
-| `free_time_gap`  | Nothing scheduled/done today, during the active daytime hours.| `quick-workout`|
-| `reactivation`   | No completed workout in the last 5 days.                      | `home`         |
+| Type             | Trigger                                                                              | Deep link      |
+|------------------|--------------------------------------------------------------------------------------|----------------|
+| `missed_workout` | Today's session still isn't done — the *daytime* nudge.                              | `plan`         |
+| `streak_at_risk` | Today's **scheduled** session is still open in the evening. Never fires on a planned rest day — streaks count completed sessions, so rest days can't break them. | `plan` |
+| `free_time_gap`  | Nothing scheduled/done today, during the active daytime hours.                       | `quick-workout`|
+| `reactivation`   | No completed workout in the last 5 days.                                             | `home`         |
 
 Every send attempt is written to `notification_log` (`sent` / `failed` + Expo
 ticket id + error). Tokens Expo reports as `DeviceNotRegistered` are disabled so

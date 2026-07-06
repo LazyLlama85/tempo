@@ -1,0 +1,225 @@
+kept: 1297   dropped: 109
+patterns: {"core":156,"pull":378,"push":355,"squat":144,"hinge":94,"cardio":65,"mobility":102,"carry":3}
+equipment: {"bodyweight":356,"full_gym":364,"barbell":158,"dumbbells":307,"kettlebell":42,"resistance_bands":70}
+levels: {"beginner":723,"intermediate":397,"advanced":177}
+muscle groups: {"core":156,"back":173,"chest":139,"arms":308,"legs":117,"glutes":111,"shoulders":127,"cardio":65,"mobility":101}
+
+CORE POOL (103 found):
+  [core] Bicycle Crunch  (bodyweight, beginner)
+  [pull] Assisted Pull-Up (Machine)  (full_gym, beginner)
+  [push] Assisted Dip (Machine)  (full_gym, beginner)
+  [pull] Barbell Curl  (barbell, beginner)
+  [hinge] Barbell Good Morning  (barbell, intermediate)
+  [squat] Barbell Lunge  (barbell, intermediate)
+  [push] Barbell Skull Crusher  (barbell, intermediate)
+  [push] Barbell Lying Triceps Extension  (barbell, intermediate)
+  [pull] Barbell Preacher Curl  (barbell, beginner)
+  [pull] Barbell Pullover  (barbell, intermediate)
+  [pull] Barbell Shrug  (barbell, beginner)
+  [squat] Barbell Step-Up  (barbell, intermediate)
+  [hinge] Barbell Straight Leg Deadlift  (barbell, intermediate)
+  [pull] Barbell Upright Row  (barbell, intermediate)
+  [pull] Cable Hammer Curl (with Rope)  (full_gym, beginner)
+  [push] Cable Lateral Raise  (full_gym, beginner)
+  [hinge] Cable Pull Through (with Rope)  (full_gym, beginner)
+  [pull] Cable Pulldown  (full_gym, beginner)
+  [push] Triceps Pushdown  (full_gym, beginner)
+  [pull] Cable Shrug  (full_gym, beginner)
+  [pull] Cable Straight Arm Pulldown  (full_gym, beginner)
+  [push] Chest Dip  (bodyweight, advanced)
+  [core] Crunch Floor  (bodyweight, beginner)
+  [push] Decline Push-Up  (bodyweight, intermediate)
+  [push] Dumbbell Arnold Press  (dumbbells, intermediate)
+  [pull] Dumbbell Concentration Curl  (dumbbells, beginner)
+  [hinge] Dumbbell Deadlift  (dumbbells, beginner)
+  [push] Dumbbell Fly  (dumbbells, intermediate)
+  [push] Dumbbell Front Raise  (dumbbells, beginner)
+  [pull] Dumbbell Hammer Curl  (dumbbells, beginner)
+  [push] Dumbbell Incline Bench Press  (dumbbells, intermediate)
+  [pull] Dumbbell Incline Curl  (dumbbells, beginner)
+  [push] Dumbbell Kickback  (dumbbells, beginner)
+  [squat] Dumbbell Lunge  (dumbbells, intermediate)
+  [push] Dumbbell Lying Triceps Extension  (dumbbells, beginner)
+  [pull] Dumbbell Preacher Curl  (dumbbells, beginner)
+  [pull] Dumbbell Pullover  (dumbbells, intermediate)
+  [push] Dumbbell Rear Lateral Raise  (dumbbells, intermediate)
+  [pull] Dumbbell Reverse Fly  (dumbbells, intermediate)
+  [pull] Dumbbell Shrug  (dumbbells, beginner)
+  [squat] Dumbbell Single Leg Split Squat  (dumbbells, intermediate)
+  [squat] Dumbbell Squat  (dumbbells, beginner)
+  [squat] Dumbbell Standing Calf Raise  (dumbbells, beginner)
+  [squat] Dumbbell Step-Up  (dumbbells, intermediate)
+  [hinge] Dumbbell Stiff Leg Deadlift  (dumbbells, intermediate)
+  [pull] Dumbbell Upright Row  (dumbbells, beginner)
+  [pull] EZ-Bar Curl  (barbell, beginner)
+  [hinge] Flutter Kicks  (bodyweight, beginner)
+  [hinge] Hyperextension  (bodyweight, beginner)
+  [push] Incline Push-Up  (bodyweight, beginner)
+  [pull] Inverted Row  (bodyweight, beginner)
+  [squat] Kettlebell Goblet Squat  (kettlebell, beginner)
+  [hinge] Kettlebell Swing  (kettlebell, intermediate)
+  [pull] Machine Assisted Chin-Up  (full_gym, beginner)
+  [hinge] Machine Back Extension  (full_gym, beginner)
+  [pull] Machine Bent Over Row  (barbell, intermediate)
+  [push] Machine Chest Press  (full_gym, beginner)
+  [squat] Machine Seated Calf Raise  (full_gym, beginner)
+  [push] Pec Deck Fly  (full_gym, beginner)
+  [hinge] Machine Seated Leg Curl  (full_gym, beginner)
+  [pull] Reverse Pec Deck Fly  (full_gym, beginner)
+  [push] Machine Shoulder Press  (full_gym, beginner)
+  [squat] Machine Standing Calf Raise  (full_gym, beginner)
+  [pull] Machine T-Bar Row  (full_gym, beginner)
+  [core] Lying Leg Raise  (bodyweight, intermediate)
+  [cardio] Treadmill Running  (bodyweight, beginner)
+  [cardio] Running  (bodyweight, beginner)
+  [core] Side Plank  (bodyweight, intermediate)
+  [core] Sit-Up  (bodyweight, beginner)
+  [squat] 45° Calf Press  (full_gym, beginner)
+  [hinge] Wide-Stance Leg Press  (full_gym, beginner)
+  [squat] Hack Squat Machine  (full_gym, beginner)
+  [push] Smith Machine Bench Press  (full_gym, beginner)
+  [squat] Smith Machine Squat  (full_gym, beginner)
+  [hinge] Trap Bar Deadlift  (barbell, intermediate)
+  [push] Bench Dip  (bodyweight, beginner)
+  [core] Reverse Crunch  (bodyweight, beginner)
+  [core] Pallof Press (Band)  (resistance_bands, beginner)
+  [push] Machine Incline Chest Press  (full_gym, beginner)
+  [pull] Chin-Up  (bodyweight, intermediate)
+  [pull] Machine Seated Row  (full_gym, beginner)
+  [squat] Barbell Standing Calf Raise  (barbell, intermediate)
+  [pull] Wide Grip Pull-Up  (bodyweight, advanced)
+  [push] Machine Seated Dip  (full_gym, beginner)
+  [core] Machine Seated Crunch  (full_gym, beginner)
+  [carry] Farmer's Walk  (dumbbells, beginner)
+  [cardio] Stationary Bike  (full_gym, beginner)
+  [cardio] Elliptical Trainer  (full_gym, beginner)
+  [cardio] Stair Climber  (full_gym, beginner)
+  [squat] Split Squats  (bodyweight, beginner)
+  [core] Captain's Chair Leg Raise  (bodyweight, intermediate)
+  [cardio] Skips  (bodyweight, beginner)
+  [push] Kneeling Push-Up  (bodyweight, beginner)
+  [cardio] Bear Crawl  (bodyweight, intermediate)
+  [cardio] Skater Hops  (bodyweight, intermediate)
+  [squat] Forward Lunge  (bodyweight, beginner)
+  [cardio] Incline Treadmill Walk  (full_gym, beginner)
+  [carry] Kettlebell Overhead Carry  (kettlebell, intermediate)
+  [hinge] Barbell Hip Thrust  (barbell, intermediate)
+  [squat] Wall Sit  (bodyweight, beginner)
+  [core] Cable Woodchop  (full_gym, beginner)
+  [squat] Dumbbell Walking Lunge  (dumbbells, intermediate)
+  [core] Bird Dog  (bodyweight, beginner)
+
+CORE NAMES NOT FOUND (2):
+  walking lunge
+  barbell glute bridge
+
+DROPPED:
+  0010 assisted hanging knee raise with throw down — partner-assisted
+  0011 assisted hanging knee raise — partner-assisted
+  0012 assisted lying leg raise with lateral throw down — partner-assisted
+  0013 assisted lying leg raise with throw down — partner-assisted
+  0016 assisted prone hamstring — partner-assisted
+  0018 assisted standing triceps extension (with towel) — partner-assisted
+  0025 barbell bench press — already seeded (mapped media)
+  0027 barbell bent over row — already seeded (mapped media)
+  0030 barbell close-grip bench press — already seeded (mapped media)
+  0032 barbell deadlift — already seeded (mapped media)
+  0042 barbell front squat — already seeded (mapped media)
+  0043 barbell full squat — already seeded (mapped media)
+  0047 barbell incline bench press — already seeded (mapped media)
+  0078 barbell rear lunge — duplicate of "Barbell Rear Lunge"
+  0082 barbell reverse wrist curl — duplicate of "Barbell Reverse Wrist Curl"
+  0085 barbell romanian deadlift — already seeded (mapped media)
+  0098 barbell side split squat — duplicate of "Barbell Side Split Squat"
+  0117 barbell sumo deadlift — already seeded (mapped media)
+  0120 barbell upright row — duplicate of "Barbell Upright Row"
+  0121 barbell upright row v. 3 — duplicate of "Barbell Upright Row"
+  0126 barbell wrist curl — duplicate of "Barbell Wrist Curl"
+  0175 cable kneeling crunch — already seeded (mapped media)
+  0188 cable middle fly — already seeded (mapped media)
+  0276 dead bug — already seeded (mapped media)
+  0289 dumbbell bench press — already seeded (mapped media)
+  0293 dumbbell bent over row — already seeded (mapped media)
+  0294 dumbbell biceps curl — already seeded (mapped media)
+  0305 dumbbell decline shrug — duplicate of "Dumbbell Decline Shrug"
+  0310 dumbbell front raise — duplicate of "Dumbbell Front Raise"
+  0313 dumbbell hammer curl — duplicate of "Dumbbell Hammer Curl"
+  0318 dumbbell incline curl — duplicate of "Dumbbell Incline Curl"
+  0334 dumbbell lateral raise — already seeded (mapped media)
+  0343 dumbbell lying one arm press — duplicate of "Dumbbell Lying One Arm Press"
+  0361 dumbbell one arm shoulder press — duplicate of "Dumbbell One Arm Shoulder Press"
+  0381 dumbbell rear lunge — already seeded (mapped media)
+  0396 dumbbell seated lateral raise — duplicate of "Dumbbell Seated Lateral Raise"
+  0405 dumbbell seated shoulder press — already seeded (mapped media)
+  0430 dumbbell standing triceps extension — already seeded (mapped media)
+  0472 hanging leg raise — already seeded (mapped media)
+  0499 inverted row — duplicate of "Inverted Row"
+  0514 jump squat — duplicate of "Jump Squat"
+  0577 lever chest press — duplicate of "Machine Chest Press"
+  0585 lever leg extension — already seeded (mapped media)
+  0586 lever lying leg curl — already seeded (mapped media)
+  0630 mountain climber — already seeded (mapped media)
+  0648 power clean — already seeded (mapped media)
+  0652 pull-up — already seeded (mapped media)
+  0656 push-up (on stability ball) — duplicate of "Push-Up (on Stability Ball)"
+  0659 push-up (wall) — duplicate of "Push-Up (wall)"
+  0662 push-up — already seeded (mapped media)
+  0687 russian twist — already seeded (mapped media)
+  0739 sled 45° leg press — already seeded (mapped media)
+  0814 triceps dip — already seeded (mapped media)
+  0841 weighted pull-up — duplicate of "Weighted Pull-Up"
+  0857 wheel rollout — already seeded (mapped media)
+  0861 cable seated row — already seeded (mapped media)
+  0868 cable curl — already seeded (mapped media)
+  0869 lever shoulder press v. 2 — duplicate of "Machine Shoulder Press"
+  1160 burpee — already seeded (mapped media)
+  1259 behind head chest stretch — partner-assisted
+  1371 barbell seated calf raise — duplicate of "Barbell Seated Calf Raise"
+  1394 smith reverse calf raises — duplicate of "Smith Machine Reverse Calf Raises"
+  1409 barbell glute bridge — already seeded (mapped media)
+  1439 lever gripless shrug v. 2 — duplicate of "Machine Gripless Shrug"
+  1457 barbell standing wide military press — already seeded (mapped media)
+  1459 dumbbell romanian deadlift — already seeded (mapped media)
+  1460 walking lunge — already seeded (mapped media)
+  1461 barbell full squat (back pov) — pov duplicate
+  1462 barbell full squat (side pov) — pov duplicate
+  1463 sled 45° leg press (side pov) — drop-list
+  1464 sled 45° leg press (back pov) — drop-list
+  1479 lever incline chest press v. 2 — duplicate of "Machine Incline Chest Press"
+  1604 world greatest stretch — already seeded (mapped media)
+  1614 lever preacher curl v. 2 — duplicate of "Machine Preacher Curl"
+  1628 ez barbell spider curl — duplicate of "EZ-Bar Spider Curl"
+  1657 dumbbell cross body hammer curl v. 2 — duplicate of "Dumbbell Cross Body Hammer Curl"
+  1680 dumbbell standing one arm curl over incline bench — duplicate of "Dumbbell Standing One Arm Curl Over Incline Bench"
+  1708 assisted lying calves stretch — partner-assisted
+  1709 assisted lying glutes stretch — partner-assisted
+  1710 assisted lying gluteus and piriformis stretch — partner-assisted
+  1712 assisted side lying adductor stretch — partner-assisted
+  1713 assisted prone lying quads stretch — partner-assisted
+  1714 assisted prone rectus femoris stretch — partner-assisted
+  1716 assisted seated pectoralis major stretch with stability ball — partner-assisted
+  1731 dumbbell close grip press — duplicate of "Dumbbell Close Grip Press"
+  1758 assisted sit-up — partner-assisted
+  1760 dumbbell goblet squat — already seeded (mapped media)
+  1765 dumbbell upright row (back pov) — pov duplicate
+  1766 self assisted inverse leg curl — duplicate of "Self Assisted Inverse Leg Curl"
+  2136 dumbbell cuban press v. 2 — duplicate of "Dumbbell Cuban Press"
+  2137 dumbbell arnold press — duplicate of "Dumbbell Arnold Press"
+  2318 lever shoulder press v. 3 — duplicate of "Machine Shoulder Press"
+  2330 cable lat pulldown full range of motion — already seeded (mapped media)
+  2371 weighted russian twist v. 2 — duplicate of "Weighted Russian Twist"
+  2612 jump rope — already seeded (mapped media)
+  2796 dumbbell step-up lunge — duplicate of "Dumbbell Step-Up Lunge"
+  2798 barbell squat jump step rear lunge — duplicate of "Barbell Squat Jump Step Rear Lunge"
+  2800 barbell sitted alternate leg raise (female) — duplicate of "Barbell Sitted Alternate Leg Raise"
+  2802 twisted leg raise — duplicate of "Twisted Leg Raise"
+  2804 dumbbell supported squat — duplicate of "Dumbbell Supported Squat"
+  2806 dumbbell single leg deadlift with stepbox support — duplicate of "Dumbbell Single Leg Deadlift with Stepbox Support"
+  2808 dumbbell sumo pull through — duplicate of "Dumbbell Sumo Pull Through"
+  2810 barbell split squat v. 2 — duplicate of "Barbell Split Squat"
+  3013 low glute bridge on floor — already seeded (mapped media)
+  3017 barbell pendlay row — already seeded (mapped media)
+  3150 assisted chin tuck — partner-assisted
+  3224 jack jump (male) — already seeded (mapped media)
+  3698 inchworm v. 2 — duplicate of "Inchworm"
+  3760 lever seated crunch v. 2 — duplicate of "Machine Seated Crunch"

@@ -13,6 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience } from '@/types'
 import { effectiveEquipment } from '@/lib/travelMode'
+import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -154,6 +155,8 @@ interface ExerciseRow {
   secondary_muscles: string[]
   required_equipment: string[]
   experience_level: string
+  is_core?: boolean | null
+  popularity?: number | null
 }
 
 const EXPERIENCE_ORDER: Experience[] = ['beginner', 'intermediate', 'advanced']
@@ -173,11 +176,14 @@ function exerciseCostSeconds(scheme: PurposeScheme): number {
 function pickBest(pool: ExerciseRow[], used: Set<string>, seed: number): ExerciseRow | null {
   const avail = pool.filter(e => !used.has(e.id))
   if (!avail.length) return null
-  // Impact ≈ total muscles worked; ties broken stably by name.
+  // Impact ≈ total muscles worked; staples beat long-tail variants; ties broken
+  // stably by name.
   const sorted = [...avail].sort((a, b) => {
     const am = a.primary_muscles.length + a.secondary_muscles.length
     const bm = b.primary_muscles.length + b.secondary_muscles.length
     if (bm !== am) return bm - am
+    const pop = (b.popularity ?? 30) - (a.popularity ?? 30)
+    if (pop !== 0) return pop
     return a.name.localeCompare(b.name)
   })
   // Rotate the starting index so the same time/purpose doesn't always return the
@@ -356,7 +362,8 @@ export async function getProfileForQuick(
 
 // Map free-text injury/area keywords to muscles + patterns to avoid. Best-effort
 // and forgiving — an unknown keyword simply matches on muscle-name contains().
-function injuriesToRestrictions(injuries: string[] | undefined): QuickRestrictions {
+// Exported so plan generation applies the SAME safety filter as Quick Workouts.
+export function injuriesToRestrictions(injuries: string[] | undefined): QuickRestrictions {
   const avoidMuscles: string[] = []
   const avoidPatterns: MovementPattern[] = []
   for (const raw of injuries ?? []) {
@@ -387,22 +394,27 @@ export async function generateQuickWorkout(
 
   const restrictions = ctx.restrictions ?? injuriesToRestrictions(profile.injuries)
 
-  // Candidate exercises: match equipment + experience, then drop anything that
-  // hits a restricted area, plus high-impact moves on low-impact purposes.
+  // Candidate exercises: the curated core pool (the full library is for search
+  // and manual building — a generated session sticks to staples), matched to
+  // equipment + experience, then drop anything that hits a restricted area,
+  // plus high-impact moves on low-impact purposes.
   const { data: allRaw } = await client
     .from('exercises')
-    .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level')
+    .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, is_core, popularity')
+    .is('user_id', null)
 
-  const all = (allRaw ?? []) as ExerciseRow[]
+  const allRows = (allRaw ?? []) as ExerciseRow[]
+  const coreRows = allRows.filter(e => e.is_core === true)
+  const all = coreRows.length ? coreRows : allRows
   const userExpIdx = EXPERIENCE_ORDER.indexOf(profile.experience)
   const validExp = new Set(EXPERIENCE_ORDER.slice(0, userExpIdx + 1))
-  const equipment = new Set<string>([...profile.equipment, 'bodyweight'])
+  const equipment = expandEquipment(profile.equipment)
   const avoidMuscle = new Set(restrictions.avoidMuscles)
   const avoidPattern = new Set(restrictions.avoidPatterns)
 
   const pool = all.filter(ex => {
     if (!validExp.has(ex.experience_level as Experience)) return false
-    if (!ex.required_equipment.some(eq => equipment.has(eq))) return false
+    if (!canPerform(ex, equipment)) return false
     if (avoidPattern.has(ex.movement_pattern as MovementPattern)) return false
     const muscles = [...ex.primary_muscles, ...ex.secondary_muscles]
     if (muscles.some(m => avoidMuscle.has(m))) return false

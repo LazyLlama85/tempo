@@ -9,8 +9,8 @@ import { useEffect, useRef } from 'react'
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
-const C = Colors.light
 const STEP = 15
 const ROW_H = 48
 
@@ -59,6 +59,8 @@ interface Props {
 }
 
 export function TimePickerSheet({ visible, value, title, onSelect, onClose, onClear }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const scrollRef = useRef<ScrollView>(null)
   const selectedKey = toKey(value)
 
@@ -108,7 +110,7 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
@@ -116,7 +118,7 @@ const styles = StyleSheet.create({
   },
   handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   clear: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.error },
   list: { marginTop: Spacing.xs },
   row: {

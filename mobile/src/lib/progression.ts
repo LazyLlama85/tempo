@@ -26,13 +26,50 @@ export interface ExercisePrescription {
 }
 
 // Goal-specific rep/rest schemes — these mirror standard hypertrophy/strength
-// programming and the ranges referenced in the product brief.
+// programming and the ranges referenced in the product brief. Rest is the real
+// inter-set rest a lifter should take (strength holds a full 3 min; hypertrophy
+// ~90 s), and it's what drives the session-duration estimate below.
 const GOAL_SCHEME: Record<Goal, { sets: number; repLow: number; repHigh: number; rest: number }> = {
   muscle_gain:     { sets: 3, repLow: 8,  repHigh: 12, rest: 90 },
   strength:        { sets: 4, repLow: 3,  repHigh: 6,  rest: 180 },
   fat_loss:        { sets: 3, repLow: 12, repHigh: 15, rest: 45 },
-  general_fitness: { sets: 3, repLow: 10, repHigh: 12, rest: 60 },
-  athletic:        { sets: 4, repLow: 5,  repHigh: 8,  rest: 120 },
+  general_fitness: { sets: 3, repLow: 10, repHigh: 12, rest: 75 },
+  athletic:        { sets: 4, repLow: 5,  repHigh: 8,  rest: 150 },
+}
+
+export function goalScheme(goal: Goal) {
+  return GOAL_SCHEME[goal] ?? GOAL_SCHEME.general_fitness
+}
+
+// ── Session duration model ────────────────────────────────────────────────────
+// A realistic wall-clock estimate for a whole session, from the goal's actual set
+// count and inter-set rest — so "45 min" reflects sets × (work + 2–3 min rest),
+// not a flat guess. Used by plan generation so the time shown matches the work.
+const WORK_SECONDS_PER_SET = 45     // one working set, incl. the lift itself
+const TRANSITION_SECONDS = 75       // change stations / load plates between lifts
+const WARMUP_SECONDS = 360          // general warm-up + first-lift ramp-up sets
+
+export function estimateSessionMinutes(exerciseCount: number, goal: Goal, isDeload = false): number {
+  if (exerciseCount <= 0) return 0
+  const { sets, rest } = goalScheme(goal)
+  const effectiveSets = Math.max(2, isDeload ? sets - 1 : sets)
+  const perExercise = effectiveSets * WORK_SECONDS_PER_SET + (effectiveSets - 1) * rest + TRANSITION_SECONDS
+  const total = WARMUP_SECONDS + exerciseCount * perExercise
+  return Math.max(10, Math.round(total / 60))
+}
+
+// Invert the model: how many exercises fit the user's preferred session length for
+// this goal (clamped to a sane 3–7). A strength user asking for 45 min gets fewer,
+// heavier lifts with full rest; a fat-loss user gets more, because rest is short.
+export function exerciseCountForDuration(preferredMinutes: number, goal: Goal): number {
+  const target = Math.max(15, Math.min(120, preferredMinutes || 45))
+  let best = 3
+  let bestGap = Infinity
+  for (let n = 3; n <= 7; n++) {
+    const gap = Math.abs(estimateSessionMinutes(n, goal) - target)
+    if (gap < bestGap) { bestGap = gap; best = n }
+  }
+  return best
 }
 
 // Epley 1RM estimate — used for PR tracking and strength trends.

@@ -69,7 +69,7 @@ function Body({ card }: { card: CardModel }) {
         <>
           <Eyebrow icon="🔥" text="STREAK" />
           <Text style={styles.hero}>{card.days}</Text>
-          <Text style={styles.heroUnit}>Day Streak</Text>
+          <Text style={styles.heroUnit}>Sessions in a Row</Text>
           <View style={styles.stats}>
             <Stat value={`${card.workouts}`} label="Workouts" />
             <Stat value={`${card.hours}`} unit="hours" label="Trained" />

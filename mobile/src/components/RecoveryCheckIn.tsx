@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { computeReadiness, readinessLabel, saveCheckin, type RecoveryInputs } from '@/lib/recovery'
 
-const C = Colors.light
 
 // soreness/stress are inverse — the "1" end is the good one, so the scale hints flip.
 const METRICS: { key: keyof RecoveryInputs; label: string; low: string; high: string }[] = [
@@ -21,6 +21,8 @@ interface Props {
 }
 
 export function RecoveryCheckIn({ visible, userId, onClose, onSaved }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const [v, setV] = useState<RecoveryInputs>({ sleep: 3, energy: 3, soreness: 3, stress: 3 })
   const [saving, setSaving] = useState(false)
   const readiness = computeReadiness(v)
@@ -91,7 +93,7 @@ export function RecoveryCheckIn({ visible, userId, onClose, onSaved }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface,
@@ -104,7 +106,7 @@ const styles = StyleSheet.create({
   },
   handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.sm },
+  title: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.sm },
   metric: { gap: 6, marginBottom: Spacing.xs },
   metricLabelRow: { flexDirection: 'row', justifyContent: 'space-between' },
   metricLabel: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
@@ -124,7 +126,7 @@ const styles = StyleSheet.create({
   },
   previewEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
   previewLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text, marginTop: 2 },
-  previewScore: { fontFamily: 'Inter_800ExtraBold', fontSize: 30, color: C.primary, letterSpacing: -1 },
+  previewScore: { fontFamily: C.fontDisplay, fontSize: 30, color: C.primary, letterSpacing: -1 },
   previewUnit: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary },
   saveBtn: { height: 54, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xs },
   saveBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary, letterSpacing: 0.3 },

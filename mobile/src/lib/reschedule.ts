@@ -196,6 +196,58 @@ export async function suggestNextSlot(
   return null
 }
 
+// A calendar-aware TIME on a specific day the user already chose (the manual
+// "Add workout" flow): the same free-slot engine auto-scheduling uses, scoped to
+// one date — so even fully manual scheduling gets "6:30 PM, you're free" instead
+// of a dumb 7:00 AM default. Returns null when nothing is known about the day or
+// it's genuinely full.
+export async function suggestTimeOnDate(
+  client: SupabaseClient,
+  userId: string,
+  dateStr: string,        // 'YYYY-MM-DD'
+  durationMin: number,
+): Promise<{ start_time: string; fromCalendar: boolean } | null> {
+  try {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const day = new Date(`${dateStr}T00:00:00`)
+    if (Number.isNaN(day.getTime()) || day.getTime() < today.getTime()) return null
+    const isToday = day.getTime() === today.getTime()
+
+    const { data: p } = await client
+      .from('user_profiles')
+      .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const availability: Availability = {
+      wakeTime: p?.wake_time ?? null,
+      bedtime: p?.bedtime ?? null,
+      workStart: p?.work_start ?? null,
+      workEnd: p?.work_end ?? null,
+      schoolStart: p?.school_start ?? null,
+      schoolEnd: p?.school_end ?? null,
+      preferredTimeOfDay: (p?.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
+      trainingDays: [],   // the user picked this day deliberately — don't veto it
+      unavailable: await getUnavailableBlocks(client, userId),
+    }
+
+    const horizon = Math.max(1, Math.round((day.getTime() - today.getTime()) / 86_400_000) + 1)
+    const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, today)
+    const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
+
+    const slot = findVariedSlot(
+      busy,
+      availability,
+      { durationMinutes: Math.max(15, durationMin), bufferMinutes: 10 },
+      { now: isToday ? new Date() : day, horizonDays: 1, leadMinutes: isToday ? 30 : 0, seed: day.getDate() },
+    )
+    if (!slot) return null
+    return { start_time: fmtTime(new Date(slot.startTime)), fromCalendar }
+  } catch {
+    return null
+  }
+}
+
 // Move a workout to the suggested slot and record an adaptation event for the
 // audit trail. Calendar event re-sync (if any) is handled by the caller.
 export async function rescheduleWorkout(

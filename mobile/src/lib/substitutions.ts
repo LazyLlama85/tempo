@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { effectiveEquipment } from '@/lib/travelMode'
+import { expandEquipment, needsApparatus } from '@/lib/equipmentMatch'
 
 // original_exercise_id → substitute_exercise_id
 export async function getSubstitutions(
@@ -109,7 +110,12 @@ export interface AltExercise {
 }
 
 // Alternatives for an exercise the user can actually do (same movement pattern;
-// curated substitutes or equipment they have). Used to change a saved swap.
+// curated substitutes or equipment they have). With a 1300-exercise library the
+// candidates are RANKED — curated picks, then closest muscle overlap, then
+// popularity — and capped, so "swap leg press" offers hack squats before
+// obscure single-leg sled variants. Used to change a saved swap.
+const MAX_ALTERNATIVES = 40
+
 export async function getAlternatives(
   client: SupabaseClient,
   userId: string,
@@ -118,7 +124,7 @@ export async function getAlternatives(
   try {
     const { data: orig } = await client
       .from('exercises')
-      .select('id, movement_pattern, substitute_ids')
+      .select('id, movement_pattern, substitute_ids, primary_muscles')
       .eq('id', originalId)
       .maybeSingle()
     if (!orig) return []
@@ -130,21 +136,45 @@ export async function getAlternatives(
       .maybeSingle()
     // Respect travel mode: offer alternatives for the equipment the user has now.
     const { equipment: effective } = await effectiveEquipment(client, userId, (profileRow?.equipment as string[]) ?? [])
-    const equipment = new Set<string>([...effective, 'bodyweight'])
+    // "Full gym" implies barbell/dumbbells/bands — see lib/equipmentMatch.
+    const equipment = expandEquipment(effective)
     const curatedSet = new Set<string>((orig.substitute_ids as string[]) ?? [])
+    const origMuscles = new Set<string>((orig.primary_muscles as string[]) ?? [])
 
     const { data: subs } = await client
       .from('exercises')
-      .select('id, name, required_equipment')
+      .select('id, name, required_equipment, primary_muscles, popularity')
       .eq('movement_pattern', orig.movement_pattern)
       .neq('id', originalId)
 
-    const cands = (subs ?? [])
-      .filter((s: any) => curatedSet.has(s.id) || (s.required_equipment as string[]).some(eq => equipment.has(eq)))
-      .map((s: any) => ({ id: s.id as string, name: s.name as string, curated: curatedSet.has(s.id) }))
+    const overlapOf = (muscles: string[] | null) =>
+      (muscles ?? []).reduce((n, m) => n + (origMuscles.has(m) ? 1 : 0), 0)
 
-    cands.sort((a, b) => (a.curated === b.curated ? a.name.localeCompare(b.name) : a.curated ? -1 : 1))
-    return cands
+    const cands = (subs ?? [])
+      .filter((s: any) => {
+        const req = s.required_equipment as string[]
+        // Curated swaps are trusted; otherwise the gear has to match.
+        if (!curatedSet.has(s.id) && !req.some(eq => equipment.has(eq))) return false
+        // Never offer a bar/dip move to someone without the apparatus — even a
+        // curated one (see lib/equipmentMatch).
+        if (req.includes('bodyweight') && needsApparatus(s.name) && !equipment.has('pull_up_bar')) return false
+        return true
+      })
+      .map((s: any) => ({
+        id: s.id as string,
+        name: s.name as string,
+        curated: curatedSet.has(s.id),
+        overlap: overlapOf(s.primary_muscles as string[] | null),
+        popularity: (s.popularity as number | null) ?? 30,
+      }))
+
+    cands.sort((a, b) =>
+      Number(b.curated) - Number(a.curated) ||
+      b.overlap - a.overlap ||
+      b.popularity - a.popularity ||
+      a.name.localeCompare(b.name)
+    )
+    return cands.slice(0, MAX_ALTERNATIVES).map(({ id, name, curated }) => ({ id, name, curated }))
   } catch {
     return []
   }

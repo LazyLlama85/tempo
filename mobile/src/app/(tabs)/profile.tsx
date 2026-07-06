@@ -1,15 +1,21 @@
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator, Switch } from 'react-native'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
+import Constants from 'expo-constants'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, useThemeMode, type Palette, type ThemeMode } from '@/theme'
+import { TempoWordmark, PulseLoader } from '@/components/brand'
+import { ScreenTransition } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
-import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
+import { isGoogleCalendarConnected, connectGoogleCalendar, disconnectGoogleCalendar } from '@/services/googleCalendar/CalendarAuthService'
+import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
+import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { ACHIEVEMENTS, computeLevel, unlockedCount, type AchievementStats } from '@/lib/achievements'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue } from '@/lib/avatar'
 import {
@@ -19,13 +25,16 @@ import {
 import { describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
 import { deleteAccount } from '@/lib/account'
 import {
-  fetchMeasurements, logMeasurement, computeWeightTrend, computeMetricTrend, formatTrend,
+  fetchMeasurements, logMeasurement, computeWeightTrend, computeMetricTrend,
 } from '@/lib/bodyMeasurements'
+import {
+  useUnitStore, unitLabel, displayWeight, displayVolume, inputToLbs, formatWeightDelta,
+  type WeightUnit,
+} from '@/lib/units'
 import { getPushEnabled, setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
 import type { TravelMode, BodyMeasurement } from '@/types'
 
-const C = Colors.light
 
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
@@ -42,9 +51,11 @@ const EXP_LABELS: Record<string, string> = {
 }
 
 const EQUIPMENT_OPTIONS: { id: string; label: string; icon: string }[] = [
-  { id: 'bodyweight', label: 'Bodyweight', icon: 'body-outline' },
+  { id: 'bodyweight', label: 'No equipment', icon: 'walk-outline' },
+  { id: 'pull_up_bar', label: 'Pull-up & dip bar', icon: 'body-outline' },
   { id: 'dumbbells', label: 'Dumbbells', icon: 'barbell-outline' },
   { id: 'barbell', label: 'Barbell', icon: 'barbell' },
+  { id: 'kettlebell', label: 'Kettlebells', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance Bands', icon: 'pulse-outline' },
   { id: 'full_gym', label: 'Full Gym', icon: 'business-outline' },
 ]
@@ -100,6 +111,8 @@ const TIER_COLOR: Record<string, string> = {
 
 type SettingRowProps = { icon: string; label: string; value: string; onPress?: () => void }
 function SettingRow({ icon, label, value, onPress }: SettingRowProps) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   return (
     <TouchableOpacity style={styles.settingRow} onPress={onPress} activeOpacity={onPress ? 0.7 : 1} disabled={!onPress}>
       <View style={styles.settingIcon}>
@@ -115,7 +128,10 @@ function SettingRow({ icon, label, value, onPress }: SettingRowProps) {
 }
 
 export default function ProfileScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const { mode, setMode } = useThemeMode()
   const { profile, session, signOut, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const { stats, isLoading: statsLoading } = useProgressStats(userId)
@@ -169,7 +185,19 @@ export default function ProfileScreen() {
   // Server-driven push toggle for this device
   const [pushEnabled, setPushEnabled] = useState(true)
 
+  // Weight display unit (lb/kg) — a device preference; storage stays lbs.
+  const unit = useUnitStore((s) => s.unit)
+  const setUnit = useUnitStore((s) => s.setUnit)
+
+  // "Add workouts to my calendar" — default on; only acts once a calendar is connected.
+  const [autoSync, setAutoSync] = useState(autoSyncEnabled(profile))
+
+  // "Automatically schedule workout times" — default on. Independent of calendar
+  // connection: a connected calendar is still read for busy times in manual mode.
+  const [autoScheduleTimes, setAutoScheduleTimes] = useState(autoSchedulingEnabled(profile))
+
   const [deleting, setDeleting] = useState(false)
+  const [removingEvents, setRemovingEvents] = useState(false)
 
   // App Store-required account deletion. Double-confirm (it's irreversible and wipes
   // all data), then call the server function and sign out on success.
@@ -244,6 +272,26 @@ export default function ProfileScreen() {
     if (userId) await applyPushEnabled(supabase, userId, next)
   }
 
+  // A guest's anonymous session IS the account — there is no way to sign back in.
+  // One casual tap must never be able to permanently orphan weeks of training data.
+  const confirmSignOut = () => {
+    const guest = !!session?.user.is_anonymous
+    Alert.alert(
+      guest ? 'Sign out of guest account?' : 'Sign out?',
+      guest
+        ? 'You’re using a guest account, and guest accounts can’t be signed back into. Signing out permanently loses your plan, workouts, and progress.'
+        : 'You can sign back in any time.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: guest ? 'Sign out anyway' : 'Sign Out',
+          style: 'destructive',
+          onPress: () => { void signOut() },
+        },
+      ],
+    )
+  }
+
   const openInjuries = () => {
     setInjurySel(profile?.injuries ?? [])
     setInjuryModal(true)
@@ -299,7 +347,8 @@ export default function ProfileScreen() {
     setBodySaving(true)
     try {
       await logMeasurement(supabase, userId, {
-        weight_lbs: Number.isFinite(weight) ? weight : null,
+        // Input is in the display unit; storage is always lbs.
+        weight_lbs: Number.isFinite(weight) ? inputToLbs(weightInput, unit) : null,
         body_fat_pct: Number.isFinite(bf) ? bf : null,
         waist_in: Number.isFinite(waist) ? waist : null,
         photo_url: photoPath,
@@ -403,9 +452,27 @@ export default function ProfileScreen() {
         : googleConnected ? 'Google Calendar'
           : calendarStatus === 'granted' ? 'Device Calendar'
             : null
+  const calendarConnected = !!connectedCalendar
   const calendarValue = connectedCalendar
-    ? `${connectedCalendar} · auto-scheduling on`
-    : 'Connect to auto-schedule'
+    ? `${connectedCalendar} connected`
+    : 'Connect to sync workouts'
+
+  // Keep the auto-sync toggle in step with the stored preference.
+  useEffect(() => { setAutoSync(autoSyncEnabled(profile)) }, [profile?.calendar_autosync])
+  useEffect(() => { setAutoScheduleTimes(autoSchedulingEnabled(profile)) }, [profile?.scheduling_mode])
+
+  // Toggle automatic scheduling. Switching ON immediately places upcoming workouts
+  // around the calendar; switching OFF just stops Tempo from moving times.
+  const toggleAutoSchedule = async (next: boolean) => {
+    setAutoScheduleTimes(next) // optimistic
+    if (userId) {
+      try {
+        await supabase.from('user_profiles').update({ scheduling_mode: next ? 'auto' : 'manual' }).eq('user_id', userId)
+        await refreshProfile()
+      } catch { /* keep the optimistic toggle */ }
+      if (next) autoScheduleUpcoming(supabase, userId).catch(() => {})
+    }
+  }
 
   const setPreferredCalendar = async (provider: 'google' | 'device') => {
     if (!userId) return
@@ -415,13 +482,95 @@ export default function ProfileScreen() {
     } catch { /* best-effort — the connection still works without the default set */ }
   }
 
+  // Toggle "add workouts to my calendar". Turning it ON (with a calendar connected)
+  // immediately syncs upcoming workouts; turning it OFF removes every Tempo event we
+  // ever added, so the user's calendar goes back to exactly how it was.
+  const toggleAutoSync = async (next: boolean) => {
+    setAutoSync(next) // optimistic
+    if (userId) {
+      try {
+        await supabase.from('user_profiles').update({ calendar_autosync: next }).eq('user_id', userId)
+        await refreshProfile()
+      } catch { /* keep the optimistic toggle */ }
+    }
+    if (next && calendarConnected) {
+      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), calendar_autosync: true }).catch(() => {})
+    } else if (!next) {
+      // Clean up after ourselves — delete all Tempo-added events from the calendar.
+      purgeSyncedWorkouts(supabase, userId).catch(() => {})
+    }
+  }
+
+  // "Remove all Tempo events" — wipe every "Tempo · …" / "Tempo: …" event off the
+  // connected calendar(s), including orphans we no longer track, and forget the
+  // pointers. Useful after lots of re-planning leaves stray events behind.
+  const handleRemoveAllTempoEvents = () => {
+    if (!userId || removingEvents) return
+    if (!calendarConnected) {
+      Alert.alert('No calendar connected', 'Connect a calendar first — then Tempo can remove its events from it.')
+      return
+    }
+    Alert.alert(
+      'Remove all Tempo events?',
+      'This deletes every Tempo workout event from your connected calendar(s). Your Tempo plan itself is untouched — only the calendar copies are removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove all',
+          style: 'destructive',
+          onPress: async () => {
+            setRemovingEvents(true)
+            let count = 0
+            try { count = await removeAllTempoEvents(supabase, userId) } catch { /* best-effort */ }
+            // Turn auto-add off too, so they don't immediately come back.
+            try {
+              await supabase.from('user_profiles').update({ calendar_autosync: false }).eq('user_id', userId)
+              await refreshProfile()
+            } catch { /* best-effort */ }
+            setAutoSync(false)
+            setRemovingEvents(false)
+            Alert.alert(
+              'Done',
+              count > 0
+                ? `Removed ${count} Tempo event${count === 1 ? '' : 's'} from your calendar.`
+                : 'No Tempo events were found on your calendar.',
+            )
+          },
+        },
+      ],
+    )
+  }
+
+  // Connect Google Calendar inline (the same OAuth the onboarding step uses), then
+  // make it the default and pull existing workouts onto it.
+  const connectGoogle = async () => {
+    const r = await connectGoogleCalendar()
+    if (r.ok) {
+      setGoogleConnected(true)
+      await setPreferredCalendar('google')
+      Alert.alert('Google Calendar connected', "Tempo will schedule around it. To also add your workouts to it, turn on “Add workouts to calendar” below.")
+      // Respects the opt-in flag — only writes if the user has already enabled auto-add.
+      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'google' }).catch(() => {})
+    } else {
+      const why =
+        r.error === 'cancelled' ? 'Sign-in was cancelled.'
+        : r.error === 'link_unavailable' ? 'Google Calendar can’t be attached to this account yet — the device calendar works today.'
+        : r.error === 'session_switched' ? 'That Google account doesn’t match your Tempo account. Try again with the account you signed in with.'
+        : r.error === 'no_refresh_token' ? 'Google didn’t grant offline access — allow Calendar permission and try again.'
+        : 'Something went wrong connecting Google Calendar. Please try again.'
+      Alert.alert('Couldn’t connect', why)
+    }
+  }
+
   const connectDeviceCalendar = async () => {
     if (calendarStatus === 'granted') { await setPreferredCalendar('device'); return }
     const granted = await requestCalendarPermissions()
     setCalendarStatus(granted ? 'granted' : 'denied')
     if (granted) {
       await setPreferredCalendar('device')
-      Alert.alert('Device Calendar connected', 'Tempo will schedule your workouts around this calendar.')
+      Alert.alert('Device Calendar connected', "Tempo will schedule around it. To also add your workouts to it, turn on “Add workouts to calendar” below.")
+      // Respects the opt-in flag — only writes if the user has already enabled auto-add.
+      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'device' }).catch(() => {})
     } else {
       Alert.alert('Permission needed', 'Allow calendar access in Settings to use your device calendar.', [
         { text: 'Cancel', style: 'cancel' },
@@ -430,19 +579,95 @@ export default function ProfileScreen() {
     }
   }
 
+  // Disconnect Google Calendar — the real, server-backed removal (drops the stored
+  // refresh token) plus clearing the app's record of synced events so nothing keeps
+  // showing "In Calendar". Events already added stay in the user's Google Calendar;
+  // we can't delete them once the token is gone (and say so).
+  const doDisconnectGoogle = async () => {
+    try {
+      await supabase
+        .from('scheduled_workouts')
+        .update({ calendar_event_id: null, calendar_provider: null })
+        .eq('user_id', userId)
+        .eq('calendar_provider', 'google')
+    } catch { /* best-effort */ }
+    await disconnectGoogleCalendar()
+    setGoogleConnected(false)
+    if (profile?.preferred_calendar === 'google') {
+      try {
+        await supabase
+          .from('user_profiles')
+          .update({ preferred_calendar: calendarStatus === 'granted' ? 'device' : null })
+          .eq('user_id', userId)
+        await refreshProfile()
+      } catch { /* best-effort */ }
+    }
+    Alert.alert('Google Calendar disconnected', 'Tempo will no longer read your Google Calendar or add workouts to it.')
+  }
+
+  // Device calendar access is owned by the OS — Tempo can't revoke the permission
+  // itself. What it CAN do: stop adding workouts, forget synced events, and hand the
+  // user to system Settings to fully cut access.
+  const stopUsingDeviceCalendar = async () => {
+    try {
+      await supabase
+        .from('scheduled_workouts')
+        .update({ calendar_event_id: null, calendar_provider: null })
+        .eq('user_id', userId)
+        .eq('calendar_provider', 'device')
+    } catch { /* best-effort */ }
+    try {
+      const patch: Record<string, unknown> = { calendar_autosync: false }
+      if (profile?.preferred_calendar === 'device') patch.preferred_calendar = googleConnected ? 'google' : null
+      await supabase.from('user_profiles').update(patch).eq('user_id', userId)
+      await refreshProfile()
+    } catch { /* best-effort */ }
+    setAutoSync(false)
+    Alert.alert(
+      'Stopped adding to Device Calendar',
+      'Tempo will no longer add workouts to your device calendar. To fully revoke calendar access, turn it off for Tempo in system Settings.',
+      [
+        { text: 'Done', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ],
+    )
+  }
+
+  const confirmDisconnect = (provider: 'google' | 'device') => {
+    if (provider === 'google') {
+      Alert.alert('Disconnect Google Calendar?', 'Tempo will stop reading it and adding your workouts to it. Events already added stay in Google.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Disconnect', style: 'destructive', onPress: doDisconnectGoogle },
+      ])
+    } else {
+      stopUsingDeviceCalendar()
+    }
+  }
+
+  // Manage / disconnect whatever is connected. Kept to ≤3 buttons so it behaves on
+  // Android too; falls through to the connect menu when nothing is connected yet.
+  const handleManageCalendar = () => {
+    const opts: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = []
+    if (googleConnected) opts.push({ text: 'Disconnect Google Calendar', style: 'destructive', onPress: () => confirmDisconnect('google') })
+    if (calendarStatus === 'granted') opts.push({ text: 'Stop using Device Calendar', style: 'destructive', onPress: () => confirmDisconnect('device') })
+    if (!opts.length) { handleChooseCalendar(); return }
+    opts.push({ text: 'Cancel', style: 'cancel' })
+    Alert.alert('Manage calendar', 'Disconnect a calendar so Tempo stops reading it and adding your workouts.', opts)
+  }
+
   // One calendar concept, two backends. Tempo schedules around whichever you pick —
   // both are first-class; neither is "the smart one".
   const handleChooseCalendar = () => {
     Alert.alert(
       'Your Calendar',
-      'Tempo schedules your workouts automatically around the calendar you choose. Pick the one you actually use.',
+      'Tempo reads your calendar to schedule around your real life, and (when on) adds your workouts to it. Connect the one you actually use.',
       [
         {
-          text: googleConnected ? 'Google Calendar ✓' : 'Use Google Calendar',
-          onPress: () => router.push('/smart-scheduler'),
+          text: googleConnected ? 'Google Calendar ✓' : 'Connect Google Calendar',
+          onPress: connectGoogle,
         },
         {
-          text: calendarStatus === 'granted' ? 'Device Calendar ✓' : 'Use Device Calendar',
+          text: calendarStatus === 'granted' ? 'Device Calendar ✓' : 'Connect Device Calendar',
           onPress: connectDeviceCalendar,
         },
         { text: 'Cancel', style: 'cancel' },
@@ -454,9 +679,10 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>TEMPO</Text>
-        <TouchableOpacity onPress={openEdit} hitSlop={8}>
+        <TempoWordmark size={18} />
+        <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
           <Ionicons name="create-outline" size={22} color={C.text} />
         </TouchableOpacity>
       </View>
@@ -502,22 +728,22 @@ export default function ProfileScreen() {
         {/* ── Stat grid ───────────────────────────────────────────────────── */}
         <View style={styles.statGrid}>
           <TouchableOpacity style={styles.statTile} onPress={() => router.push('/(tabs)/progress')} activeOpacity={0.8}>
-            <Ionicons name="barbell-outline" size={18} color={C.primary} />
+            <View style={styles.statIcon}><Ionicons name="barbell" size={16} color={C.primary} /></View>
             <Text style={styles.statValue}>{statValue(stats.totalWorkouts)}</Text>
             <Text style={styles.statLabel}>WORKOUTS</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statTile} onPress={() => router.push('/(tabs)/progress')} activeOpacity={0.8}>
-            <Ionicons name="flame-outline" size={18} color={C.primary} />
+            <View style={styles.statIcon}><Ionicons name="flame" size={16} color={C.primary} /></View>
             <Text style={styles.statValue}>{statsLoading ? '—' : `${stats.streak}`}</Text>
-            <Text style={styles.statLabel}>DAY STREAK</Text>
+            <Text style={styles.statLabel}>SESSION STREAK</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statTile} onPress={() => router.push('/(tabs)/progress')} activeOpacity={0.8}>
-            <Ionicons name="trophy-outline" size={18} color={C.primary} />
-            <Text style={styles.statValue}>{statValue(stats.totalVolume)}</Text>
-            <Text style={styles.statLabel}>LBS LIFTED</Text>
+            <View style={styles.statIcon}><Ionicons name="trophy" size={16} color={C.primary} /></View>
+            <Text style={styles.statValue}>{statsLoading ? '—' : displayVolume(stats.totalVolumeNum, unit)}</Text>
+            <Text style={styles.statLabel}>{unitLabel(unit).toUpperCase()} LIFTED</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statTile} onPress={() => router.push('/(tabs)/progress')} activeOpacity={0.8}>
-            <Ionicons name="ribbon-outline" size={18} color={C.primary} />
+            <View style={styles.statIcon}><Ionicons name="ribbon" size={16} color={C.primary} /></View>
             <Text style={styles.statValue}>{statsLoading ? '—' : `${unlocked}/${ACHIEVEMENTS.length}`}</Text>
             <Text style={styles.statLabel}>BADGES</Text>
           </TouchableOpacity>
@@ -565,17 +791,19 @@ export default function ProfileScreen() {
               <View style={styles.bodyRow}>
                 <View style={styles.bodyCell}>
                   <Text style={styles.bodyCellLabel}>CURRENT (7-DAY AVG)</Text>
-                  <Text style={styles.bodyCellValue}>{trend.currentAvg} <Text style={styles.bodyCellUnit}>lb</Text></Text>
+                  <Text style={styles.bodyCellValue}>
+                    {displayWeight(trend.currentAvg, unit)} <Text style={styles.bodyCellUnit}>{unitLabel(unit)}</Text>
+                  </Text>
                 </View>
                 <View style={styles.bodyCellDivider} />
                 <View style={styles.bodyCell}>
                   <Text style={styles.bodyCellLabel}>WEEKLY TREND</Text>
                   <Text style={[styles.bodyCellValue, trend.lbsPerWeek != null && trend.lbsPerWeek < 0 && { color: C.primary }]}>
-                    {formatTrend(trend.lbsPerWeek)}
+                    {trend.lbsPerWeek != null ? `${formatWeightDelta(trend.lbsPerWeek, unit)}/wk` : '—'}
                   </Text>
                   {trend.totalChange != null && (
                     <Text style={styles.bodyCellSub}>
-                      {trend.totalChange > 0 ? '+' : ''}{trend.totalChange} lb over {trend.samples} weigh-ins
+                      {formatWeightDelta(trend.totalChange, unit)} over {trend.samples} weigh-ins
                     </Text>
                   )}
                 </View>
@@ -618,10 +846,14 @@ export default function ProfileScreen() {
             {stats.prs.length > 0 ? stats.prs.slice(0, 4).map((pr, i) => (
               <View key={pr.name}>
                 {i > 0 && <View style={styles.divider} />}
-                <TouchableOpacity style={styles.prRow} onPress={() => router.push('/(tabs)/progress')} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={styles.prRow}
+                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.prIcon}><Ionicons name="barbell-outline" size={18} color={C.primary} /></View>
                   <Text style={styles.prName} numberOfLines={1}>{pr.name}</Text>
-                  <Text style={styles.prValue}>{pr.maxWeight} <Text style={styles.prUnit}>lbs</Text></Text>
+                  <Text style={styles.prValue}>{displayWeight(pr.maxWeight, unit)} <Text style={styles.prUnit}>{unitLabel(unit)}</Text></Text>
                 </TouchableOpacity>
               </View>
             )) : (
@@ -658,10 +890,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Right Now (temporary / personal adjustments) ──────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Right Now</Text>
+          <Text style={styles.sectionSubtitle}>Temporary adjustments Tempo applies to your upcoming workouts.</Text>
+          <View style={styles.card}>
+            <SettingRow
+              icon="airplane-outline"
+              label="TRAVEL MODE"
+              value={travelSummary(profile?.travel_mode)}
+              onPress={() => router.push('/travel-mode')}
+            />
+            <View style={styles.divider} />
+            <SettingRow icon="medkit-outline" label="INJURIES & LIMITATIONS" value={injurySummary(profile?.injuries)} onPress={openInjuries} />
+          </View>
+        </View>
+
         {/* ── My Plan ─────────────────────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Plan</Text>
           <View style={styles.card}>
+            <SettingRow icon="construct-outline" label="MY WORKOUTS" value="Build, save & schedule" onPress={() => router.push('/my-workouts' as any)} />
+            <View style={styles.divider} />
+            <SettingRow icon="repeat-outline" label="MY SPLITS" value="Your weekly schedule" onPress={() => router.push('/my-splits' as any)} />
+            <View style={styles.divider} />
+            <SettingRow icon="journal-outline" label="WORKOUT HISTORY" value="Every logged session" onPress={() => router.push('/workout-history' as any)} />
+            <View style={styles.divider} />
+            <SettingRow icon="book-outline" label="EXERCISE LIBRARY" value="Browse form guides" onPress={() => router.push('/exercise-library' as any)} />
+            <View style={styles.divider} />
             <SettingRow icon="trophy-outline" label="PRIMARY GOAL" value={profile?.goal ? GOAL_LABELS[profile.goal] : '—'} />
             <View style={styles.divider} />
             <SettingRow icon="barbell-outline" label="EXPERIENCE" value={profile?.experience ? EXP_LABELS[profile.experience] : '—'} />
@@ -669,15 +925,6 @@ export default function ProfileScreen() {
             <SettingRow icon="calendar-outline" label="DAYS PER WEEK" value={profile?.days_per_week ? `${profile.days_per_week} days` : '—'} />
             <View style={styles.divider} />
             <SettingRow icon="fitness-outline" label="EQUIPMENT" value={equipmentSummary(profile?.equipment)} onPress={openEquip} />
-            <View style={styles.divider} />
-            <SettingRow icon="medkit-outline" label="INJURIES & LIMITATIONS" value={injurySummary(profile?.injuries)} onPress={openInjuries} />
-            <View style={styles.divider} />
-            <SettingRow
-              icon="airplane-outline"
-              label="TRAVEL MODE"
-              value={travelSummary(profile?.travel_mode)}
-              onPress={() => router.push('/travel-mode')}
-            />
             <View style={styles.divider} />
             <TouchableOpacity
               style={styles.changePlanRow}
@@ -710,6 +957,65 @@ export default function ProfileScreen() {
               value={calendarValue}
               onPress={handleChooseCalendar}
             />
+            {(googleConnected || calendarStatus === 'granted') && (
+              <>
+                <View style={styles.divider} />
+                <SettingRow
+                  icon="close-circle-outline"
+                  label="DISCONNECT CALENDAR"
+                  value={[googleConnected ? 'Google' : null, calendarStatus === 'granted' ? 'Device' : null].filter(Boolean).join(' · ') || 'Manage'}
+                  onPress={handleManageCalendar}
+                />
+              </>
+            )}
+            <View style={styles.divider} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="sparkles-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>AUTOMATIC SCHEDULING</Text>
+                <Text style={styles.settingValue}>
+                  {autoScheduleTimes ? 'Tempo places workouts around your day' : "You schedule workouts yourself"}
+                </Text>
+              </View>
+              <Switch
+                value={autoScheduleTimes}
+                onValueChange={toggleAutoSchedule}
+                trackColor={{ true: C.primary, false: C.outlineVariant }}
+                thumbColor="#fff"
+              />
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="sync-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>ADD WORKOUTS TO CALENDAR</Text>
+                <Text style={styles.settingValue}>
+                  {calendarConnected ? (autoSync ? 'Auto-adding your workouts' : 'Off') : 'Connect a calendar first'}
+                </Text>
+              </View>
+              <Switch
+                value={autoSync && calendarConnected}
+                onValueChange={toggleAutoSync}
+                disabled={!calendarConnected}
+                trackColor={{ true: C.primary, false: C.outlineVariant }}
+                thumbColor="#fff"
+              />
+            </View>
+            {calendarConnected && (
+              <>
+                <View style={styles.divider} />
+                <SettingRow
+                  icon="trash-outline"
+                  label="REMOVE ALL TEMPO EVENTS"
+                  value={removingEvents ? 'Removing…' : 'Delete Tempo events from calendar'}
+                  onPress={handleRemoveAllTempoEvents}
+                />
+              </>
+            )}
             <View style={styles.divider} />
             <View style={styles.settingRow}>
               <View style={styles.settingIcon}>
@@ -727,11 +1033,63 @@ export default function ProfileScreen() {
               />
             </View>
             <View style={styles.divider} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="contrast-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>APPEARANCE</Text>
+                <Text style={styles.settingValue}>{mode === 'dark' ? 'Dark' : 'Light'}</Text>
+              </View>
+              <View style={styles.themeToggle}>
+                {(['dark', 'light'] as ThemeMode[]).map((m) => {
+                  const on = mode === m
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={[styles.themeOpt, on && styles.themeOptOn]}
+                      onPress={() => setMode(m)}
+                      activeOpacity={0.85}
+                      accessibilityLabel={m === 'dark' ? 'Dark mode' : 'Light mode'}
+                    >
+                      <Ionicons name={m === 'dark' ? 'moon' : 'sunny'} size={15} color={on ? C.onPrimary : C.outline} />
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="scale-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>UNITS</Text>
+                <Text style={styles.settingValue}>{unit === 'kg' ? 'Kilograms' : 'Pounds'}</Text>
+              </View>
+              <View style={styles.themeToggle}>
+                {(['lb', 'kg'] as WeightUnit[]).map((u) => {
+                  const on = unit === u
+                  return (
+                    <TouchableOpacity
+                      key={u}
+                      style={[styles.themeOpt, on && styles.themeOptOn]}
+                      onPress={() => setUnit(u)}
+                      activeOpacity={0.85}
+                      accessibilityLabel={u === 'kg' ? 'Kilograms' : 'Pounds'}
+                    >
+                      <Text style={[styles.unitOptText, on && { color: C.onPrimary }]}>{u}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+            <View style={styles.divider} />
             <SettingRow icon="shield-outline" label="PRIVACY & TERMS" value="View" onPress={() => router.push('/legal')} />
           </View>
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={signOut} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
@@ -749,6 +1107,17 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
         <Text style={styles.deleteHint}>Permanently erases your account and all data.</Text>
+
+        {/* Brand footer */}
+        <View style={styles.brandFooter}>
+          <Image
+            source={require('@/assets/images/tempo-logo.png')}
+            style={styles.brandFooterLogo}
+            contentFit="contain"
+            accessibilityLabel="Tempo"
+          />
+          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'}</Text>
+        </View>
       </ScrollView>
 
       {/* ── Log body measurement modal ────────────────────────────────────── */}
@@ -760,12 +1129,12 @@ export default function ProfileScreen() {
             <Text style={styles.modalTitle}>Log Measurement</Text>
             <Text style={styles.modalHint}>Weigh in regularly — even a few times a week is enough for Tempo to read your real trend. Body fat and waist are optional.</Text>
 
-            <Text style={styles.modalLabel}>WEIGHT (LB)</Text>
+            <Text style={styles.modalLabel}>WEIGHT ({unitLabel(unit).toUpperCase()})</Text>
             <TextInput
               style={styles.modalInput}
               value={weightInput}
               onChangeText={setWeightInput}
-              placeholder="e.g. 175"
+              placeholder={unit === 'kg' ? 'e.g. 80' : 'e.g. 175'}
               placeholderTextColor={C.outline}
               keyboardType="decimal-pad"
               maxLength={6}
@@ -957,7 +1326,7 @@ export default function ProfileScreen() {
             </Text>
 
             {altsLoading ? (
-              <View style={{ paddingVertical: Spacing.xl }}><ActivityIndicator color={C.primary} /></View>
+              <View style={{ paddingVertical: Spacing.xl }}><PulseLoader caption="Loading…" /></View>
             ) : (
               <ScrollView style={{ maxHeight: 300, marginTop: Spacing.sm }} showsVerticalScrollIndicator={false}>
                 <View style={{ gap: Spacing.xs }}>
@@ -988,14 +1357,15 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+    </ScreenTransition>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md },
-  headerLogo: { fontFamily: 'Inter_800ExtraBold', fontSize: 16, color: C.primary, letterSpacing: 2 },
+  headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   scroll: { paddingBottom: 120, gap: Spacing.lg },
 
   // Hero
@@ -1009,11 +1379,11 @@ const styles = StyleSheet.create({
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
   levelChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  levelChipText: { fontFamily: 'Inter_800ExtraBold', fontSize: 11, color: '#fff', letterSpacing: 0.5 },
+  levelChipText: { fontFamily: C.fontDisplay, fontSize: 11, color: '#fff', letterSpacing: 0.5 },
   heroAvatarWrap: { marginTop: Spacing.xs },
   avatarLarge: { width: 84, height: 84, borderRadius: Radius.full, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg: { width: '100%', height: '100%' },
-  displayName: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: '#fff', letterSpacing: -0.3, marginTop: 4 },
+  displayName: { fontFamily: C.fontDisplay, fontSize: 24, color: '#fff', letterSpacing: -0.3, marginTop: 4 },
   heroSub: { fontFamily: 'Inter_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.85)' },
   levelBarTrack: { height: 7, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radius.full, marginTop: Spacing.sm },
   levelBarFill: { height: 7, backgroundColor: '#fff', borderRadius: Radius.full },
@@ -1025,13 +1395,18 @@ const styles = StyleSheet.create({
     flexGrow: 1, flexBasis: '47%', backgroundColor: C.background, borderRadius: Radius.lg,
     padding: Spacing.md, gap: 4, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow,
   },
-  statValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.5 },
+  statIcon: {
+    width: 34, height: 34, borderRadius: 11, backgroundColor: C.primarySoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
+  statValue: { fontFamily: C.fontDisplay, fontSize: 27, color: C.text, letterSpacing: -0.6, lineHeight: 30 },
   statLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.5 },
 
   // Sections
   section: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.sm },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: C.text, letterSpacing: -0.1 },
+  sectionSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 2, marginBottom: Spacing.xs, lineHeight: 18 },
   sectionMeta: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline },
   sectionLink: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
 
@@ -1053,7 +1428,7 @@ const styles = StyleSheet.create({
   prRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   prIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
   prName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  prValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text, letterSpacing: -0.3 },
+  prValue: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.3 },
   prUnit: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
   emptyHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, padding: Spacing.md, lineHeight: 19 },
 
@@ -1062,7 +1437,7 @@ const styles = StyleSheet.create({
   bodyCell: { flex: 1, gap: 3 },
   bodyCellDivider: { width: 1, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.md },
   bodyCellLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.5 },
-  bodyCellValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.5 },
+  bodyCellValue: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.5 },
   bodyCellUnit: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary },
   bodyCellSub: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, marginTop: 1 },
   bodyMetricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md, marginTop: -Spacing.xs },
@@ -1105,17 +1480,28 @@ const styles = StyleSheet.create({
   changePlanRow: { padding: Spacing.md },
   changePlanText: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.primary },
 
+  // Appearance (dark / light) toggle
+  themeToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, padding: 3, gap: 3, borderWidth: 1, borderColor: C.outlineVariant },
+  themeOpt: { width: 38, height: 30, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
+  themeOptOn: { backgroundColor: C.primary },
+  unitOptText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline, textTransform: 'uppercase' },
+  designOpt: { width: 46 },
+
   signOutBtn: { marginHorizontal: Spacing.containerPadding, height: 52, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   signOutText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.error },
   deleteBtn: { marginHorizontal: Spacing.containerPadding, marginTop: Spacing.sm, height: 48, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.error },
   deleteHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, textAlign: 'center', marginTop: 2 },
 
+  brandFooter: { alignItems: 'center', marginTop: Spacing.xl, marginBottom: Spacing.lg, gap: 8 },
+  brandFooterLogo: { width: 44, height: 44, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: C.outlineVariant },
+  brandFooterVersion: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, letterSpacing: 0.2 },
+
   // Modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm },
   modalHandle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
-  modalTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3 },
+  modalTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
   modalHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, marginTop: 2 },
   equipRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md,

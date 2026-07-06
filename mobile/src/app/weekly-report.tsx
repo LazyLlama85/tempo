@@ -6,24 +6,29 @@
 // existing Wrapped cards.
 
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { PulseLoader } from '@/components/brand'
+import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { computeWeeklyReport, reportHasContent, type WeeklyReport } from '@/lib/weeklyReport'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
-import { formatTrend } from '@/lib/bodyMeasurements'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
+import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
 
-const C = Colors.light
 
 export default function WeeklyReportScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const unit = useWeightUnit()
 
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,7 +55,7 @@ export default function WeeklyReportScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Week</Text>
@@ -58,11 +63,10 @@ export default function WeeklyReportScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={C.primary} /></View>
+        <View style={styles.center}><PulseLoader caption="Building your report…" /></View>
       ) : !report || !reportHasContent(report) ? (
         <View style={styles.center}>
-          <Ionicons name="bar-chart-outline" size={30} color={C.outline} />
-          <Text style={styles.emptyText}>No sessions logged this week yet. Finish a workout and your report fills in.</Text>
+          <EmptyState kind="chart" title="No report yet" body="Finish a workout this week and your report fills in — volume, PRs, and momentum vs. last week." />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -95,7 +99,7 @@ export default function WeeklyReportScreen() {
                 <Text style={[styles.deltaText, { color: (report.volumeDeltaPct ?? 0) >= 0 ? C.success : C.error }]}>{volLine}</Text>
               </View>
             </View>
-            <Text style={styles.cardValue}>{report.volumeLbs.toLocaleString()} <Text style={styles.cardUnit}>lbs</Text></Text>
+            <Text style={styles.cardValue}>{displayVolume(report.volumeLbs, unit)} <Text style={styles.cardUnit}>{unitLabel(unit)}</Text></Text>
             <Text style={styles.cardSub}>{report.minutes} min trained this week</Text>
           </View>
 
@@ -111,7 +115,7 @@ export default function WeeklyReportScreen() {
                   <View key={g.name} style={styles.gainRow}>
                     <Ionicons name="trending-up" size={14} color={C.success} />
                     <Text style={styles.gainName} numberOfLines={1}>{g.name}</Text>
-                    <Text style={styles.gainDelta}>+{g.deltaLbs} lbs est. 1RM</Text>
+                    <Text style={styles.gainDelta}>+{displayWeight(g.deltaLbs, unit)} {unitLabel(unit)} est. 1RM</Text>
                   </View>
                 ))}
               </View>
@@ -124,7 +128,9 @@ export default function WeeklyReportScreen() {
           <View style={styles.tileRow}>
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>WEIGHT TREND</Text>
-              <Text style={[styles.tileValue, { fontSize: 22 }]}>{formatTrend(report.weightPerWeek)}</Text>
+              <Text style={[styles.tileValue, { fontSize: 22 }]}>
+                {report.weightPerWeek == null ? '—' : `${formatWeightDelta(report.weightPerWeek, unit)}/wk`}
+              </Text>
               <Text style={styles.tileSub}>{report.weightPerWeek == null ? 'Log your weight' : 'this month'}</Text>
             </View>
             <View style={styles.tile}>
@@ -148,10 +154,10 @@ export default function WeeklyReportScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.xl },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
@@ -160,13 +166,13 @@ const styles = StyleSheet.create({
   tileRow: { flexDirection: 'row', gap: Spacing.md },
   tile: { flex: 1, backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: 2 },
   tileLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
-  tileValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 30, color: C.text, letterSpacing: -1 },
+  tileValue: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -1 },
   tileSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
 
   card: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: 4 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  cardValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.6 },
+  cardValue: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.6 },
   cardUnit: { fontFamily: 'Inter_400Regular', fontSize: 16, color: C.textSecondary },
   cardSub: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, marginTop: 2 },
   deltaPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },

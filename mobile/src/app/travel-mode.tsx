@@ -10,23 +10,27 @@ import { useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { saveTravelMode, clearTravelMode, describeTravelUntil } from '@/lib/travelMode'
+import { syncTravelSchedule } from '@/lib/travelSchedule'
 import type { Equipment, TravelMode } from '@/types'
 
-const C = Colors.light
 
 const EQUIP: { id: Equipment; label: string; desc: string; icon: string }[] = [
   { id: 'full_gym', label: 'Full gym', desc: 'Hotel or guest gym — machines & racks', icon: 'business-outline' },
   { id: 'dumbbells', label: 'Dumbbells', desc: 'A pair of dumbbells', icon: 'barbell-outline' },
   { id: 'barbell', label: 'Barbell & plates', desc: 'Barbell with a rack or bench', icon: 'fitness-outline' },
+  { id: 'kettlebell', label: 'Kettlebells', desc: 'One or two kettlebells', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance bands', desc: 'Travel bands', icon: 'pulse-outline' },
-  { id: 'bodyweight', label: 'No equipment', desc: 'Bodyweight only', icon: 'body-outline' },
+  { id: 'pull_up_bar', label: 'Pull-up & dip bar', desc: 'A bar, dip station, or rings', icon: 'body-outline' },
+  { id: 'bodyweight', label: 'No equipment', desc: 'Floor work only — no bar or dips', icon: 'walk-outline' },
 ]
 
 type DurId = 'today' | 'weekend' | 'week' | 'twoweeks' | 'open'
@@ -70,7 +74,11 @@ function durFromUntil(until: string | null): DurId {
 }
 
 export default function TravelModeScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const queryClient = useQueryClient()
   const { profile, session, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const existing = (profile?.travel_mode as TravelMode | null) ?? null
@@ -90,7 +98,13 @@ export default function TravelModeScreen() {
     setSaving(true)
     const tm: TravelMode = { equipment, until: untilFor(dur), label: label.trim() || null }
     const ok = await saveTravelMode(supabase, userId, tm)
-    if (ok) await refreshProfile()
+    if (ok) {
+      // Immediately rewrite upcoming sessions to the gear they have, then refresh.
+      try { await syncTravelSchedule(supabase, userId) } catch { /* best-effort */ }
+      await refreshProfile()
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['travel_mode', userId] })
+    }
     setSaving(false)
     if (ok) router.back()
     else Alert.alert('Could not save', 'Please try again.')
@@ -100,7 +114,11 @@ export default function TravelModeScreen() {
     if (!userId || saving) return
     setSaving(true)
     await clearTravelMode(supabase, userId)
+    // Restore every travel-adjusted session back to the original plan.
+    try { await syncTravelSchedule(supabase, userId) } catch { /* best-effort */ }
     await refreshProfile()
+    queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+    queryClient.invalidateQueries({ queryKey: ['travel_mode', userId] })
     setSaving(false)
     router.back()
   }
@@ -108,21 +126,23 @@ export default function TravelModeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Travel Mode</Text>
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={styles.heroIcon}>
           <Ionicons name="airplane" size={22} color={C.primary} />
         </View>
         <Text style={styles.intro}>
-          Away from your usual setup? Tell Tempo what you have with you and it'll adapt
-          your workouts — Quick Workouts, swaps, and substitutions — to match. Your home
-          plan stays exactly as it is and resumes automatically when you're back.
+          Away from your usual setup? Tell Tempo what you have with you and it'll rewrite
+          your upcoming workouts to match — every session swaps in moves you can actually
+          do with this gear (pick “No equipment” for floor-only work, or add a pull-up bar
+          for pulls and dips). Your home plan is saved untouched and restored automatically
+          when travel mode ends.
         </Text>
 
         {active && (
@@ -191,7 +211,7 @@ export default function TravelModeScreen() {
         />
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm }]}>
         {active && (
           <TouchableOpacity style={styles.clearBtn} onPress={handleClear} disabled={saving} activeOpacity={0.85}>
             <Ionicons name="home-outline" size={17} color={C.primary} />
@@ -213,13 +233,14 @@ export default function TravelModeScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   scroll: { padding: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.sm },
   heroIcon: {
     width: 48, height: 48, borderRadius: Radius.lg, backgroundColor: C.primarySoft,

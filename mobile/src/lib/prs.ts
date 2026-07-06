@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { estimate1RM } from '@/lib/progression'
+import { formatWeight, displayWeight, type WeightUnit } from '@/lib/units'
 
 export type PRKind = 'weight' | 'e1rm' | 'reps' | 'first'
 
@@ -100,12 +101,14 @@ export async function detectSessionPRs(
   }
 }
 
-/** One-line label for a PR, e.g. "Bench Press: +10 lbs (225)". */
-export function prLine(pr: SessionPR): string {
+/** One-line label for a PR, e.g. "Bench Press: 225 lbs (+10)" — in the user's unit. */
+export function prLine(pr: SessionPR, unit: WeightUnit = 'lb'): string {
+  const w = (lbs: number) => formatWeight(lbs, unit)
+  const delta = pr.deltaLbs ? ` (+${displayWeight(pr.deltaLbs, unit)})` : ''
   switch (pr.kind) {
-    case 'weight': return `${pr.exercise}: ${pr.value} lbs${pr.deltaLbs ? ` (+${pr.deltaLbs})` : ''}`
-    case 'e1rm':   return `${pr.exercise}: est. 1RM ${pr.value} lbs${pr.deltaLbs ? ` (+${pr.deltaLbs})` : ''}`
+    case 'weight': return `${pr.exercise}: ${w(pr.value)}${delta}`
+    case 'e1rm':   return `${pr.exercise}: est. 1RM ${w(pr.value)}${delta}`
     case 'reps':   return `${pr.exercise}: ${pr.value} reps — rep PR`
-    case 'first':  return `${pr.exercise}: first logged at ${pr.value} lbs`
+    case 'first':  return `${pr.exercise}: first logged at ${w(pr.value)}`
   }
 }

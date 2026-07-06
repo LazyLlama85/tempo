@@ -37,9 +37,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
   {
     key: 'week_streak',
-    label: '7-Day Streak',
+    label: '7-Session Streak',
     icon: 'flame',
-    description: 'Train 7 days in a row',
+    description: 'Complete 7 sessions in a row — no misses',
     tier: 'silver',
     isUnlocked: (s) => s.streak >= 7,
     progress: (s) => clamp(s.streak, 7),

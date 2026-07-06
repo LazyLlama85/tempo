@@ -52,6 +52,8 @@ export type EventProperties = {
   quick_workout_generated: { minutes: number; purpose: string }
   workout_feedback_submitted: { feel: string }
   share_card_opened: undefined
+  // Auto-progression graduated the user to a harder experience level.
+  experience_promoted: { from: string; to: string }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

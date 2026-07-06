@@ -7,9 +7,11 @@
 // so it scales to every user with no manual sending.
 //
 // Rules implemented (each de-duplicated to at most once per user per day):
-//   1. missed_workout   — a plan workout was due earlier today and not completed.
-//   2. streak_at_risk   — user has an active streak but hasn't trained today; nudge
-//                         in the evening before the day (and the streak) is lost.
+//   1. missed_workout   — today's session still isn't done; the daytime nudge.
+//   2. streak_at_risk   — today's SCHEDULED session is still open in the evening;
+//                         the last call before the session (and streak) is lost.
+//                         NEVER fires on a planned rest day — streaks count
+//                         completed sessions, so rest days can't break them.
 //   3. free_time_gap    — user has free time today (no workout scheduled / completed)
 //                         during the daytime → "you've got 20 min, get a quick one in".
 //   4. reactivation     — no activity for INACTIVE_DAYS+ days → win them back.
@@ -140,11 +142,13 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
       }
     }
 
-    // 1. Missed workout — a plan session was due earlier today, still not done.
+    // 1. Missed workout — a plan session was due today and still isn't done; the
+    //    daytime nudge. (The evening pass is rule 2's, so the two don't stack in
+    //    the same hour.)
     const missedToday = mine.find(
       (w) => w.planned_date === today && (w.status === 'missed' || w.status === 'scheduled'),
     )
-    if (missedToday && !completedToday) {
+    if (missedToday && !completedToday && nowHourUtc < EVENING_HOUR_UTC_FALLBACK) {
       add({
         type: 'missed_workout',
         title: 'Still time to train today',
@@ -154,14 +158,17 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
       continue // one push per user per run is plenty — don't stack nudges
     }
 
-    // 2. Streak at risk — trained recently (yesterday) but not yet today; nudge in the evening.
-    const trainedYesterday = completed.has(addDays(today, -1))
-    if (trainedYesterday && !completedToday && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+    // 2. Streak at risk — TODAY'S SCHEDULED session is still open in the evening.
+    //    This never fires on a planned rest day: a streak is consecutive completed
+    //    SESSIONS, so the rest days the plan itself schedules can't break it —
+    //    nagging people to train on them would contradict Tempo's own coaching.
+    const pendingToday = mine.some((w) => w.planned_date === today && w.status === 'scheduled')
+    if (pendingToday && !completedToday && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
       add({
         type: 'streak_at_risk',
-        title: "Don't break your streak",
-        body: 'You showed up yesterday. A quick session right now keeps the momentum alive.',
-        data: { screen: 'quick-workout' },
+        title: "Tonight's session is still open",
+        body: 'A shorter version still counts — finish today and your streak of completed sessions stays alive.',
+        data: { screen: 'plan' },
       })
       continue
     }

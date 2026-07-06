@@ -1,15 +1,13 @@
 import { Redirect } from 'expo-router'
 import { Tabs } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-import { Platform, View } from 'react-native'
+import { View } from 'react-native'
 import { useAuthStore } from '@/stores/auth'
-import { Colors } from '@/constants/theme'
-
-const C = Colors.light
-type IoniconsName = keyof typeof Ionicons.glyphMap
+import { useTheme } from '@/theme'
+import { TempoTabBar, type TabBarProps } from '@/components/TempoTabBar'
 
 export default function TabsLayout() {
   const { session, profile, loading } = useAuthStore()
+  const C = useTheme()
 
   if (loading) return <View style={{ flex: 1, backgroundColor: C.background }} />
   if (!session) return <Redirect href="/sign-in" />
@@ -17,60 +15,24 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      // The floating Tempo dock replaces the stock bar (icons, GO button and
+      // active states all live in TempoTabBar).
+      tabBar={(props) => <TempoTabBar {...(props as unknown as TabBarProps)} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.primary,
-        tabBarInactiveTintColor: C.outline,
-        tabBarStyle: {
-          backgroundColor: C.background,
-          borderTopColor: C.outlineVariant,
-          borderTopWidth: 0.5,
-          height: Platform.select({ ios: 84, android: 68 }),
-          paddingBottom: Platform.select({ ios: 28, android: 12 }),
-          paddingTop: 8,
-        },
-        tabBarLabelStyle: {
-          fontFamily: 'Inter_500Medium',
-          fontSize: 11,
-        },
+        // All four tabs mount (and fetch) at startup, so switching is instant and
+        // nothing ever mounts mid-transition. The `shift` scene animation is gone
+        // on purpose: interrupted shifts could strand a scene half-hidden — the
+        // "screen doesn't load until I come back" bug. Transition feel now lives
+        // in the tab bar itself + per-screen focus motion, which can't hide content.
+        lazy: false,
+        sceneStyle: { backgroundColor: C.surface },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Schedule',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'calendar' : 'calendar-outline' as IoniconsName} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="plan"
-        options={{
-          title: 'Workouts',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'barbell' : 'barbell-outline' as IoniconsName} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="progress"
-        options={{
-          title: 'Progress',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline' as IoniconsName} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline' as IoniconsName} size={24} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Today' }} />
+      <Tabs.Screen name="plan" options={{ title: 'Train' }} />
+      <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+      <Tabs.Screen name="profile" options={{ title: 'You' }} />
     </Tabs>
   )
 }

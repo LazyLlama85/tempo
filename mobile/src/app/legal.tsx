@@ -11,13 +11,14 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
-const C = Colors.light
 
 const UPDATED = 'June 2026'
 const SUPPORT_EMAIL = 'fittempo.app@gmail.com'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.section}>
       <Text style={styles.h2}>{title}</Text>
@@ -26,9 +27,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 function P({ children }: { children: React.ReactNode }) {
+  const styles = useThemedStyles(makeStyles)
   return <Text style={styles.p}>{children}</Text>
 }
 function Bullet({ children }: { children: React.ReactNode }) {
+  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.bulletRow}>
       <Text style={styles.bulletDot}>•</Text>
@@ -38,11 +41,13 @@ function Bullet({ children }: { children: React.ReactNode }) {
 }
 
 export default function LegalScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Privacy & Terms</Text>
@@ -114,16 +119,16 @@ export default function LegalScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
   },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl },
 
-  h1: { fontFamily: 'Inter_800ExtraBold', fontSize: 26, color: C.text, letterSpacing: -0.4, marginTop: Spacing.sm },
+  h1: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.4, marginTop: Spacing.sm },
   updated: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, marginTop: 2, marginBottom: Spacing.sm },
 
   section: { marginTop: Spacing.md },

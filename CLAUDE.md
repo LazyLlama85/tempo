@@ -94,6 +94,14 @@ retention nudges are server-driven.
   future plan workout** so the coming weeks actually change. Runs on app open
   (after missed-workout sweep) and after each workout/feedback. This is what makes
   `adaptation_mode` a live input rather than an unused column.
+- `src/lib/experienceProgression.ts` — the UP direction (adaptation is the DOWN one):
+  `maybePromoteExperience()` graduates the user beginner→intermediate→advanced when
+  they've earned it (completed-session count, pulled forward by "too easy" feedback;
+  gated off in recovery/deload or after recent "too hard"). Runs **only after a
+  completed session** (`workout-complete.tsx`), so every promotion is paired with its
+  "LEVEL UP" celebration; it persists the new `experience` and calls
+  `generatePlan.restampFuturePlanForExperience()` to re-select harder exercises +
+  re-stamp periodization on all upcoming plan sessions at once.
 
 ## Applying Supabase changes
 SQL files in `mobile/supabase/*.sql` are the source of truth. The push-notification and
@@ -109,3 +117,9 @@ function changes with `npx supabase functions deploy <name>`.
 - [ ] Built with EAS (not Expo Go) and smoke-tested on a physical device — push tokens
       and crash reporting only work on real builds/devices.
 - [ ] App Store account-deletion flow intact (Profile → Delete Account; Guideline 5.1.1(v)).
+- [ ] **Sign in with Apple**: `app.json` sets `ios.usesAppleSignIn: true` (done). Confirm the
+      "Sign in with Apple" capability is enabled on the Apple Developer App ID and the Apple provider
+      is configured in Supabase Auth, then test on a real device (native Apple auth can't run in
+      Expo Go). Required because the app also offers Google sign-in.
+- [ ] Calendar auto-add is **opt-in** (`calendar_autosync` default false — migration
+      `add_calendar_autosync_default_off.sql`, applied). Verify toggling it off removes Tempo events.

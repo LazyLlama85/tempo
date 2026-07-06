@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal } from '@/types'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
+import { sessionStreak } from '@/lib/streak'
 
 export type WrappedCard =
   | { kind: 'weekly'; workouts: number; minutes: number; volumeLbs: number; adherencePct: number; prs: number; topExercise: string | null; topDeltaLbs: number | null }
@@ -134,11 +135,8 @@ export async function buildWrappedCards(client: SupabaseClient, userId: string):
       })
     }
 
-    // ── Streak ────────────────────────────────────────────────────────────────
-    const completedDates = new Set(wk.filter(w => w.status === 'completed').map(w => w.planned_date))
-    let streak = 0
-    const cur = new Date(today)
-    while (completedDates.has(toDateStr(cur))) { streak++; cur.setDate(cur.getDate() - 1) }
+    // ── Streak — consecutive completed sessions (see lib/streak.ts) ──────────
+    const streak = sessionStreak(wk, toDateStr(today))
     const totalCompleted = wk.filter(w => w.status === 'completed').length
     let totalMinutes = 0
     for (const l of logRows) {
@@ -233,7 +231,7 @@ export function captionFor(card: WrappedCard): string {
       return bits.join(' ')
     }
     case 'streak':
-      return `${card.days}-day streak and still going. ${card.workouts} workouts, ${card.hours}h of work. Didn't always feel like it — showed up anyway. 🔥`
+      return `${card.days} sessions in a row, zero missed. ${card.workouts} workouts, ${card.hours}h of work. Didn't always feel like it — showed up anyway. 🔥`
     case 'pr':
       return card.deltaLbs
         ? `New ${card.exercise} PR: ${fmtNum(card.weight)} lbs (+${card.deltaLbs} from my last best). Next stop: ${fmtNum(card.weight + 10)}. 🏆`

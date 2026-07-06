@@ -48,24 +48,54 @@ async function fnErrorReason(err: unknown): Promise<string | null> {
 // 1) Connect — run Google OAuth (forcing re-consent) WITH the calendar.events
 // scope, capture the one-time provider_refresh_token, and hand it to the Edge
 // Function to store. Idempotent: re-running just refreshes the stored token.
+//
+// CRITICAL: this must never replace the signed-in Supabase user. signInWithOAuth
+// creates/signs into the Google-identity user — for a guest or Apple-sign-in user
+// that would swap the session and strand ALL their data on the old user id. So:
+//   • Google-auth users re-consent via signInWithOAuth (same account → same user),
+//     with a post-exchange identity check as a belt-and-braces guard.
+//   • Everyone else gets the Google identity LINKED onto their existing account
+//     via linkIdentity(). That needs "manual linking" enabled on the Supabase
+//     project (Auth → Providers); when it isn't, we fail with a clear reason
+//     instead of silently destroying the session.
 export async function connectGoogleCalendar(): Promise<ConnectResult> {
   const redirectUrl = makeRedirectUri({ scheme: 'tempo' })
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: redirectUrl,
-      skipBrowserRedirect: true,
-      scopes: SCOPE_STRING,
-      // access_type=offline + prompt=consent are what make Google return a
-      // *refresh* token (and re-issue one even if a grant already exists).
-      queryParams: { access_type: 'offline', prompt: 'consent' },
-    },
-  })
-  if (error || !data?.url) return { ok: false, error: error?.message ?? 'oauth_init_failed' }
+  const { data: { session: current } } = await supabase.auth.getSession()
+  if (!current) return { ok: false, error: 'not_signed_in' }
+  const originalUserId = current.user.id
+  const isGoogleUser = current.user.app_metadata?.provider === 'google'
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-  console.log('[gcal-connect] browser result:', result.type)
+  const oauthOptions = {
+    redirectTo: redirectUrl,
+    skipBrowserRedirect: true,
+    scopes: SCOPE_STRING,
+    // access_type=offline + prompt=consent are what make Google return a
+    // *refresh* token (and re-issue one even if a grant already exists).
+    queryParams: { access_type: 'offline', prompt: 'consent' },
+  }
+
+  let authUrl: string
+  if (isGoogleUser) {
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: oauthOptions })
+    if (error || !data?.url) return { ok: false, error: error?.message ?? 'oauth_init_failed' }
+    authUrl = data.url
+  } else {
+    // Non-Google accounts (Apple / email / guest) attach Google via linkIdentity,
+    // which requires "manual linking" enabled on the Supabase project. When it's
+    // disabled Supabase returns "Manual linking is disabled" — surface the single
+    // clean `link_unavailable` reason (→ "use the device calendar") rather than
+    // leaking that raw backend string to the user as "connection failed".
+    try {
+      const { data, error } = await supabase.auth.linkIdentity({ provider: 'google', options: oauthOptions })
+      if (error || !data?.url) return { ok: false, error: 'link_unavailable' }
+      authUrl = data.url
+    } catch {
+      return { ok: false, error: 'link_unavailable' }
+    }
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl)
   if (result.type !== 'success') return { ok: false, error: 'cancelled' }
 
   const parsed = new URL(result.url)
@@ -81,8 +111,13 @@ export async function connectGoogleCalendar(): Promise<ConnectResult> {
   if (code) {
     const { data: sess, error: exErr } = await supabase.auth.exchangeCodeForSession(code)
     if (exErr || !sess.session) {
-      console.log('[gcal-connect] exchange failed:', exErr?.message)
       return { ok: false, error: exErr?.message ?? 'exchange_failed' }
+    }
+    // Belt and braces: if OAuth somehow landed on a DIFFERENT user (e.g. a
+    // Google-auth user picked another Google account in the chooser), say so
+    // loudly instead of quietly carrying on as somebody else.
+    if (sess.session.user.id !== originalUserId) {
+      return { ok: false, error: 'session_switched' }
     }
     providerRefreshToken = sess.session.provider_refresh_token
     providerToken = sess.session.provider_token
@@ -95,13 +130,15 @@ export async function connectGoogleCalendar(): Promise<ConnectResult> {
     providerToken = hash.get('provider_token')
     if (access_token && refresh_token) {
       await supabase.auth.setSession({ access_token, refresh_token })
+      const { data: { session: after } } = await supabase.auth.getSession()
+      if (after && after.user.id !== originalUserId) {
+        return { ok: false, error: 'session_switched' }
+      }
     } else if (!providerRefreshToken) {
-      console.log('[gcal-connect] no code and no tokens in redirect:', result.url)
       return { ok: false, error: 'no_code' }
     }
   }
 
-  console.log('[gcal-connect] hasRefreshToken:', !!providerRefreshToken, 'hasAccessToken:', !!providerToken)
   if (!providerRefreshToken) {
     // Consent succeeded but Google didn't return a refresh token — usually a
     // stale grant that skipped re-consent. Revoke access and retry.

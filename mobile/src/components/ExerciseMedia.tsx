@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { getExerciseGifSource, getExerciseMedia } from '@/data/exerciseMedia'
 
-const C = Colors.light
 
 interface Props {
   exerciseId: string | null | undefined
@@ -24,6 +24,8 @@ export function ExerciseMedia({
   showNote = true,
   resolution = 360,
 }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const source = getExerciseGifSource(exerciseId, resolution)
   const media = getExerciseMedia(exerciseId)
   const [loaded, setLoaded] = useState(false)
@@ -67,7 +69,7 @@ export function ExerciseMedia({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   well: {
     backgroundColor: C.surfaceContainerHigh,
     alignItems: 'center',

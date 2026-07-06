@@ -78,7 +78,9 @@ const EQUIP_LABELS: Record<Equipment, string> = {
   full_gym: 'Full gym',
   dumbbells: 'Dumbbells',
   barbell: 'Barbell',
+  kettlebell: 'Kettlebells',
   resistance_bands: 'Bands',
+  pull_up_bar: 'Pull-up bar',
   bodyweight: 'Bodyweight',
 }
 

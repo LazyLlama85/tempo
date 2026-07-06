@@ -4,9 +4,12 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
+import { PressableScale } from '@/components/motion'
+import { useAuthStore } from '@/stores/auth'
 import type { Goal } from '@/types'
 
-const C = Colors.light
 
 const GOALS: { id: Goal; label: string; description: string; icon: string }[] = [
   { id: 'muscle_gain', label: 'Build Muscle', description: 'Hypertrophy and mass building focus.', icon: 'barbell-outline' },
@@ -17,17 +20,30 @@ const GOALS: { id: Goal; label: string; description: string; icon: string }[] = 
 ]
 
 export default function GoalScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const { signOut } = useAuthStore()
   const [selected, setSelected] = useState<Goal | null>(null)
+
+  // This is the first onboarding step. Reached straight after sign-in it's a fresh
+  // stack (the tabs layout redirects here), so router.back() has nowhere to go —
+  // signing out returns the user to the login screen, which is what "back" means at
+  // step 1. When onboarding is re-entered from Profile ("Change Plan") there IS a
+  // stack, so we just pop instead.
+  const handleBack = () => {
+    if (router.canGoBack()) router.back()
+    else void signOut()
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={22} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <View style={{ width: 38 }} />
       </View>
 
@@ -36,7 +52,7 @@ export default function GoalScreen() {
         <View style={[styles.progressFill, { width: '20%' }]} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Step label */}
         <Text style={styles.stepLabel}>STEP 1 OF 6</Text>
         <Text style={styles.title}>What is your primary goal?</Text>
@@ -49,7 +65,7 @@ export default function GoalScreen() {
           {GOALS.map((goal) => {
             const isSelected = selected === goal.id
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={goal.id}
                 style={[styles.option, isSelected && styles.optionSelected]}
                 onPress={() => setSelected(goal.id)}
@@ -62,7 +78,7 @@ export default function GoalScreen() {
                   <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{goal.label}</Text>
                   <Text style={styles.optionDesc}>{goal.description}</Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             )
           })}
         </View>
@@ -70,32 +86,32 @@ export default function GoalScreen() {
 
       {/* CTA */}
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.continueBtn, !selected && styles.continueBtnDisabled]}
           onPress={() => selected && router.push({ pathname: '/onboarding/experience', params: { goal: selected } })}
           disabled={!selected}
           activeOpacity={0.85}
         >
           <Text style={styles.continueBtnText}>Continue →</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   options: { gap: Spacing.sm, marginTop: Spacing.xs },
   option: {

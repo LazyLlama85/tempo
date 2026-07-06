@@ -4,9 +4,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
+import { PressableScale, FadeInView } from '@/components/motion'
 import type { Experience } from '@/types'
 
-const C = Colors.light
 
 const LEVELS: { id: Experience; label: string; quote: string }[] = [
   { id: 'beginner', label: 'Beginner', quote: '"Focusing on foundational movements and proper form with guided instructions."' },
@@ -15,6 +17,8 @@ const LEVELS: { id: Experience; label: string; quote: string }[] = [
 ]
 
 export default function ExperienceScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal } = useLocalSearchParams<{ goal: string }>()
   const [selected, setSelected] = useState<Experience>('beginner')
@@ -25,10 +29,10 @@ export default function ExperienceScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={22} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <View style={{ width: 38 }} />
       </View>
 
@@ -40,12 +44,12 @@ export default function ExperienceScreen() {
       <View style={styles.content}>
         <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
         <Text style={styles.title}>How much experience do you have?</Text>
-        <Text style={styles.subtitle}>We'll tailor your starting weights and complexity accordingly.</Text>
+        <Text style={styles.subtitle}>This sets your exercises, starting weights, and how hard we push from day one.</Text>
 
         {/* Segmented control */}
         <View style={styles.segmented}>
           {LEVELS.map((level) => (
-            <TouchableOpacity
+            <PressableScale
               key={level.id}
               style={[styles.segment, selected === level.id && styles.segmentActive]}
               onPress={() => setSelected(level.id)}
@@ -54,46 +58,57 @@ export default function ExperienceScreen() {
               <Text style={[styles.segmentText, selected === level.id && styles.segmentTextActive]}>
                 {level.label}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           ))}
         </View>
 
-        {/* Preview card */}
-        <View style={styles.previewCard}>
-          <View style={styles.previewImage}>
-            <Ionicons name="barbell" size={48} color={C.outlineVariant} />
+        {/* Preview card — crossfades as you switch levels so the choice feels alive */}
+        <FadeInView key={selected} duration={220}>
+          <View style={styles.previewCard}>
+            <View style={styles.previewImage}>
+              <Ionicons name="barbell" size={48} color={C.outlineVariant} />
+            </View>
+            <Text style={styles.previewQuote}>{current.quote}</Text>
           </View>
-          <Text style={styles.previewQuote}>{current.quote}</Text>
+        </FadeInView>
+
+        {/* Reassurance: this isn't a permanent label. It removes the "am I really a
+            beginner?" anxiety and makes the later auto-promotion feel promised. */}
+        <View style={styles.hintRow}>
+          <Ionicons name="trending-up" size={16} color={C.primary} />
+          <Text style={styles.hintText}>
+            Start where you are — Tempo automatically levels you up as you get stronger.
+          </Text>
         </View>
       </View>
 
       {/* CTA */}
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.continueBtn}
           onPress={() => router.push({ pathname: '/onboarding/equipment', params: { goal, experience: selected } })}
           activeOpacity={0.85}
         >
           <Text style={styles.continueBtnText}>Continue</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   content: { flex: 1, paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   segmented: {
     flexDirection: 'row', backgroundColor: C.surfaceContainerLow,
@@ -106,6 +121,8 @@ const styles = StyleSheet.create({
   previewCard: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, overflow: 'hidden', gap: Spacing.md, padding: Spacing.lg },
   previewImage: { height: 140, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   previewQuote: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, fontStyle: 'italic', textAlign: 'center' },
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.xs },
+  hintText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },

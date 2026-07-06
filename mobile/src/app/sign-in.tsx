@@ -1,19 +1,25 @@
 import { useState } from 'react'
 import { StyleSheet, TouchableOpacity, View, Text, Image, ActivityIndicator, Platform, Alert } from 'react-native'
-import { Redirect } from 'expo-router'
+import { Redirect, useRouter } from 'expo-router'
 import { makeRedirectUri } from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, useThemeMode, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
 
 WebBrowser.maybeCompleteAuthSession()
 
-const C = Colors.light
 
 export default function SignInScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const router = useRouter()
+  const { mode } = useThemeMode()
   const { session } = useAuthStore()
   const [loading, setLoading] = useState<'google' | 'apple' | 'guest' | null>(null)
 
@@ -98,33 +104,38 @@ export default function SignInScreen() {
 
       {/* Hero text */}
       <View style={styles.hero}>
-        <Text style={styles.wordmark}>Tempo</Text>
+        <View style={{ alignItems: 'center' }}>
+          <TempoWordmark size={40} mark={false} />
+        </View>
         <Text style={styles.tagline}>
-          Precision fitness scheduling for{'\n'}your peak performance.
+          Training that keeps time{'\n'}with your life.
         </Text>
       </View>
 
       {/* Actions */}
       <View style={styles.actions}>
-        {/* Apple button */}
+        {/* Apple — official button (adapts to theme; Apple logo + label built in) */}
         {Platform.OS === 'ios' && (
-          <TouchableOpacity
-            style={styles.appleButton}
-            activeOpacity={0.85}
-            disabled={loading !== null}
-            onPress={handleAppleSignIn}
-          >
-            {loading === 'apple'
-              ? <ActivityIndicator size="small" color={styles.appleButton.backgroundColor} />
-              : <>
-                  <Text style={styles.appleIcon}>  </Text>
-                  <Text style={styles.appleButtonText}>SIGN IN WITH APPLE</Text>
-                </>
-            }
-          </TouchableOpacity>
+          loading === 'apple' ? (
+            <View style={styles.appleLoading}>
+              <ActivityIndicator size="small" color={mode === 'dark' ? '#000' : '#fff'} />
+            </View>
+          ) : (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={
+                mode === 'dark'
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={Radius.lg}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          )
         )}
 
-        {/* Google button */}
+        {/* Google — custom button with the Google mark */}
         <TouchableOpacity
           style={styles.googleButton}
           onPress={handleGoogleSignIn}
@@ -133,7 +144,10 @@ export default function SignInScreen() {
         >
           {loading === 'google'
             ? <ActivityIndicator size="small" color={C.text} />
-            : <Text style={styles.googleButtonText}>G  SIGN IN WITH GOOGLE</Text>
+            : <View style={styles.googleInner}>
+                <Ionicons name="logo-google" size={19} color="#4285F4" />
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              </View>
           }
         </TouchableOpacity>
 
@@ -147,9 +161,9 @@ export default function SignInScreen() {
         {/* Legal */}
         <Text style={styles.legal}>
           By continuing, you agree to Tempo's{' '}
-          <Text style={styles.legalLink}>Terms of Service</Text>
+          <Text style={styles.legalLink} onPress={() => router.push('/legal')}>Terms of Service</Text>
           {' '}and{' '}
-          <Text style={styles.legalLink}>Privacy Policy</Text>
+          <Text style={styles.legalLink} onPress={() => router.push('/legal')}>Privacy Policy</Text>
           .
         </Text>
       </View>
@@ -157,7 +171,7 @@ export default function SignInScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: C.surface,
@@ -184,7 +198,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   wordmark: {
-    fontFamily: 'Inter_800ExtraBold',
+    fontFamily: C.fontDisplay,
     fontSize: 40,
     lineHeight: 48,
     color: C.text,
@@ -202,22 +216,14 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     height: 56,
-    backgroundColor: C.text,
+    width: '100%',
+  },
+  appleLoading: {
+    height: 56,
     borderRadius: Radius.lg,
-    flexDirection: 'row',
+    backgroundColor: C.text,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  appleIcon: {
-    color: C.surface,
-    fontSize: 18,
-  },
-  appleButtonText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
-    color: C.surface,
-    letterSpacing: 0.5,
   },
   googleButton: {
     height: 56,
@@ -228,11 +234,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  googleInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   googleButtonText: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 14,
+    fontSize: 15,
     color: C.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   guestText: {
     fontFamily: 'Inter_500Medium',

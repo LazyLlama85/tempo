@@ -40,12 +40,11 @@ export async function registerPushToken(
     // Push tokens only exist on physical devices, not simulators.
     if (!Device.isDevice) return null
 
+    // Never prompt from here — this runs on sign-in, before the user has seen any
+    // value, and an unprimed OS prompt is where notification opt-in goes to die.
+    // Onboarding (plan-preview) owns the ask; we only register once it's granted.
     const existing = await Notifications.getPermissionsAsync()
-    let status = existing.status
-    if (status !== 'granted') {
-      status = (await Notifications.requestPermissionsAsync()).status
-    }
-    if (status !== 'granted') return null
+    if (existing.status !== 'granted') return null
 
     await ensureAndroidChannel()
 
@@ -125,6 +124,13 @@ export async function setPushEnabled(
 ): Promise<void> {
   try {
     if (enabled) {
+      // User flipped the switch ON — this IS the right moment for the OS prompt
+      // if permission was never granted (registerPushToken itself never asks).
+      const perms = await Notifications.getPermissionsAsync()
+      if (perms.status !== 'granted') {
+        const req = await Notifications.requestPermissionsAsync()
+        if (req.status !== 'granted') return
+      }
       await registerPushToken(client, userId)
     } else {
       const token = await currentToken()

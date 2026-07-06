@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { sessionStreak } from '@/lib/streak'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -140,16 +141,9 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       ? `${delta >= 0 ? '+' : ''}${delta}% vs last mo`
       : '— vs last mo'
 
-    // b) Streak
-    const completedDates = new Set(
-      workouts.filter(w => w.status === 'completed').map(w => w.planned_date)
-    )
-    let streak = 0
-    const cur = new Date(today)
-    while (completedDates.has(toDateStr(cur))) {
-      streak++
-      cur.setDate(cur.getDate() - 1)
-    }
+    // b) Streak — consecutive completed SESSIONS (rest days never break it; a
+    //    missed or skipped commitment does). See lib/streak.ts.
+    const streak = sessionStreak(workouts, toDateStr(today))
 
     // c) This week
     const monday = getMondayOf(today)
@@ -175,13 +169,14 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       if (/bench/i.test(sl.exerciseName) && sl.weight_lbs > benchMax) benchMax = sl.weight_lbs
     }
 
-    // e) Personal records
-    const prMap: Record<string, { name: string; maxWeight: number; achievedAt: string }> = {}
+    // e) Personal records (id kept so a PR row can open that lift's trend chart)
+    const prMap: Record<string, { id: string; name: string; maxWeight: number; achievedAt: string }> = {}
     for (const sl of setLogs) {
       if (sl.weight_lbs == null || sl.weight_lbs <= 0) continue
       const key = sl.exercise_id
       if (!prMap[key] || sl.weight_lbs > prMap[key].maxWeight) {
         prMap[key] = {
+          id: sl.exercise_id,
           name: sl.exerciseName,
           maxWeight: sl.weight_lbs,
           achievedAt: sl.completed_at ?? '',
@@ -251,7 +246,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       chartLabels = Array.from({ length: 8 }, (_, i) => `W${i + 1}`)
     }
 
-    // Period-specific volume total
+    // Period-specific volume total (numeric kept so screens can render in kg/lb)
     const periodVolumeNum = chartVolumes.reduce((s, v) => s + v, 0)
     const periodVolume = periodVolumeNum > 0
       ? Math.round(periodVolumeNum).toLocaleString()
@@ -269,6 +264,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       benchMax,
       heaviestLift,
       periodVolume,
+      periodVolumeNum: Math.round(periodVolumeNum),
       prs,
       weekVolumes,
       chartVolumes,

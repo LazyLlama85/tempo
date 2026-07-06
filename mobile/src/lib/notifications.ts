@@ -25,6 +25,16 @@ export async function requestPermissions(): Promise<boolean> {
   return status === 'granted'
 }
 
+// True when permission is already granted — for background/sync paths that must
+// never surface the OS prompt themselves (prompting is an onboarding moment).
+export async function hasReminderPermission(): Promise<boolean> {
+  try {
+    return (await Notifications.getPermissionsAsync()).status === 'granted'
+  } catch {
+    return false
+  }
+}
+
 export async function scheduleWorkoutReminders(workouts: ScheduledWorkout[]): Promise<void> {
   const now = Date.now()
 
@@ -59,4 +69,31 @@ export async function cancelWorkoutReminder(workoutId: string): Promise<void> {
 
 export async function cancelAllReminders(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync()
+}
+
+// ── Rest timer ────────────────────────────────────────────────────────────────
+// People rest with the phone locked; a JS timer stops the moment the app
+// suspends. The OS notification is what actually taps them on the shoulder.
+
+const REST_NOTIF_ID = 'tempo-rest-timer'
+
+export async function scheduleRestDoneNotification(seconds: number): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {})
+  if (!(await hasReminderPermission())) return
+  await Notifications.scheduleNotificationAsync({
+    identifier: REST_NOTIF_ID,
+    content: {
+      title: 'Rest complete',
+      body: 'Time for your next set.',
+      sound: true,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: new Date(Date.now() + seconds * 1000),
+    },
+  })
+}
+
+export async function cancelRestDoneNotification(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {})
 }

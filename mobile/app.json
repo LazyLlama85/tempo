@@ -7,14 +7,22 @@
     "icon": "./assets/images/icon.png",
     "scheme": "tempo",
     "userInterfaceStyle": "automatic",
+    "updates": {
+      "url": "https://u.expo.dev/bdb2dc2b-4340-4191-8a7f-4411fb56734f"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
-      "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.tempo.app",
+      "bundleIdentifier": "com.fittempo.app",
       "buildNumber": "1",
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCalendarsUsageDescription": "Tempo uses your calendar to schedule workouts around your life.",
+        "NSCalendarsFullAccessUsageDescription": "Tempo reads your calendar to schedule workouts around your life, and — only when you turn it on — adds your sessions to it.",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "Tempo adds your scheduled workouts to your calendar when you turn that on.",
         "NSRemindersUsageDescription": "Tempo sends reminders before your scheduled workouts.",
         "NSUserNotificationsUsageDescription": "Tempo sends reminders before your scheduled workouts.",
         "NSPhotoLibraryUsageDescription": "Tempo lets you attach progress photos to your measurements. Photos stay private to your account."
@@ -23,10 +31,8 @@
     "android": {
       "package": "com.fittempo.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -51,7 +57,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/notification-icon.png",
           "color": "#3B82F6",
           "defaultChannel": "workouts"
         }
@@ -60,10 +66,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0A0A0A",
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
-          }
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
         }
       ],
       "expo-sharing",

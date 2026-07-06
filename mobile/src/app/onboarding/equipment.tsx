@@ -4,19 +4,25 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoWordmark } from '@/components/brand'
+import { PressableScale } from '@/components/motion'
 import type { Equipment } from '@/types'
 
-const C = Colors.light
 
 const OPTIONS: { id: Equipment; label: string; description: string; icon: string }[] = [
   { id: 'full_gym', label: 'Full gym', description: 'Barbells, cables, machines — the works', icon: 'business-outline' },
-  { id: 'dumbbells', label: 'Dumbbells only', description: 'Adjustable or fixed dumbbells at home', icon: 'barbell-outline' },
+  { id: 'dumbbells', label: 'Dumbbells', description: 'Adjustable or fixed dumbbells at home', icon: 'barbell-outline' },
   { id: 'barbell', label: 'Barbell & plates', description: 'Home setup with a rack or bench', icon: 'fitness-outline' },
+  { id: 'kettlebell', label: 'Kettlebells', description: 'One or two kettlebells at home', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance bands', description: 'Bands and bodyweight only', icon: 'pulse-outline' },
-  { id: 'bodyweight', label: 'No equipment', description: 'Bodyweight training anywhere', icon: 'body-outline' },
+  { id: 'pull_up_bar', label: 'Pull-up & dip bar', description: 'Doorway bar, dip station, or rings', icon: 'body-outline' },
+  { id: 'bodyweight', label: 'No equipment', description: 'Floor work only — no bar or dips', icon: 'walk-outline' },
 ]
 
 export default function EquipmentScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal, experience } = useLocalSearchParams<{ goal: string; experience: string }>()
   const [selected, setSelected] = useState<Equipment[]>([])
@@ -31,10 +37,10 @@ export default function EquipmentScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={22} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.logo}>TEMPO</Text>
+        <TempoWordmark size={16} />
         <View style={{ width: 38 }} />
       </View>
 
@@ -43,7 +49,7 @@ export default function EquipmentScreen() {
         <View style={[styles.progressFill, { width: '60%' }]} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 3 OF 6</Text>
         <Text style={styles.title}>What equipment do you have?</Text>
         <Text style={styles.subtitle}>Select all that apply. We'll only program what you can actually use.</Text>
@@ -52,7 +58,7 @@ export default function EquipmentScreen() {
           {OPTIONS.map((option) => {
             const isSelected = selected.includes(option.id)
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={option.id}
                 style={[styles.option, isSelected && styles.optionSelected]}
                 onPress={() => toggle(option.id)}
@@ -68,7 +74,7 @@ export default function EquipmentScreen() {
                 <View style={[styles.check, isSelected && styles.checkOn]}>
                   {isSelected && <Ionicons name="checkmark" size={15} color={C.onPrimary} />}
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             )
           })}
         </View>
@@ -76,7 +82,7 @@ export default function EquipmentScreen() {
 
       {/* CTA */}
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.continueBtn, selected.length === 0 && styles.continueBtnDisabled]}
           onPress={() =>
             selected.length > 0 &&
@@ -89,25 +95,25 @@ export default function EquipmentScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.continueBtnText}>Continue →</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.primary, letterSpacing: 2 },
+  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  title: { fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
+  title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   options: { gap: Spacing.sm, marginTop: Spacing.xs },
   option: {

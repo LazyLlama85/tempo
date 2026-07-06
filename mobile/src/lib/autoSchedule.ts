@@ -17,9 +17,19 @@ import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
+import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
+
+// Connecting a calendar no longer forces automatic scheduling. Auto-placement and
+// conflict re-slotting only run when the user's scheduling_mode is 'auto' (the
+// default). Absent/unknown is treated as 'auto' so existing users are unaffected.
+export function autoSchedulingEnabled(
+  profile: { scheduling_mode?: string | null } | null | undefined,
+): boolean {
+  return profile?.scheduling_mode !== 'manual'
+}
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 function sameDay(a: Date, b: Date): boolean { return startOfDay(a).getTime() === startOfDay(b).getTime() }
@@ -32,10 +42,15 @@ function fmtClock(d: Date): string {
 
 interface WorkoutRow {
   id: string
+  focus: string
   planned_date: string
   planned_start_time: string
   planned_duration_min: number
+  calendar_event_id: string | null
+  calendar_provider: CalendarProvider | null
 }
+
+const MOVE_COLS = 'id, focus, planned_date, planned_start_time, planned_duration_min, calendar_event_id, calendar_provider'
 
 // Busy windows from the calendar the user CHOSE (preferred), falling back to
 // whichever is connected. This is what makes auto-scheduling read the *right*
@@ -76,10 +91,12 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar, scheduling_mode')
     .eq('user_id', userId)
     .maybeSingle()
   if (!p) return 0
+  // Manual scheduling: the user owns the times — never move them automatically.
+  if (!autoSchedulingEnabled(p)) return 0
 
   const unavailable = await getUnavailableBlocks(client, userId)
   const availability: Availability = {
@@ -109,7 +126,7 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
 
   const { data: workouts } = await client
     .from('scheduled_workouts')
-    .select('id, planned_date, planned_start_time, planned_duration_min')
+    .select(MOVE_COLS)
     .eq('user_id', userId)
     .eq('status', 'scheduled')
     .gte('planned_date', toDateStr(today))
@@ -146,6 +163,8 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
         .update({ planned_start_time: newTime })
         .eq('id', w.id)
         .eq('user_id', userId)
+      // Keep the synced calendar event + local reminder pointed at the new time.
+      await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
       moved++
     }
     occupied.push({ start, end: new Date(start.getTime() + w.planned_duration_min * 60_000) })
@@ -166,10 +185,12 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, preferred_calendar')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, preferred_calendar, scheduling_mode')
     .eq('user_id', userId)
     .maybeSingle()
   if (!p) return 0
+  // Manual scheduling: leave every workout exactly where the user put it.
+  if (!autoSchedulingEnabled(p)) return 0
 
   // Day is already chosen — we only re-place the TIME on it, so don't let the
   // training-day filter veto the workout's existing day.
@@ -197,7 +218,7 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
 
   const { data: workouts } = await client
     .from('scheduled_workouts')
-    .select('id, planned_date, planned_start_time, planned_duration_min')
+    .select(MOVE_COLS)
     .eq('user_id', userId)
     .eq('status', 'scheduled')
     .gte('planned_date', toDateStr(today))
@@ -239,6 +260,8 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
         .update({ planned_start_time: newTime })
         .eq('id', w.id)
         .eq('user_id', userId)
+      // Keep the synced calendar event + local reminder pointed at the new time.
+      await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
       moved++
     }
     occupied.push({ start: ns, end: new Date(ns.getTime() + w.planned_duration_min * 60_000) })

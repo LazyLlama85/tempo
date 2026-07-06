@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Modal, View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Linking, Animated,
+  StyleSheet, Linking, Animated, ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource, getExerciseMedia } from '@/data/exerciseMedia'
+import { exdbIdForExercise, fetchRemoteInstructions } from '@/lib/exerciseDb'
 
-const C = Colors.light
 
 export interface FormExercise {
   id?: string
@@ -28,6 +29,8 @@ interface Props {
 }
 
 export function ExerciseFormSheet({ exercise, onClose }: Props) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const visible = exercise !== null
   // The verified clip for this movement, by id: our own bundled GIF for the 8 the
   // remote library lacked, or the curated ExerciseDB clip for everything else.
@@ -36,9 +39,30 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const curatedNote = getExerciseMedia(exercise?.id)?.note ?? null
   const [gifId, setGifId] = useState<string | null>(null)
   const [gifLoading, setGifLoading] = useState(false)
+  // Imported-library rows keep their steps in ExerciseDB, not the DB (the seed
+  // stays small that way) — fetch them the first time the guide opens.
+  const [remoteSteps, setRemoteSteps] = useState<string[]>([])
+  const [stepsLoading, setStepsLoading] = useState(false)
   const fadeAnim = useRef(new Animated.Value(0)).current
   const pulseAnim = useRef(new Animated.Value(0.4)).current
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null)
+
+  useEffect(() => {
+    setRemoteSteps([])
+    if (!exercise || exercise.instructions.length > 0) { setStepsLoading(false); return }
+    const exdbId = exdbIdForExercise(exercise.id)
+    if (!exdbId) { setStepsLoading(false); return }
+    let cancelled = false
+    setStepsLoading(true)
+    fetchRemoteInstructions(exdbId).then(steps => {
+      if (cancelled) return
+      setRemoteSteps(steps)
+      setStepsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [exercise?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const steps = exercise?.instructions.length ? exercise.instructions : remoteSteps
 
   useEffect(() => {
     if (!exercise) {
@@ -193,19 +217,26 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
               </View>
 
               {/* Step-by-step instructions */}
-              {exercise.instructions.length > 0 && (
+              {(steps.length > 0 || stepsLoading) && (
                 <>
                   <Text style={styles.sectionLabel}>HOW TO DO IT</Text>
-                  <View style={styles.stepList}>
-                    {exercise.instructions.map((step, i) => (
-                      <View key={i} style={styles.stepRow}>
-                        <View style={styles.stepNum}>
-                          <Text style={styles.stepNumText}>{i + 1}</Text>
+                  {stepsLoading ? (
+                    <View style={styles.stepsLoadingRow}>
+                      <ActivityIndicator size="small" color={C.primary} />
+                      <Text style={styles.stepsLoadingText}>Loading steps…</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.stepList}>
+                      {steps.map((step, i) => (
+                        <View key={i} style={styles.stepRow}>
+                          <View style={styles.stepNum}>
+                            <Text style={styles.stepNumText}>{i + 1}</Text>
+                          </View>
+                          <Text style={styles.stepText}>{step}</Text>
                         </View>
-                        <Text style={styles.stepText}>{step}</Text>
-                      </View>
-                    ))}
-                  </View>
+                      ))}
+                    </View>
+                  )}
                 </>
               )}
 
@@ -235,7 +266,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(10,10,12,0.6)',
@@ -267,7 +298,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1, textTransform: 'uppercase',
   },
   title: {
-    fontFamily: 'Inter_800ExtraBold', fontSize: 28, color: C.text,
+    fontFamily: C.fontDisplay, fontSize: 28, color: C.text,
     letterSpacing: -0.5, marginBottom: Spacing.xs,
   },
 
@@ -348,13 +379,15 @@ const styles = StyleSheet.create({
   },
 
   // Steps
+  stepsLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  stepsLoadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.outline },
   stepList: { gap: 10 },
   stepRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   stepNum: {
     width: 26, height: 26, borderRadius: 13, backgroundColor: C.primary,
     alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0,
   },
-  stepNumText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: C.onPrimary },
+  stepNumText: { fontFamily: C.fontDisplay, fontSize: 12, color: C.onPrimary },
   stepText: {
     flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14,
     color: C.textSecondary, lineHeight: 22,

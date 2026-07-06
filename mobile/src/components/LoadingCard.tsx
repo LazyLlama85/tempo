@@ -1,28 +1,36 @@
-import { useEffect, useRef } from 'react'
-import { Animated, StyleSheet } from 'react-native'
-import { Colors } from '@/constants/theme'
+import { StyleSheet, View } from 'react-native'
+import { Shimmer } from '@/components/motion'
+import { useThemedStyles, type Palette } from '@/theme'
 
-const C = Colors.light
-
+// A content-shaped skeleton (badge + title + two meta chips + action bar) that
+// pulses while data loads — reads as "a card is coming", not just a grey block.
 export function LoadingCard() {
-  const opacity = useRef(new Animated.Value(1)).current
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.8, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    ).start()
-  }, [opacity])
-
-  return <Animated.View style={[styles.card, { opacity }]} />
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={styles.card}>
+      <Shimmer style={styles.badge} />
+      <Shimmer style={styles.title} />
+      <View style={styles.metaRow}>
+        <Shimmer style={styles.chip} />
+        <Shimmer style={styles.chip} />
+      </View>
+      <Shimmer style={styles.bar} />
+    </View>
+  )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   card: {
     borderRadius: 16,
-    height: 120,
-    backgroundColor: C.surfaceContainerLow,
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.outlineVariant,
+    padding: 16,
+    gap: 12,
   },
+  badge: { width: 96, height: 16, borderRadius: 8, backgroundColor: C.surfaceContainerHigh },
+  title: { width: '70%', height: 22, borderRadius: 8, backgroundColor: C.surfaceContainerHigh },
+  metaRow: { flexDirection: 'row', gap: 8 },
+  chip: { width: 80, height: 14, borderRadius: 7, backgroundColor: C.surfaceContainerHigh },
+  bar: { height: 40, borderRadius: 12, backgroundColor: C.surfaceContainerHigh, marginTop: 4 },
 })

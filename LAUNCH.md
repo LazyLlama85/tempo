@@ -46,9 +46,14 @@ public privacy URL.
 | **Apple Developer Program** ($99/yr) | 👤 |
 | **Google Play Console** ($25 once) | 👤 |
 | **APNs key** (iOS push) + **FCM service-account JSON** (Android push) via `eas credentials` | 👤 |
-| **Public privacy-policy URL** (host `legal.tsx` text on your `web/` site) | 👤 |
-| **Store metadata** (screenshots, description, category, age rating, data-collection forms) | 👤 |
+| **Public privacy-policy URL** | ✅ live at `fittempo.app/privacy.html` (+ `/terms.html`) |
+| **Google OAuth verification** (sensitive `calendar.events` scope) | 👤 — see `STORE_SUBMISSION.md` |
+| **Store metadata** (screenshots, description, category, age rating, data-collection forms) | 👤 — answers in `STORE_SUBMISSION.md` |
 | Telemetry keys (`EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SENTRY_DSN`) — optional | 👤 |
+
+> **Submission details** — the exact Google OAuth verification steps, the filled-in App Store **App
+> Privacy** and Play **Data safety** answers, and which brand assets to upload where are all in
+> **[STORE_SUBMISSION.md](STORE_SUBMISSION.md)**. Console-ready logos are in `brand-assets/`.
 
 ---
 
@@ -65,10 +70,10 @@ public privacy URL.
 4. All Supabase migrations are already applied — nothing to run.
 
 ### iOS
-1. Enroll in Apple Developer; enable the **Sign in with Apple** capability for `com.tempo.app`.
+1. Enroll in Apple Developer; enable the **Sign in with Apple** capability for `com.fittempo.app`.
 2. `eas build --profile production --platform ios` (EAS provisions signing).
    For push: `eas credentials` → **iOS → Push Notifications → upload an APNs key**.
-3. App Store Connect: create the app (`com.tempo.app`); fill metadata, screenshots (6.7" + 5.5"),
+3. App Store Connect: create the app (`com.fittempo.app`); fill metadata, screenshots (6.7" + 5.5"),
    1024px icon, privacy URL, age rating, and the **App Privacy** form. Declare: account email,
    fitness/health data; add **analytics/usage** + **crash data** only if PostHog/Sentry keys are set.
 4. In `eas.json` fill `submit.production.ios` (`appleId`, `ascAppId`, `appleTeamId`), then

@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { TempoPulse } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
+import { PressableScale } from '@/components/motion'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
   goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
   type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern,
 } from '@/lib/quickWorkout'
 
-const C = Colors.light
 const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
 ]
 
 export default function QuickWorkoutScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
@@ -109,7 +113,7 @@ export default function QuickWorkoutScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="close" size={26} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quick Workout</Text>
@@ -164,7 +168,7 @@ export default function QuickWorkoutScreen() {
         <View style={styles.previewCard}>
           {generating ? (
             <View style={styles.previewLoading}>
-              <ActivityIndicator color={C.primary} />
+              <TempoPulse size={30} />
               <Text style={styles.previewLoadingText}>Building your session…</Text>
             </View>
           ) : empty ? (
@@ -221,11 +225,10 @@ export default function QuickWorkoutScreen() {
 
       {/* Sticky Start */}
       <View style={styles.footer}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.startBtn, (generating || empty || starting) && { opacity: 0.5 }]}
           onPress={handleStart}
           disabled={generating || empty || starting}
-          activeOpacity={0.85}
         >
           {starting ? (
             <ActivityIndicator color={C.onPrimary} />
@@ -235,23 +238,23 @@ export default function QuickWorkoutScreen() {
               <Text style={styles.startBtnText}>Start {minutes}-Minute Workout</Text>
             </>
           )}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
   },
   iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  headerTitle: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: 120, gap: Spacing.md },
 
-  lead: { fontFamily: 'Inter_800ExtraBold', fontSize: 24, color: C.text, letterSpacing: -0.3, marginTop: Spacing.xs },
+  lead: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginTop: Spacing.xs },
   leadSub: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
 
   durationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
@@ -261,7 +264,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   durChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  durNum: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.5 },
+  durNum: { fontFamily: C.fontDisplay, fontSize: 23, color: C.text, letterSpacing: -0.5 },
   durNumActive: { color: C.onPrimary },
   durUnit: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline },
   durUnitActive: { color: 'rgba(255,255,255,0.85)' },
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
   purposeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   purposeBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
   previewEst: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
-  previewTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -4 },
+  previewTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -4 },
   whyBox: { flexDirection: 'row', gap: 8, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md },
   whyText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   exList: { gap: 2 },

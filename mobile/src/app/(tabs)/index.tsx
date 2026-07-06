@@ -6,30 +6,48 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
+import { TempoWordmark } from '@/components/brand'
+import { AnimatedRing } from '@/components/AnimatedRing'
+import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
+import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
-import { resolveCalendarConflicts } from '@/lib/autoSchedule'
+import { resolveCalendarConflicts, autoScheduleUpcoming } from '@/lib/autoSchedule'
+import { refreshActiveSplit } from '@/lib/splitSchedule'
+import { extendActivePlan } from '@/lib/generatePlan'
+import { ensureAutoSplit } from '@/lib/splits'
+import { syncTravelSchedule } from '@/lib/travelSchedule'
+import { syncUpcomingWorkouts } from '@/lib/calendarAutoSync'
+import {
+  scheduleWorkoutReminders, cancelWorkoutReminder, cancelAllReminders, hasReminderPermission,
+  type ScheduledWorkout as ReminderWorkout,
+} from '@/lib/notifications'
+import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
 import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
+import { getQuickSuggestion } from '@/lib/quickSuggestion'
 import { getTodayCheckin } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
-import { getQuickSuggestion, type QuickSuggestion } from '@/lib/quickSuggestion'
 import { parseAvatar } from '@/lib/avatar'
 import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
 import { restDayAdvice, consecutiveTrainingDays } from '@/lib/trainingLoad'
 import { eventKey, getIgnoredEventKeys, setEventIgnored } from '@/lib/ignoredEvents'
+import { workoutOrigin } from '@/lib/workoutOrigin'
+import type { WorkoutSource } from '@/types'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
-const C = Colors.light
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const GOAL_LABELS: Record<string, string> = {
@@ -92,6 +110,25 @@ function getMonthGrid(d: Date): Date[] {
 const minOfTime = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 const minOfDate = (d: Date) => d.getHours() * 60 + d.getMinutes()
 
+// A workout reads as "overdue" once an hour has passed since its start time and it's
+// still unstarted today — the cue to gently say "you didn't do this — reschedule?".
+const OVERDUE_AFTER_MIN = 60
+function workoutStartMs(w: ScheduledWorkout): number {
+  return new Date(`${w.planned_date}T${w.planned_start_time}`).getTime()
+}
+function isOverdueWorkout(w: ScheduledWorkout, nowMs: number, todayStr: string): boolean {
+  if (w.status !== 'scheduled' || w.planned_date !== todayStr) return false
+  return nowMs >= workoutStartMs(w) + OVERDUE_AFTER_MIN * 60_000
+}
+// A real calendar event that now overlaps this workout's time block (same day) — the
+// "Soccer practice was added — move your workout?" case.
+function conflictingEvent(w: ScheduledWorkout, events: DayEvent[]): DayEvent | null {
+  const start = workoutStartMs(w)
+  const end = start + w.planned_duration_min * 60_000
+  for (const e of events) if (start < e.end.getTime() && e.start.getTime() < end) return e
+  return null
+}
+
 // '07:00:00' → '7:00 AM' (12-hour everywhere — never 24-hour)
 function formatTime(t: string): string {
   const [hStr, mStr] = t.split(':')
@@ -117,7 +154,7 @@ function eventIcon(title: string): IconName {
   return 'ellipse-outline'
 }
 
-function readinessColor(n: number): string {
+function readinessColor(n: number, C: Palette): string {
   if (n >= 67) return C.success
   if (n >= 34) return C.primary
   return C.error
@@ -130,6 +167,7 @@ interface ScheduledWorkout {
   planned_start_time: string
   focus: string
   status: string
+  source: WorkoutSource | null
   exercise_ids: string[]
   planned_duration_min: number
   actual_duration_min: number | null
@@ -151,6 +189,8 @@ interface DayGroup {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ScheduleScreen() {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
@@ -165,6 +205,14 @@ export default function ScheduleScreen() {
   const [rescheduling, setRescheduling] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<ScheduledWorkout | null>(null)
+  const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
+  // Ticks every minute so a workout flips to "overdue" an hour after its start
+  // without needing a manual refresh.
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   const scrollRef = useRef<ScrollView>(null)
   const sectionY = useRef<Record<string, number>>({})
@@ -206,7 +254,19 @@ export default function ScheduleScreen() {
       return (data ?? []) as ScheduledWorkout[]
     },
     enabled: !!userId,
+    // Paging the visible week/month keeps the previous range on screen instead
+    // of flashing a skeleton while the new range loads.
+    placeholderData: keepPreviousData,
   })
+
+  // A tab switch is not a "mount", so without this the schedule (and everything
+  // derived from it) could sit stale until some other screen refetched the same
+  // keys — the old "doesn't load until I leave and come back" bug.
+  useRefreshOnFocus(
+    ['scheduled_workouts'], ['missed_workouts'], ['next_workout'], ['block_phase'],
+    ['recovery_today'], ['quick_suggestion'], ['rest_advice'],
+    ['progress_workouts'], ['progress_set_logs'], ['goal_projection'], ['travel_mode'],
+  )
 
   // Calendar events for the visible feed range — shown inline with workouts but
   // de-emphasised. Pulls from EVERY connected calendar (device + in-app Google),
@@ -218,6 +278,7 @@ export default function ScheduleScreen() {
     queryFn: () => getCalendarEventsForRange(parseLocal(feedRange.start), parseLocal(feedRange.end)),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 
   const { data: missed = [] } = useQuery<ScheduledWorkout[]>({
@@ -239,13 +300,6 @@ export default function ScheduleScreen() {
     queryKey: ['recovery_today', userId],
     queryFn: () => getTodayCheckin(userId),
     enabled: !!userId,
-  })
-
-  const { data: suggestion } = useQuery({
-    queryKey: ['quick_suggestion', userId],
-    queryFn: () => getQuickSuggestion(supabase, userId),
-    enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
   })
 
   const { data: travel } = useQuery({
@@ -351,20 +405,78 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // The wedge, on Home where it belongs: a contextual Quick Workout suggestion
+  // (free calendar gap / recently missed session / momentum restart). Returns null
+  // whenever today already has an actionable session, so it never competes with
+  // the hero workout card.
+  const { data: quickSuggestion } = useQuery({
+    queryKey: ['quick_suggestion', userId, todayStr],
+    queryFn: () => getQuickSuggestion(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // On entry: collapse duplicate days, then mark past-due 'scheduled' as 'missed'.
   useEffect(() => {
     if (!userId) return
     ;(async () => {
+      // The plan never just ends: when the active plan's runway is short, lay the
+      // next mesocycle block onto the calendar, then place its times around the
+      // user's real day. Best-effort; a no-op while weeks of plan remain.
+      let planAdded = 0
+      try { planAdded = await extendActivePlan(supabase, userId) } catch { /* ignore */ }
+      if (planAdded > 0) {
+        try { await autoScheduleUpcoming(supabase, userId) } catch { /* keep template times */ }
+      }
+      // Keep the "My Splits" program mirror in sync with the active plan (backfills
+      // it for users whose plan predates the split-mirror feature). Best-effort.
+      if (profile?.goal) {
+        try { await ensureAutoSplit(supabase, userId, profile.goal) } catch { /* ignore */ }
+      }
+      // If a custom split is active, roll its rolling horizon forward so upcoming
+      // weeks are always populated. Best-effort; no-op when no split is active.
+      let splitAdded = 0
+      try { splitAdded = await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null) } catch { /* ignore */ }
+      // Travel mode: adapt (or restore) every upcoming session to the equipment the
+      // user has right now. Runs after plan/split materialization so freshly-added
+      // rows get adapted too. Best-effort.
+      let travelChanged = 0
+      try { travelChanged = await syncTravelSchedule(supabase, userId) } catch { /* ignore */ }
       const removed = await dedupeScheduledWorkouts(supabase, userId)
       const missedCount = await checkMissedWorkouts(supabase, userId)
       // Quietly re-slot only the workouts a real calendar event now overlaps (same
       // day). Best-effort — a calendar/network hiccup never blocks the feed.
       let conflictsMoved = 0
       try { conflictsMoved = await resolveCalendarConflicts(supabase, userId) } catch { /* leave times as-is */ }
-      if (removed > 0 || missedCount > 0 || conflictsMoved > 0) {
+      if (removed > 0 || missedCount > 0 || conflictsMoved > 0 || splitAdded > 0 || planAdded > 0 || travelChanged > 0) {
         queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
       }
       queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+
+      // Auto-add upcoming workouts to the user's calendar (when on + connected).
+      // Best-effort; refresh the event layer if anything new landed.
+      try {
+        const added = await syncUpcomingWorkouts(supabase, userId, profile)
+        if (added > 0) queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
+      } catch { /* never block the feed on a calendar hiccup */ }
+
+      // Reminder reconciliation: sessions materialized after onboarding (split
+      // horizon, plan rollover) and auto-moved times all get a correct 30-min
+      // reminder. Only when permission already exists — this path never prompts.
+      try {
+        if (await hasReminderPermission()) {
+          const horizon = toDateStr(addDays(new Date(), 14))
+          const { data: upcoming } = await supabase
+            .from('scheduled_workouts')
+            .select('id, focus, planned_date, planned_start_time, planned_duration_min, status')
+            .eq('user_id', userId)
+            .eq('status', 'scheduled')
+            .gte('planned_date', todayStr)
+            .lte('planned_date', horizon)
+          await cancelAllReminders()
+          await scheduleWorkoutReminders((upcoming ?? []) as ReminderWorkout[])
+        }
+      } catch { /* reminders are best-effort */ }
     })()
   }, [userId])
 
@@ -443,10 +555,10 @@ export default function ScheduleScreen() {
     if (res.reason === 'permission_denied') {
       openSettingsAlert()
     } else if (res.reason === 'none_connected') {
-      Alert.alert('Connect a calendar', 'Choose where Tempo should add this workout.', [
+      Alert.alert('Connect a calendar', 'Add this workout to your device calendar now, or connect Google Calendar in your profile.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Google Calendar', onPress: () => router.push('/smart-scheduler') },
         { text: 'Device Calendar', onPress: () => addViaDevice(workout) },
+        { text: 'Calendar settings', onPress: () => router.push('/(tabs)/profile') },
       ])
     } else {
       Alert.alert('Error', 'Could not add workout to calendar.')
@@ -472,6 +584,26 @@ export default function ScheduleScreen() {
     ])
   }
 
+  // Mark a workout skipped (after offering to reschedule instead — no shame, but a
+  // clear "you didn't do this" outcome). Skipped workouts drop out of the feed.
+  const handleSkip = (workout: ScheduledWorkout) => {
+    Alert.alert(
+      `Skip ${workout.focus}?`,
+      "It'll be marked skipped. Rescheduling it keeps your week on track — want to do that instead?",
+      [
+        { text: 'Reschedule instead', onPress: () => handleReschedule(workout) },
+        {
+          text: 'Skip it', style: 'destructive', onPress: async () => {
+            await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
+            cancelWorkoutReminder(workout.id).catch(() => {})
+            queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    )
+  }
+
   const handleReschedule = async (workout: ScheduledWorkout) => {
     if (rescheduling) return
     setRescheduling(true)
@@ -495,6 +627,13 @@ export default function ScheduleScreen() {
             onPress: async () => {
               try {
                 await rescheduleWorkout(supabase, userId, workout.id, slot)
+                // Re-point the synced calendar event + pre-workout reminder at the
+                // new slot, so the calendar never disagrees with the app.
+                resyncMovedWorkout(supabase, userId, {
+                  ...workout,
+                  planned_date: slot.date,
+                  planned_start_time: slot.start_time,
+                }).catch(() => {})
                 queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
                 queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
               } catch {
@@ -528,23 +667,6 @@ export default function ScheduleScreen() {
     } catch {
       // Roll the optimistic toggle back on failure.
       queryClient.invalidateQueries({ queryKey: ['ignored_events', userId] })
-    }
-  }
-
-  const goQuick = (s?: QuickSuggestion | null) => {
-    if (s) {
-      router.push({
-        pathname: '/quick-workout',
-        params: {
-          minutes: String(s.minutes),
-          ...(s.purpose ? { purpose: s.purpose } : {}),
-          ...(s.targetPattern ? { targetPattern: s.targetPattern } : {}),
-          ...(s.daysSinceTrained ? { daysSinceTrained: String(s.daysSinceTrained) } : {}),
-          ...(s.fromCalendarGap ? { fromCalendarGap: '1' } : {}),
-        },
-      })
-    } else {
-      router.push('/quick-workout')
     }
   }
 
@@ -609,11 +731,11 @@ export default function ScheduleScreen() {
     const allDone = hasWorkout && dayWorkouts.every(w => w.status === 'completed')
 
     return (
-      <TouchableOpacity
+      <PressableScale
         key={ds}
         style={compact ? styles.gridCell : styles.weekCell}
         onPress={() => selectDay(ds)}
-        activeOpacity={0.7}
+        scaleTo={0.88}
       >
         {!compact && <Text style={[styles.weekDow, isSelected && styles.weekDowActive]}>{DOW[day.getDay()]}</Text>}
         <View
@@ -640,7 +762,7 @@ export default function ScheduleScreen() {
         ) : (
           <View style={styles.dayDotPlaceholder} />
         )}
-      </TouchableOpacity>
+      </PressableScale>
     )
   }
 
@@ -675,29 +797,46 @@ export default function ScheduleScreen() {
 
   function renderWorkout(w: ScheduledWorkout, hero: boolean) {
     const done = w.status === 'completed'
-    const accent = done ? C.success : C.primary
+    const overdue = isOverdueWorkout(w, nowMs, todayStr)
+    const conflict = !done && !overdue ? conflictingEvent(w, eventsByDate[w.planned_date] ?? []) : null
+    const attention = overdue || !!conflict
+    // "Early" = the scheduled time is still more than ~45 min away (or it's a future
+    // day). You can still train now, but the button says "Do it now instead" so it
+    // doesn't pretend it's go-time.
+    const early = !done && !attention && (workoutStartMs(w) - nowMs) / 60000 > 45
+    const soft = attention || early
+    const accent = done ? C.success : attention ? C.ember : C.primary
 
     return (
       <View style={styles.row}>
         <Text style={[styles.railTime, styles.railTimeActive, { color: accent }]} numberOfLines={1}>
           {formatTime(w.planned_start_time)}
         </Text>
-        <View style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, !hero && { borderLeftColor: accent }]}>
+        <View style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
           {/* Faux-gradient glow: a soft accent blob behind the hero's content */}
-          {hero && !done && <View pointerEvents="none" style={styles.heroBlob} />}
-          {hero && !done && <View pointerEvents="none" style={styles.heroWash} />}
+          {hero && !done && !attention && <View pointerEvents="none" style={styles.heroBlob} />}
+          {hero && !done && !attention && <View pointerEvents="none" style={styles.heroWash} />}
 
           <View style={styles.workoutTop}>
-            <View style={[styles.badge, done ? styles.badgeDone : styles.badgeWorkout]}>
-              <Ionicons name={done ? 'checkmark' : 'flash'} size={11} color={done ? C.success : C.primary} />
-              <Text style={[styles.badgeText, { color: accent }]}>{done ? 'DONE' : hero ? "TODAY'S WORKOUT" : 'WORKOUT'}</Text>
+            <View style={[styles.badge, done ? styles.badgeDone : attention ? styles.badgeAttn : styles.badgeWorkout]}>
+              <Ionicons name={done ? 'checkmark' : overdue ? 'alert-circle' : conflict ? 'warning' : 'flash'} size={11} color={accent} />
+              <Text style={[styles.badgeText, { color: accent }]}>
+                {done ? 'DONE' : overdue ? 'STILL ON FOR THIS?' : conflict ? 'CALENDAR CONFLICT' : hero ? "TODAY'S WORKOUT" : 'WORKOUT'}
+              </Text>
             </View>
-            <View style={[styles.dumbbell, { backgroundColor: done ? C.successSoft : C.primarySoft }]}>
+            <View style={[styles.dumbbell, { backgroundColor: done ? C.successSoft : attention ? C.emberSoft : C.primarySoft }]}>
               <Ionicons name="barbell" size={hero ? 18 : 16} color={accent} />
             </View>
           </View>
 
           <Text style={[hero ? styles.heroTitle : styles.workoutTitle, done && styles.workoutTitleDone]}>{w.focus}</Text>
+
+          {overdue && (
+            <Text style={styles.attnNote}>This was scheduled for {formatTime(w.planned_start_time)}. Want to do it tomorrow instead?</Text>
+          )}
+          {conflict && (
+            <Text style={styles.attnNote}>“{conflict.title}” now overlaps this workout. Move it to a free slot?</Text>
+          )}
 
           <View style={styles.metaRow}>
             <View style={styles.metaChip}>
@@ -709,17 +848,38 @@ export default function ScheduleScreen() {
               {/* Completed: show how long it actually took; otherwise the estimate. */}
               <Text style={styles.metaText}>{(done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min)} min</Text>
             </View>
+            {(() => {
+              const origin = workoutOrigin(w.source)
+              return (
+                <View style={[styles.originChip, origin.byTempo ? styles.originChipTempo : styles.originChipYours]}>
+                  <Ionicons name={origin.icon as any} size={11} color={origin.byTempo ? C.primary : C.textSecondary} />
+                  <Text style={[styles.originText, { color: origin.byTempo ? C.primary : C.textSecondary }]}>{origin.short}</Text>
+                </View>
+              )
+            })()}
           </View>
 
-          {!done && (
-            <TouchableOpacity
-              style={[styles.startBtn, hero && styles.startBtnHero]}
-              onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
-              activeOpacity={0.85}
+          {attention && (
+            <PressableScale
+              style={[styles.startBtn, styles.rescheduleBtn, rescheduling && { opacity: 0.6 }]}
+              onPress={() => handleReschedule(w)}
+              disabled={rescheduling}
             >
-              <Ionicons name="play" size={14} color={C.onPrimary} />
-              <Text style={styles.startBtnText}>Start Session</Text>
-            </TouchableOpacity>
+              <Ionicons name="calendar" size={14} color={C.onPrimary} />
+              <Text style={styles.startBtnText}>{conflict ? 'Move to a free slot' : 'Reschedule'}</Text>
+            </PressableScale>
+          )}
+
+          {!done && (
+            <PressableScale
+              style={[soft ? styles.startBtnGhost : styles.startBtn, !soft && hero && styles.startBtnHero]}
+              onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
+            >
+              <Ionicons name="play" size={14} color={soft ? C.primary : C.onPrimary} />
+              <Text style={[styles.startBtnText, soft && { color: C.primary }]}>
+                {overdue ? 'Start it now anyway' : early ? 'Do it now instead' : 'Start Session'}
+              </Text>
+            </PressableScale>
           )}
 
           <View style={styles.cardActions}>
@@ -740,6 +900,21 @@ export default function ScheduleScreen() {
                 <Text style={styles.actionText}>Edit</Text>
               </TouchableOpacity>
             )}
+            {done && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: w.id } } as any)}
+              >
+                <Ionicons name="receipt-outline" size={14} color={C.textSecondary} />
+                <Text style={styles.actionText}>Details</Text>
+              </TouchableOpacity>
+            )}
+            {overdue && (
+              <TouchableOpacity style={styles.actionBtn} onPress={() => handleSkip(w)}>
+                <Ionicons name="close-circle-outline" size={14} color={C.ember} />
+                <Text style={[styles.actionText, { color: C.ember }]}>Skip</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -754,20 +929,23 @@ export default function ScheduleScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenTransition>
       {/* Header — Tempo wordmark, readiness ring, profile avatar */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.wordmark}>Tempo</Text>
+          <TempoWordmark size={24} />
           <Text style={styles.headerDate}>{todayDateLabel}</Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness) : C.outlineVariant }]}
+          style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
           onPress={() => setShowRecovery(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={checkin ? `Recovery readiness ${checkin.readiness} of 100. Tap to check in.` : 'Daily recovery check-in'}
         >
           {checkin ? (
-            <Text style={[styles.ringValue, { color: readinessColor(checkin.readiness) }]}>{checkin.readiness}</Text>
+            <Text style={[styles.ringValue, { color: readinessColor(checkin.readiness, C) }]}>{checkin.readiness}</Text>
           ) : (
             <Ionicons name="pulse" size={16} color={C.primary} />
           )}
@@ -777,6 +955,8 @@ export default function ScheduleScreen() {
           style={[styles.avatar, { backgroundColor: avatar.color }]}
           onPress={() => router.push('/(tabs)/profile')}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Open your profile"
         >
           {avatar.imageUri ? (
             <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
@@ -786,19 +966,26 @@ export default function ScheduleScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Signature: a short amber tick + hairline under the masthead — the
+          hand-ruled line at the top of a training journal page. */}
+      <View style={styles.craftRuleRow}>
+        <View style={styles.craftRuleTick} />
+        <View style={styles.craftRuleLine} />
+      </View>
+
       {/* Day / Week / Month filter */}
       <View style={styles.segment}>
         {(['day', 'week', 'month'] as ViewMode[]).map((m) => (
-          <TouchableOpacity
+          <PressableScale
             key={m}
             style={[styles.segmentBtn, viewMode === m && styles.segmentBtnActive]}
             onPress={() => setViewMode(m)}
-            activeOpacity={0.8}
+            scaleTo={0.94}
           >
             <Text style={[styles.segmentText, viewMode === m && styles.segmentTextActive]}>
               {m === 'day' ? 'Day' : m === 'week' ? 'Week' : 'Month'}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       </View>
 
@@ -809,13 +996,16 @@ export default function ScheduleScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
       >
         {travel && (
-          <TouchableOpacity style={styles.travelBanner} onPress={() => router.push('/travel-mode')} activeOpacity={0.8}>
+          <PressableScale style={styles.travelBanner} onPress={() => router.push('/travel-mode')} scaleTo={0.98}>
             <Ionicons name="airplane" size={16} color={C.primary} />
-            <Text style={styles.travelBannerText}>
-              Travel mode · {describeTravelEquipment(travel.equipment)} · {describeTravelUntil(travel.until)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.travelBannerText}>
+                Workouts adjusted for {describeTravelEquipment(travel.equipment)}
+              </Text>
+              <Text style={styles.travelBannerSub}>Travel mode · {describeTravelUntil(travel.until)}</Text>
+            </View>
             <Ionicons name="chevron-forward" size={16} color={C.outline} />
-          </TouchableOpacity>
+          </PressableScale>
         )}
 
         {/* Range header + navigation */}
@@ -836,28 +1026,31 @@ export default function ScheduleScreen() {
           </View>
         </View>
 
-        {/* Calendar — weekly strip (day/week) or month grid (month) */}
-        {viewMode === 'month' ? (
-          <View style={styles.grid}>
-            <View style={styles.gridDowRow}>
-              {DOW.map((d, i) => <Text key={i} style={styles.gridDowLabel}>{d}</Text>)}
+        {/* Calendar — weekly strip (day/week) or month grid (month). Keyed by view
+            so switching Day/Week/Month crossfades instead of snapping. */}
+        <FadeInView key={viewMode} duration={240}>
+          {viewMode === 'month' ? (
+            <View style={styles.grid}>
+              <View style={styles.gridDowRow}>
+                {DOW.map((d, i) => <Text key={i} style={styles.gridDowLabel}>{d}</Text>)}
+              </View>
+              <View style={styles.gridBody}>
+                {monthGrid.map(day => renderDayCell(day, true))}
+              </View>
             </View>
-            <View style={styles.gridBody}>
-              {monthGrid.map(day => renderDayCell(day, true))}
+          ) : (
+            <View style={styles.weekStrip}>
+              {weekDays.map(day => renderDayCell(day, false))}
             </View>
-          </View>
-        ) : (
-          <View style={styles.weekStrip}>
-            {weekDays.map(day => renderDayCell(day, false))}
-          </View>
-        )}
+          )}
+        </FadeInView>
 
         {/* Block phase — tap to see the full "why this week" explanation */}
         {blockPhase?.progression && (
-          <TouchableOpacity
+          <PressableScale
             style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
             onPress={() => router.push('/plan-explainer' as any)} /* typed-routes regen on next run */
-            activeOpacity={0.85}
+            scaleTo={0.98}
           >
             <View style={[styles.phaseIcon, blockPhase.progression.isDeload && { backgroundColor: C.successSoft }]}>
               <Ionicons
@@ -874,7 +1067,7 @@ export default function ScheduleScreen() {
               <Text style={styles.phaseBody} numberOfLines={2}>{blockPhase.progression.note}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={C.outline} />
-          </TouchableOpacity>
+          </PressableScale>
         )}
 
         {/* Goal countdown — an ETA people can chase */}
@@ -897,7 +1090,7 @@ export default function ScheduleScreen() {
 
         {/* Weekly progress report — prominent on Sun/Mon, when the recap lands best */}
         {stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1) && (
-          <TouchableOpacity style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} activeOpacity={0.9}>
+          <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} scaleTo={0.98}>
             <View style={styles.reportIcon}>
               <Ionicons name="stats-chart" size={18} color={C.onPrimary} />
             </View>
@@ -906,20 +1099,80 @@ export default function ScheduleScreen() {
               <Text style={styles.reportSub} numberOfLines={1}>See how this week stacked up — and share it.</Text>
             </View>
             <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
-          </TouchableOpacity>
+          </PressableScale>
         )}
 
-        {/* Quick Workout — the wedge: build a session for the time you have */}
-        <TouchableOpacity style={styles.quickRow} onPress={() => goQuick(suggestion)} activeOpacity={0.9}>
+        {/* Weekly target — the winnable loop for a 3×/week plan: rest days can't
+            break it, and hitting it is a real achievement (unlike a daily streak). */}
+        {!!profile?.days_per_week && (
+          <View style={styles.weekTargetCard}>
+            {/* The weekly ring — fills as sessions land, flips sage on target */}
+            <AnimatedRing
+              value={Math.min(100, Math.round((stats.thisWeek / profile.days_per_week) * 100))}
+              size={46}
+              stroke={5}
+              color={stats.thisWeek >= profile.days_per_week ? C.success : C.primary}
+              holeColor={C.background}
+            >
+              <Text style={styles.weekTargetRingNum}>{stats.thisWeek}</Text>
+            </AnimatedRing>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.weekTargetLabel}>THIS WEEK</Text>
+              <Text style={styles.weekTargetValue}>
+                {stats.thisWeek} of {profile.days_per_week} sessions
+                {stats.thisWeek >= profile.days_per_week ? ' — target hit!' : ''}
+              </Text>
+              <View style={styles.weekTargetTrack}>
+                <View
+                  style={[
+                    styles.weekTargetFill,
+                    stats.thisWeek >= profile.days_per_week && { backgroundColor: C.success },
+                    { width: `${Math.min(100, Math.round((stats.thisWeek / profile.days_per_week) * 100))}%` as `${number}%` },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Quick Workout — the wedge: a contextual "this fits your day right now" */}
+        {quickSuggestion && (
+          <PressableScale
+            style={styles.quickRow}
+            onPress={() => router.push({
+              pathname: '/quick-workout',
+              params: {
+                minutes: String(quickSuggestion.minutes),
+                ...(quickSuggestion.purpose ? { purpose: quickSuggestion.purpose } : {}),
+                ...(quickSuggestion.targetPattern ? { targetPattern: quickSuggestion.targetPattern } : {}),
+                ...(quickSuggestion.daysSinceTrained != null ? { daysSinceTrained: String(quickSuggestion.daysSinceTrained) } : {}),
+                ...(quickSuggestion.fromCalendarGap ? { fromCalendarGap: '1' } : {}),
+              },
+            })}
+            scaleTo={0.98}
+          >
+            <View style={styles.quickIcon}>
+              <Ionicons name={quickSuggestion.icon as IconName} size={18} color={C.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickTitle} numberOfLines={1}>{quickSuggestion.headline}</Text>
+              <Text style={styles.quickSub} numberOfLines={1}>{quickSuggestion.sub}</Text>
+            </View>
+            <Ionicons name="flash" size={18} color={C.primary} />
+          </PressableScale>
+        )}
+
+        {/* Add Workout — schedule a saved workout, a template, or a new one onto this day */}
+        <PressableScale style={styles.quickRow} onPress={() => setAddWorkoutOpen(true)} scaleTo={0.98}>
           <View style={styles.quickIcon}>
-            <Ionicons name={(suggestion?.icon as IconName) ?? 'flash'} size={18} color={C.primary} />
+            <Ionicons name="add-circle-outline" size={18} color={C.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.quickTitle} numberOfLines={1}>{suggestion?.headline ?? 'Quick Workout'}</Text>
-            <Text style={styles.quickSub} numberOfLines={1}>{suggestion?.sub ?? 'Build a session for the minutes you have.'}</Text>
+            <Text style={styles.quickTitle} numberOfLines={1}>Add a workout</Text>
+            <Text style={styles.quickSub} numberOfLines={1}>Schedule a saved workout, template, or a new one.</Text>
           </View>
           <Ionicons name="arrow-forward" size={18} color={C.primary} />
-        </TouchableOpacity>
+        </PressableScale>
 
         {/* Missed-workout reschedule prompt (no shame — just a new slot) */}
         {missed.length > 0 && (
@@ -933,13 +1186,14 @@ export default function ScheduleScreen() {
               </Text>
               <Text style={styles.missedSub}>No worries — let's find a new slot.</Text>
             </View>
-            <TouchableOpacity
+            <PressableScale
               style={[styles.missedBtn, rescheduling && { opacity: 0.6 }]}
               onPress={() => handleReschedule(missed[0])}
               disabled={rescheduling}
+              scaleTo={0.92}
             >
               <Text style={styles.missedBtnText}>Reschedule</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
 
@@ -985,7 +1239,7 @@ export default function ScheduleScreen() {
                 {stats.streak > 0 && (
                   <View style={styles.planChip}>
                     <Ionicons name="flame" size={13} color={C.primary} />
-                    <Text style={styles.planChipText}>{stats.streak}-day streak</Text>
+                    <Text style={styles.planChipText}>{stats.streak}-session streak</Text>
                   </View>
                 )}
               </View>
@@ -994,27 +1248,41 @@ export default function ScheduleScreen() {
                 <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
                 <Text style={styles.planNextMeta}>{formatTime(nextWorkout.planned_start_time)} · {nextWorkout.planned_duration_min} min</Text>
               </View>
-              <TouchableOpacity
-                style={styles.planStartBtn}
-                onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="play" size={15} color={C.onPrimary} />
-                <Text style={styles.planStartText}>{relativeDayLabel(nextWorkout.planned_date) === 'Today' ? 'Start now' : 'Start this session'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => goQuick(suggestion)} activeOpacity={0.7}>
-                <Text style={styles.planQuickText}>Only have a few minutes? Quick Workout →</Text>
+              {relativeDayLabel(nextWorkout.planned_date) === 'Today' ? (
+                <PressableScale
+                  style={styles.planStartBtn}
+                  onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
+                >
+                  <Ionicons name="play" size={15} color={C.onPrimary} />
+                  <Text style={styles.planStartText}>Start now</Text>
+                </PressableScale>
+              ) : (
+                // Nothing scheduled today — the next session is on another day, so show
+                // it as upcoming/locked rather than a Start button that misleads.
+                <View style={styles.planLockedBtn}>
+                  <Ionicons name="lock-closed" size={14} color={C.textSecondary} />
+                  <Text style={styles.planLockedText}>Scheduled for {relativeDayLabel(nextWorkout.planned_date)}</Text>
+                </View>
+              )}
+              <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                <Text style={styles.planQuickText}>Want to train today? Add a workout →</Text>
               </TouchableOpacity>
             </View>
+          ) : workouts.length === 0 ? (
+            <EmptyState
+              kind="calendar"
+              title="Your week is a blank page"
+              body="Add a workout to this day, or update your plan from Profile — Tempo schedules it around your real life."
+              actionLabel="Add a workout"
+              onAction={() => setAddWorkoutOpen(true)}
+            />
           ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="moon-outline" size={26} color={C.outline} />
-              <Text style={[styles.emptyText, { marginTop: Spacing.xs }]}>
-                {workouts.length === 0
-                  ? 'Your plan is loading. Pull down to refresh.'
-                  : 'Nothing scheduled here — enjoy the recovery.'}
-              </Text>
-            </View>
+            <EmptyState
+              kind="moon"
+              title="Nothing scheduled here"
+              body="Enjoy the recovery — rest days are part of the plan, not a break from it."
+              compact
+            />
           )
         ) : (
           dayGroups.map((g) => {
@@ -1042,12 +1310,15 @@ export default function ScheduleScreen() {
                   </View>
                 ) : (
                   <View style={styles.groupItems}>
-                    {g.items.map((item) => (
-                      <View key={item.kind === 'workout' ? `w-${item.workout.id}` : `e-${item.event.id}`}>
+                    {g.items.map((item, idx) => (
+                      <FadeInView
+                        key={item.kind === 'workout' ? `w-${item.workout.id}` : `e-${item.event.id}`}
+                        delay={Math.min(idx * 45, 270)}
+                      >
                         {item.kind === 'workout'
                           ? renderWorkout(item.workout, item.hero)
                           : renderEvent(item.event)}
-                      </View>
+                      </FadeInView>
                     ))}
                   </View>
                 )}
@@ -1058,10 +1329,18 @@ export default function ScheduleScreen() {
 
       </ScrollView>
 
-      {/* FAB — one-tap Quick Workout from anywhere on the schedule */}
-      <TouchableOpacity style={styles.fab} onPress={() => goQuick(suggestion)} activeOpacity={0.9}>
-        <Ionicons name="flash" size={26} color={C.onPrimary} />
-      </TouchableOpacity>
+      {/* FAB — one-tap Add Workout from anywhere on the schedule */}
+      <PressableScale style={styles.fab} onPress={() => setAddWorkoutOpen(true)} scaleTo={0.9} accessibilityLabel="Add a workout">
+        <Ionicons name="add" size={30} color={C.onPrimary} />
+      </PressableScale>
+
+      <AddWorkoutSheet
+        visible={addWorkoutOpen}
+        userId={userId}
+        client={supabase}
+        date={selectedDate}
+        onClose={() => setAddWorkoutOpen(false)}
+      />
 
       <RecoveryCheckIn
         visible={showRecovery}
@@ -1085,11 +1364,12 @@ export default function ScheduleScreen() {
           queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
         }}
       />
+    </ScreenTransition>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { paddingBottom: 140 },
 
@@ -1102,13 +1382,19 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.sm,
   },
-  wordmark: { fontFamily: 'Inter_800ExtraBold', fontSize: 26, color: C.text, letterSpacing: -0.6 },
+  wordmark: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.6 },
+  craftRuleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: Spacing.containerPadding, marginBottom: Spacing.xs,
+  },
+  craftRuleTick: { width: 26, height: 3, borderRadius: 2, backgroundColor: C.primary },
+  craftRuleLine: { flex: 1, height: 1, backgroundColor: C.outlineVariant },
   headerDate: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, marginTop: 1 },
   ring: {
     width: 40, height: 40, borderRadius: Radius.full,
     borderWidth: 2.5, alignItems: 'center', justifyContent: 'center',
   },
-  ringValue: { fontFamily: 'Inter_800ExtraBold', fontSize: 14, letterSpacing: -0.3 },
+  ringValue: { fontFamily: C.fontDisplay, fontSize: 14, letterSpacing: -0.3 },
   avatar: {
     width: 40, height: 40, borderRadius: Radius.full,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
@@ -1137,7 +1423,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.primarySoft, borderRadius: Radius.lg,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
   },
-  travelBannerText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  travelBannerText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  travelBannerSub: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, marginTop: 1 },
   rangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1211,6 +1498,26 @@ const styles = StyleSheet.create({
   quickTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, letterSpacing: -0.1 },
   quickSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
 
+  // ── Weekly target ───────────────────────────────────────────────────────────
+  weekTargetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.containerPadding,
+    marginBottom: Spacing.sm,
+    backgroundColor: C.background,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: C.outlineVariant,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  weekTargetRingNum: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text },
+  weekTargetLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
+  weekTargetValue: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, letterSpacing: -0.1, marginTop: 1 },
+  weekTargetTrack: { height: 4, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6 },
+  weekTargetFill: { height: 4, backgroundColor: C.primary, borderRadius: Radius.full },
+
   // ── Block-phase banner ───────────────────────────────────────────────────────
   phaseBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
@@ -1235,7 +1542,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   goalIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  goalHeadline: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.text, letterSpacing: -0.2 },
+  goalHeadline: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text, letterSpacing: -0.2 },
   goalSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   goalTrack: { height: 6, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6, overflow: 'hidden' },
   goalFill: { height: 6, backgroundColor: C.primary, borderRadius: Radius.full },
@@ -1247,7 +1554,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.primary, borderRadius: Radius.lg, padding: Spacing.md,
   },
   reportIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  reportTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 15, color: C.onPrimary, letterSpacing: -0.2 },
+  reportTitle: { fontFamily: C.fontDisplay, fontSize: 15, color: C.onPrimary, letterSpacing: -0.2 },
   reportSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
 
   // ── Rich empty state (plan at a glance) ──────────────────────────────────────
@@ -1264,10 +1571,12 @@ const styles = StyleSheet.create({
   planChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
   planNext: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md, gap: 2, marginTop: 2 },
   planNextLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
-  planNextTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  planNextTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   planNextMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   planStartBtn: { height: 50, backgroundColor: C.primary, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 2 },
   planStartText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
+  planLockedBtn: { height: 50, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 2, borderWidth: 1, borderColor: C.outlineVariant },
+  planLockedText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.textSecondary },
   planQuickText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, textAlign: 'center', paddingVertical: 4 },
 
   // ── Missed banner ──────────────────────────────────────────────────────────
@@ -1368,6 +1677,7 @@ const styles = StyleSheet.create({
     ...CardShadow,
   },
   workoutCardDone: { opacity: 0.72 },
+  workoutCardAttn: { borderColor: C.ember, borderLeftColor: C.ember },
 
   // Hero — today's workout, the single most prominent item on the screen.
   heroCard: {
@@ -1389,7 +1699,7 @@ const styles = StyleSheet.create({
   heroBlob: {
     position: 'absolute', top: -60, right: -50,
     width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(61,130,247,0.22)',
+    backgroundColor: 'rgba(78,139,255,0.22)',
   },
 
   workoutTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -1399,20 +1709,29 @@ const styles = StyleSheet.create({
   },
   badgeWorkout: { backgroundColor: C.primarySoft },
   badgeDone: { backgroundColor: C.successSoft },
-  badgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, letterSpacing: 0.6 },
+  badgeAttn: { backgroundColor: C.emberSoft },
+  badgeText: { fontFamily: C.fontDisplay, fontSize: 10, letterSpacing: 0.6 },
+  attnNote: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
   dumbbell: { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 
-  workoutTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 20, color: C.text, lineHeight: 26, letterSpacing: -0.3 },
-  heroTitle: { fontFamily: 'Inter_800ExtraBold', fontSize: 27, color: C.text, lineHeight: 32, letterSpacing: -0.5 },
+  workoutTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, lineHeight: 26, letterSpacing: -0.3 },
+  heroTitle: { fontFamily: C.fontDisplay, fontSize: 27, color: C.text, lineHeight: 32, letterSpacing: -0.5 },
   workoutTitleDone: { textDecorationLine: 'line-through', color: C.textSecondary },
 
-  metaRow: { flexDirection: 'row', gap: Spacing.sm },
+  metaRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
     paddingHorizontal: Spacing.sm, paddingVertical: 5,
   },
   metaText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
+  originChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderWidth: 1,
+  },
+  originChipTempo: { backgroundColor: C.primarySoft, borderColor: 'transparent' },
+  originChipYours: { backgroundColor: C.surfaceContainerLow, borderColor: C.outlineVariant },
+  originText: { fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 0.3 },
 
   startBtn: {
     backgroundColor: C.primary, borderRadius: Radius.lg, height: 46,
@@ -1420,6 +1739,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   startBtnHero: { height: 52 },
+  rescheduleBtn: { backgroundColor: C.ember },
+  startBtnGhost: {
+    backgroundColor: 'transparent', borderRadius: Radius.lg, height: 44,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 2,
+  },
   startBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.onPrimary, letterSpacing: 0.3 },
 
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },

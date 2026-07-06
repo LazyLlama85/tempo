@@ -271,6 +271,38 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   }
 }
 
+// Delete EVERY Tempo event from the user's Google Calendar within [start, end],
+// paging through all results. A Tempo event is identified by its tomato colorId
+// (every Tempo event uses it) OR a "Tempo · …"/"Tempo: …" title — so this also
+// clears orphans the app no longer has a DB pointer to. Returns the count removed.
+export async function deleteTempoGoogleEvents(start: Date, end: Date): Promise<number> {
+  let removed = 0
+  let pageToken: string | undefined
+  do {
+    const params = new URLSearchParams({
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '250',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
+    if (!resp.ok) throw new Error(`gcal_fetch_failed_${resp.status}`)
+    const data = await resp.json()
+
+    for (const e of (data.items ?? []) as GoogleEvent[]) {
+      if (!e.id || e.status === 'cancelled') continue
+      const isTempo = e.colorId === WORKOUT_EVENT_COLOR_ID || /^tempo\s*[·•:\-]/i.test((e.summary ?? '').trim())
+      if (!isTempo) continue
+      try { await deleteCalendarEvent(e.id); removed++ } catch { /* best-effort */ }
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+  return removed
+}
+
 // ── Authed fetch with one transparent re-mint on 401 ────────────────────────────
 
 async function gcalFetch(url: string, init: RequestInit): Promise<Response> {
