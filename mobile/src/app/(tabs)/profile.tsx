@@ -561,6 +561,7 @@ export default function ProfileScreen() {
     } else {
       const why =
         r.error === 'cancelled' ? 'Sign-in was cancelled.'
+        : r.error === 'identity_taken' ? 'That Google account already has its own Tempo login. To use it, sign out and sign back in with Google — or connect your Device Calendar here instead.'
         : r.error === 'link_unavailable' ? 'Google Calendar can’t be attached to this account yet — the device calendar works today.'
         : r.error === 'session_switched' ? 'That Google account doesn’t match your Tempo account. Try again with the account you signed in with.'
         : r.error === 'no_refresh_token' ? 'Google didn’t grant offline access — allow Calendar permission and try again.'

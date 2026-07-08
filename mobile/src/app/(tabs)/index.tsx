@@ -240,7 +240,7 @@ export default function ScheduleScreen() {
   // ── Data ──────────────────────────────────────────────────────────────────--
   const workoutsKey = ['scheduled_workouts', userId, calRange.start, calRange.end]
 
-  const { data: workouts = [], isLoading, isError, refetch } = useQuery<ScheduledWorkout[]>({
+  const { data: workouts = [], isLoading, isFetching, isError, refetch } = useQuery<ScheduledWorkout[]>({
     queryKey: workoutsKey,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1237,7 +1237,12 @@ export default function ScheduleScreen() {
             </TouchableOpacity>
           </View>
         ) : !feedHasItems ? (
-          nextWorkout ? (
+          isFetching ? (
+            // The range LOOKS empty but a fresh fetch is in flight (e.g. right
+            // after Change Plan cleared the old schedule) — say "loading", never
+            // show a rest-day/empty state that's about to be wrong.
+            <View style={styles.feed}><LoadingCard /></View>
+          ) : nextWorkout ? (
             // Never a dead screen: show the plan at a glance + one clear action.
             <View style={styles.planCard}>
               <View style={styles.planTopRow}>

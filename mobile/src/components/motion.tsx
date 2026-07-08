@@ -14,6 +14,13 @@
 // fail to fire when a screen mounts mid-transition on the new architecture.
 // If an entrance is ever skipped, the worst case is "no animation", never
 // "no content".
+//
+// Learned the hard way (twice): even a started native-driver animation can
+// silently never run or freeze mid-flight (clipped/offscreen list rows, a
+// busy cold start) — leaving rows invisible or half-faded until something
+// re-renders them. So every entrance also arms a JS deadline that force-snaps
+// the values to rest just after the animation should have finished. If the
+// animation played normally the snap is a no-op; if it died, content appears.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
@@ -99,7 +106,13 @@ export function ScreenTransition({ children, style }: { children: ReactNode; sty
       Animated.timing(translateY, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ])
     anim.start()
+    // Deadline: if the native animation never ran (or froze), snap to rest.
+    const failsafe = setTimeout(() => {
+      opacity.setValue(1)
+      translateY.setValue(0)
+    }, 600)
     return () => {
+      clearTimeout(failsafe)
       anim.stop()
       opacity.setValue(1)
       translateY.setValue(0)
@@ -142,8 +155,14 @@ export function FadeInView({ children, style, delay = 0, duration = 320, disable
       Animated.timing(translateY, { toValue: 0, duration, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ])
     anim.start()
+    // Deadline: if the native animation never ran (or froze), snap to rest.
+    const failsafe = setTimeout(() => {
+      opacity.setValue(1)
+      translateY.setValue(0)
+    }, delay + duration + 250)
     return () => {
       // If we're torn down mid-flight, land at rest — visible, always.
+      clearTimeout(failsafe)
       anim.stop()
       opacity.setValue(1)
       translateY.setValue(0)
@@ -177,7 +196,13 @@ export function PopIn({ children, style, delay = 0, disabled }: FadeInViewProps)
       Animated.spring(scale, { toValue: 1, delay, friction: 5, tension: 120, useNativeDriver: true }),
     ])
     anim.start()
+    // Deadline: if the native animation never ran (or froze), snap to rest.
+    const failsafe = setTimeout(() => {
+      opacity.setValue(1)
+      scale.setValue(1)
+    }, delay + 700)
     return () => {
+      clearTimeout(failsafe)
       anim.stop()
       opacity.setValue(1)
       scale.setValue(1)

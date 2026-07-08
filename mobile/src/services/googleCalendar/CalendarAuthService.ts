@@ -100,6 +100,22 @@ export async function connectGoogleCalendar(): Promise<ConnectResult> {
 
   const parsed = new URL(result.url)
 
+  // Supabase reports link/OAuth failures inside the redirect itself (query or
+  // hash) — the browser flow "succeeds" but carries an error payload. The one
+  // real users hit: the Google identity is already ANOTHER Tempo account's
+  // login (they signed in with Google once before, and are now on an Apple or
+  // guest account). Linking would steal that account's login, so Supabase
+  // refuses — surface it as its own reason with copy that explains the way out.
+  const hashParams = new URLSearchParams(parsed.hash.replace(/^#/, ''))
+  const oauthErrCode = parsed.searchParams.get('error_code') ?? hashParams.get('error_code')
+  const oauthErrDesc = parsed.searchParams.get('error_description') ?? hashParams.get('error_description')
+  if (oauthErrCode || oauthErrDesc) {
+    if (oauthErrCode === 'identity_already_exists' || /already linked/i.test(oauthErrDesc ?? '')) {
+      return { ok: false, error: 'identity_taken' }
+    }
+    return { ok: false, error: oauthErrDesc ?? oauthErrCode ?? 'oauth_failed' }
+  }
+
   // Supabase returns either the PKCE flow (?code=…) or the implicit flow
   // (#access_token=…&provider_refresh_token=…) depending on project config.
   // The sign-in screen handles both, so connect must too — only handling `code`

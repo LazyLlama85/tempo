@@ -11,7 +11,7 @@ create table public.user_profiles (
   goal          text not null check (goal in ('muscle_gain','fat_loss','strength','general_fitness','athletic')),
   experience    text not null check (experience in ('beginner','intermediate','advanced')),
   equipment     text[] not null default '{}',
-  days_per_week int  not null check (days_per_week between 2 and 5),
+  days_per_week int  not null check (days_per_week between 2 and 6),
   preferred_duration_min int not null default 45,
   bodyweight_lbs numeric,
   onboarding_complete boolean not null default false,
