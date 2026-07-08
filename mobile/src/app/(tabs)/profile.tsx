@@ -1,6 +1,6 @@
-import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator, Switch } from 'react-native'
+import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, Modal, TextInput, ActivityIndicator, Switch, KeyboardAvoidingView, Platform } from 'react-native'
 import { useState, useCallback, useEffect } from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -131,6 +131,9 @@ export default function ProfileScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  // Bottom sheets must clear the home indicator on notched devices.
+  const sheetPad = { paddingBottom: Math.max(insets.bottom, Spacing.lg) }
   const { mode, setMode } = useThemeMode()
   const { profile, session, signOut, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
@@ -269,7 +272,11 @@ export default function ProfileScreen() {
 
   const togglePush = async (next: boolean) => {
     setPushEnabled(next) // optimistic
-    if (userId) await applyPushEnabled(supabase, userId, next)
+    if (!userId) return
+    await applyPushEnabled(supabase, userId, next).catch(() => {})
+    // Re-sync with reality — the OS prompt may have been denied or the write may
+    // have failed, and the switch must not lie about it.
+    getPushEnabled(supabase).then(setPushEnabled).catch(() => {})
   }
 
   // A guest's anonymous session IS the account — there is no way to sign back in.
@@ -1122,9 +1129,9 @@ export default function ProfileScreen() {
 
       {/* ── Log body measurement modal ────────────────────────────────────── */}
       <Modal visible={bodyModal} animationType="slide" transparent onRequestClose={() => setBodyModal(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setBodyModal(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, sheetPad]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Log Measurement</Text>
             <Text style={styles.modalHint}>Weigh in regularly — even a few times a week is enough for Tempo to read your real trend. Body fat and waist are optional.</Text>
@@ -1183,41 +1190,44 @@ export default function ProfileScreen() {
               <Text style={styles.saveBtnText}>{bodySaving ? 'Saving…' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Injuries / limitations modal ──────────────────────────────────── */}
       <Modal visible={injuryModal} animationType="slide" transparent onRequestClose={() => setInjuryModal(false)}>
         <View style={styles.modalBackdrop}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setInjuryModal(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, sheetPad]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Injuries & Limitations</Text>
             <Text style={styles.modalHint}>Tell Tempo what to work around. We'll steer your Quick Workouts away from the muscles and movements that aggravate these areas.</Text>
 
-            <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
-              {INJURY_OPTIONS.map((o) => {
-                const sel = injurySel.includes(o.id)
-                return (
-                  <TouchableOpacity
-                    key={o.id}
-                    style={[styles.equipRow, sel && styles.equipRowSel]}
-                    onPress={() => toggleInjury(o.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.equipIcon, sel && { backgroundColor: C.primary }]}>
-                      <Ionicons name={o.icon as any} size={18} color={sel ? '#fff' : C.primary} />
-                    </View>
-                    <Text style={[styles.equipLabel, sel && { color: C.primary }]}>{o.label}</Text>
-                    <Ionicons
-                      name={sel ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={22}
-                      color={sel ? C.primary : C.outlineVariant}
-                    />
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
+            {/* Scrolls on small screens so the Save button always stays reachable. */}
+            <ScrollView style={{ flexGrow: 0 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
+                {INJURY_OPTIONS.map((o) => {
+                  const sel = injurySel.includes(o.id)
+                  return (
+                    <TouchableOpacity
+                      key={o.id}
+                      style={[styles.equipRow, sel && styles.equipRowSel]}
+                      onPress={() => toggleInjury(o.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.equipIcon, sel && { backgroundColor: C.primary }]}>
+                        <Ionicons name={o.icon as any} size={18} color={sel ? '#fff' : C.primary} />
+                      </View>
+                      <Text style={[styles.equipLabel, sel && { color: C.primary }]}>{o.label}</Text>
+                      <Ionicons
+                        name={sel ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={sel ? C.primary : C.outlineVariant}
+                      />
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </ScrollView>
 
             <TouchableOpacity style={[styles.saveBtn, injurySaving && { opacity: 0.6 }]} onPress={saveInjuries} disabled={injurySaving} activeOpacity={0.85}>
               <Text style={styles.saveBtnText}>{injurySaving ? 'Saving…' : 'Save'}</Text>
@@ -1228,9 +1238,9 @@ export default function ProfileScreen() {
 
       {/* ── Edit profile modal ────────────────────────────────────────────── */}
       <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditing(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, sheetPad]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Edit Profile</Text>
 
@@ -1270,41 +1280,44 @@ export default function ProfileScreen() {
               <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Equipment modal ───────────────────────────────────────────────── */}
       <Modal visible={equipModal} animationType="slide" transparent onRequestClose={() => setEquipModal(false)}>
         <View style={styles.modalBackdrop}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEquipModal(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, sheetPad]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Your Equipment</Text>
             <Text style={styles.modalHint}>Update this anytime — traveling, home week, or a new gym. It instantly tunes your swaps and Quick Workouts.</Text>
 
-            <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
-              {EQUIPMENT_OPTIONS.map((o) => {
-                const sel = equipSel.includes(o.id)
-                return (
-                  <TouchableOpacity
-                    key={o.id}
-                    style={[styles.equipRow, sel && styles.equipRowSel]}
-                    onPress={() => toggleEquip(o.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.equipIcon, sel && { backgroundColor: C.primary }]}>
-                      <Ionicons name={o.icon as any} size={18} color={sel ? '#fff' : C.primary} />
-                    </View>
-                    <Text style={[styles.equipLabel, sel && { color: C.primary }]}>{o.label}</Text>
-                    <Ionicons
-                      name={sel ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={22}
-                      color={sel ? C.primary : C.outlineVariant}
-                    />
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
+            {/* Scrolls on small screens so the Save button always stays reachable. */}
+            <ScrollView style={{ flexGrow: 0 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
+                {EQUIPMENT_OPTIONS.map((o) => {
+                  const sel = equipSel.includes(o.id)
+                  return (
+                    <TouchableOpacity
+                      key={o.id}
+                      style={[styles.equipRow, sel && styles.equipRowSel]}
+                      onPress={() => toggleEquip(o.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.equipIcon, sel && { backgroundColor: C.primary }]}>
+                        <Ionicons name={o.icon as any} size={18} color={sel ? '#fff' : C.primary} />
+                      </View>
+                      <Text style={[styles.equipLabel, sel && { color: C.primary }]}>{o.label}</Text>
+                      <Ionicons
+                        name={sel ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={sel ? C.primary : C.outlineVariant}
+                      />
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </ScrollView>
 
             <TouchableOpacity style={[styles.saveBtn, equipSaving && { opacity: 0.6 }]} onPress={saveEquipment} disabled={equipSaving} activeOpacity={0.85}>
               <Text style={styles.saveBtnText}>{equipSaving ? 'Saving…' : 'Save'}</Text>
@@ -1317,7 +1330,7 @@ export default function ProfileScreen() {
       <Modal visible={swapModal !== null} animationType="slide" transparent onRequestClose={() => setSwapModal(null)}>
         <View style={styles.modalBackdrop}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setSwapModal(null)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, sheetPad]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Swap {swapModal?.originalName}</Text>
             <Text style={styles.modalHint}>
@@ -1499,7 +1512,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   // Modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm },
+  modalSheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm, maxHeight: '90%' },
   modalHandle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
   modalTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
   modalHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, marginTop: 2 },

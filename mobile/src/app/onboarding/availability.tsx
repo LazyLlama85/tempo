@@ -20,6 +20,7 @@ import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { describeSaveError, isAuthError } from '@/lib/saveErrors'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
@@ -41,19 +42,27 @@ export default function OnboardingAvailabilityScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { session, refreshProfile } = useAuthStore()
+  const { session, profile, refreshProfile } = useAuthStore()
   const params = useLocalSearchParams<{
     goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string; schedulingMode?: string
   }>()
 
-  const [wake, setWake] = useState<string | null>('06:30:00')
-  const [bed, setBed] = useState<string | null>('22:30:00')
-  const [workStart, setWorkStart] = useState<string | null>(null)
-  const [workEnd, setWorkEnd] = useState<string | null>(null)
-  const [schoolStart, setSchoolStart] = useState<string | null>(null)
-  const [schoolEnd, setSchoolEnd] = useState<string | null>(null)
-  const [tod, setTod] = useState<TimeOfDay | null>(null)
-  const [offDays, setOffDays] = useState<number[]>([])
+  // Prefill from the saved profile (Change Plan re-entry) so continuing never
+  // silently resets availability the user already dialed in; new users get the
+  // same defaults as before.
+  const [wake, setWake] = useState<string | null>(profile?.wake_time ?? '06:30:00')
+  const [bed, setBed] = useState<string | null>(profile?.bedtime ?? '22:30:00')
+  const [workStart, setWorkStart] = useState<string | null>(profile?.work_start ?? null)
+  const [workEnd, setWorkEnd] = useState<string | null>(profile?.work_end ?? null)
+  const [schoolStart, setSchoolStart] = useState<string | null>(profile?.school_start ?? null)
+  const [schoolEnd, setSchoolEnd] = useState<string | null>(profile?.school_end ?? null)
+  const [tod, setTod] = useState<TimeOfDay | null>(profile?.preferred_time_of_day ?? null)
+  const [offDays, setOffDays] = useState<number[]>(() =>
+    ((profile?.unavailable_blocks ?? []) as UnavailableBlock[])
+      .filter((b) => b.scope === 'weekday' && b.allDay && b.weekday != null)
+      .map((b) => b.weekday as number)
+      .sort((a, b) => a - b),
+  )
 
   const [picker, setPicker] = useState<PickerField | null>(null)
   const [saving, setSaving] = useState(false)
@@ -103,15 +112,20 @@ export default function OnboardingAvailabilityScreen() {
   // Pass the onboarding choices straight through to the plan step.
   const goNext = () => router.push({ pathname: '/onboarding/plan-preview', params })
 
-  const handleContinue = async () => {
-    if (saving) return
+  const handleContinue = async (attempt = 0) => {
+    if (attempt === 0 && saving) return
     if (!session) { goNext(); return }
     setSaving(true)
     // Each "never train" day becomes a recurring all-day unavailable block, so the
-    // scheduler treats it exactly like the ones added later in Settings.
-    const unavailable: UnavailableBlock[] = offDays.map(wd => ({
-      id: genId(), scope: 'weekday', weekday: wd, allDay: true,
-    }))
+    // scheduler treats it exactly like the ones added later in Settings. Blocks of
+    // other kinds (dated one-offs, timed windows added in Settings) are preserved —
+    // only the weekday-all-day set is rebuilt from the chips above.
+    const kept = ((profile?.unavailable_blocks ?? []) as UnavailableBlock[])
+      .filter((b) => !(b.scope === 'weekday' && b.allDay))
+    const unavailable: UnavailableBlock[] = [
+      ...kept,
+      ...offDays.map(wd => ({ id: genId(), scope: 'weekday' as const, weekday: wd, allDay: true })),
+    ]
     try {
       // Include the required (NOT NULL) profile fields from the onboarding params —
       // this is the FIRST write to user_profiles, so the row doesn't exist yet. Without
@@ -135,16 +149,27 @@ export default function OnboardingAvailabilityScreen() {
         scheduling_mode: params.schedulingMode === 'manual' ? 'manual' : 'auto',
       })
       if (error) throw error
-      await refreshProfile()
-      goNext()
-    } catch {
-      // Don't trap the user at onboarding over an availability save — they can set
-      // this any time from Profile → Availability.
-      Alert.alert('Couldn’t save just now', 'You can set this later in Settings.', [
-        { text: 'Continue', onPress: goNext },
-      ])
-    } finally {
+      await refreshProfile().catch(() => {})
       setSaving(false)
+      goNext()
+    } catch (err) {
+      // An expired session refreshes in one call — do that and retry silently once
+      // before involving the user (mirrors plan-preview).
+      if (attempt === 0 && isAuthError(err)) {
+        try {
+          await supabase.auth.refreshSession()
+          return handleContinue(1)
+        } catch { /* fall through to the alert */ }
+      }
+      setSaving(false)
+      // Don't trap the user at onboarding over an availability save — they can set
+      // this any time from Profile → Availability. But say WHY it failed and offer
+      // a real retry, since "continue" quietly drops their choices for this pass.
+      const info = describeSaveError(err, 'save your availability')
+      Alert.alert(info.title, `${info.message}\n\nYou can also continue and set this later in Settings.`, [
+        { text: 'Try Again', onPress: () => handleContinue() },
+        { text: 'Continue anyway', style: 'cancel', onPress: goNext },
+      ])
     }
   }
 
@@ -276,7 +301,7 @@ export default function OnboardingAvailabilityScreen() {
       <View style={styles.footer}>
         <PressableScale
           style={[styles.continueBtn, saving && { opacity: 0.6 }]}
-          onPress={handleContinue}
+          onPress={() => handleContinue()}
           disabled={saving}
           activeOpacity={0.85}
         >

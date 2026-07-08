@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/auth'
 import { fetchTemplates, deleteTemplate, duplicateTemplate } from '@/lib/workoutBuilder'
 import { fetchCustomExercises, deleteCustomExercise } from '@/lib/customExercises'
 import { CustomExerciseSheet } from '@/components/CustomExerciseSheet'
+import { OptionSheet } from '@/components/OptionSheet'
 import { PressableScale } from '@/components/motion'
 import type { WorkoutTemplate, Exercise } from '@/types'
 
@@ -45,14 +46,17 @@ export default function MyWorkoutsScreen() {
   }, [userId])
   useFocusEffect(load)
 
-  const templateActions = (t: WorkoutTemplate) => {
-    Alert.alert(t.name, `${t.exercise_ids.length} exercise${t.exercise_ids.length === 1 ? '' : 's'} · ~${t.est_duration_min} min`, [
-      { text: 'Edit', onPress: () => router.push(`/workout-builder?templateId=${t.id}` as any) },
-      { text: 'Add to calendar', onPress: () => router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}` as any) },
-      { text: 'Duplicate', onPress: async () => { await duplicateTemplate(supabase, userId, t); load() } },
-      { text: 'Delete', style: 'destructive', onPress: () => confirmDeleteTemplate(t) },
-      { text: 'Cancel', style: 'cancel' },
-    ])
+  // Template actions in a bottom sheet, not Alert.alert — Android caps alerts at
+  // 3 buttons, which made Duplicate/Delete unreachable there.
+  const [sheetTemplate, setSheetTemplate] = useState<WorkoutTemplate | null>(null)
+  const onTemplateAction = async (key: string) => {
+    const t = sheetTemplate
+    setSheetTemplate(null)
+    if (!t) return
+    if (key === 'edit') router.push(`/workout-builder?templateId=${t.id}` as any)
+    else if (key === 'schedule') router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}` as any)
+    else if (key === 'duplicate') { await duplicateTemplate(supabase, userId, t); load() }
+    else if (key === 'delete') confirmDeleteTemplate(t)
   }
   const confirmDeleteTemplate = (t: WorkoutTemplate) =>
     Alert.alert('Delete workout?', `“${t.name}” will be removed. Already-scheduled sessions stay on your calendar.`, [
@@ -117,7 +121,7 @@ export default function MyWorkoutsScreen() {
               {templates.map((t, i) => (
                 <View key={t.id}>
                   {i > 0 && <View style={styles.divider} />}
-                  <TouchableOpacity style={styles.row} onPress={() => templateActions(t)} activeOpacity={0.7}>
+                  <TouchableOpacity style={styles.row} onPress={() => setSheetTemplate(t)} activeOpacity={0.7}>
                     <View style={styles.rowIcon}><Ionicons name="barbell-outline" size={18} color={C.primary} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowName} numberOfLines={1}>{t.name}</Text>
@@ -164,6 +168,22 @@ export default function MyWorkoutsScreen() {
         exercise={editEx}
         onClose={() => setEditOpen(false)}
         onSaved={() => { setEditOpen(false); load() }}
+      />
+
+      <OptionSheet
+        visible={sheetTemplate !== null}
+        title={sheetTemplate?.name ?? ''}
+        subtitle={sheetTemplate
+          ? `${sheetTemplate.exercise_ids.length} exercise${sheetTemplate.exercise_ids.length === 1 ? '' : 's'} · ~${sheetTemplate.est_duration_min} min`
+          : undefined}
+        options={[
+          { key: 'schedule', label: 'Add to calendar', sub: 'Schedule it onto a day', icon: 'calendar-outline' },
+          { key: 'edit', label: 'Edit workout', icon: 'create-outline' },
+          { key: 'duplicate', label: 'Duplicate', icon: 'copy-outline' },
+          { key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true },
+        ]}
+        onSelect={onTemplateAction}
+        onClose={() => setSheetTemplate(null)}
       />
     </SafeAreaView>
   )

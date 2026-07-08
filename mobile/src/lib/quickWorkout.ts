@@ -505,7 +505,10 @@ export async function persistQuickWorkout(
     .select('id')
     .single()
 
-  if (error || !data) return null
+  // Throw the real failure — the caller's copy distinguishes offline from an
+  // expired session, which a bare null can't.
+  if (error) throw error
+  if (!data) return null
   return data.id as string
 }
 

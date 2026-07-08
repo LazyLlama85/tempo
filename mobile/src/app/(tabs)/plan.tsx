@@ -25,6 +25,8 @@ import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/a
 import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { OptionSheet } from '@/components/OptionSheet'
+import { describeSaveError } from '@/lib/saveErrors'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
@@ -527,7 +529,7 @@ export default function WorkoutsScreen() {
     startedAt.current = new Date()
     accumulatedSec.current = 0
     setElapsed(0)
-    const { data: logRow } = await supabase
+    const { data: logRow, error } = await supabase
       .from('workout_logs')
       .insert({
         scheduled_workout_id: scheduledId,
@@ -536,7 +538,17 @@ export default function WorkoutsScreen() {
       })
       .select('id')
       .single()
-    if (logRow) setWorkoutLogId(logRow.id)
+    if (error || !logRow) {
+      // Without a log row nothing in the session could save (sets no-op, Complete
+      // is dead) — never enter that trap silently. Classify the failure: an expired
+      // session in a gym is NOT a connection problem, and saying so sends the user
+      // chasing the wrong fix.
+      const info = describeSaveError(error, 'start your session')
+      Alert.alert('Couldn’t start session', `${info.message}\n\nTap Start again when you’re ready.`)
+      return
+    }
+    setSaveWarned.current = false
+    setWorkoutLogId(logRow.id)
     setSessionActive(true)
   }
 
@@ -581,6 +593,10 @@ export default function WorkoutsScreen() {
     }))
   }
 
+  // One "your set didn't save" alert per session — offline in a gym shouldn't
+  // nag on every set, but the unchecked ✓ always shows the truth.
+  const setSaveWarned = useRef(false)
+
   const handleSetDone = async (exId: string, idx: number, rpe: number | null) => {
     if (!workoutLogId) return
     const set = sets[exId]?.[idx]
@@ -596,7 +612,7 @@ export default function WorkoutsScreen() {
     // Auto-start the rest timer using this exercise's prescribed rest
     startRest(restDefaults.current[exId] ?? 90)
 
-    await supabase.from('set_logs').insert({
+    const { error } = await supabase.from('set_logs').insert({
       workout_log_id: workoutLogId,
       exercise_id: exId,
       set_number: idx + 1,
@@ -608,6 +624,20 @@ export default function WorkoutsScreen() {
       rpe,
       completed_at: new Date().toISOString(),
     })
+    if (error) {
+      // Un-check it — a ✓ that never reached the server would silently drop the
+      // set from PRs, volume, and next session's PREV column. The exercise may have
+      // been swapped out while the insert was in flight — its row is gone then, and
+      // there's nothing to un-check.
+      setSets(prev => prev[exId]
+        ? { ...prev, [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: false } : s) }
+        : prev)
+      if (!setSaveWarned.current) {
+        setSaveWarned.current = true
+        const info = describeSaveError(error, 'save this set')
+        Alert.alert('Set didn’t save', `${info.message}\n\nYour numbers are still in the row — tap the ✓ to retry.`)
+      }
+    }
   }
 
   const addSet = (exId: string) => {
@@ -715,7 +745,7 @@ export default function WorkoutsScreen() {
     // absurd duration.
     const mins = Math.min(240, Math.max(1, Math.round(elapsed / 60)))
 
-    await Promise.all([
+    const [{ error: schedErr }, { error: logErr }] = await Promise.all([
       supabase.from('scheduled_workouts')
         .update({ status: 'completed', completed_at: now, actual_duration_min: mins })
         .eq('id', workout.id),
@@ -723,6 +753,17 @@ export default function WorkoutsScreen() {
         .update({ completed_at: now })
         .eq('id', workoutLogId),
     ])
+    if (schedErr || logErr) {
+      // Never celebrate a completion that didn't save (gym wifi dies at the door).
+      // The session stays live so one more tap finishes it for real.
+      setCompleting(false)
+      const info = describeSaveError(schedErr ?? logErr, 'save your workout')
+      Alert.alert(
+        'Couldn’t save your workout',
+        `${info.message}\n\nYour session is still here — tap Complete Workout again.`,
+      )
+      return
+    }
 
     cancelWorkoutReminder(workout.id).catch(() => {})
 
@@ -811,17 +852,20 @@ export default function WorkoutsScreen() {
     cancelRestDoneNotification().catch(() => {})
   }
 
+  // Rest-length choices in a sheet, not Alert.alert (Android caps alerts at 3
+  // buttons, which dropped an option).
+  const [restSheet, setRestSheet] = useState(false)
   const handleRestTimer = () => {
     if (restEndsAt !== null) {
       stopRest()
       return
     }
-    Alert.alert('Rest Timer', 'How long to rest?', [
-      { text: '60s', onPress: () => startRest(60) },
-      { text: '90s', onPress: () => startRest(90) },
-      { text: '120s', onPress: () => startRest(120) },
-      { text: 'Cancel', style: 'cancel' },
-    ])
+    setRestSheet(true)
+  }
+  const pickRest = (key: string) => {
+    setRestSheet(false)
+    const secs = parseInt(key, 10)
+    if (Number.isFinite(secs) && secs > 0) startRest(secs)
   }
 
   const handleShowExerciseList = () => {
@@ -1295,6 +1339,19 @@ export default function WorkoutsScreen() {
       </View>
 
       <ExerciseFormSheet exercise={formSheetEx} onClose={() => setFormSheetEx(null)} />
+      <OptionSheet
+        visible={restSheet}
+        title="Rest timer"
+        subtitle="How long to rest? You’ll feel a buzz when it’s time — even with the phone locked."
+        options={[
+          { key: '60', label: '60 seconds', sub: 'Hypertrophy pace', icon: 'timer-outline' },
+          { key: '90', label: '90 seconds', sub: 'The default for most sets', icon: 'timer-outline' },
+          { key: '120', label: '2 minutes', sub: 'Heavier compound work', icon: 'timer-outline' },
+          { key: '180', label: '3 minutes', sub: 'Full recovery for max-strength sets', icon: 'timer-outline' },
+        ]}
+        onSelect={pickRest}
+        onClose={() => setRestSheet(false)}
+      />
     </ScreenTransition>
     </SafeAreaView>
   )

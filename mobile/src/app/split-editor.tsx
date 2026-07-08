@@ -6,9 +6,9 @@
 // week onto the calendar (see lib/splitSchedule.activateSplit).
 
 import { useCallback, useEffect, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, Modal } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native'
 import { PulseLoader } from '@/components/brand'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
@@ -17,13 +17,15 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale } from '@/components/motion'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
+import { OptionSheet } from '@/components/OptionSheet'
 import {
   WEEKDAY_LABELS, dayFromDraftItems, dayToDraftItems, restDay, saveSplit, fetchSplits,
 } from '@/lib/splits'
 import { activateSplit } from '@/lib/splitSchedule'
+import { describeSaveError } from '@/lib/saveErrors'
 import { type DraftItem, makeDraftItem, fetchTemplates, templateToItems } from '@/lib/workoutBuilder'
 import { SPLIT_PRESETS, applySplitPreset } from '@/lib/starterTemplates'
-import type { Exercise, Split } from '@/types'
+import type { Exercise, Split, WorkoutTemplate } from '@/types'
 
 const FULL_WEEKDAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -37,6 +39,7 @@ export default function SplitEditorScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const { splitId } = useLocalSearchParams<{ splitId?: string }>()
@@ -74,22 +77,26 @@ export default function SplitEditorScreen() {
 
   // Fill the whole week from a split template — and save each of its workouts into
   // the user's library so they're reusable everywhere.
-  const pickSplitPreset = () => {
-    Alert.alert('Start from a template', 'Pick a proven split. Its workouts are saved to your library so you can reuse them anywhere.', [
-      ...SPLIT_PRESETS.map((p) => ({
-        text: `${p.name} — ${p.description}`,
-        onPress: async () => {
-          setLoading(true)
-          const res = await applySplitPreset(supabase, userId, p)
-          setName((n) => n.trim() || res.name)
-          setDays(res.days.map((d) => ({
-            weekday: d.weekday, label: d.label, rest: d.items.length === 0, items: d.items,
-          })))
-          setLoading(false)
-        },
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ])
+  // A bottom sheet, not Alert.alert — Android caps alerts at 3 buttons, which
+  // silently hid most presets.
+  const [presetSheet, setPresetSheet] = useState(false)
+  const applyPresetChoice = async (key: string) => {
+    const p = SPLIT_PRESETS.find((x) => x.id === key)
+    setPresetSheet(false)
+    if (!p) return
+    setLoading(true)
+    try {
+      const res = await applySplitPreset(supabase, userId, p)
+      setName((n) => n.trim() || res.name)
+      setDays(res.days.map((d) => ({
+        weekday: d.weekday, label: d.label, rest: d.items.length === 0, items: d.items,
+      })))
+    } catch (err) {
+      const info = describeSaveError(err, 'load this template')
+      Alert.alert('Couldn’t load template', info.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggleRest = (idx: number, rest: boolean) => {
@@ -128,7 +135,9 @@ export default function SplitEditorScreen() {
     })
   }
 
-  // Pull a saved workout into the day being edited.
+  // Pull a saved workout into the day being edited — a scrollable sheet, so every
+  // template is reachable (an Alert menu capped the list and broke on Android).
+  const [templateSheet, setTemplateSheet] = useState<WorkoutTemplate[] | null>(null)
   const fillFromTemplate = async () => {
     if (editing === null) return
     const templates = await fetchTemplates(supabase, userId)
@@ -136,16 +145,14 @@ export default function SplitEditorScreen() {
       Alert.alert('No saved workouts', 'Build and save a workout first (My Workouts → Build a new workout), then you can drop it into a day here.')
       return
     }
-    Alert.alert('Use a saved workout', 'Replace this day with one of your saved workouts:', [
-      ...templates.slice(0, 8).map((t) => ({
-        text: t.name,
-        onPress: async () => {
-          const items = await templateToItems(supabase, t)
-          updateDay(editing, { label: t.name, rest: false, items })
-        },
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ])
+    setTemplateSheet(templates)
+  }
+  const applyTemplateChoice = async (id: string) => {
+    const t = templateSheet?.find((x) => x.id === id)
+    setTemplateSheet(null)
+    if (!t || editing === null) return
+    const items = await templateToItems(supabase, t)
+    updateDay(editing, { label: t.name, rest: false, items })
   }
 
   const handleSave = async (thenActivate: boolean) => {
@@ -165,7 +172,25 @@ export default function SplitEditorScreen() {
         id, user_id: userId, name: name.trim(), is_active: true, days: splitDays,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }
-      await activateSplit(supabase, userId, split, profile)
+      const result = await activateSplit(supabase, userId, split, profile)
+      if (result === 'failed') {
+        // The split IS saved — only activation failed. Say so instead of leaving
+        // the user thinking their schedule switched when it didn't.
+        setSaving(false)
+        Alert.alert('Saved, but not activated', 'Your split was saved. Activating it didn’t go through — open My Splits and set it active to try again.', [
+          { text: 'OK', onPress: () => router.back() },
+        ])
+        return
+      }
+      if (result === 'activated_pending') {
+        // Active, but this week's sessions couldn't be written (likely offline) —
+        // they self-materialize on the next online app open, so don't say "retry".
+        setSaving(false)
+        Alert.alert('Activated', 'Your split is now your schedule. Tempo couldn’t reach the server to build this week’s sessions — they’ll appear next time you open the app online.', [
+          { text: 'OK', onPress: () => router.back() },
+        ])
+        return
+      }
     }
     setSaving(false)
     router.back()
@@ -196,7 +221,7 @@ export default function SplitEditorScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           {!splitId && (
-            <TouchableOpacity style={styles.templateBtn} onPress={pickSplitPreset} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.templateBtn} onPress={() => setPresetSheet(true)} activeOpacity={0.85}>
               <Ionicons name="sparkles" size={16} color={C.primary} />
               <Text style={styles.templateBtnText}>Start from a template</Text>
               <Ionicons name="chevron-forward" size={15} color={C.outline} />
@@ -239,9 +264,9 @@ export default function SplitEditorScreen() {
 
       {/* Day editor */}
       <Modal visible={editing !== null} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
-        <View style={styles.backdrop}>
+        <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditing(null)} />
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
             <View style={styles.sheetHandle} />
             {openDay && editing !== null && (
               <>
@@ -298,7 +323,7 @@ export default function SplitEditorScreen() {
               </>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
 
         <ExercisePickerSheet
           visible={pickerOpen}
@@ -310,6 +335,29 @@ export default function SplitEditorScreen() {
           onRemove={(ex) => removeExercise(ex.id)}
         />
       </Modal>
+
+      <OptionSheet
+        visible={presetSheet}
+        title="Start from a template"
+        subtitle="Pick a proven split. Its workouts are saved to your library so you can reuse them anywhere."
+        options={SPLIT_PRESETS.map((p) => ({ key: p.id, label: p.name, sub: p.description, icon: 'repeat-outline' }))}
+        onSelect={applyPresetChoice}
+        onClose={() => setPresetSheet(false)}
+      />
+
+      <OptionSheet
+        visible={templateSheet !== null}
+        title="Use a saved workout"
+        subtitle="Replace this day with one of your saved workouts."
+        options={(templateSheet ?? []).map((t) => ({
+          key: t.id,
+          label: t.name,
+          sub: `${t.exercise_ids.length} exercise${t.exercise_ids.length === 1 ? '' : 's'} · ~${t.est_duration_min} min`,
+          icon: 'barbell-outline',
+        }))}
+        onSelect={applyTemplateChoice}
+        onClose={() => setTemplateSheet(null)}
+      />
     </SafeAreaView>
   )
 }

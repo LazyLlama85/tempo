@@ -16,6 +16,7 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView } from '@/components/motion'
+import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
 import { WEEKDAY_LABELS, fetchSplits, deleteSplit, duplicateSplit, isAutoSplit } from '@/lib/splits'
 import { activateSplit, activateAutoPlan } from '@/lib/splitSchedule'
 import type { Split } from '@/types'
@@ -42,38 +43,55 @@ export default function MySplitsScreen() {
     setBusy(true)
     // The auto (program) split regenerates the periodized plan; a custom split lays
     // its own week onto the calendar.
-    const ok = isAutoSplit(s)
-      ? await activateAutoPlan(supabase, userId, profile)
+    const result = isAutoSplit(s)
+      ? (await activateAutoPlan(supabase, userId, profile)) ? 'activated' : 'failed'
       : await activateSplit(supabase, userId, s, profile)
     setBusy(false)
-    if (ok) {
-      load()
-      Alert.alert('Activated', isAutoSplit(s)
-        ? 'Your auto-generated program is back on — this week is on the calendar.'
-        : `“${s.name}” is now your schedule. Your week is on the calendar.`)
-    } else Alert.alert('Could not activate', 'Please try again.')
+    if (result === 'failed') {
+      Alert.alert('Could not activate', 'Check your connection and try again.')
+      return
+    }
+    load()
+    if (result === 'activated_pending') {
+      // The split IS active but this week's sessions couldn't be written (likely
+      // offline) — "try again" would be a lie; the next online app open lays them down.
+      Alert.alert('Activated', `“${s.name}” is now your schedule. Tempo couldn’t reach the server to build this week’s sessions — they’ll appear next time you open the app online.`)
+      return
+    }
+    Alert.alert('Activated', isAutoSplit(s)
+      ? 'Your auto-generated program is back on — this week is on the calendar.'
+      : `“${s.name}” is now your schedule. Your week is on the calendar.`)
   }
 
-  const actions = (s: Split) => {
+  // Split actions live in a bottom sheet, not Alert.alert — Android caps alerts at
+  // 3 buttons, which made Edit/Delete unreachable there.
+  const [sheetSplit, setSheetSplit] = useState<Split | null>(null)
+
+  const sheetOptions = (s: Split): OptionSheetItem[] => {
     if (isAutoSplit(s)) {
       // The program mirror is managed by Tempo: activate or fork it, but it can't be
       // hand-edited or deleted (that's what a custom split is for).
-      Alert.alert(s.name, s.is_active
-        ? 'This is your active auto-generated program. Tempo keeps it progressing week to week.'
-        : 'Your auto-generated program. Activate it to switch back from a custom split.', [
-        ...(s.is_active ? [] : [{ text: 'Set as active', onPress: () => activate(s) }]),
-        { text: 'Duplicate as custom', onPress: async () => { await duplicateSplit(supabase, userId, s); load() } },
-        { text: 'Cancel', style: 'cancel' },
-      ])
-      return
+      return [
+        ...(s.is_active ? [] : [{ key: 'activate', label: 'Set as active', sub: 'Switch back to your auto-generated program', icon: 'play-circle-outline' }]),
+        { key: 'duplicate', label: 'Duplicate as custom', sub: 'Make an editable copy of this program', icon: 'copy-outline' },
+      ]
     }
-    Alert.alert(s.name, s.is_active ? 'This is your active schedule.' : undefined, [
-      ...(s.is_active ? [] : [{ text: 'Set as active', onPress: () => activate(s) }]),
-      { text: 'Edit', onPress: () => router.push(`/split-editor?splitId=${s.id}` as any) },
-      { text: 'Duplicate', onPress: async () => { await duplicateSplit(supabase, userId, s); load() } },
-      { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(s) },
-      { text: 'Cancel', style: 'cancel' },
-    ])
+    return [
+      ...(s.is_active ? [] : [{ key: 'activate', label: 'Set as active', sub: 'Lay this week onto your calendar', icon: 'play-circle-outline' }]),
+      { key: 'edit', label: 'Edit split', icon: 'create-outline' },
+      { key: 'duplicate', label: 'Duplicate', icon: 'copy-outline' },
+      { key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true },
+    ]
+  }
+
+  const onSheetSelect = async (key: string) => {
+    const s = sheetSplit
+    setSheetSplit(null)
+    if (!s) return
+    if (key === 'activate') activate(s)
+    else if (key === 'edit') router.push(`/split-editor?splitId=${s.id}` as any)
+    else if (key === 'duplicate') { await duplicateSplit(supabase, userId, s); load() }
+    else if (key === 'delete') confirmDelete(s)
   }
 
   const confirmDelete = (s: Split) =>
@@ -113,7 +131,7 @@ export default function MySplitsScreen() {
           ) : (
             splits.map((s, i) => (
               <FadeInView key={s.id} delay={Math.min(i * 50, 250)}>
-              <TouchableOpacity style={[styles.splitCard, s.is_active && styles.splitCardActive]} onPress={() => actions(s)} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.splitCard, s.is_active && styles.splitCardActive]} onPress={() => setSheetSplit(s)} activeOpacity={0.8}>
                 <View style={styles.splitHead}>
                   <View style={styles.nameWrap}>
                     <Text style={styles.splitName} numberOfLines={1}>{s.name}</Text>
@@ -149,6 +167,27 @@ export default function MySplitsScreen() {
           )}
         </ScrollView>
       )}
+
+      <OptionSheet
+        visible={sheetSplit !== null}
+        title={sheetSplit?.name ?? ''}
+        subtitle={sheetSplit?.is_active
+          ? (sheetSplit && isAutoSplit(sheetSplit)
+            ? 'Your active auto-generated program. Tempo keeps it progressing week to week.'
+            : 'This is your active schedule.')
+          : undefined}
+        options={sheetSplit ? sheetOptions(sheetSplit) : []}
+        onSelect={onSheetSelect}
+        onClose={() => setSheetSplit(null)}
+      />
+
+      {/* Activation does real work (retire old schedule, materialize, auto-place
+          times) — show it, so taps don't feel dead and can't double-fire. */}
+      {busy && (
+        <View style={styles.busyOverlay}>
+          <PulseLoader caption="Setting up your schedule…" />
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -180,4 +219,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   wChipDay: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline },
   wChipDayOn: { color: C.primary },
   splitSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary },
+  busyOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface + 'E6',
+  },
 })

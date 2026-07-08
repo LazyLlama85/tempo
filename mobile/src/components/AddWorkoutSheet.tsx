@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { TempoPulse } from '@/components/brand'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useRouter } from 'expo-router'
@@ -28,6 +29,7 @@ interface Props {
 export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const router = useRouter()
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,7 +56,7 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <View>

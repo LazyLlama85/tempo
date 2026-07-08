@@ -22,6 +22,7 @@ import { scheduleWorkoutReminders, requestPermissions } from '@/lib/notification
 import { suggestTimeOnDate } from '@/lib/reschedule'
 import { useWeightUnit, unitLabel, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
+import { OptionSheet } from '@/components/OptionSheet'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { EXERCISE_COLUMNS } from '@/lib/customExercises'
 import {
@@ -69,23 +70,31 @@ export default function WorkoutBuilderScreen() {
   // Load an existing template, or pre-fill from a starter preset, into the editor.
   useEffect(() => {
     if (!userId) return
+    // try/finally on both loaders: a rejected hydrate must never strand the screen
+    // on its full-screen loader (there's no other way out of it).
     if (templateId) {
       ;(async () => {
-        const { data } = await supabase.from('workout_templates').select('*').eq('id', templateId).maybeSingle()
-        if (data) {
-          const tpl = data as WorkoutTemplate
-          setName(tpl.name)
-          setItems(await templateToItems(supabase, tpl))
+        try {
+          const { data } = await supabase.from('workout_templates').select('*').eq('id', templateId).maybeSingle()
+          if (data) {
+            const tpl = data as WorkoutTemplate
+            setName(tpl.name)
+            setItems(await templateToItems(supabase, tpl))
+          }
+        } finally {
+          setLoading(false)
         }
-        setLoading(false)
       })()
     } else if (presetId) {
       const preset = workoutPresetById(presetId)
       if (!preset) { setLoading(false); return }
       ;(async () => {
-        setName(preset.name)
-        setItems(await hydrateWorkoutPreset(supabase, preset))
-        setLoading(false)
+        try {
+          setName(preset.name)
+          setItems(await hydrateWorkoutPreset(supabase, preset))
+        } finally {
+          setLoading(false)
+        }
       })()
     }
   }, [templateId, presetId, userId])
@@ -108,19 +117,24 @@ export default function WorkoutBuilderScreen() {
   }, [scheduling, userId, scheduleDate])
 
   // Replace the current draft with a starter template (offered when empty).
-  const pickPreset = () => {
-    Alert.alert('Start from a template', 'Pre-fill with a proven workout — you can tweak everything after.', [
-      ...WORKOUT_PRESETS.map((p) => ({
-        text: `${p.name} · ${p.exercises.length} exercises`,
-        onPress: async () => {
-          setLoading(true)
-          setName((n) => n.trim() || p.name)
-          setItems(await hydrateWorkoutPreset(supabase, p))
-          setLoading(false)
-        },
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ])
+  // A bottom sheet, not Alert.alert — Android caps alerts at 3 buttons, which
+  // silently hid most presets.
+  const [presetSheet, setPresetSheet] = useState(false)
+  const applyPreset = async (presetKey: string) => {
+    const p = WORKOUT_PRESETS.find((x) => x.id === presetKey)
+    setPresetSheet(false)
+    if (!p) return
+    setLoading(true)
+    try {
+      setName((n) => n.trim() || p.name)
+      setItems(await hydrateWorkoutPreset(supabase, p))
+    } catch {
+      // Same guard the split-editor's preset loader has — a rejection here used to
+      // strand the builder on its loader.
+      Alert.alert('Couldn’t load template', 'Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const addExercise = (ex: Exercise) => setItems((p) => (p.some((i) => i.exercise.id === ex.id) ? p : [...p, makeDraftItem(ex)]))
@@ -214,7 +228,7 @@ export default function WorkoutBuilderScreen() {
         </View>
 
         {items.length === 0 && !templateId && (
-          <TouchableOpacity style={styles.templateBtn} onPress={pickPreset} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.templateBtn} onPress={() => setPresetSheet(true)} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={16} color={C.primary} />
             <Text style={styles.templateBtnText}>Start from a template</Text>
             <Ionicons name="chevron-forward" size={15} color={C.outline} />
@@ -331,6 +345,14 @@ export default function WorkoutBuilderScreen() {
         onRemove={(ex) => setItems((p) => p.filter((i) => i.exercise.id !== ex.id))}
       />
       <TimePickerSheet visible={showTime} value={time} title="Workout time" onSelect={(v) => { setTime(v); setTimeTouched(true); setShowTime(false) }} onClose={() => setShowTime(false)} />
+      <OptionSheet
+        visible={presetSheet}
+        title="Start from a template"
+        subtitle="Pre-fill with a proven workout — you can tweak everything after."
+        options={WORKOUT_PRESETS.map((p) => ({ key: p.id, label: p.name, sub: `${p.exercises.length} exercises`, icon: 'barbell-outline' }))}
+        onSelect={applyPreset}
+        onClose={() => setPresetSheet(false)}
+      />
     </SafeAreaView>
   )
 }

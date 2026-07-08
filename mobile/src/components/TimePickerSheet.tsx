@@ -7,6 +7,7 @@
 
 import { useEffect, useRef } from 'react'
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -61,6 +62,7 @@ interface Props {
 export function TimePickerSheet({ visible, value, title, onSelect, onClose, onClear }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   const selectedKey = toKey(value)
 
@@ -77,7 +79,7 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>

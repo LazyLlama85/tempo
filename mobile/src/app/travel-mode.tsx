@@ -133,7 +133,9 @@ export default function TravelModeScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      {/* Keyboard insets: the label field is the last element, so the keyboard
+          would otherwise cover it completely. */}
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
         <View style={styles.heroIcon}>
           <Ionicons name="airplane" size={22} color={C.primary} />
         </View>

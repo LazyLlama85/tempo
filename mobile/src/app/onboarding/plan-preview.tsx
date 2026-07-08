@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
@@ -14,6 +15,8 @@ import { generatePlan } from '@/lib/generatePlan'
 import { autoScheduleUpcoming } from '@/lib/autoSchedule'
 import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from '@/lib/notifications'
 import { registerPushToken } from '@/lib/pushTokens'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
+import { describeSaveError, isAuthError } from '@/lib/saveErrors'
 import type { ScheduledWorkout } from '@/lib/notifications'
 
 // Prime before the one-shot OS permission prompt: explain the value in our own
@@ -69,8 +72,13 @@ export default function PlanPreviewScreen() {
     preferredCalendar?: string
     schedulingMode?: string
   }>()
-  const { session, refreshProfile } = useAuthStore()
+  const { session, profile, refreshProfile } = useAuthStore()
+  const queryClient = useQueryClient()
   const [status, setStatus] = useState<'idle' | 'saving' | 'generating'>('idle')
+  const confirmLatch = useRef(false)
+  // Re-running onboarding from Profile → Change Plan: the account already exists,
+  // so we must not clobber personal fields and shouldn't re-run the intro steps.
+  const isReplan = !!profile?.onboarding_complete
 
   // While the plan generates, narrate what's actually happening — the wait
   // becomes the moment the coach proves it's working, not a dead spinner.
@@ -94,19 +102,30 @@ export default function PlanPreviewScreen() {
   const equipmentList = (equipment ?? '').split(',').filter(Boolean) as Equipment[]
   const programName = getProgramName(goal ?? '', experience ?? '', days)
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (attempt = 0) => {
+    // Ref latch, not state: two taps in the same frame both read status==='idle'
+    // (setState hasn't committed), so state alone can run the save+generate chain
+    // twice concurrently. attempt > 0 is our own silent retry — already latched.
+    if (attempt === 0) {
+      if (confirmLatch.current || status !== 'idle') return
+      confirmLatch.current = true
+    }
     setStatus('saving')
     try {
+      // Make sure the auth token is fresh before the write chain — after a long
+      // background stint the first request can otherwise fire with an expired JWT.
+      try { await supabase.auth.getSession() } catch { /* the writes will surface it */ }
+
       const { error: profileErr } = await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
-        display_name: session.user.user_metadata?.full_name ?? null,
-        avatar_url: session.user.user_metadata?.avatar_url ?? null,
         goal: goal as Goal,
         experience: experience as Experience,
         equipment: equipmentList,
         days_per_week: days,
-        preferred_duration_min: 45,
-        onboarding_complete: true,
+        preferred_duration_min: profile?.preferred_duration_min ?? 45,
+        // onboarding_complete is deliberately NOT set here — it flips below, after
+        // generatePlan succeeds. Setting it first meant a mid-chain failure + force
+        // quit produced an "onboarded" account with no plan at next launch.
         // Connecting a calendar doesn't force auto — persist the user's choice.
         scheduling_mode: schedulingMode === 'manual' ? 'manual' : 'auto',
         // Persist the calendar the user connected during onboarding as the default
@@ -114,6 +133,14 @@ export default function PlanPreviewScreen() {
         ...(preferredCalendar === 'google' || preferredCalendar === 'device'
           ? { preferred_calendar: preferredCalendar }
           : {}),
+        // Seed name/avatar from the sign-in identity ONLY while they're unset —
+        // a plan change must never overwrite what the user picked in their profile.
+        ...(profile?.display_name
+          ? {}
+          : { display_name: session.user.user_metadata?.full_name ?? null }),
+        ...(profile?.avatar_url
+          ? {}
+          : { avatar_url: session.user.user_metadata?.avatar_url ?? null }),
       })
       if (profileErr) throw profileErr
 
@@ -123,8 +150,16 @@ export default function PlanPreviewScreen() {
         experience: experience as Experience,
         equipment: equipmentList,
         days_per_week: days,
-        preferred_duration_min: 45,
+        preferred_duration_min: profile?.preferred_duration_min ?? 45,
       })
+
+      // The plan exists — NOW the account counts as onboarded. (On a re-plan this
+      // is already true; the update is a harmless no-op.)
+      const { error: completeErr } = await supabase
+        .from('user_profiles')
+        .update({ onboarding_complete: true })
+        .eq('user_id', session.user.id)
+      if (completeErr) throw completeErr
 
       // In auto mode, place those workouts at real, calendar-aware times around the
       // calendar the user just connected. In manual mode the user owns the times, so
@@ -137,8 +172,12 @@ export default function PlanPreviewScreen() {
       // Schedule reminders — best-effort, never blocks onboarding. Primed ask
       // first, then the OS prompt; on grant, also register this device for the
       // server-driven retention pushes (sign-in no longer prompts for this).
+      // On a re-plan we skip the ask (they answered it once) and just re-point
+      // reminders at the new sessions if permission is already there.
       try {
-        const granted = (await askForReminders()) && (await requestPermissions())
+        const granted = isReplan
+          ? await requestPermissions()
+          : (await askForReminders()) && (await requestPermissions())
         if (granted) {
           registerPushToken(supabase, session.user.id).catch(() => {})
           // Clear any reminders tied to the previous plan's (now-retired) workout
@@ -162,26 +201,47 @@ export default function PlanPreviewScreen() {
         days_per_week: days,
       })
 
-      await refreshProfile()
-      // Finish with a quick "make it yours" profile step before entering the app.
-      router.replace('/onboarding/profile-setup')
+      await refreshProfile().catch(() => {}) // plan is saved — a refresh blip can't unsave it
+      // Every cached training query still shows the old plan — flush them so the
+      // tabs paint the new schedule immediately.
+      invalidateTrainingData(queryClient)
+
+      if (isReplan) {
+        // Existing user changing plans: straight back into the app (pop the whole
+        // onboarding stack so back-swipe can't land on a stale step).
+        if (router.canDismiss()) router.dismissAll()
+        router.replace('/(tabs)')
+      } else {
+        // Finish with a quick "make it yours" profile step before entering the app.
+        router.replace('/onboarding/profile-setup')
+      }
     } catch (err) {
+      // An expired session refreshes in one call — do that and retry silently once
+      // before involving the user.
+      if (attempt === 0 && isAuthError(err)) {
+        try {
+          await supabase.auth.refreshSession()
+          return handleConfirm(1)
+        } catch { /* fall through to the alert */ }
+      }
+      confirmLatch.current = false
       setStatus('idle')
-      Alert.alert(
-        'Something went wrong',
-        err instanceof Error ? err.message : 'Please try again.',
-        [{ text: 'Retry', onPress: handleConfirm }]
-      )
+      const info = describeSaveError(err, 'save your plan')
+      Alert.alert(info.title, info.message, [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Try Again', onPress: () => handleConfirm() },
+      ])
     }
   }
 
   const busy = status !== 'idle'
+  const sessionMin = profile?.preferred_duration_min ?? 45
 
   const DETAILS = [
     { label: 'Goal', value: GOAL_LABELS[goal ?? ''] ?? '—' },
     { label: 'Experience', value: EXP_LABELS[experience ?? ''] ?? '—' },
     { label: 'Days per week', value: `${days} days` },
-    { label: 'Duration', value: '~45 min / session' },
+    { label: 'Duration', value: `~${sessionMin} min / session` },
     { label: 'Length', value: '4 weeks (then repeats)' },
   ]
 
@@ -203,9 +263,11 @@ export default function PlanPreviewScreen() {
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView>
-          <Text style={styles.stepLabel}>STEP 6 OF 6</Text>
-          <Text style={styles.title}>Your plan is ready.</Text>
-          <Text style={styles.subtitle}>Here's what we built for you.</Text>
+          <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 6 OF 6'}</Text>
+          <Text style={styles.title}>{isReplan ? 'Your new plan is ready.' : 'Your plan is ready.'}</Text>
+          <Text style={styles.subtitle}>
+            {isReplan ? 'This replaces your current plan — history and PRs stay.' : "Here's what we built for you."}
+          </Text>
         </FadeInView>
 
         <FadeInView delay={100} style={styles.planCard}>
@@ -241,14 +303,14 @@ export default function PlanPreviewScreen() {
         )}
         <PressableScale
           style={[styles.confirmBtn, busy && { opacity: 0.6 }]}
-          onPress={handleConfirm}
+          onPress={() => handleConfirm()}
           disabled={busy}
           activeOpacity={0.85}
         >
           {busy ? (
             <ActivityIndicator color={C.onPrimary} />
           ) : (
-            <Text style={styles.confirmText}>Let's Go →</Text>
+            <Text style={styles.confirmText}>{isReplan ? 'Switch to This Plan →' : "Let's Go →"}</Text>
           )}
         </PressableScale>
       </View>

@@ -8,7 +8,8 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { connectGoogleCalendar, isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
-import { requestCalendarPermissions } from '@/services/calendarService'
+import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
+import { useAuthStore } from '@/stores/auth'
 
 
 const WHY_CONNECT = [
@@ -35,24 +36,36 @@ export default function ScheduleScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal, experience, equipment } = useLocalSearchParams<{ goal: string; experience: string; equipment: string }>()
-  const [daysPerWeek, setDaysPerWeek] = useState(3)
+  const { profile } = useAuthStore()
+  // Change Plan re-entry keeps the user's current cadence + scheduling mode —
+  // re-running onboarding must never silently flip a manual scheduler back to auto.
+  const [daysPerWeek, setDaysPerWeek] = useState(() => {
+    const d = profile?.days_per_week ?? 3
+    return d >= 2 && d <= 6 ? d : 3
+  })
   // Connecting a calendar does NOT force automatic scheduling — the user chooses.
-  const [schedulingMode, setSchedulingMode] = useState<'auto' | 'manual'>('auto')
+  const [schedulingMode, setSchedulingMode] = useState<'auto' | 'manual'>(
+    profile?.scheduling_mode === 'manual' ? 'manual' : 'auto',
+  )
   // Real connection state — which calendar is connected, and which (if any) is
   // mid-connect. No more "just turn the button green".
   const [connectedProvider, setConnectedProvider] = useState<'google' | 'device' | null>(null)
   const [connecting, setConnecting] = useState<null | 'google' | 'device'>(null)
 
-  // Reflect a real, deliberate prior Google connection (e.g. re-running onboarding via
-  // "Change Plan"). The device calendar is intentionally NOT auto-detected from a
-  // pre-existing OS permission — the user must explicitly pick a calendar and grant
-  // access here before it reads as connected.
+  // Reflect a real, deliberate prior connection (e.g. re-running onboarding via
+  // "Change Plan"): Google when its token is stored, the device calendar only when
+  // the user explicitly chose it before (preferred_calendar) AND access is granted.
+  // A pre-existing OS permission alone never auto-connects the device calendar.
   useEffect(() => {
     (async () => {
       try {
-        if (await isGoogleCalendarConnected()) setConnectedProvider('google')
+        if (await isGoogleCalendarConnected()) { setConnectedProvider('google'); return }
+        if (profile?.preferred_calendar === 'device' && (await getCalendarPermissionStatus()) === 'granted') {
+          setConnectedProvider('device')
+        }
       } catch { /* leave disconnected */ }
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Real Google OAuth — the exact same flow as Settings / Smart Scheduler.

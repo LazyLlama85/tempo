@@ -44,7 +44,7 @@ you obtain them.
 | `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Backend | ✅ In `eas.json` |
 | `EXPO_PUBLIC_RAPIDAPI_KEY` | Exercise media | ✅ In `eas.json` |
 | `EXPO_PUBLIC_POSTHOG_KEY` (+ `_HOST`) | Analytics | Optional — no-ops if unset |
-| `EXPO_PUBLIC_SENTRY_DSN` | Crash reporting | Optional — no-ops if unset |
+| `EXPO_PUBLIC_SENTRY_DSN` | Crash reporting | ✅ In `eas.json` + `.env.local` (org `tempo-0u`, project `react-native`) |
 
 ## Telemetry (analytics + crash reporting)
 - `src/lib/analytics.ts` — PostHog wrapper; typed events via `EventProperties`;

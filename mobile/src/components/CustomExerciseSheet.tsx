@@ -5,7 +5,8 @@
 // My Workouts screen (edit/delete).
 
 import { useEffect, useState } from 'react'
-import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native'
+import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
@@ -46,6 +47,7 @@ interface Props {
 export function CustomExerciseSheet({ visible, userId, client, exercise, onClose, onSaved }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const editing = !!exercise?.id
 
   const [name, setName] = useState('')
@@ -115,9 +117,11 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      {/* Lift the sheet above the keyboard — the name field autofocuses, and the
+          Save button lives outside the ScrollView so it would otherwise be buried. */}
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>{editing ? 'Edit exercise' : 'New exercise'}</Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.sm }} keyboardShouldPersistTaps="handled">
@@ -185,7 +189,7 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
             {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>{editing ? 'Save changes' : 'Create exercise'}</Text>}
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }

@@ -6,8 +6,9 @@
 
 import { useRef, useState } from 'react'
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -51,6 +52,7 @@ interface Props {
 export function ShareCardSheet({ visible, cards, onClose }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const [index, setIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -162,7 +164,7 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
               </>
             )}
           </TouchableOpacity>
-          <View style={{ height: Platform.OS === 'ios' ? Spacing.lg : Spacing.md }} />
+          <View style={{ height: Math.max(insets.bottom, Spacing.md) }} />
         </View>
       </View>
     </Modal>

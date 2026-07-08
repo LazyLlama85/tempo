@@ -1,19 +1,66 @@
 import { useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
+import { useAuthStore } from '@/stores/auth'
 import type { Experience } from '@/types'
 
 
-const LEVELS: { id: Experience; label: string; quote: string }[] = [
-  { id: 'beginner', label: 'Beginner', quote: '"Focusing on foundational movements and proper form with guided instructions."' },
-  { id: 'intermediate', label: 'Intermediate', quote: '"Building progressive overload with compound lifts and structured programming."' },
-  { id: 'advanced', label: 'Advanced', quote: '"Periodized training with advanced techniques and performance optimization."' },
+// Each level previews a real slice of the program it unlocks — sample lifts with
+// honest set×rep prescriptions — so the choice communicates consequences, not vibes.
+const LEVELS: {
+  id: Experience
+  label: string
+  tagline: string
+  sub: string
+  icon: string
+  intensity: 1 | 2 | 3
+  lifts: { name: string; rx: string }[]
+}[] = [
+  {
+    id: 'beginner',
+    label: 'Beginner',
+    tagline: 'Build the foundation',
+    sub: 'Form-first coaching and steady, confident progress.',
+    icon: 'leaf-outline',
+    intensity: 1,
+    lifts: [
+      { name: 'Goblet Squat', rx: '3 × 10' },
+      { name: 'Push-Up', rx: '3 × 8' },
+      { name: 'Dumbbell Row', rx: '3 × 10' },
+    ],
+  },
+  {
+    id: 'intermediate',
+    label: 'Intermediate',
+    tagline: 'Drive progressive overload',
+    sub: 'Compound lifts, volume waves, and planned deloads.',
+    icon: 'barbell-outline',
+    intensity: 2,
+    lifts: [
+      { name: 'Barbell Squat', rx: '4 × 8' },
+      { name: 'Bench Press', rx: '4 × 8' },
+      { name: 'Romanian Deadlift', rx: '3 × 10' },
+    ],
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced',
+    tagline: 'Chase peak performance',
+    sub: 'Periodized intensity with autoregulated heavy work.',
+    icon: 'flash-outline',
+    intensity: 3,
+    lifts: [
+      { name: 'Back Squat', rx: '5 × 5' },
+      { name: 'Weighted Pull-Up', rx: '4 × 6' },
+      { name: 'Barbell RDL', rx: '4 × 8' },
+    ],
+  },
 ]
 
 export default function ExperienceScreen() {
@@ -21,7 +68,10 @@ export default function ExperienceScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal } = useLocalSearchParams<{ goal: string }>()
-  const [selected, setSelected] = useState<Experience>('beginner')
+  const { profile } = useAuthStore()
+  // Change Plan re-entry starts from the user's current (possibly auto-promoted)
+  // level; fresh users start at beginner.
+  const [selected, setSelected] = useState<Experience>(profile?.experience ?? 'beginner')
 
   const current = LEVELS.find((l) => l.id === selected)!
 
@@ -41,7 +91,7 @@ export default function ExperienceScreen() {
         <View style={[styles.progressFill, { width: '40%' }]} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
         <Text style={styles.title}>How much experience do you have?</Text>
         <Text style={styles.subtitle}>This sets your exercises, starting weights, and how hard we push from day one.</Text>
@@ -54,6 +104,8 @@ export default function ExperienceScreen() {
               style={[styles.segment, selected === level.id && styles.segmentActive]}
               onPress={() => setSelected(level.id)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selected === level.id }}
             >
               <Text style={[styles.segmentText, selected === level.id && styles.segmentTextActive]}>
                 {level.label}
@@ -62,13 +114,42 @@ export default function ExperienceScreen() {
           ))}
         </View>
 
-        {/* Preview card — crossfades as you switch levels so the choice feels alive */}
+        {/* Preview card — a real glimpse of training at this level, crossfading as
+            the selection changes so the choice feels alive. */}
         <FadeInView key={selected} duration={220}>
           <View style={styles.previewCard}>
-            <View style={styles.previewImage}>
-              <Ionicons name="barbell" size={48} color={C.outlineVariant} />
+            <View style={styles.previewHead}>
+              <View style={styles.previewIconChip}>
+                <Ionicons name={current.icon as any} size={20} color={C.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.previewTagline}>{current.tagline}</Text>
+                <Text style={styles.previewSub}>{current.sub}</Text>
+              </View>
+              <View
+                style={styles.meter}
+                accessible
+                accessibilityLabel={`Training intensity ${current.intensity} of 3`}
+              >
+                {[1, 2, 3].map((i) => (
+                  <View
+                    key={i}
+                    style={[styles.meterBar, { height: 8 + i * 5 }, i <= current.intensity && styles.meterBarOn]}
+                  />
+                ))}
+              </View>
             </View>
-            <Text style={styles.previewQuote}>{current.quote}</Text>
+
+            <View style={styles.previewDivider} />
+
+            <Text style={styles.previewEyebrow}>A SESSION AT THIS LEVEL</Text>
+            {current.lifts.map((l) => (
+              <View key={l.name} style={styles.liftRow}>
+                <Ionicons name="checkmark-circle" size={16} color={C.primary} />
+                <Text style={styles.liftName}>{l.name}</Text>
+                <Text style={styles.liftRx}>{l.rx}</Text>
+              </View>
+            ))}
           </View>
         </FadeInView>
 
@@ -80,7 +161,7 @@ export default function ExperienceScreen() {
             Start where you are — Tempo automatically levels you up as you get stronger.
           </Text>
         </View>
-      </View>
+      </ScrollView>
 
       {/* CTA */}
       <View style={styles.footer}>
@@ -106,7 +187,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
-  content: { flex: 1, paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg },
+  scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.lg },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
@@ -118,9 +199,27 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   segmentActive: { backgroundColor: C.background, shadowColor: C.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   segmentText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
   segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
-  previewCard: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, overflow: 'hidden', gap: Spacing.md, padding: Spacing.lg },
-  previewImage: { height: 140, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
-  previewQuote: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, fontStyle: 'italic', textAlign: 'center' },
+
+  previewCard: {
+    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm,
+  },
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  previewIconChip: {
+    width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewTagline: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  previewSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
+  meter: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 23 },
+  meterBar: { width: 5, borderRadius: Radius.full, backgroundColor: C.surfaceContainerHigh },
+  meterBarOn: { backgroundColor: C.primary },
+  previewDivider: { height: 1, backgroundColor: C.surfaceContainerHigh },
+  previewEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6 },
+  liftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: 2 },
+  liftName: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14.5, color: C.text },
+  liftRx: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.xs },
   hintText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },

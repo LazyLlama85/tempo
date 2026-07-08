@@ -3,6 +3,7 @@ import {
   Modal, View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Linking, Animated, ActivityIndicator,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
@@ -31,6 +32,7 @@ interface Props {
 export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const visible = exercise !== null
   // The verified clip for this movement, by id: our own bundled GIF for the 8 the
   // remote library lacked, or the curated ExerciseDB clip for everything else.
@@ -108,7 +110,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTap} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
           <View style={styles.handle} />
 
           {exercise && (

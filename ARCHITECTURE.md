@@ -59,7 +59,28 @@ you moving."*
   platforms — **and** an **auto vs. manual scheduling mode**) `→ availability → plan-preview`
   (primed notification ask — an explainer sheet *before* the one-shot OS prompt; push-token
   registration happens here on grant, never at sign-in) `→ profile-setup` (name, avatar, and an
-  **optional starting weight** that seeds the weight trend + goal countdown on day one).
+  **optional starting weight** that seeds the weight trend + goal countdown on day one;
+  weight input respects the kg/lb display unit).
+  **Change Plan re-entry is first-class:** every step pre-fills from the saved profile (current
+  goal/experience/equipment preselected; days-per-week, scheduling mode, and a previously chosen
+  calendar reflected; availability shows the saved sleep/work/school/off-days instead of
+  defaults), the availability save **merges** the weekday off-day chips with any dated/timed
+  unavailable blocks added in Settings (it used to wipe them), and `plan-preview` detects a
+  re-plan (`onboarding_complete` already true): copy flips to "Your new plan is ready", the
+  notification primer is skipped (permission is just re-checked), `display_name`/`avatar_url`/
+  `preferred_duration_min` are never clobbered by the upsert (identity fields only seed when
+  empty), training query caches are invalidated so the tabs paint the new plan immediately, and
+  on success it pops the whole onboarding stack back into the app instead of re-running
+  profile-setup. The **experience step's preview** is a real "session at this level" card —
+  icon chip + 3-bar intensity meter + three sample lifts with set×rep prescriptions per level
+  (replacing the old gray placeholder box), and the screen scrolls on small phones.
+  `plan-preview` also guards double-taps with a **ref latch** (state alone can't stop two taps
+  in one frame), proactively refreshes the auth session before the save chain, auto-retries once
+  after a silent token refresh on JWT failures, and maps failures to actionable copy (offline vs
+  session vs server — `lib/saveErrors.ts`) with Try Again / Not now actions; the availability
+  step has the same silent refresh-retry. **`onboarding_complete` flips only AFTER `generatePlan`
+  succeeds** (a separate update), so a mid-chain failure + force-quit can't produce an
+  "onboarded" account with no plan at next launch.
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
   `travel-mode`, `legal` (Privacy + Terms), `workout-complete`, `weekly-report` (Sunday
   progress recap), `plan-explainer` ("why this week" periodization explanation),
@@ -122,6 +143,16 @@ you moving."*
   rehydrated** (stale ones are zero-length-closed) so no duplicate `workout_logs` rows are ever
   minted. **Complete Workout has guardrails**: a 0-set completion is blocked and a <50%-logged one
   asks first — an accidental tap can't mint a fake session into streak/consistency/adaptation.
+  **Offline honesty:** starting a session verifies the `workout_logs` row actually inserted
+  (otherwise an alert + stay on the hub — never a session where nothing can save); a set whose
+  `set_logs` insert fails is visibly un-checked (one "didn't save" alert per session, the
+  unchecked ✓ tells the rest — and the un-check is a no-op if the exercise was swapped out while
+  the insert was in flight, instead of crashing on the missing row); and Complete only celebrates
+  after the completion writes verify — a failed save keeps the session live with a "tap Complete
+  again" alert instead of showing confetti over an unsaved workout. All three failure alerts
+  classify the error through `saveErrors.describeSaveError`, so an expired session in the gym
+  isn't mislabeled "check your connection". The rest-length picker is a branded `OptionSheet`
+  (60/90s/2min/3min) rather than an Alert (Android caps alerts at 3 buttons).
   On finish updates logs, fires adaptation re-eval, and routes to the celebration screen. When
   nothing is scheduled the hub shows the Quick Workout empty state (never a dead end); hub links
   include **History** (`workout-history`).
@@ -138,6 +169,13 @@ you moving."*
 - **Layout:** screens with a fixed bottom CTA give their `ScrollView` `flex: 1` (so it scrolls
   instead of pushing the footer off-screen) and pad the footer by the bottom safe-area inset on
   edges-`top` modals — so action buttons are always reachable on every device.
+  **Every bottom sheet pads its bottom by `max(safe-area inset, spacing)`** (profile modals,
+  Edit/Add-workout, time picker, form guide, share sheet, option sheet, custom-exercise sheet)
+  so actions clear the home indicator; input-bearing sheets (body log, edit profile, custom
+  exercise, split day editor) wrap in `KeyboardAvoidingView`, and input-bearing screens
+  (travel mode's label field, availability, profile-setup, workout builder) use keyboard insets
+  so the keyboard never covers a field or its Save button. Long option lists inside sheets
+  (equipment, injuries) scroll within a capped height so Save stays reachable on small phones.
 - **Progress** (`(tabs)/progress.tsx`): stats, PRs, charts/history.
 - **Profile** (`(tabs)/profile.tsx`): gaming-style level/XP hero, achievements grid, PRs, **Body
   Stats** (weight + body-fat + waist trends, progress-photo capture), saved exercise swaps, a
@@ -174,14 +212,19 @@ you moving."*
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 
-### 3.3 Components (`src/components/`, ~25)
+### 3.3 Components (`src/components/`, ~26)
 `EditWorkoutSheet`, `ExerciseFormSheet`, `ExerciseMedia`, `RecoveryCheckIn`, `ShareCardSheet`,
 `WrappedCard`, `TimePickerSheet`, `LoadingCard` (shimmer skeleton), `ErrorBanner`,
 **`CustomExerciseSheet`** (create/edit a custom exercise), **`ExercisePickerSheet`** (search library +
 custom, add to a workout), **`AddWorkoutSheet`** (calendar "add a workout": build new / saved
-workout / starter template → builder), **`Avatar`** (the shared profile picture — chosen icon+colour
-or photo, read from the auth store; used in every header so none fall back to a default icon),
-themed primitives, plus a `ui/` set. **Brand & delight set (all dependency-free, Reduce-Motion
+workout / starter template → builder), **`OptionSheet`** (the branded bottom-sheet option picker —
+replaces every multi-option `Alert.alert` menu, which Android caps at 3 buttons; items take a
+`destructive` flag that renders red — the affordance Alert's `style:'destructive'` gave Delete
+rows; used for starter
+workout/split presets, "use a saved workout", template actions in My Workouts, split actions in
+My Splits, and the runner's rest-length picker), **`Avatar`** (the shared profile picture — chosen
+icon+colour or photo, read from the auth store; used in every header so none fall back to a
+default icon), themed primitives, plus a `ui/` set. **Brand & delight set (all dependency-free, Reduce-Motion
 aware):**
 - **`motion`** — `PressableScale`, `FadeInView`, `PopIn`, `Shimmer`, `ScreenTransition`,
   `useReducedMotion`, `useScreenFocused`. Entrances run on plain JS `Animated` and follow one hard
@@ -248,8 +291,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   preserving the mesocycle rather than laying down a static copy.
 - `lib/splits.ts` — CRUD + active-split management (`setActiveSplit`, `dayToDraftItems`, day
   builders, `ensureAutoSplit`). `lib/splitSchedule.ts` — **`activateSplit`** (retires the generated
-  plan's + other splits' future sessions, marks active, materializes, and in auto mode calls
-  `autoScheduleUpcoming`), **`activateAutoPlan`** (regenerate the program mirror), and
+  plan's + other splits' today-forward scheduled sessions through `retireWorkouts.
+  sweepScheduledPlanRows`, the same FK-safe sweep the plan generator uses — synced calendar events
+  and reminders are cleaned up, log-referenced rows are marked instead of deleted; then marks
+  active, materializes, and in auto mode calls `autoScheduleUpcoming`. Returns
+  `'activated' | 'activated_pending' | 'failed'`: once the split is active, a materialize failure
+  (offline mid-chain) is **'activated_pending'** — the callers say "sessions appear next time
+  you open the app online" instead of a false "try again", and `refreshActiveSplit` lays them
+  down on the next app open), **`activateAutoPlan`** (regenerate the program mirror), and
   **`materializeSplit`/`refreshActiveSplit`** — the split analogue of `generatePlan`'s insert loop:
   lays the weekly pattern onto the calendar as ordinary `scheduled_workouts` rows (`source='split'`,
   `split_id` set) over a rolling 28-day horizon, idempotent so app-open can extend the window.
@@ -301,8 +350,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   now ships unconditionally via `components/brand`.)
 - **Store:** `stores/auth.ts` (session, profile, sign-out; on auth change it identifies the user to
   analytics/crash, registers the push token, sweeps missed workouts, and refreshes adaptation).
+  **Profile fetches distinguish "no row" from "couldn't ask"**: a failed fetch (offline blip,
+  token refresh race) keeps the current in-memory profile instead of nulling it — nulling used to
+  bounce an onboarded user back into onboarding mid-session — and the last-known-good profile is
+  cached per user in localStorage (`tempo.profile.<uid>`), so an **offline cold start** still
+  renders the tabs (the layout gate needs `onboarding_complete`) with the persisted query cache.
+  `TOKEN_REFRESHED` events (fired on every app foreground by the AppState-driven autoRefresh)
+  **skip the profile re-fetch** when a profile is already held; the `user_signup` vs `login`
+  analytics split keys on a *confirmed* missing row (`res.ok && !profile`), never on a failed
+  fetch — a returning user on a fresh install with a network blip is a login, not a signup.
 
-### 3.5 Domain logic (`src/lib/`, ~34 modules)
+### 3.5 Domain logic (`src/lib/`, ~36 modules)
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;
   **respects hard constraints** — never-train weekdays from unavailable blocks + `training_days`,
   and **injuries** via the same restriction mapping Quick Workouts use; supports **2–6 days/week
@@ -315,7 +373,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   how many lifts fit the user's preferred length for that goal — so a 45-min strength day is a few
   heavy lifts with full rest, a 45-min fat-loss day is a longer circuit. Replacing a plan also
   **cleans up the retired sessions' synced calendar events + reminders**, and **mirrors the program
-  into My Splits** (`ensureAutoSplit`). Its **`extendActivePlan` rollover** runs on app open: when
+  into My Splits** (`ensureAutoSplit`). **Replacing is FK-safe and self-healing**
+  (`lib/retireWorkouts.ts`): `workout_logs.scheduled_workout_id` has no cascade, so one
+  ever-started session used to make the old block's bulk DELETE fail silently (one atomic
+  statement) while the plan was still marked abandoned — stranding 'scheduled' rows that the
+  partial unique index `scheduled_workouts_one_plan_per_day` then used to reject **every** future
+  plan insert ("Something went wrong" on every Change Plan, permanently). `clearActivePlans` now
+  sweeps **all today-forward** still-scheduled plan-linked/split rows (not just the active
+  plan's — this heals already-poisoned accounts; past rows are left for the missed-workout sweep
+  so a not-yet-judged session still becomes 'missed'), releases their calendar events + reminders,
+  hard-deletes the never-started rows, marks log-referenced ones `'rescheduled'` (already hidden
+  app-wide), and **throws on any write failure** so the UI reports a real error before a
+  duplicate schedule can be inserted — all via the shared `retireWorkouts.sweepScheduledPlanRows`. Its **`extendActivePlan` rollover** runs on app open: when
   <7 days of plan remain it materializes the next 4-week block — `week_index` keeps counting, the
   mesocycle wave cycles via `weekProgression`, and the new block reflects the *current* profile +
   `adaptation_mode` — **so the plan never just ends at week 4**.
@@ -411,7 +480,21 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   and session padding is **focus-aware** (`PATTERN_AFFINITY`: a thin Pull day borrows hinge/core
   work and then stops — a short honest session, never a "Pull day" of planks). Machine/cable
   exercises are seeded `beginner` (migration `fix_machine_exercise_levels.sql`, applied).
-- **Infra:** `supabase` / `supabase.native` (clients), `analytics` (PostHog, typed events),
+- **Infra:** `supabase` / `supabase.native` (clients — the native client ties
+  `auth.startAutoRefresh()`/`stopAutoRefresh()` to `AppState`, because RN timers freeze in the
+  background: without it the JWT could expire unnoticed and the first save after a long resume
+  failed with an opaque "Something went wrong" that succeeded on retry),
+  **`retireWorkouts`** (`sweepScheduledPlanRows` — the ONE sweep both plan generation and split
+  activation run, so the victim predicate can't drift between them: selects today-forward
+  still-'scheduled' plan/split rows (past rows are left for the missed-workout sweep to judge —
+  retiring them would erase the 'missed' signal adaptation feeds on), releases calendar
+  events/reminders in parallel (`releaseScheduledRows`), then FK-safe-retires
+  (`retireScheduledWorkouts`); see Planning),
+  **`saveErrors`** (`describeSaveError`/`isAuthError`/`isNetworkError` — maps a failed save to
+  actionable copy: offline vs expired-session vs server. The auth branch fires a background
+  `refreshSession()` so its "Tempo is refreshing it — tap Try Again" copy is true at every call
+  site. Used by onboarding saves, the runner's start/set/complete writes, quick-workout start,
+  Home's skip, split-editor template loads, and sign-in), `analytics` (PostHog, typed events),
   `crashReporting` (Sentry), `pushTokens` (register/enable device push — **never prompts for
   permission itself**; onboarding's primed ask and the Profile toggle own the OS prompt),
   `notifications` (local pre-workout reminder + **rest-done notification** + `hasReminderPermission`

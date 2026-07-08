@@ -4,8 +4,7 @@ import { weekProgression, BLOCK_WEEKS } from '@/lib/periodization'
 import { estimateSessionMinutes, exerciseCountForDuration } from '@/lib/progression'
 import { injuriesToRestrictions } from '@/lib/quickWorkout'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
-import { removeWorkoutFromCalendar } from '@/services/calendarSync'
-import { cancelWorkoutReminder } from '@/lib/notifications'
+import { sweepScheduledPlanRows } from '@/lib/retireWorkouts'
 import { ensureAutoSplit } from '@/lib/splits'
 
 export interface PlanProfile {
@@ -289,77 +288,39 @@ function pickExercises(
 
 // ── Cleanup stale plan data ───────────────────────────────────────────────────
 
-// Rows about to be deleted may have a synced calendar event and a pending local
-// reminder. Clean both up first (best-effort) — otherwise replacing a plan strands
-// "Tempo · Push" events in the user's calendar and stale 30-min alerts on-device.
-async function releaseScheduledRows(
-  client: SupabaseClient,
-  userId: string,
-  rows: Array<{
-    id: string; focus: string; planned_date: string; planned_start_time: string
-    planned_duration_min: number; calendar_event_id: string | null
-    calendar_provider: 'google' | 'device' | null
-  }>,
-): Promise<void> {
-  for (const w of rows) {
-    if (w.calendar_event_id) {
-      try { await removeWorkoutFromCalendar(client, w, userId) } catch { /* best-effort */ }
-    }
-    cancelWorkoutReminder(w.id).catch(() => {})
-  }
-}
-
-const RELEASE_COLS =
-  'id, focus, planned_date, planned_start_time, planned_duration_min, calendar_event_id, calendar_provider'
-
 async function clearActivePlans(client: SupabaseClient, userId: string): Promise<void> {
   // Generating a plan switches the user back to the auto-generated program, so any
   // active custom split is retired too — otherwise it would keep materializing
   // workouts on top of the new plan on every app open.
-  await client.from('splits').update({ is_active: false }).eq('user_id', userId).eq('is_active', true)
-  const { data: splitRows } = await client
-    .from('scheduled_workouts')
-    .select(RELEASE_COLS)
+  const { error: splitErr } = await client
+    .from('splits')
+    .update({ is_active: false })
     .eq('user_id', userId)
-    .eq('status', 'scheduled')
-    .eq('source', 'split')
-  await releaseScheduledRows(client, userId, (splitRows ?? []) as any)
-  await client
-    .from('scheduled_workouts')
-    .delete()
-    .eq('user_id', userId)
-    .eq('status', 'scheduled')
-    .eq('source', 'split')
+    .eq('is_active', true)
+  if (splitErr) throw splitErr
 
-  const { data: active } = await client
+  // Retire EVERY still-scheduled plan-linked or split-sourced session from today
+  // forward, not just the active plan's. Rows stranded under an abandoned plan
+  // (e.g. an older failed change) still occupy the one-plan-per-day unique slot,
+  // so leaving them behind made every future plan insert fail. Sweeping them all
+  // both prevents and heals that state. Completed/missed history, past rows the
+  // missed-workout sweep still owes a verdict, and ad-hoc quick/custom sessions
+  // are kept.
+  await sweepScheduledPlanRows(client, userId)
+
+  const { data: active, error: activeErr } = await client
     .from('user_plans')
     .select('id')
     .eq('user_id', userId)
     .eq('status', 'active')
-
+  if (activeErr) throw activeErr
   if (!active?.length) return
 
-  const planIds = active.map((p: any) => p.id)
-
-  // Only delete future scheduled workouts — keep completed/missed history.
-  const { data: planRows } = await client
-    .from('scheduled_workouts')
-    .select(RELEASE_COLS)
-    .eq('user_id', userId)
-    .eq('status', 'scheduled')
-    .in('user_plan_id', planIds)
-  await releaseScheduledRows(client, userId, (planRows ?? []) as any)
-  await client
-    .from('scheduled_workouts')
-    .delete()
-    .eq('user_id', userId)
-    .eq('status', 'scheduled')
-    .in('user_plan_id', planIds)
-
-  await client
+  const { error: abandonErr } = await client
     .from('user_plans')
     .update({ status: 'abandoned' })
-    .in('id', planIds)
+    .in('id', active.map((p: any) => p.id))
+  if (abandonErr) throw abandonErr
 }
 
 // ── Main entry ────────────────────────────────────────────────────────────────

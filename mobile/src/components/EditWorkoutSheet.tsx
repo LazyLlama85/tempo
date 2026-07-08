@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import {
   Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Colors, Spacing, Radius } from '@/constants/theme'
@@ -48,6 +49,7 @@ const NEXT_DAYS = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d
 export function EditWorkoutSheet({ visible, workout, userId, client, preferredCalendar, onClose, onSaved }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const [date, setDate] = useState('')
   const [time, setTime] = useState('07:00:00')
   const [showTime, setShowTime] = useState(false)
@@ -137,7 +139,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
           <View style={styles.handle} />
           <Text style={styles.eyebrow}>EDIT WORKOUT</Text>
           <Text style={styles.title}>{workout.focus}</Text>

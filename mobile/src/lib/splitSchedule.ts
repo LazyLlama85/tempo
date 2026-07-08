@@ -11,6 +11,7 @@ import type { Goal, Experience, Split, SplitDay, TimeOfDay, WorkoutExerciseConfi
 import { autoScheduleUpcoming, autoSchedulingEnabled } from './autoSchedule'
 import { fetchActiveSplit, setActiveSplit, ensureAutoSplit, isAutoSplit } from './splits'
 import { generatePlan, type PlanProfile } from './generatePlan'
+import { sweepScheduledPlanRows } from './retireWorkouts'
 
 const HORIZON_DAYS = 28
 
@@ -103,43 +104,62 @@ export async function materializeSplit(
   if (!rows.length) return 0
 
   const { error } = await client.from('scheduled_workouts').insert(rows)
-  return error ? 0 : rows.length
+  if (error) throw error
+  return rows.length
 }
 
 // Activate a split: it becomes the user's schedule. Clears the generated plan's and
 // any other split's FUTURE scheduled rows (completed/missed history + ad-hoc Quick
 // Workouts are kept), marks the split active, materializes it, and — in auto mode —
 // places the new sessions at calendar-aware times.
+//
+// The old schedule is retired BEFORE the new one is inserted, so a failure between
+// the two must not masquerade as "nothing happened": once the split is active,
+// materialization failing (gym wifi, mid-chain drop) returns 'activated_pending' —
+// the split IS the schedule now, and refreshActiveSplit lays the sessions down on
+// the next app open. Callers must tell the user that, not "try again".
+export type ActivateSplitResult = 'activated' | 'activated_pending' | 'failed'
+
 export async function activateSplit(
   client: SupabaseClient,
   userId: string,
   split: Split,
   profile: { preferred_time_of_day?: TimeOfDay | null; scheduling_mode?: string } | null,
-): Promise<boolean> {
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const todayStr = toDateStr(today)
+): Promise<ActivateSplitResult> {
+  try {
+    // Retire the generated plan so the calendar doesn't show both.
+    const { error: abandonErr } = await client
+      .from('user_plans')
+      .update({ status: 'abandoned' })
+      .eq('user_id', userId)
+      .eq('status', 'active')
+    if (abandonErr) return 'failed'
 
-  // Retire the generated plan so the calendar doesn't show both.
-  await client.from('user_plans').update({ status: 'abandoned' }).eq('user_id', userId).eq('status', 'active')
-  // Drop future, not-yet-done plan/split sessions (other sources are user one-offs).
-  await client
-    .from('scheduled_workouts')
-    .delete()
-    .eq('user_id', userId)
-    .eq('status', 'scheduled')
-    .gte('planned_date', todayStr)
-    .in('source', ['plan', 'split'])
+    // Retire today-forward, not-yet-done plan/split sessions (other sources are
+    // user one-offs) via the same FK-safe sweep generatePlan uses — a bulk DELETE
+    // dies on any session the user ever started (workout_logs FK), which used to
+    // leave the old schedule behind UNDER the new one.
+    await sweepScheduledPlanRows(client, userId)
 
-  if (!(await setActiveSplit(client, userId, split.id))) return false
+    if (!(await setActiveSplit(client, userId, split.id))) return 'failed'
 
-  // Re-fetch so we materialize the freshly-activated row (is_active true).
-  const active = await fetchActiveSplit(client, userId)
-  await materializeSplit(client, userId, active ?? { ...split, is_active: true }, profile?.preferred_time_of_day ?? null)
+    // Re-fetch so we materialize the freshly-activated row (is_active true). From
+    // here the split is active: a failure below is a scheduling delay, not a
+    // failed activation.
+    try {
+      const active = await fetchActiveSplit(client, userId)
+      await materializeSplit(client, userId, active ?? { ...split, is_active: true }, profile?.preferred_time_of_day ?? null)
+    } catch {
+      return 'activated_pending'
+    }
 
-  if (autoSchedulingEnabled(profile)) {
-    try { await autoScheduleUpcoming(client, userId) } catch { /* keep default times */ }
+    if (autoSchedulingEnabled(profile)) {
+      try { await autoScheduleUpcoming(client, userId) } catch { /* keep default times */ }
+    }
+    return 'activated'
+  } catch {
+    return 'failed'
   }
-  return true
 }
 
 // Activate the auto-generated program (the kind='auto' mirror split). Unlike a

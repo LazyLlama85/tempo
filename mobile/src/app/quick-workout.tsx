@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { TempoPulse } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { PressableScale } from '@/components/motion'
+import { describeSaveError } from '@/lib/saveErrors'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
   goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
@@ -95,8 +96,20 @@ export default function QuickWorkoutScreen() {
   const handleStart = async () => {
     if (!workout || starting || !workout.exercises.length) return
     setStarting(true)
-    const id = await persistQuickWorkout(supabase, userId, workout)
-    if (!id) { setStarting(false); return }
+    let id: string | null = null
+    try {
+      id = await persistQuickWorkout(supabase, userId, workout)
+    } catch (err) {
+      setStarting(false)
+      const info = describeSaveError(err, 'start your session')
+      Alert.alert('Couldn’t start', `${info.message}\n\nYour session is still ready — tap Start again.`)
+      return
+    }
+    if (!id) {
+      setStarting(false)
+      Alert.alert('Couldn’t start', 'Check your connection and tap Start again — your session is still ready.')
+      return
+    }
     track('session_start', {
       type: 'quick',
       duration_min: workout.estimatedMinutes,

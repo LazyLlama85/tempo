@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
+import { useAuthStore } from '@/stores/auth'
 import type { Equipment } from '@/types'
 
 
@@ -25,7 +26,9 @@ export default function EquipmentScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal, experience } = useLocalSearchParams<{ goal: string; experience: string }>()
-  const [selected, setSelected] = useState<Equipment[]>([])
+  const { profile } = useAuthStore()
+  // Change Plan re-entry starts from the user's saved gear; fresh users pick theirs.
+  const [selected, setSelected] = useState<Equipment[]>((profile?.equipment as Equipment[]) ?? [])
 
   const toggle = (id: Equipment) => {
     setSelected((prev) =>

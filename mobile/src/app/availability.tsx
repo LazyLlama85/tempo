@@ -191,7 +191,7 @@ export default function AvailabilityScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
           Tell Tempo about your day. Workouts are scheduled around your sleep, work, and
           classes — never on top of them.

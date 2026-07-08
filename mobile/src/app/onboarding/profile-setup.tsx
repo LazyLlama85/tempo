@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   StyleSheet, TouchableOpacity, View, Text, ScrollView, TextInput,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { useRouter, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { AVATAR_PRESETS, buildAvatarValue, parseAvatar } from '@/lib/avatar'
 import { logMeasurement } from '@/lib/bodyMeasurements'
+import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
 
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
@@ -41,6 +42,7 @@ export default function ProfileSetupScreen() {
   // "Log entry" in Profile → Body Stats, which most never do.
   const [weight, setWeight] = useState('')
   const [saving, setSaving] = useState(false)
+  const unit = useUnitStore((s) => s.unit)
 
   if (!session) return <Redirect href="/sign-in" />
 
@@ -53,22 +55,24 @@ export default function ProfileSetupScreen() {
     if (saving) return
     setSaving(true)
     try {
-      const weightNum = parseFloat(weight)
-      const validWeight = Number.isFinite(weightNum) && weightNum >= 50 && weightNum <= 1000
-      await supabase
+      // Input arrives in the display unit; storage is always lbs.
+      const weightLbs = inputToLbs(weight, unit)
+      const validWeight = weightLbs != null && weightLbs >= 50 && weightLbs <= 1000
+      const { error } = await supabase
         .from('user_profiles')
         .update({
           display_name: name.trim() || null,
           avatar_url: buildAvatarValue(preset.icon, preset.color),
-          ...(validWeight ? { bodyweight_lbs: weightNum } : {}),
+          ...(validWeight ? { bodyweight_lbs: weightLbs } : {}),
         })
         .eq('user_id', session.user.id)
+      if (error) throw error
       // First body-measurement entry — powers the weight trend + goal countdown
       // from day one. Best-effort; profile save above is what matters.
       if (validWeight) {
-        try { await logMeasurement(supabase, session.user.id, { weight_lbs: weightNum }) } catch {}
+        try { await logMeasurement(supabase, session.user.id, { weight_lbs: weightLbs }) } catch {}
       }
-      await refreshProfile()
+      await refreshProfile().catch(() => {})
       enterApp()
     } catch {
       setSaving(false)
@@ -92,7 +96,8 @@ export default function ProfileSetupScreen() {
         <View style={[styles.progressFill, { width: '100%' }]} />
       </View>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.stepLabel}>LAST STEP</Text>
         <Text style={styles.title}>Make it yours.</Text>
         <Text style={styles.subtitle}>Add a name and pick an avatar — you'll see these across your profile and progress.</Text>
@@ -123,13 +128,13 @@ export default function ProfileSetupScreen() {
             style={[styles.input, { flex: 1 }]}
             value={weight}
             onChangeText={setWeight}
-            placeholder="e.g. 165"
+            placeholder={unit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
             placeholderTextColor={C.outline}
             keyboardType="decimal-pad"
             maxLength={6}
             returnKeyType="done"
           />
-          <Text style={styles.weightUnit}>lbs</Text>
+          <Text style={styles.weightUnit}>{unitLabel(unit)}</Text>
         </View>
         <Text style={styles.weightHint}>
           Starts your weight trend and goal countdown — Tempo projects when you'll hit your goal.
@@ -172,6 +177,7 @@ export default function ProfileSetupScreen() {
           )}
         </PressableScale>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }

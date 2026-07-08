@@ -23,8 +23,10 @@ export default function GoalScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { signOut } = useAuthStore()
-  const [selected, setSelected] = useState<Goal | null>(null)
+  const { signOut, profile } = useAuthStore()
+  // Re-running onboarding (Change Plan) starts from the current goal instead of
+  // making the user re-answer from scratch; brand-new users start unselected.
+  const [selected, setSelected] = useState<Goal | null>(profile?.goal ?? null)
 
   // This is the first onboarding step. Reached straight after sign-in it's a fresh
   // stack (the tabs layout redirects here), so router.back() has nowhere to go —

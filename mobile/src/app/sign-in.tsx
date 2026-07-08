@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { describeSaveError } from '@/lib/saveErrors'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, useThemeMode, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
@@ -26,24 +27,29 @@ export default function SignInScreen() {
   if (session) return <Redirect href="/" />
 
   const handleGoogleSignIn = async () => {
+    if (loading) return
     setLoading('google')
-    const redirectUrl = makeRedirectUri({ scheme: 'tempo' })
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: redirectUrl, skipBrowserRedirect: true, queryParams: { access_type: 'offline', prompt: 'consent' } },
-    })
-    if (error || !data?.url) { setLoading(null); return }
+    try {
+      const redirectUrl = makeRedirectUri({ scheme: 'tempo' })
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true, queryParams: { access_type: 'offline', prompt: 'consent' } },
+      })
+      if (error || !data?.url) {
+        Alert.alert('Couldn’t reach Google', describeSaveError(error, 'reach Google').message)
+        return
+      }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      if (result.type !== 'success') return // user closed the browser — not an error
 
-    if (result.type === 'success') {
       const parsed = new URL(result.url)
 
       // PKCE flow (Supabase default): code arrives as a query param
       const code = parsed.searchParams.get('code')
       if (code) {
-        await supabase.auth.exchangeCodeForSession(code)
-        setLoading(null)
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeErr) Alert.alert('Sign-in didn’t finish', 'Something went wrong completing sign-in. Please try again.')
         return
       }
 
@@ -54,9 +60,11 @@ export default function SignInScreen() {
       if (accessToken && refreshToken) {
         await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
       }
+    } catch (err) {
+      Alert.alert('Sign-in didn’t finish', describeSaveError(err, 'finish sign-in').message)
+    } finally {
+      setLoading(null)
     }
-
-    setLoading(null)
   }
 
   const handleAppleSignIn = async () => {
@@ -86,9 +94,16 @@ export default function SignInScreen() {
   }
 
   const handleGuest = async () => {
+    if (loading) return
     setLoading('guest')
-    await supabase.auth.signInAnonymously()
-    setLoading(null)
+    try {
+      const { error } = await supabase.auth.signInAnonymously()
+      if (error) Alert.alert('Couldn’t start guest session', describeSaveError(error, 'start a guest session').message)
+    } catch (err) {
+      Alert.alert('Couldn’t start guest session', describeSaveError(err, 'start a guest session').message)
+    } finally {
+      setLoading(null)
+    }
   }
 
   return (

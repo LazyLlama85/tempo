@@ -32,6 +32,7 @@ import {
   type ScheduledWorkout as ReminderWorkout,
 } from '@/lib/notifications'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
+import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
 import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
@@ -541,6 +542,9 @@ export default function ScheduleScreen() {
       { text: 'Open Settings', onPress: () => Linking.openSettings() },
     ])
 
+  // Serialize per-workout calendar adds — a double-tap must not create two events.
+  const addingCalRef = useRef<Set<string>>(new Set())
+
   const addViaDevice = async (workout: ScheduledWorkout) => {
     const granted = await requestCalendarPermissions()
     if (!granted) { openSettingsAlert(); return }
@@ -550,6 +554,16 @@ export default function ScheduleScreen() {
   }
 
   const handleAddToCalendar = async (workout: ScheduledWorkout) => {
+    if (addingCalRef.current.has(workout.id)) return
+    addingCalRef.current.add(workout.id)
+    try {
+      await doAddToCalendar(workout)
+    } finally {
+      addingCalRef.current.delete(workout.id)
+    }
+  }
+
+  const doAddToCalendar = async (workout: ScheduledWorkout) => {
     const res = await addWorkoutToCalendar(supabase, workout, userId, profile?.preferred_calendar ?? null)
     if (res.ok) { markCalendar(workout.id, res.eventId, res.provider); return }
     if (res.reason === 'permission_denied') {
@@ -594,7 +608,8 @@ export default function ScheduleScreen() {
         { text: 'Reschedule instead', onPress: () => handleReschedule(workout) },
         {
           text: 'Skip it', style: 'destructive', onPress: async () => {
-            await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
+            const { error } = await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
+            if (error) { const info = describeSaveError(error, 'skip this workout'); Alert.alert('Couldn’t skip', info.message); return }
             cancelWorkoutReminder(workout.id).catch(() => {})
             queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
           },
