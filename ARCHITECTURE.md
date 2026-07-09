@@ -99,7 +99,14 @@ you moving."*
   (barbell/dumbbell/cable versions under one expandable row) → the form-guide sheet; entries on the
   Workouts hub + Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM bars,
   best-ever tiles, Δ vs a month ago; opened from PR rows on Progress/Profile and from
-  session-detail).
+  session-detail), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
+  the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
+  exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
+  targets), **`social`** (Friends home: live people search, requests, friends list, paste-a-code
+  share redemption, tap-to-cycle privacy rows), **`friend-profile`** (privacy-gated streak /
+  workout / set stats + recent activity + browsable workouts with "Save to My Workouts"
+  attributed copies), **`shared-workout`** (share-link landing: preview + one-tap import), and
+  **`w/[code]`** (deep-link route for `tempo.app/w/<code>` / `tempo://w/<code>` → shared-workout).
 
 ### 3.2 Screen responsibilities
 - **Home / Schedule** (`(tabs)/index.tsx`): unified day/week/month calendar; merges plan workouts
@@ -132,10 +139,22 @@ you moving."*
   workout re-triggers cleanly, and finishing resets the tab behind the summary so returning shows
   a fresh hub.
   The live session builds per-exercise **prescriptions** (autoregulation + periodization + readiness
-  + feedback bias), pre-fills sets, RPE capture, rest timer, smart exercise swaps, form guide +
-  exercise GIFs, and a **first-time hint** (start light + warm up) on never-trained lifts; its
-  header **chevron-down leaves back to the hub (pauses the timer, keeps logged
-  sets)** so a workout day never traps you in the logger — the hub then offers **Resume session**.
+  + feedback bias), pre-fills sets, smart exercise swaps, form guide +
+  exercise GIFs, and a **first-time hint** (start light + warm up) on never-trained lifts.
+  **Set logging is instant:** tapping ✓ logs the set immediately (light haptic, rest timer
+  auto-starts at the workout's effective rest); **RPE is an optional post-log follow-up bar**
+  that updates the `set_logs` row — it never gates logging or the timer. Each set row has a
+  **trash icon** (confirm → local removal + server-side `set_logs` delete + renumbering of later
+  sets). A **"+ Add Exercise"** button mid-session opens the picker then an explicit **"this
+  session only vs. permanently"** choice (permanent = scheduled row + the owning split day).
+  The header's labeled **Pause** control opens a sheet — **Resume later** (progress saved; open
+  log resumes from hub/restart) or **End workout** (finishes, or discards a zero-set session
+  including its log row). Exercise completion plays a medium haptic and **auto-expands the next
+  incomplete exercise**. The hub carries an **Edit workout** chip → `edit-session` modal.
+  **Honest time estimates** (`lib/durationEstimate`): hub + header use a realistic static
+  estimate (prescribed rests + per-exercise setup/transition time) scaled by a **historical pace
+  factor** (median actual/planned over recent sessions), and once sets land the header shows an
+  **adaptive "~N min left"** blending observed pace with the static per-set cost.
   **Gym-proofing:** the session timer and rest timer are **wall-clock-based** (locking the phone
   never freezes them), the rest timer finishes with a **vibration + a scheduled OS notification**
   (covers a locked phone) instead of an Alert, the screen stays awake during a live session
@@ -152,7 +171,9 @@ you moving."*
   again" alert instead of showing confetti over an unsaved workout. All three failure alerts
   classify the error through `saveErrors.describeSaveError`, so an expired session in the gym
   isn't mislabeled "check your connection". The rest-length picker is a branded `OptionSheet`
-  (60/90s/2min/3min) rather than an Alert (Android caps alerts at 3 buttons).
+  (60/90s/**2min suggested**/3min/**custom stepper**) rather than an Alert (Android caps alerts at
+  3 buttons); the pick **persists as that workout's rest** (`lib/restPrefs`, SQLite localStorage)
+  and drives the auto-started rest after every set.
   On finish updates logs, fires adaptation re-eval, and routes to the celebration screen. When
   nothing is scheduled the hub shows the Quick Workout empty state (never a dead end); hub links
   include **History** (`workout-history`).
@@ -315,6 +336,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - Entry points: **Profile → My Plan → My Splits** and **My Workouts → My Splits** → `my-splits`
   (list/activate) → `split-editor` (author). Generating a plan (Change Plan) deactivates any
   active custom split so the two never compete.
+- **Split editor reliability + UX (July 2026 overhaul):** the "Use a saved workout" picker is
+  rendered **inside** the day-editor `Modal` (as a sibling Modal it silently never presented on
+  iOS and could strand an invisible touch-eating backdrop — the "editor freezes" bug); saved
+  workouts are **prefetched on mount + refreshed on focus** so a just-saved workout is instantly
+  assignable; whole-week hydration is **one batched exercises query** (`daysToDraftItems`)
+  instead of 7 sequential round-trips; day cards show exercise count + estimated duration +
+  rest/assigned badges with LayoutAnimation. **Create-workout round-trip:** an empty day offers
+  "Saved workout" / "New workout"; the latter hops to `workout-builder?forSplit=1`, which hands
+  the saved template id back through **`lib/handoff.ts`** (single-slot, consumed-on-read mailbox);
+  the split editor's focus effect assigns it to the pending day and reopens the day editor — the
+  user never hunts for the workout they just built.
 
 ### 3.2a User-created workouts & custom exercises
 - **Custom exercises** live in the shared `exercises` table (`user_id` + `is_custom`), so they work
@@ -513,12 +545,29 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Deliberately still lbs: Wrapped share cards/captions, goal-projection copy, achievement
   milestones, and waist stays inches), `exerciseGif` (RapidAPI media), `account` (delete),
   `types` (domain types).
+- **Session UX & social (July 2026 overhaul):**
+  **`durationEstimate`** (realistic session-length model: per-exercise `SETUP_SEC` transition +
+  sets×(work+rest); `adaptiveRemainingSec` blends observed logging pace with the static per-set
+  cost — trust ramps to ~85% observed after ~7 sets; `fetchPaceFactor` = clamped median
+  actual/planned over the last 12 completed sessions. Used by the runner's hub estimate +
+  live "~N min left", `workoutBuilder.estimateDurationMin`, and `splitSchedule`'s materializer),
+  **`haptics`** (the app's tactile vocabulary — `tapLight`/`tapMedium`/`success`/`warning` on
+  expo-haptics with a guarded require + Vibration fallback, so a dev client built before the
+  module exists never crashes), **`restPrefs`** (per-workout rest-length preference keyed by
+  workout focus, SQLite-localStorage-persisted; `SUGGESTED_REST_SEC = 120`),
+  **`handoff`** (single-slot consumed-on-read mailbox for "create X, return, auto-use it" flows —
+  currently split-editor ↔ workout-builder), and
+  **`social`** (friends/privacy/shares data layer: search + friend CRUD over the RPCs,
+  `fetchFriendOverview` incl. client-side streak from settled sessions, `fetchFriendTemplates`
+  (RLS-gated), `copyTemplateToLibrary` + `importWorkoutShare` — attributed "Push (Jacob's)"
+  copies that drop unreadable custom exercises gracefully, `createWorkoutShare`/`fetchWorkoutShare`
+  with 8-char lookalike-free codes and `shareUrl`).
 
 ---
 
 ## 4. Backend (Supabase — live project `rtoahppnekykgmjukujm`)
 
-### 4.1 Tables (~16, all with RLS scoping rows to the owner)
+### 4.1 Tables (~18; RLS scopes rows to the owner except where the social layer deliberately widens reads)
 - **user_profiles** — goal, experience, equipment, days/week, availability (wake/bed/work/school,
   preferred time, flexibility, training days, unavailable blocks), `bodyweight_lbs` cache,
   `injuries`, `travel_mode`, `ignored_events`, calendar prefs, **`scheduling_mode`** (`auto`/`manual`).
@@ -553,6 +602,20 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **device_tokens** — Expo push tokens per device (`enabled` flag).
 - **notification_log** — every retention push attempt (status/error/ticket) for debugging + analytics.
 - **waitlist** — marketing capture.
+- **friendships** — the social graph: one row per pair (`requester_id`/`addressee_id`,
+  `status` pending→accepted, unordered-pair unique index). RLS: parties only; requester inserts
+  pending; addressee accepts; either deletes (decline/cancel/unfriend).
+- **workout_shares** — snapshot sharing: an 8-char `code`, owner + `owner_name`, workout `name`,
+  `exercises` jsonb ([{id,name}] so previews render even when the viewer can't read a custom
+  exercise), `config`, `est_duration_min`. Any signed-in user can read (the link is the
+  capability); owner inserts/deletes.
+- **user_profiles privacy columns** — `privacy_workouts` / `privacy_stats` / `privacy_activity`
+  (`public|friends|private`, default `friends`). Enforced by the `Friends can view templates`
+  RLS policy on `workout_templates` and inside the `friend_overview` RPC.
+- **Social RPCs (SECURITY DEFINER, authenticated-only):** `search_profiles(q)` +
+  `get_public_profiles(ids)` (name/avatar discovery without opening `user_profiles` RLS),
+  `are_friends(a,b)`, and `friend_overview(target)` (privacy-gated totals + settled sessions for
+  client-side streak math + recent activity). Migration: `add_social.sql` (**applied**).
 
 ### 4.2 Edge Functions (Deno)
 - **delete-account** — App-Store-required full account + data wipe (service role, JWT-scoped to caller).
@@ -572,7 +635,8 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `add_travel_schedule` (`scheduled_workouts.travel_restore`), `add_split_kind` (`splits.kind` +
   one-auto-per-user index), `fix_days_per_week_allow_six` (user_profiles check widened 2–5 → 2–6;
   the UI has offered 6 days since the constraint-aware generatePlan work, so picking 6 failed every
-  profile save with "Something went wrong"). The library import is regenerated by
+  profile save with "Something went wrong"), and **`add_social`** (friendships, privacy columns,
+  social RPCs, friend-template policy, workout_shares — see §4.1). The library import is regenerated by
   `mobile/scripts/build-exercise-library.mjs` (reads the ExerciseDB catalog, emits the seed SQL).
 
 ---

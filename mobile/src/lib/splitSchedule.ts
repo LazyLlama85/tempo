@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience, Split, SplitDay, TimeOfDay, WorkoutExerciseConfig } from '@/types'
 import { autoScheduleUpcoming, autoSchedulingEnabled } from './autoSchedule'
+import { estimateSessionMin } from './durationEstimate'
 import { fetchActiveSplit, setActiveSplit, ensureAutoSplit, isAutoSplit } from './splits'
 import { generatePlan, type PlanProfile } from './generatePlan'
 import { sweepScheduledPlanRows } from './retireWorkouts'
@@ -33,12 +34,11 @@ function isoWeekday(d: Date): number {
 }
 
 function estimateDurationMin(config: WorkoutExerciseConfig[]): number {
-  let sec = 0
-  for (const c of config) {
-    if (c.metrics?.includes('duration') && c.duration_sec) sec += c.sets * (c.duration_sec + 30)
-    else sec += c.sets * (40 + 75)
-  }
-  return Math.max(5, Math.round(sec / 60))
+  return estimateSessionMin(config.map((c) => ({
+    sets: c.sets,
+    workSec: c.metrics?.includes('duration') && c.duration_sec ? c.duration_sec : null,
+    restSec: null,
+  })))
 }
 
 // Insert split workouts for any date in the rolling horizon that doesn't already

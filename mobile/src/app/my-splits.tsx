@@ -19,6 +19,7 @@ import { PressableScale, FadeInView } from '@/components/motion'
 import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
 import { WEEKDAY_LABELS, fetchSplits, deleteSplit, duplicateSplit, isAutoSplit } from '@/lib/splits'
 import { activateSplit, activateAutoPlan } from '@/lib/splitSchedule'
+import * as haptics from '@/lib/haptics'
 import type { Split } from '@/types'
 
 export default function MySplitsScreen() {
@@ -51,6 +52,7 @@ export default function MySplitsScreen() {
       Alert.alert('Could not activate', 'Check your connection and try again.')
       return
     }
+    haptics.success()
     load()
     if (result === 'activated_pending') {
       // The split IS active but this week's sessions couldn't be written (likely

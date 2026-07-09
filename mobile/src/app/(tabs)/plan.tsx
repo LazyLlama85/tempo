@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Animated, Easing, LayoutAnimation, Vibration,
+  TextInput, Alert, ActivityIndicator, Animated, Easing, LayoutAnimation, Modal,
   type StyleProp, type ViewStyle,
 } from 'react-native'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
@@ -25,7 +25,11 @@ import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/a
 import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
+import * as haptics from '@/lib/haptics'
+import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
+import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { describeSaveError } from '@/lib/saveErrors'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
@@ -33,7 +37,7 @@ import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import { metricsFor } from '@/lib/customExercises'
 import { expandEquipment } from '@/lib/equipmentMatch'
 import { useUnitStore, unitLabel, displayWeight, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
-import type { Goal, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
+import type { Exercise, Goal, Split, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
 import { workoutOrigin } from '@/lib/workoutOrigin'
 
 
@@ -44,10 +48,12 @@ const RPE_OPTIONS = [6, 7, 8, 9, 10]
 interface WorkoutRow {
   id: string
   focus: string
+  planned_date: string
   planned_duration_min: number
   exercise_ids: string[]
   status: string
   source: WorkoutSource | null
+  split_id: string | null
   progression: WeekProgression | null
   exercise_config: WorkoutExerciseConfig[] | null
 }
@@ -211,8 +217,20 @@ export default function WorkoutsScreen() {
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null)
   const [restSecondsLeft, setRestSecondsLeft] = useState<number | null>(null)
   // Original rest length, so the pill can show time draining as a bar.
-  const [restTotal, setRestTotal] = useState(90)
-  const [rpePrompt, setRpePrompt] = useState<{ exId: string; idx: number } | null>(null)
+  const [restTotal, setRestTotal] = useState(SUGGESTED_REST_SEC)
+  // The user's chosen rest for THIS workout (persisted per workout name);
+  // overrides per-exercise prescriptions once set.
+  const [restOverride, setRestOverride] = useState<number | null>(null)
+  // Optional post-log RPE capture: shows under the set that JUST logged.
+  // Logging never waits on it — the ✓ is instant, RPE is a bonus.
+  const [rpeFollowUp, setRpeFollowUp] = useState<{ exId: string; idx: number } | null>(null)
+  // Add-exercise mid-session: picker → "today only vs permanently" choice.
+  const [addExOpen, setAddExOpen] = useState(false)
+  const [addChoiceEx, setAddChoiceEx] = useState<ExerciseRow | null>(null)
+  // Pause / leave-session sheet (replaces the ambiguous back chevron).
+  const [pauseSheet, setPauseSheet] = useState(false)
+  // How this user's real session lengths compare to estimates (historical).
+  const [paceFactor, setPaceFactor] = useState(1)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
@@ -287,6 +305,12 @@ export default function WorkoutsScreen() {
     }, [userId]), // eslint-disable-line react-hooks/exhaustive-deps
   )
 
+  // Learn how this user's real sessions compare to estimates (best-effort).
+  useEffect(() => {
+    if (!userId) return
+    fetchPaceFactor(supabase, userId).then(setPaceFactor).catch(() => {})
+  }, [userId])
+
   // Prepare a workout for the hub/session: loads the row, exercises, targets and
   // pre-filled sets, but does NOT open a workout_logs row — that happens on start,
   // so merely viewing the hub never creates a phantom session. If a log row is
@@ -312,12 +336,13 @@ export default function WorkoutsScreen() {
 
     const { data: workoutRow } = await supabase
       .from('scheduled_workouts')
-      .select('id, focus, planned_duration_min, exercise_ids, status, source, progression, exercise_config')
+      .select('id, focus, planned_date, planned_duration_min, exercise_ids, status, source, split_id, progression, exercise_config')
       .eq('id', targetId)
       .single()
 
     if (!workoutRow) { setNotFound(true); setLoading(false); return { id: null, resumedLogId: null } }
     setWorkout(workoutRow as WorkoutRow)
+    setRestOverride(getRestPref((workoutRow as WorkoutRow).focus))
     const progression = (workoutRow.progression ?? null) as WeekProgression | null
 
     // An open (never-completed) log for this workout means a session was already
@@ -597,20 +622,44 @@ export default function WorkoutsScreen() {
   // nag on every set, but the unchecked ✓ always shows the truth.
   const setSaveWarned = useRef(false)
 
-  const handleSetDone = async (exId: string, idx: number, rpe: number | null) => {
+  // The rest that applies right now for an exercise: the user's per-workout
+  // choice wins; otherwise the prescription; otherwise the 2-minute default.
+  const restFor = (exId: string): number =>
+    restOverride ?? restDefaults.current[exId] ?? SUGGESTED_REST_SEC
+
+  // Tapping ✓ logs the set IMMEDIATELY — rest starts, haptic fires, done. RPE is
+  // captured after the fact via an optional follow-up bar; it must never gate
+  // logging or the rest timer.
+  const handleSetDone = async (exId: string, idx: number) => {
     if (!workoutLogId) return
     const set = sets[exId]?.[idx]
     if (!set || set.done) return
 
-    // Optimistically mark done in UI + record how hard it felt
-    setRpePrompt(null)
+    haptics.tapLight()
     setSets(prev => ({
       ...prev,
-      [exId]: prev[exId].map((s, i) => i === idx ? { ...s, rpe, done: true } : s),
+      [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: true } : s),
     }))
+    setRpeFollowUp({ exId, idx })
 
-    // Auto-start the rest timer using this exercise's prescribed rest
-    startRest(restDefaults.current[exId] ?? 90)
+    // Auto-start the rest timer using this exercise's effective rest
+    startRest(restFor(exId))
+
+    // Exercise fully banked? A firmer tick, and the next incomplete exercise
+    // opens by itself so the flow never stalls on a collapsed accordion.
+    const after = sets[exId].map((s, i) => (i === idx ? { ...s, done: true } : s))
+    if (after.every(s => s.done)) {
+      haptics.tapMedium()
+      const next = exercises.find(e => e.id !== exId && (sets[e.id] ?? []).some(s => !s.done))
+      if (next) {
+        if (!reduceMotion) {
+          LayoutAnimation.configureNext(
+            LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+          )
+        }
+        setExpandedId(next.id)
+      }
+    }
 
     const { error } = await supabase.from('set_logs').insert({
       workout_log_id: workoutLogId,
@@ -621,7 +670,7 @@ export default function WorkoutsScreen() {
       weight_lbs: set.lbs ? inputToLbs(set.lbs, useUnitStore.getState().unit) : null,
       duration_sec: set.durationSec ? parseInt(set.durationSec) : null,
       distance_m: set.distanceM ? parseFloat(set.distanceM) : null,
-      rpe,
+      rpe: null,
       completed_at: new Date().toISOString(),
     })
     if (error) {
@@ -632,6 +681,7 @@ export default function WorkoutsScreen() {
       setSets(prev => prev[exId]
         ? { ...prev, [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: false } : s) }
         : prev)
+      setRpeFollowUp(cur => (cur?.exId === exId && cur?.idx === idx ? null : cur))
       if (!setSaveWarned.current) {
         setSaveWarned.current = true
         const info = describeSaveError(error, 'save this set')
@@ -640,11 +690,132 @@ export default function WorkoutsScreen() {
     }
   }
 
+  // Attach an RPE to a set that already logged (optional, after the fact).
+  const attachRpe = async (exId: string, idx: number, rpe: number) => {
+    haptics.tapLight()
+    setRpeFollowUp(null)
+    setSets(prev => prev[exId]
+      ? { ...prev, [exId]: prev[exId].map((s, i) => i === idx ? { ...s, rpe } : s) }
+      : prev)
+    if (!workoutLogId) return
+    // A fast tap can race the set's own insert (still in flight) — if the update
+    // matched no row, retry once shortly after so the RPE isn't silently dropped.
+    const runUpdate = () => supabase.from('set_logs')
+      .update({ rpe })
+      .eq('workout_log_id', workoutLogId)
+      .eq('exercise_id', exId)
+      .eq('set_number', idx + 1)
+      .select('id')
+    const { data } = await runUpdate()
+    if (!data?.length) {
+      setTimeout(() => { runUpdate().then(() => {}, () => {}) }, 1200)
+    }
+  }
+
   const addSet = (exId: string) => {
+    haptics.tapLight()
     setSets(prev => ({
       ...prev,
       [exId]: [...prev[exId], { lbs: '', reps: '', durationSec: '', distanceM: '', rpe: null, done: false }],
     }))
+  }
+
+  // Remove a set — accidental taps on "+ Add Set" or a mis-logged set shouldn't
+  // pollute volume, totals or the next session's PREV column. A logged set's
+  // row is deleted server-side and later sets renumbered so history stays dense.
+  const removeSet = (exId: string, idx: number) => {
+    const arr = sets[exId]
+    if (!arr || arr.length <= 1) {
+      Alert.alert('Can’t remove', 'Every exercise needs at least one set — swap or skip the exercise instead.')
+      return
+    }
+    Alert.alert('Remove set?', `Set ${idx + 1} will be removed${arr[idx].done ? ' and its logged numbers deleted' : ''}.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          haptics.tapMedium()
+          const wasDone = arr[idx].done
+          setRpeFollowUp(cur => (cur?.exId === exId ? null : cur))
+          setSets(prev => prev[exId]
+            ? { ...prev, [exId]: prev[exId].filter((_, i) => i !== idx) }
+            : prev)
+          if (!workoutLogId) return
+          try {
+            if (wasDone) {
+              await supabase.from('set_logs')
+                .delete()
+                .eq('workout_log_id', workoutLogId)
+                .eq('exercise_id', exId)
+                .eq('set_number', idx + 1)
+            }
+            // Close the numbering gap so resume/PREV rebuilds line up with the
+            // shifted local rows — later LOGGED sets slide down one slot whether
+            // the removed set was logged or not.
+            const { data: later } = await supabase.from('set_logs')
+              .select('id, set_number')
+              .eq('workout_log_id', workoutLogId)
+              .eq('exercise_id', exId)
+              .gt('set_number', idx + 1)
+              .order('set_number')
+            for (const row of (later ?? []) as { id: string; set_number: number }[]) {
+              await supabase.from('set_logs').update({ set_number: row.set_number - 1 }).eq('id', row.id)
+            }
+          } catch { /* worst case: a gap in set numbers — totals still correct */ }
+        },
+      },
+    ])
+  }
+
+  // ── Add exercise mid-session ────────────────────────────────────────────────
+
+  // Append an exercise to the RUNNING session. `permanent` also writes it into
+  // the scheduled row (so an app restart keeps it) and — when the session came
+  // from a split — into the split day itself, so every future week has it.
+  const addExerciseToSession = async (ex: ExerciseRow, permanent: boolean) => {
+    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null)
+    restDefaults.current[ex.id] = prescription.restSeconds
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+      )
+    }
+    setExercises(prev => [...prev, ex])
+    setTargets(prev => ({ ...prev, [ex.id]: prescription }))
+    setPrevBySet(prev => ({ ...prev, [ex.id]: [] }))
+    setExMetrics(prev => ({ ...prev, [ex.id]: metricsFor(ex as any) }))
+    setSets(prev => ({
+      ...prev,
+      [ex.id]: Array.from({ length: prescription.sets }, () => ({
+        lbs: '', reps: String(prescription.repHigh), durationSec: '', distanceM: '', rpe: null, done: false,
+      })),
+    }))
+    setExpandedId(ex.id)
+    haptics.tapLight()
+
+    if (!permanent || !workout) return
+    const newIds = [...workout.exercise_ids, ex.id]
+    setWorkout({ ...workout, exercise_ids: newIds })
+    await supabase.from('scheduled_workouts').update({ exercise_ids: newIds }).eq('id', workout.id)
+
+    // Persist into the owning split day so future weeks include it too.
+    if (workout.source === 'split' && workout.split_id) {
+      try {
+        const { data: splitRow } = await supabase.from('splits').select('*').eq('id', workout.split_id).maybeSingle()
+        if (splitRow) {
+          const split = splitRow as Split
+          const d = new Date(`${workout.planned_date}T00:00:00`)
+          const weekday = ((d.getDay() + 6) % 7) + 1
+          const days = split.days.map(day => {
+            if (day.weekday !== weekday || day.rest) return day
+            if (day.exercise_ids?.includes(ex.id)) return day
+            return { ...day, exercise_ids: [...(day.exercise_ids ?? []), ex.id] }
+          })
+          await supabase.from('splits').update({ days }).eq('id', split.id)
+        }
+      } catch { /* the session + scheduled row still carry it */ }
+    }
   }
 
   // ── Swap exercise (smart substitutions) ──────────────────────────────────────
@@ -765,6 +936,7 @@ export default function WorkoutsScreen() {
       return
     }
 
+    haptics.success()
     cancelWorkoutReminder(workout.id).catch(() => {})
 
     // Every screen keyed on training data (Home schedule, Progress, streak,
@@ -819,6 +991,45 @@ export default function WorkoutsScreen() {
     finishWorkout().catch(() => setCompleting(false))
   }
 
+  // ── Pause / leave session ───────────────────────────────────────────────────
+
+  // Walking away with zero sets logged shouldn't leave an open log haunting the
+  // resume path — delete it and return to a clean hub.
+  const discardSession = async () => {
+    stopRest()
+    if (workoutLogId) {
+      try {
+        await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId)
+        await supabase.from('workout_logs').delete().eq('id', workoutLogId)
+      } catch { /* an orphaned zero-set log is closed out by the stale-log sweep */ }
+    }
+    setSessionActive(false)
+    setWorkoutLogId(null)
+    accumulatedSec.current = 0
+    setElapsed(0)
+  }
+
+  const onPauseChoice = (key: string) => {
+    setPauseSheet(false)
+    if (key === 'pause') {
+      // Progress is saved (logged sets are on the server; the open log resumes
+      // from the hub or after an app restart). Cancel the pending rest buzz so
+      // a paused workout doesn't vibrate the pocket.
+      stopRest()
+      setSessionActive(false)
+    } else if (key === 'end') {
+      const done = Object.values(sets).reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
+      if (done === 0) {
+        Alert.alert('End workout?', 'Nothing is logged yet — this session will be discarded (it won’t count toward your streak or stats).', [
+          { text: 'Keep training', style: 'cancel' },
+          { text: 'Discard session', style: 'destructive', onPress: () => { discardSession().catch(() => {}) } },
+        ])
+      } else {
+        handleCompleteWorkout()
+      }
+    }
+  }
+
   // ── Rest timer ─────────────────────────────────────────────────────────────
 
   // The countdown derives from the wall-clock end time, so backgrounding never
@@ -831,7 +1042,7 @@ export default function WorkoutsScreen() {
       if (left <= 0) {
         setRestEndsAt(null)
         setRestSecondsLeft(null)
-        Vibration.vibrate([0, 250, 150, 250])
+        haptics.warning()
         cancelRestDoneNotification().catch(() => {})
       } else {
         setRestSecondsLeft(left)
@@ -853,8 +1064,12 @@ export default function WorkoutsScreen() {
   }
 
   // Rest-length choices in a sheet, not Alert.alert (Android caps alerts at 3
-  // buttons, which dropped an option).
+  // buttons, which dropped an option). Picking a length also becomes this
+  // workout's rest going forward (persisted per workout name) — "customize per
+  // workout" without a settings hunt.
   const [restSheet, setRestSheet] = useState(false)
+  const [customRestOpen, setCustomRestOpen] = useState(false)
+  const [customRestSec, setCustomRestSec] = useState(SUGGESTED_REST_SEC)
   const handleRestTimer = () => {
     if (restEndsAt !== null) {
       stopRest()
@@ -862,10 +1077,20 @@ export default function WorkoutsScreen() {
     }
     setRestSheet(true)
   }
+  const applyRestChoice = (secs: number) => {
+    if (!Number.isFinite(secs) || secs <= 0) return
+    setRestOverride(secs)
+    if (workout) setRestPref(workout.focus, secs)
+    startRest(secs)
+  }
   const pickRest = (key: string) => {
     setRestSheet(false)
-    const secs = parseInt(key, 10)
-    if (Number.isFinite(secs) && secs > 0) startRest(secs)
+    if (key === 'custom') {
+      setCustomRestSec(restOverride ?? SUGGESTED_REST_SEC)
+      setCustomRestOpen(true)
+      return
+    }
+    applyRestChoice(parseInt(key, 10))
   }
 
   const handleShowExerciseList = () => {
@@ -878,6 +1103,25 @@ export default function WorkoutsScreen() {
   const totalSets = Object.values(sets).reduce((n, arr) => n + arr.length, 0)
   const doneSets = Object.values(sets).reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
   const progress = totalSets > 0 ? doneSets / totalSets : 0
+
+  // Honest duration numbers: a realistic static estimate (rests, transitions,
+  // equipment time — see lib/durationEstimate), scaled by the user's historical
+  // pace, then sharpened live by the pace they're actually logging at.
+  const sessionEstimateSec = useMemo(() => estimateSessionSec(exercises.map(ex => ({
+    sets: sets[ex.id]?.length ?? targets[ex.id]?.sets ?? 3,
+    restSec: restOverride ?? restDefaults.current[ex.id] ?? null,
+    workSec: exMetrics[ex.id]?.includes('duration')
+      ? (parseInt(sets[ex.id]?.[0]?.durationSec || '', 10) || WORK_SEC)
+      : null,
+  }))), [exercises, sets, targets, exMetrics, restOverride])
+  const hubEstimateMin = Math.max(5, Math.round((sessionEstimateSec / 60) * paceFactor))
+  const remainingSec = adaptiveRemainingSec({
+    elapsedSec: elapsed,
+    doneSets,
+    totalSets,
+    staticPerSetSec: sessionEstimateSec / Math.max(1, totalSets),
+    paceFactor,
+  })
 
   // ── Early returns ──────────────────────────────────────────────────────────
 
@@ -966,7 +1210,21 @@ export default function WorkoutsScreen() {
               })()}
             </View>
             <Text style={styles.hubTitle}>{workout.focus}</Text>
-            <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{workout.planned_duration_min} min</Text>
+            <View style={styles.hubMetaRow}>
+              <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{hubEstimateMin} min</Text>
+              <PressableScale
+                style={styles.hubEditBtn}
+                scaleTo={0.93}
+                onPress={() => {
+                  // Force a fresh load when we come back — the edit may change everything.
+                  lifecycle.current.lastLoadAt = 0
+                  router.push(`/edit-session?workoutId=${workout.id}` as any)
+                }}
+              >
+                <Ionicons name="create-outline" size={14} color={C.primary} />
+                <Text style={styles.hubEditText}>Edit workout</Text>
+              </PressableScale>
+            </View>
           </FadeInView>
 
           <FadeInView delay={70} style={styles.hubList}>
@@ -1025,10 +1283,17 @@ export default function WorkoutsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-      {/* Header */}
+      {/* Header — an explicit, labeled Pause control. The old bare chevron read
+          as "exit workout" and scared people into thinking progress was lost. */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSessionActive(false)} accessibilityRole="button" accessibilityLabel="Leave session and go back to the hub">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
+        <TouchableOpacity
+          style={styles.pauseBtn}
+          onPress={() => setPauseSheet(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Pause or end this workout"
+        >
+          <Ionicons name="pause" size={16} color={C.text} />
+          <Text style={styles.pauseBtnText}>Pause</Text>
         </TouchableOpacity>
         <TempoWordmark size={18} pulse={false} />
         <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open your profile">
@@ -1043,7 +1308,9 @@ export default function WorkoutsScreen() {
           <Text style={styles.sessionTitle}>{workout.focus}</Text>
         </View>
         <View style={styles.sessionRight}>
-          <Text style={styles.estLabel}>EST. {workout.planned_duration_min} MINS</Text>
+          <Text style={styles.estLabel}>
+            {doneSets > 0 ? `~${formatRemaining(remainingSec).toUpperCase()} LEFT` : `EST. ${hubEstimateMin} MINS`}
+          </Text>
           <Text style={styles.timerText}>{formatElapsed(elapsed)}</Text>
         </View>
       </View>
@@ -1201,11 +1468,13 @@ export default function WorkoutsScreen() {
                       </Text>
                     ))}
                     <Text style={[styles.tableHeadCell, { flex: 0.5 }]}>✓</Text>
+                    <View style={styles.setTrashSpacer} />
                   </View>
 
-                  {/* Set rows */}
+                  {/* Set rows — ✓ logs instantly (rest starts, haptic fires); RPE
+                      is an optional follow-up bar, never a gate. */}
                   {exSets.map((set, idx) => {
-                    const prompting = rpePrompt?.exId === ex.id && rpePrompt?.idx === idx
+                    const followingUp = rpeFollowUp?.exId === ex.id && rpeFollowUp?.idx === idx
                     return (
                     <View key={idx}>
                       <View style={styles.setRow}>
@@ -1239,28 +1508,38 @@ export default function WorkoutsScreen() {
                               </View>
                             ))}
                             <PressableScale
-                              style={[styles.emptyCircle, prompting && styles.emptyCircleActive]}
-                              onPress={() => setRpePrompt(prompting ? null : { exId: ex.id, idx })}
+                              style={styles.emptyCircle}
+                              onPress={() => handleSetDone(ex.id, idx)}
                               scaleTo={0.8}
                               hitSlop={6}
                               accessibilityLabel={`Log set ${idx + 1}`}
                             >
-                              {prompting && <Ionicons name="chevron-up" size={14} color={C.primary} />}
+                              <View />
                             </PressableScale>
                           </>
                         )}
+
+                        <TouchableOpacity
+                          onPress={() => removeSet(ex.id, idx)}
+                          hitSlop={8}
+                          style={styles.setTrash}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove set ${idx + 1}`}
+                        >
+                          <Ionicons name="trash-outline" size={15} color={C.outlineVariant} />
+                        </TouchableOpacity>
                       </View>
 
-                      {/* RPE capture — appears when you tap the check */}
-                      {prompting && !set.done && (
+                      {/* Optional RPE follow-up — shows only for the set that just logged */}
+                      {followingUp && set.done && (
                         <View style={styles.rpeBar}>
                           <Text style={styles.rpeBarLabel}>How hard?</Text>
                           {RPE_OPTIONS.map(n => (
-                            <PressableScale key={n} style={styles.rpeChip} onPress={() => handleSetDone(ex.id, idx, n)} scaleTo={0.88}>
+                            <PressableScale key={n} style={styles.rpeChip} onPress={() => attachRpe(ex.id, idx, n)} scaleTo={0.88}>
                               <Text style={styles.rpeChipText}>{n}</Text>
                             </PressableScale>
                           ))}
-                          <TouchableOpacity style={styles.rpeSkip} onPress={() => handleSetDone(ex.id, idx, null)}>
+                          <TouchableOpacity style={styles.rpeSkip} onPress={() => setRpeFollowUp(null)}>
                             <Text style={styles.rpeSkipText}>skip</Text>
                           </TouchableOpacity>
                         </View>
@@ -1282,6 +1561,13 @@ export default function WorkoutsScreen() {
             </View>
           )
         })}
+
+        {/* Add an exercise mid-session — machine taken, extra energy, whatever.
+            The "today only vs permanently" choice is explicit (see sheet below). */}
+        <PressableScale style={styles.addExerciseBtn} onPress={() => setAddExOpen(true)} scaleTo={0.97}>
+          <Ionicons name="add" size={18} color={C.primary} />
+          <Text style={styles.addExerciseText}>Add Exercise</Text>
+        </PressableScale>
 
         {/* Complete Workout — shifts to sage the moment every set is banked */}
         <PressableScale
@@ -1342,15 +1628,92 @@ export default function WorkoutsScreen() {
       <OptionSheet
         visible={restSheet}
         title="Rest timer"
-        subtitle="How long to rest? You’ll feel a buzz when it’s time — even with the phone locked."
+        subtitle={`Suggested: 2 minutes. Your pick becomes this workout's rest between sets — you'll feel a buzz when it's time, even with the phone locked.${restOverride ? ` Current: ${Math.round(restOverride)}s.` : ''}`}
         options={[
-          { key: '60', label: '60 seconds', sub: 'Hypertrophy pace', icon: 'timer-outline' },
-          { key: '90', label: '90 seconds', sub: 'The default for most sets', icon: 'timer-outline' },
-          { key: '120', label: '2 minutes', sub: 'Heavier compound work', icon: 'timer-outline' },
-          { key: '180', label: '3 minutes', sub: 'Full recovery for max-strength sets', icon: 'timer-outline' },
+          { key: '60', label: '60 seconds', sub: 'Short and sweaty — supersets, accessories', icon: 'timer-outline' },
+          { key: '90', label: '90 seconds', sub: 'Hypertrophy pace', icon: 'timer-outline' },
+          { key: '120', label: '2 minutes', sub: 'Suggested — solid recovery for most lifts', icon: 'star-outline' },
+          { key: '180', label: '3 minutes', sub: 'Full recovery for heavy compound sets', icon: 'timer-outline' },
+          { key: 'custom', label: 'Custom…', sub: 'Pick any length', icon: 'options-outline' },
         ]}
         onSelect={pickRest}
         onClose={() => setRestSheet(false)}
+      />
+
+      {/* Custom rest length — stepper in 15s increments */}
+      <Modal visible={customRestOpen} animationType="fade" transparent onRequestClose={() => setCustomRestOpen(false)}>
+        <View style={styles.customRestBackdrop}>
+          <View style={styles.customRestCard}>
+            <Text style={styles.customRestTitle}>Custom rest</Text>
+            <View style={styles.customRestRow}>
+              <PressableScale
+                style={styles.customRestStep}
+                onPress={() => setCustomRestSec(s => Math.max(15, s - 15))}
+                scaleTo={0.9}
+                accessibilityLabel="15 seconds less"
+              >
+                <Ionicons name="remove" size={22} color={C.text} />
+              </PressableScale>
+              <Text style={styles.customRestValue}>{formatElapsed(customRestSec)}</Text>
+              <PressableScale
+                style={styles.customRestStep}
+                onPress={() => setCustomRestSec(s => Math.min(600, s + 15))}
+                scaleTo={0.9}
+                accessibilityLabel="15 seconds more"
+              >
+                <Ionicons name="add" size={22} color={C.text} />
+              </PressableScale>
+            </View>
+            <PressableScale
+              style={styles.customRestStart}
+              onPress={() => { setCustomRestOpen(false); applyRestChoice(customRestSec) }}
+            >
+              <Text style={styles.customRestStartText}>Start rest</Text>
+            </PressableScale>
+            <TouchableOpacity onPress={() => setCustomRestOpen(false)} style={{ paddingVertical: Spacing.xs }}>
+              <Text style={styles.customRestCancel}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add exercise mid-session: pick, then decide how long it sticks around. */}
+      <ExercisePickerSheet
+        visible={addExOpen}
+        userId={userId}
+        client={supabase}
+        existingIds={exercises.map(e => e.id)}
+        onClose={() => setAddExOpen(false)}
+        onAdd={(ex: Exercise) => { setAddExOpen(false); setAddChoiceEx(ex as unknown as ExerciseRow) }}
+        onRemove={() => {}}
+      />
+      <OptionSheet
+        visible={addChoiceEx !== null}
+        title={addChoiceEx ? `Add ${addChoiceEx.name}` : ''}
+        subtitle="Just for today, or part of this workout from now on?"
+        options={[
+          { key: 'today', label: 'Add for this session only', sub: 'One-off — tomorrow the workout is unchanged', icon: 'today-outline' },
+          { key: 'permanent', label: 'Add to workout permanently', sub: 'Becomes part of this workout going forward', icon: 'bookmark-outline' },
+        ]}
+        onSelect={(key) => {
+          const ex = addChoiceEx
+          setAddChoiceEx(null)
+          if (ex) addExerciseToSession(ex, key === 'permanent').catch(() => {})
+        }}
+        onClose={() => setAddChoiceEx(null)}
+      />
+
+      {/* Pause / end — explicit about what happens to progress. */}
+      <OptionSheet
+        visible={pauseSheet}
+        title="Pause workout?"
+        subtitle="Logged sets are saved either way."
+        options={[
+          { key: 'pause', label: 'Resume later', sub: 'Save progress and step out — pick it up from the Workouts tab any time', icon: 'pause-circle-outline' },
+          { key: 'end', label: 'End workout', sub: doneSets > 0 ? 'Finish now — everything you logged counts' : 'Discard this session — nothing is logged yet', icon: 'flag-outline', destructive: doneSets === 0 },
+        ]}
+        onSelect={onPauseChoice}
+        onClose={() => setPauseSheet(false)}
       />
     </ScreenTransition>
     </SafeAreaView>
@@ -1544,7 +1907,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   originChipYours: { backgroundColor: C.surfaceContainerLow, borderColor: C.outlineVariant },
   originText: { fontFamily: 'Inter_700Bold', fontSize: 10.5, letterSpacing: 0.3 },
   hubTitle: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.4 },
+  hubMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   hubMeta: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  hubEditBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.primarySoft, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm, paddingVertical: 5,
+  },
+  hubEditText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
   hubList: {
     backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
     paddingHorizontal: Spacing.md, ...CardShadow,
@@ -1560,4 +1930,43 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     height: 56, borderRadius: Radius.lg, backgroundColor: C.primary,
   },
   hubStartText: { fontFamily: C.fontDisplay, fontSize: 16, color: C.onPrimary, letterSpacing: 0.2 },
+
+  // ── Session controls (pause, remove set, add exercise, custom rest) ─────────
+  pauseBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    paddingHorizontal: Spacing.md, paddingVertical: 6,
+  },
+  pauseBtnText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text },
+  setTrash: { width: 22, alignItems: 'center', justifyContent: 'center' },
+  setTrashSpacer: { width: 22 },
+  addExerciseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+    paddingVertical: Spacing.md, borderRadius: Radius.lg,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.primary,
+    backgroundColor: C.surfaceContainerLow,
+  },
+  addExerciseText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.primary },
+  customRestBackdrop: {
+    flex: 1, backgroundColor: 'rgba(27,27,28,0.45)',
+    alignItems: 'center', justifyContent: 'center', padding: Spacing.xl,
+  },
+  customRestCard: {
+    alignSelf: 'stretch', backgroundColor: C.surface, borderRadius: Radius.xl,
+    padding: Spacing.lg, gap: Spacing.md, alignItems: 'center', ...CardShadow,
+  },
+  customRestTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  customRestRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  customRestStep: {
+    width: 44, height: 44, borderRadius: Radius.full, backgroundColor: C.surfaceContainerLow,
+    borderWidth: 1, borderColor: C.outlineVariant, alignItems: 'center', justifyContent: 'center',
+  },
+  customRestValue: { fontFamily: C.fontNumeric, fontSize: 32, color: C.text, minWidth: 96, textAlign: 'center' },
+  customRestStart: {
+    alignSelf: 'stretch', height: 50, borderRadius: Radius.lg, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  customRestStartText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
+  customRestCancel: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
 })

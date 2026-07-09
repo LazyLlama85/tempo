@@ -164,8 +164,12 @@ function RootLayout() {
           <Stack.Screen name="weekly-report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="plan-explainer" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-builder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="edit-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="my-workouts" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="my-splits" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="social" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="friend-profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="shared-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="split-editor" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-history" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="session-detail" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

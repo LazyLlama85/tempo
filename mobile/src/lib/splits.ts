@@ -60,31 +60,49 @@ export function restDay(weekday: number): SplitDay {
 // Re-hydrate a saved day's workout into editable draft items (fetches exercise rows,
 // preserving order and dropping any that were deleted). Mirrors templateToItems.
 export async function dayToDraftItems(client: SupabaseClient, day: SplitDay): Promise<DraftItem[]> {
-  const ids = day.exercise_ids ?? []
-  if (!ids.length) return []
-  const { data } = await client.from('exercises').select(EXERCISE_COLUMNS).in('id', ids)
-  const byId = new Map((data ?? []).map((e: any) => [e.id, e as Exercise]))
-  const items: DraftItem[] = []
-  for (const id of ids) {
-    const ex = byId.get(id)
-    if (!ex) continue
-    const cfg = day.config?.find((c) => c.exercise_id === id)
-    if (cfg) {
-      items.push({
-        exercise: ex,
-        sets: cfg.sets,
-        repLow: cfg.rep_low,
-        repHigh: cfg.rep_high,
-        weightLbs: cfg.weight_lbs,
-        durationSec: cfg.duration_sec,
-        distanceM: cfg.distance_m,
-        metrics: cfg.metrics?.length ? cfg.metrics : metricsFor(ex),
-      })
-    } else {
-      items.push(makeDraftItem(ex))
-    }
+  const map = await daysToDraftItems(client, [day])
+  return map.get(day.weekday) ?? []
+}
+
+// Hydrate MANY days in one round-trip: a single exercises query for the whole
+// split instead of one per day. The split editor opens 7 days at once — the
+// per-day version made that seven sequential network calls and a visibly slow
+// (and flaky-feeling) load.
+export async function daysToDraftItems(
+  client: SupabaseClient,
+  days: SplitDay[],
+): Promise<Map<number, DraftItem[]>> {
+  const allIds = [...new Set(days.flatMap((d) => d.exercise_ids ?? []))]
+  const byId = new Map<string, Exercise>()
+  if (allIds.length) {
+    const { data } = await client.from('exercises').select(EXERCISE_COLUMNS).in('id', allIds)
+    for (const e of (data ?? []) as Exercise[]) byId.set(e.id, e)
   }
-  return items
+  const out = new Map<number, DraftItem[]>()
+  for (const day of days) {
+    const items: DraftItem[] = []
+    for (const id of day.exercise_ids ?? []) {
+      const ex = byId.get(id)
+      if (!ex) continue
+      const cfg = day.config?.find((c) => c.exercise_id === id)
+      if (cfg) {
+        items.push({
+          exercise: ex,
+          sets: cfg.sets,
+          repLow: cfg.rep_low,
+          repHigh: cfg.rep_high,
+          weightLbs: cfg.weight_lbs,
+          durationSec: cfg.duration_sec,
+          distanceM: cfg.distance_m,
+          metrics: cfg.metrics?.length ? cfg.metrics : metricsFor(ex),
+        })
+      } else {
+        items.push(makeDraftItem(ex))
+      }
+    }
+    out.set(day.weekday, items)
+  }
+  return out
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────

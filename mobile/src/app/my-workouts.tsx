@@ -4,7 +4,7 @@
 // exercises (edit / delete). Entry point for the whole user-created-workout feature.
 
 import { useCallback, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native'
 import { PulseLoader } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -14,6 +14,7 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { fetchTemplates, deleteTemplate, duplicateTemplate } from '@/lib/workoutBuilder'
+import { createWorkoutShare, shareUrl } from '@/lib/social'
 import { fetchCustomExercises, deleteCustomExercise } from '@/lib/customExercises'
 import { CustomExerciseSheet } from '@/components/CustomExerciseSheet'
 import { OptionSheet } from '@/components/OptionSheet'
@@ -29,7 +30,7 @@ export default function MyWorkoutsScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { session } = useAuthStore()
+  const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
 
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
@@ -56,7 +57,19 @@ export default function MyWorkoutsScreen() {
     if (key === 'edit') router.push(`/workout-builder?templateId=${t.id}` as any)
     else if (key === 'schedule') router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}` as any)
     else if (key === 'duplicate') { await duplicateTemplate(supabase, userId, t); load() }
+    else if (key === 'share') shareTemplate(t)
     else if (key === 'delete') confirmDeleteTemplate(t)
+  }
+
+  // Share = snapshot the template under a short code, then hand the link to the
+  // system share sheet. Recipients open it via the link or paste the code into
+  // Friends → "Got a shared workout?".
+  const shareTemplate = async (t: WorkoutTemplate) => {
+    const share = await createWorkoutShare(supabase, userId, profile?.display_name ?? null, t)
+    if (!share) { Alert.alert('Couldn’t create link', 'Check your connection and try again.'); return }
+    Share.share({
+      message: `Try my "${t.name}" workout on Tempo: ${shareUrl(share.code)}\n\nOr paste this code in Tempo → Friends: ${share.code}`,
+    }).catch(() => {})
   }
   const confirmDeleteTemplate = (t: WorkoutTemplate) =>
     Alert.alert('Delete workout?', `“${t.name}” will be removed. Already-scheduled sessions stay on your calendar.`, [
@@ -179,6 +192,7 @@ export default function MyWorkoutsScreen() {
         options={[
           { key: 'schedule', label: 'Add to calendar', sub: 'Schedule it onto a day', icon: 'calendar-outline' },
           { key: 'edit', label: 'Edit workout', icon: 'create-outline' },
+          { key: 'share', label: 'Share', sub: 'Send a link — friends can save their own copy', icon: 'share-outline' },
           { key: 'duplicate', label: 'Duplicate', icon: 'copy-outline' },
           { key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true },
         ]}
