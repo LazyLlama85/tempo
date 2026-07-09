@@ -1199,7 +1199,21 @@ export default function WorkoutsScreen() {
               })()}
             </View>
             <Text style={styles.hubTitle}>{workout.focus}</Text>
-            <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{hubEstimateMin} min</Text>
+            <View style={styles.hubMetaRow}>
+              <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{hubEstimateMin} min</Text>
+              <PressableScale
+                style={styles.hubEditBtn}
+                scaleTo={0.93}
+                onPress={() => {
+                  // Force a fresh load when we come back — the edit may change everything.
+                  lifecycle.current.lastLoadAt = 0
+                  router.push(`/edit-session?workoutId=${workout.id}` as any)
+                }}
+              >
+                <Ionicons name="create-outline" size={14} color={C.primary} />
+                <Text style={styles.hubEditText}>Edit workout</Text>
+              </PressableScale>
+            </View>
           </FadeInView>
 
           <FadeInView delay={70} style={styles.hubList}>
@@ -1882,7 +1896,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   originChipYours: { backgroundColor: C.surfaceContainerLow, borderColor: C.outlineVariant },
   originText: { fontFamily: 'Inter_700Bold', fontSize: 10.5, letterSpacing: 0.3 },
   hubTitle: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.4 },
+  hubMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   hubMeta: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  hubEditBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.primarySoft, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm, paddingVertical: 5,
+  },
+  hubEditText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
   hubList: {
     backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
     paddingHorizontal: Spacing.md, ...CardShadow,
