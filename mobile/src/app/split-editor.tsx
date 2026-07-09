@@ -24,6 +24,7 @@ import {
 import { activateSplit } from '@/lib/splitSchedule'
 import { describeSaveError } from '@/lib/saveErrors'
 import { consumeSplitHandoff } from '@/lib/handoff'
+import * as haptics from '@/lib/haptics'
 import { type DraftItem, makeDraftItem, fetchTemplates, templateToItems, estimateDurationMin } from '@/lib/workoutBuilder'
 import { SPLIT_PRESETS, applySplitPreset } from '@/lib/starterTemplates'
 import type { Exercise, Split, WorkoutTemplate } from '@/types'
@@ -249,6 +250,7 @@ export default function SplitEditorScreen() {
         return
       }
     }
+    haptics.success()
     setSaving(false)
     router.back()
   }

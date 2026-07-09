@@ -734,14 +734,18 @@ export default function WorkoutsScreen() {
           setSets(prev => prev[exId]
             ? { ...prev, [exId]: prev[exId].filter((_, i) => i !== idx) }
             : prev)
-          if (!wasDone || !workoutLogId) return
+          if (!workoutLogId) return
           try {
-            await supabase.from('set_logs')
-              .delete()
-              .eq('workout_log_id', workoutLogId)
-              .eq('exercise_id', exId)
-              .eq('set_number', idx + 1)
-            // Close the numbering gap so resume/PREV rebuilds line up.
+            if (wasDone) {
+              await supabase.from('set_logs')
+                .delete()
+                .eq('workout_log_id', workoutLogId)
+                .eq('exercise_id', exId)
+                .eq('set_number', idx + 1)
+            }
+            // Close the numbering gap so resume/PREV rebuilds line up with the
+            // shifted local rows — later LOGGED sets slide down one slot whether
+            // the removed set was logged or not.
             const { data: later } = await supabase.from('set_logs')
               .select('id, set_number')
               .eq('workout_log_id', workoutLogId)
