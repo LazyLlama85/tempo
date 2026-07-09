@@ -922,6 +922,8 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow icon="repeat-outline" label="MY SPLITS" value="Your weekly schedule" onPress={() => router.push('/my-splits' as any)} />
             <View style={styles.divider} />
+            <SettingRow icon="people-outline" label="FRIENDS" value="Find people, share workouts & privacy" onPress={() => router.push('/social' as any)} />
+            <View style={styles.divider} />
             <SettingRow icon="journal-outline" label="WORKOUT HISTORY" value="Every logged session" onPress={() => router.push('/workout-history' as any)} />
             <View style={styles.divider} />
             <SettingRow icon="book-outline" label="EXERCISE LIBRARY" value="Browse form guides" onPress={() => router.push('/exercise-library' as any)} />
