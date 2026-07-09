@@ -141,6 +141,21 @@ export default function ProfileScreen() {
   const [calendarStatus, setCalendarStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
 
+  // Incoming friend requests — a badge on the header Friends button, so a
+  // request can't sit invisible inside the Friends screen forever.
+  const [pendingRequests, setPendingRequests] = useState(0)
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return
+      supabase
+        .from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee_id', userId)
+        .eq('status', 'pending')
+        .then(({ count }) => setPendingRequests(count ?? 0))
+    }, [userId]),
+  )
+
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
   const achStats: AchievementStats = {
@@ -690,9 +705,24 @@ export default function ProfileScreen() {
       <ScreenTransition>
       <View style={styles.header}>
         <TempoWordmark size={18} />
-        <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
-          <Ionicons name="create-outline" size={22} color={C.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => router.push('/social' as any)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={pendingRequests > 0 ? `Friends — ${pendingRequests} pending requests` : 'Friends'}
+          >
+            <Ionicons name="people-outline" size={22} color={C.text} />
+            {pendingRequests > 0 && (
+              <View style={styles.friendBadge}>
+                <Text style={styles.friendBadgeText}>{pendingRequests > 9 ? '9+' : pendingRequests}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
+            <Ionicons name="create-outline" size={22} color={C.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -1381,6 +1411,12 @@ export default function ProfileScreen() {
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  friendBadge: {
+    position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, borderRadius: Radius.full,
+    backgroundColor: C.error, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  friendBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: '#fff' },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   scroll: { paddingBottom: 120, gap: Spacing.lg },
 

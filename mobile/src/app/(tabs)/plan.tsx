@@ -698,11 +698,18 @@ export default function WorkoutsScreen() {
       ? { ...prev, [exId]: prev[exId].map((s, i) => i === idx ? { ...s, rpe } : s) }
       : prev)
     if (!workoutLogId) return
-    await supabase.from('set_logs')
+    // A fast tap can race the set's own insert (still in flight) — if the update
+    // matched no row, retry once shortly after so the RPE isn't silently dropped.
+    const runUpdate = () => supabase.from('set_logs')
       .update({ rpe })
       .eq('workout_log_id', workoutLogId)
       .eq('exercise_id', exId)
       .eq('set_number', idx + 1)
+      .select('id')
+    const { data } = await runUpdate()
+    if (!data?.length) {
+      setTimeout(() => { runUpdate().then(() => {}, () => {}) }, 1200)
+    }
   }
 
   const addSet = (exId: string) => {
