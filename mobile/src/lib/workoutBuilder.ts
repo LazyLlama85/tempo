@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Exercise, MetricKey, WorkoutExerciseConfig, WorkoutTemplate } from '@/types'
 import { EXERCISE_COLUMNS, metricsFor } from './customExercises'
+import { estimateSessionMin } from './durationEstimate'
 
 export interface DraftItem {
   exercise: Exercise
@@ -50,14 +51,15 @@ export function itemToConfig(item: DraftItem): WorkoutExerciseConfig {
   }
 }
 
-// Rough session length so the calendar block + reminders are sensible.
+// Realistic session length so the calendar block + reminders are honest — rests
+// at real lengths plus setup/transition time per exercise (see lib/durationEstimate;
+// the old "40s work + 75s rest" formula under-shot hour-long sessions by ~40%).
 export function estimateDurationMin(items: DraftItem[]): number {
-  let sec = 0
-  for (const it of items) {
-    if (it.metrics.includes('duration') && it.durationSec) sec += it.sets * (it.durationSec + 30)
-    else sec += it.sets * (40 + 75) // ~40s work + ~75s rest per set
-  }
-  return Math.max(5, Math.round(sec / 60))
+  return estimateSessionMin(items.map((it) => ({
+    sets: it.sets,
+    workSec: it.metrics.includes('duration') && it.durationSec ? it.durationSec : null,
+    restSec: null, // default rest — the builder doesn't prescribe rests
+  })))
 }
 
 // ── Templates ────────────────────────────────────────────────────────────────

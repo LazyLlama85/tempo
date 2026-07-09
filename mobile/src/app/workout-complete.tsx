@@ -17,6 +17,7 @@ import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
 import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
+import * as haptics from '@/lib/haptics'
 import { ConfettiBurst, CountUp } from '@/components/celebration'
 import { AnimatedRing } from '@/components/AnimatedRing'
 
@@ -56,6 +57,11 @@ export default function WorkoutCompleteScreen() {
   useEffect(() => {
     track('session_end', { type: isQuick ? 'quick' : 'planned', duration_min: mins || undefined })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A PR deserves a second, firmer buzz on top of the completion haptic.
+  useEffect(() => {
+    if (prs.length > 0) haptics.success()
+  }, [prs.length])
 
   // Build the shareable cards + this week's momentum + any PRs from this session.
   useEffect(() => {
