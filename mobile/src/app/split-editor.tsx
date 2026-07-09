@@ -5,25 +5,26 @@
 // template). Saving optionally makes it the active schedule, which materializes the
 // week onto the calendar (see lib/splitSchedule.activateSplit).
 
-import { useCallback, useEffect, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, LayoutAnimation, Platform } from 'react-native'
 import { PulseLoader } from '@/components/brand'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { PressableScale } from '@/components/motion'
+import { PressableScale, useReducedMotion } from '@/components/motion'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
 import {
-  WEEKDAY_LABELS, dayFromDraftItems, dayToDraftItems, restDay, saveSplit, fetchSplits,
+  WEEKDAY_LABELS, dayFromDraftItems, daysToDraftItems, restDay, saveSplit, fetchSplits,
 } from '@/lib/splits'
 import { activateSplit } from '@/lib/splitSchedule'
 import { describeSaveError } from '@/lib/saveErrors'
-import { type DraftItem, makeDraftItem, fetchTemplates, templateToItems } from '@/lib/workoutBuilder'
+import { consumeSplitHandoff } from '@/lib/handoff'
+import { type DraftItem, makeDraftItem, fetchTemplates, templateToItems, estimateDurationMin } from '@/lib/workoutBuilder'
 import { SPLIT_PRESETS, applySplitPreset } from '@/lib/starterTemplates'
 import type { Exercise, Split, WorkoutTemplate } from '@/types'
 
@@ -51,25 +52,67 @@ export default function SplitEditorScreen() {
 
   const [editing, setEditing] = useState<number | null>(null)  // index into days
   const [pickerOpen, setPickerOpen] = useState(false)
+  const reduceMotion = useReducedMotion()
 
-  // Hydrate an existing split for editing.
+  // Saved workouts, prefetched so the "Use a saved workout" picker opens instantly
+  // (it used to fetch on tap with no spinner — the button felt dead) and refreshed
+  // on every focus so a workout saved seconds ago is immediately assignable.
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
+  // The day awaiting a workout created in the workout builder (see handoff lib).
+  const pendingDayRef = useRef<number | null>(null)
+
+  const animateNext = useCallback(() => {
+    if (reduceMotion) return
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+    )
+  }, [reduceMotion])
+
+  // Hydrate an existing split for editing — one batched exercises query for the
+  // whole week (the per-day loop made 7 sequential round-trips).
   useEffect(() => {
     if (!splitId || !userId) return
     ;(async () => {
-      const all = await fetchSplits(supabase, userId)
-      const s = all.find((x) => x.id === splitId)
-      if (!s) { setLoading(false); return }
-      setName(s.name)
-      const hydrated: DayDraft[] = []
-      for (let i = 0; i < 7; i++) {
-        const d = s.days.find((x) => x.weekday === i + 1)
-        if (!d || d.rest) { hydrated.push({ weekday: i + 1, label: 'Rest', rest: true, items: [] }); continue }
-        hydrated.push({ weekday: i + 1, label: d.label, rest: false, items: await dayToDraftItems(supabase, d) })
+      try {
+        const all = await fetchSplits(supabase, userId)
+        const s = all.find((x) => x.id === splitId)
+        if (!s) return
+        setName(s.name)
+        const itemsByWeekday = await daysToDraftItems(supabase, s.days.filter((d) => !d.rest))
+        setDays(Array.from({ length: 7 }, (_, i) => {
+          const d = s.days.find((x) => x.weekday === i + 1)
+          if (!d || d.rest) return { weekday: i + 1, label: 'Rest', rest: true, items: [] }
+          return { weekday: i + 1, label: d.label, rest: false, items: itemsByWeekday.get(d.weekday) ?? [] }
+        }))
+      } finally {
+        setLoading(false)
       }
-      setDays(hydrated)
-      setLoading(false)
     })()
   }, [splitId, userId])
+
+  // Keep the saved-workout list warm, and complete the "create a workout for this
+  // day" round-trip: when the workout builder saves a template it was asked to
+  // create for a split day, assign it to that day and reopen the day editor.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return
+      fetchTemplates(supabase, userId).then(setTemplates).catch(() => {})
+      const createdId = consumeSplitHandoff()
+      const dayIdx = pendingDayRef.current
+      if (!createdId || dayIdx === null) return
+      pendingDayRef.current = null
+      ;(async () => {
+        const { data } = await supabase.from('workout_templates').select('*').eq('id', createdId).maybeSingle()
+        if (!data) return
+        const t = data as WorkoutTemplate
+        const items = await templateToItems(supabase, t)
+        animateNext()
+        setDays((prev) => prev.map((d, i) => (i === dayIdx ? { ...d, label: t.name, rest: false, items } : d)))
+        setTemplates((prev) => (prev.some((x) => x.id === t.id) ? prev : [t, ...prev]))
+        setEditing(dayIdx)
+      })()
+    }, [userId, animateNext]),
+  )
 
   const updateDay = useCallback((idx: number, patch: Partial<DayDraft>) => {
     setDays((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)))
@@ -100,6 +143,7 @@ export default function SplitEditorScreen() {
   }
 
   const toggleRest = (idx: number, rest: boolean) => {
+    animateNext()
     updateDay(idx, rest
       ? { rest: true, label: 'Rest', items: [] }
       : { rest: false, label: days[idx].label === 'Rest' ? FULL_WEEKDAY[idx].slice(0, 3) + ' Workout' : days[idx].label })
@@ -137,21 +181,34 @@ export default function SplitEditorScreen() {
 
   // Pull a saved workout into the day being edited — a scrollable sheet, so every
   // template is reachable (an Alert menu capped the list and broke on Android).
-  const [templateSheet, setTemplateSheet] = useState<WorkoutTemplate[] | null>(null)
-  const fillFromTemplate = async () => {
+  // IMPORTANT: the sheet is rendered INSIDE the day-editor Modal below. As a
+  // sibling Modal it silently failed to present over the open day editor on iOS —
+  // "Use a saved workout" looked broken and could strand an invisible backdrop
+  // that ate every touch (the "editor freezes after editing a day" bug).
+  const [templateSheetOpen, setTemplateSheetOpen] = useState(false)
+  const fillFromTemplate = () => {
     if (editing === null) return
-    const templates = await fetchTemplates(supabase, userId)
-    if (!templates.length) {
-      Alert.alert('No saved workouts', 'Build and save a workout first (My Workouts → Build a new workout), then you can drop it into a day here.')
-      return
-    }
-    setTemplateSheet(templates)
+    setTemplateSheetOpen(true)
   }
+
+  // Create a brand-new workout for this day: remember the day, hop to the workout
+  // builder, and let the focus effect above auto-assign the result on return —
+  // the user never has to find the workout again by hand.
+  const createWorkoutForDay = () => {
+    if (editing === null) return
+    pendingDayRef.current = editing
+    setEditing(null)
+    setTemplateSheetOpen(false)
+    router.push('/workout-builder?forSplit=1' as any)
+  }
+
   const applyTemplateChoice = async (id: string) => {
-    const t = templateSheet?.find((x) => x.id === id)
-    setTemplateSheet(null)
+    setTemplateSheetOpen(false)
+    if (id === '__create') { createWorkoutForDay(); return }
+    const t = templates.find((x) => x.id === id)
     if (!t || editing === null) return
     const items = await templateToItems(supabase, t)
+    animateNext()
     updateDay(editing, { label: t.name, rest: false, items })
   }
 
@@ -245,13 +302,29 @@ export default function SplitEditorScreen() {
               <View key={d.weekday}>
                 {i > 0 && <View style={styles.divider} />}
                 <TouchableOpacity style={styles.dayRow} onPress={() => setEditing(i)} activeOpacity={0.7}>
-                  <View style={styles.dayPill}><Text style={styles.dayPillText}>{WEEKDAY_LABELS[i]}</Text></View>
+                  <View style={[styles.dayPill, !d.rest && d.items.length > 0 && styles.dayPillOn]}>
+                    <Text style={[styles.dayPillText, !d.rest && d.items.length > 0 && styles.dayPillTextOn]}>{WEEKDAY_LABELS[i]}</Text>
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.dayLabel, d.rest && { color: C.textSecondary }]} numberOfLines={1}>{d.rest ? 'Rest day' : d.label}</Text>
                     {!d.rest && (
-                      <Text style={styles.daySub}>{d.items.length === 0 ? 'No exercises yet' : `${d.items.length} exercise${d.items.length === 1 ? '' : 's'}`}</Text>
+                      <Text style={styles.daySub}>
+                        {d.items.length === 0
+                          ? 'No exercises yet — tap to add'
+                          : `${d.items.length} exercise${d.items.length === 1 ? '' : 's'} · ~${estimateDurationMin(d.items)} min`}
+                      </Text>
                     )}
                   </View>
+                  {d.rest ? (
+                    <View style={styles.restBadge}>
+                      <Ionicons name="moon-outline" size={11} color={C.textSecondary} />
+                      <Text style={styles.restBadgeText}>REST</Text>
+                    </View>
+                  ) : d.items.length > 0 ? (
+                    <Ionicons name="checkmark-circle" size={18} color={C.success} />
+                  ) : (
+                    <Ionicons name="add-circle-outline" size={18} color={C.primary} />
+                  )}
                   <Ionicons name="chevron-forward" size={18} color={C.outline} />
                 </TouchableOpacity>
               </View>
@@ -296,6 +369,21 @@ export default function SplitEditorScreen() {
                       maxLength={32}
                     />
 
+                    {openDay.items.length === 0 && (
+                      <View style={styles.fillRow}>
+                        <PressableScale style={styles.fillBtn} onPress={fillFromTemplate}>
+                          <Ionicons name="albums-outline" size={20} color={C.primary} />
+                          <Text style={styles.fillBtnLabel}>Saved workout</Text>
+                          <Text style={styles.fillBtnSub}>Pick one you built</Text>
+                        </PressableScale>
+                        <PressableScale style={styles.fillBtn} onPress={createWorkoutForDay}>
+                          <Ionicons name="add-circle-outline" size={20} color={C.primary} />
+                          <Text style={styles.fillBtnLabel}>New workout</Text>
+                          <Text style={styles.fillBtnSub}>Build one for this day</Text>
+                        </PressableScale>
+                      </View>
+                    )}
+
                     {openDay.items.map((it) => (
                       <View key={it.exercise.id} style={styles.exRow}>
                         <View style={{ flex: 1 }}>
@@ -315,9 +403,11 @@ export default function SplitEditorScreen() {
                       <Ionicons name="add" size={18} color={C.primary} />
                       <Text style={styles.addBtnText}>Add exercise</Text>
                     </PressableScale>
-                    <TouchableOpacity onPress={fillFromTemplate} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: Spacing.xs }}>
-                      <Text style={styles.link}>Use a saved workout</Text>
-                    </TouchableOpacity>
+                    {openDay.items.length > 0 && (
+                      <TouchableOpacity onPress={fillFromTemplate} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: Spacing.xs }}>
+                        <Text style={styles.link}>Replace with a saved workout</Text>
+                      </TouchableOpacity>
+                    )}
                   </ScrollView>
                 )}
               </>
@@ -334,6 +424,25 @@ export default function SplitEditorScreen() {
           onAdd={addExercise}
           onRemove={(ex) => removeExercise(ex.id)}
         />
+
+        {/* Nested inside the day-editor Modal so it can actually present over it on
+            iOS (a sibling Modal cannot — see fillFromTemplate). */}
+        <OptionSheet
+          visible={templateSheetOpen}
+          title="Use a saved workout"
+          subtitle="Set this day to one of your saved workouts, or build a new one."
+          options={[
+            ...templates.map((t) => ({
+              key: t.id,
+              label: t.name,
+              sub: `${t.exercise_ids.length} exercise${t.exercise_ids.length === 1 ? '' : 's'} · ~${t.est_duration_min} min`,
+              icon: 'barbell-outline',
+            })),
+            { key: '__create', label: 'Create a new workout', sub: 'Build it now — it comes right back to this day', icon: 'add-circle-outline' },
+          ]}
+          onSelect={applyTemplateChoice}
+          onClose={() => setTemplateSheetOpen(false)}
+        />
       </Modal>
 
       <OptionSheet
@@ -345,19 +454,6 @@ export default function SplitEditorScreen() {
         onClose={() => setPresetSheet(false)}
       />
 
-      <OptionSheet
-        visible={templateSheet !== null}
-        title="Use a saved workout"
-        subtitle="Replace this day with one of your saved workouts."
-        options={(templateSheet ?? []).map((t) => ({
-          key: t.id,
-          label: t.name,
-          sub: `${t.exercise_ids.length} exercise${t.exercise_ids.length === 1 ? '' : 's'} · ~${t.est_duration_min} min`,
-          icon: 'barbell-outline',
-        }))}
-        onSelect={applyTemplateChoice}
-        onClose={() => setTemplateSheet(null)}
-      />
     </SafeAreaView>
   )
 }
@@ -418,4 +514,19 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm, marginTop: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.primary, backgroundColor: C.surfaceContainerLow },
   addBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
   link: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  dayPillOn: { backgroundColor: C.primarySoft },
+  dayPillTextOn: { color: C.primary },
+  restBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full,
+    paddingHorizontal: 7, paddingVertical: 3,
+  },
+  restBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: C.textSecondary, letterSpacing: 0.5 },
+  fillRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  fillBtn: {
+    flex: 1, alignItems: 'center', gap: 3, paddingVertical: Spacing.md,
+    borderRadius: Radius.lg, backgroundColor: C.primarySoft,
+  },
+  fillBtnLabel: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
+  fillBtnSub: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary },
 })

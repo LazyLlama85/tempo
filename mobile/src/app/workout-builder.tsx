@@ -30,6 +30,7 @@ import {
   saveTemplate, scheduleWorkout, templateToItems,
 } from '@/lib/workoutBuilder'
 import { WORKOUT_PRESETS, workoutPresetById, hydrateWorkoutPreset } from '@/lib/starterTemplates'
+import { setSplitHandoff } from '@/lib/handoff'
 import type { Exercise, WorkoutTemplate } from '@/types'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -43,7 +44,7 @@ export default function WorkoutBuilderScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { templateId, date, presetId } = useLocalSearchParams<{ templateId?: string; date?: string; presetId?: string }>()
+  const { templateId, date, presetId, forSplit } = useLocalSearchParams<{ templateId?: string; date?: string; presetId?: string; forSplit?: string }>()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const unit = useWeightUnit()
@@ -161,8 +162,18 @@ export default function WorkoutBuilderScreen() {
     setBusy('template')
     const id = await saveTemplate(supabase, userId, { name, items, templateId: templateId ?? null })
     setBusy(null)
-    if (id) { Alert.alert('Saved', `“${name.trim()}” is in My Workouts.`); router.back() }
-    else Alert.alert('Could not save', 'Please try again.')
+    if (id) {
+      if (forSplit) {
+        // Came from the split editor's "create a new workout for this day" — hand
+        // the result back and return immediately; the split editor assigns it to
+        // the day and reopens, so there's nothing to hunt for.
+        setSplitHandoff(id)
+        router.back()
+        return
+      }
+      Alert.alert('Saved', `“${name.trim()}” is in My Workouts.`)
+      router.back()
+    } else Alert.alert('Could not save', 'Please try again.')
   }
 
   const handleSchedule = async () => {
