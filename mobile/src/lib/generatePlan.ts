@@ -6,6 +6,7 @@ import { injuriesToRestrictions } from '@/lib/quickWorkout'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { sweepScheduledPlanRows } from '@/lib/retireWorkouts'
 import { ensureAutoSplit } from '@/lib/splits'
+import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgramming'
 
 export interface PlanProfile {
   goal: Goal
@@ -102,48 +103,121 @@ function formatDate(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-type SessionTemplate = { focus: string; patterns: string[] }
+// A session as a coach would write it: an ORDERED list of slots, each with a
+// tier (its place in the hierarchy — power → primary → … → isolation → finisher)
+// and one or more acceptable slots in preference order. Order in the array IS the
+// session order, so exercises come out power → heavy compound → accessory →
+// isolation → core/cardio without any post-sort.
+type Tier = 'power' | 'primary' | 'secondary' | 'accessory' | 'isolation' | 'core' | 'cardio'
+interface SlotSpec {
+  slots: Slot[]           // acceptable slots, most-preferred first
+  tier: Tier
+  optional?: boolean      // dropped first when the time budget is tight
+  preferRole?: Role       // e.g. prefer explosive movements for an athletic power slot
+}
+interface SessionTemplate { focus: string; slots: SlotSpec[] }
 
-// ── Goal-specific session templates ──────────────────────────────────────────
+// ── Slot-spec shorthands ──────────────────────────────────────────────────────
+const S = (slots: Slot[], tier: Tier, opts: { optional?: boolean; preferRole?: Role } = {}): SlotSpec =>
+  ({ slots, tier, ...opts })
+const CORE: SlotSpec = S(['core'], 'core', { optional: true })
+const CARDIO: SlotSpec = S(['cardio'], 'cardio')
+
+// ── Reusable session shapes ───────────────────────────────────────────────────
+const PUSH_DAY: SessionTemplate = { focus: 'Push', slots: [
+  S(['h_push'], 'primary'), S(['v_push'], 'secondary'), S(['h_push'], 'accessory'),
+  S(['chest_iso'], 'isolation', { optional: true }), S(['lat_raise'], 'isolation'),
+  S(['triceps'], 'isolation'), CORE,
+] }
+const PULL_DAY: SessionTemplate = { focus: 'Pull', slots: [
+  S(['v_pull'], 'primary'), S(['h_pull'], 'secondary'), S(['h_pull'], 'accessory'),
+  S(['rear_delt'], 'isolation'), S(['biceps'], 'isolation'),
+  S(['biceps'], 'isolation', { optional: true }), CORE,
+] }
+const LEGS_DAY: SessionTemplate = { focus: 'Legs', slots: [
+  S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge', 'squat'], 'accessory'),
+  S(['knee_flexion'], 'isolation'), S(['quad_iso'], 'isolation'),
+  S(['calf'], 'isolation'), CORE,
+] }
+const UPPER_A: SessionTemplate = { focus: 'Upper A', slots: [
+  S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
+  S(['v_pull'], 'secondary'), S(['lat_raise'], 'isolation'), S(['biceps'], 'isolation'),
+  S(['triceps'], 'isolation'),
+] }
+const UPPER_B: SessionTemplate = { focus: 'Upper B', slots: [
+  S(['v_push'], 'primary'), S(['v_pull'], 'primary'), S(['h_push'], 'secondary'),
+  S(['h_pull'], 'secondary'), S(['rear_delt'], 'isolation'), S(['triceps'], 'isolation'),
+  S(['biceps'], 'isolation'),
+] }
+const LOWER_A: SessionTemplate = { focus: 'Lower A', slots: [
+  S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge', 'squat'], 'accessory'),
+  S(['knee_flexion'], 'isolation'), S(['quad_iso'], 'isolation'), S(['calf'], 'isolation'),
+] }
+const LOWER_B: SessionTemplate = { focus: 'Lower B', slots: [
+  S(['hinge'], 'primary'), S(['squat'], 'secondary'), S(['lunge'], 'accessory'),
+  S(['knee_flexion'], 'isolation'), S(['glute_iso'], 'isolation'), S(['calf'], 'isolation'),
+] }
+const fullBody = (focus: string, order: Slot[], finisher: SlotSpec = CORE): SessionTemplate => ({
+  focus,
+  slots: [
+    S([order[0]], 'primary'), S([order[1]], 'secondary'),
+    S([order[2]], 'accessory'), S([order[3]], 'accessory', { optional: true }),
+    finisher,
+  ],
+})
+
+// ── Goal-specific programs ────────────────────────────────────────────────────
 
 function muscleSessions(days: number): SessionTemplate[] {
-  const push:   SessionTemplate = { focus: 'Push',    patterns: ['push', 'push', 'push', 'core'] }
-  const pull:   SessionTemplate = { focus: 'Pull',    patterns: ['pull', 'pull', 'pull', 'core'] }
-  const legs:   SessionTemplate = { focus: 'Legs',    patterns: ['squat', 'squat', 'hinge', 'hinge', 'core'] }
-  const upperA: SessionTemplate = { focus: 'Upper A', patterns: ['push', 'push', 'pull', 'pull', 'core'] }
-  const upperB: SessionTemplate = { focus: 'Upper B', patterns: ['pull', 'pull', 'push', 'push', 'core'] }
-  const lowerA: SessionTemplate = { focus: 'Lower A', patterns: ['squat', 'squat', 'hinge', 'core'] }
-  const lowerB: SessionTemplate = { focus: 'Lower B', patterns: ['hinge', 'hinge', 'squat', 'core'] }
-
-  if (days === 2) return [upperA, lowerA]
-  if (days === 3) return [push, pull, legs]
-  if (days === 4) return [upperA, lowerA, upperB, lowerB]
-  if (days === 5) return [push, pull, legs, upperA, lowerA]
-  return [push, pull, legs, push, pull, legs] // 6 — classic PPL ×2
+  if (days === 2) return [UPPER_A, LOWER_A]
+  if (days === 3) return [PUSH_DAY, PULL_DAY, LEGS_DAY]
+  if (days === 4) return [UPPER_A, LOWER_A, UPPER_B, LOWER_B]
+  if (days === 5) return [PUSH_DAY, PULL_DAY, LEGS_DAY, UPPER_A, LOWER_A]
+  return [PUSH_DAY, PULL_DAY, LEGS_DAY, PUSH_DAY, PULL_DAY, LEGS_DAY] // 6 — PPL ×2
 }
 
 function strengthSessions(days: number): SessionTemplate[] {
-  const squat: SessionTemplate = { focus: 'Squat Day',    patterns: ['squat', 'squat', 'squat', 'hinge', 'core'] }
-  const bench: SessionTemplate = { focus: 'Press Day',    patterns: ['push', 'push', 'push', 'pull', 'core'] }
-  const dead:  SessionTemplate = { focus: 'Deadlift Day', patterns: ['hinge', 'hinge', 'hinge', 'squat', 'core'] }
-  const row:   SessionTemplate = { focus: 'Pull Day',     patterns: ['pull', 'pull', 'pull', 'push', 'core'] }
-  const upper: SessionTemplate = { focus: 'Upper',        patterns: ['push', 'pull', 'push', 'pull', 'core'] }
-
-  if (days === 2) return [squat, bench]
-  if (days === 3) return [squat, bench, dead]
-  if (days === 4) return [squat, bench, dead, row]
-  if (days === 5) return [squat, bench, dead, row, upper]
-  return [squat, bench, row, dead, upper, squat]
+  // Fewer movements, compound-dominant, minimal isolation.
+  const squat: SessionTemplate = { focus: 'Squat Day', slots: [
+    S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge', 'squat'], 'accessory'),
+    S(['knee_flexion'], 'isolation', { optional: true }), CORE,
+  ] }
+  const press: SessionTemplate = { focus: 'Press Day', slots: [
+    S(['h_push'], 'primary'), S(['v_push'], 'secondary'), S(['h_pull'], 'accessory'),
+    S(['triceps'], 'isolation', { optional: true }), CORE,
+  ] }
+  const dead: SessionTemplate = { focus: 'Deadlift Day', slots: [
+    S(['hinge'], 'primary'), S(['squat'], 'secondary'), S(['h_pull'], 'accessory'),
+    S(['knee_flexion'], 'isolation', { optional: true }), CORE,
+  ] }
+  const pull: SessionTemplate = { focus: 'Pull Day', slots: [
+    S(['v_pull'], 'primary'), S(['h_pull'], 'secondary'), S(['rear_delt'], 'isolation'),
+    S(['biceps'], 'isolation'), CORE,
+  ] }
+  const upper: SessionTemplate = { focus: 'Upper', slots: [
+    S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
+    S(['biceps'], 'isolation', { optional: true }), CORE,
+  ] }
+  if (days === 2) return [squat, press]
+  if (days === 3) return [squat, press, dead]
+  if (days === 4) return [squat, press, dead, pull]
+  if (days === 5) return [squat, press, dead, pull, upper]
+  return [squat, press, pull, dead, upper, squat]
 }
 
 function fatLossSessions(days: number): SessionTemplate[] {
-  // Full-body circuits keep heart rate up; cardio pattern slots in metabolic moves.
-  const fbA:  SessionTemplate = { focus: 'Full Body A',   patterns: ['squat', 'push', 'pull', 'hinge', 'cardio'] }
-  const fbB:  SessionTemplate = { focus: 'Full Body B',   patterns: ['hinge', 'pull', 'push', 'squat', 'cardio'] }
-  const fbC:  SessionTemplate = { focus: 'Full Body C',   patterns: ['push', 'squat', 'hinge', 'pull', 'core'] }
-  const cond: SessionTemplate = { focus: 'Conditioning',  patterns: ['cardio', 'squat', 'push', 'cardio', 'core'] }
-  const upCi: SessionTemplate = { focus: 'Upper Circuit', patterns: ['push', 'pull', 'push', 'cardio', 'core'] }
-
+  // Full-body density work; a cardio finisher keeps the heart rate up.
+  const fbA = fullBody('Full Body A', ['squat', 'h_push', 'h_pull', 'hinge'], CARDIO)
+  const fbB = fullBody('Full Body B', ['hinge', 'v_push', 'v_pull', 'squat'], CARDIO)
+  const fbC = fullBody('Full Body C', ['squat', 'h_push', 'h_pull', 'lunge'], CARDIO)
+  const cond: SessionTemplate = { focus: 'Conditioning', slots: [
+    S(['squat', 'lunge'], 'primary'), S(['h_push'], 'secondary'), S(['h_pull'], 'accessory'),
+    CARDIO, CORE,
+  ] }
+  const upCi: SessionTemplate = { focus: 'Upper Circuit', slots: [
+    S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
+    CARDIO, CORE,
+  ] }
   if (days === 2) return [fbA, fbB]
   if (days === 3) return [fbA, fbB, fbC]
   if (days === 4) return [fbA, fbB, fbC, cond]
@@ -152,12 +226,23 @@ function fatLossSessions(days: number): SessionTemplate[] {
 }
 
 function athleticSessions(days: number): SessionTemplate[] {
-  const power: SessionTemplate = { focus: 'Power',       patterns: ['hinge', 'squat', 'push', 'cardio', 'core'] }
-  const upper: SessionTemplate = { focus: 'Upper Power', patterns: ['push', 'push', 'pull', 'pull', 'core'] }
-  const lower: SessionTemplate = { focus: 'Lower Power', patterns: ['squat', 'squat', 'hinge', 'hinge', 'cardio'] }
-  const cond:  SessionTemplate = { focus: 'Conditioning',patterns: ['cardio', 'cardio', 'squat', 'push', 'core'] }
-  const full:  SessionTemplate = { focus: 'Full Body',   patterns: ['squat', 'push', 'pull', 'hinge', 'cardio'] }
-
+  const power: SessionTemplate = { focus: 'Power', slots: [
+    S(['hinge', 'squat'], 'power', { preferRole: 'power' }), S(['squat'], 'primary'),
+    S(['h_push'], 'secondary'), S(['lunge'], 'accessory'), CARDIO,
+  ] }
+  const upper: SessionTemplate = { focus: 'Upper Power', slots: [
+    S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
+    S(['v_pull'], 'secondary'), CORE,
+  ] }
+  const lower: SessionTemplate = { focus: 'Lower Power', slots: [
+    S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge'], 'accessory'),
+    S(['knee_flexion'], 'isolation'), CARDIO,
+  ] }
+  const cond: SessionTemplate = { focus: 'Conditioning', slots: [
+    S(['squat', 'lunge'], 'power', { preferRole: 'power' }), S(['h_push'], 'secondary'),
+    CARDIO, S(['carry', 'core'], 'accessory'), CORE,
+  ] }
+  const full = fullBody('Full Body', ['squat', 'h_push', 'h_pull', 'hinge'], CARDIO)
   if (days === 2) return [upper, lower]
   if (days === 3) return [power, upper, lower]
   if (days === 4) return [power, upper, lower, cond]
@@ -166,17 +251,22 @@ function athleticSessions(days: number): SessionTemplate[] {
 }
 
 function generalSessions(days: number): SessionTemplate[] {
-  const fullA:  SessionTemplate = { focus: 'Full Body A', patterns: ['squat', 'hinge', 'push', 'pull', 'core'] }
-  const fullB:  SessionTemplate = { focus: 'Full Body B', patterns: ['push', 'pull', 'squat', 'hinge', 'core'] }
-  const fullC:  SessionTemplate = { focus: 'Full Body C', patterns: ['hinge', 'squat', 'pull', 'push', 'core'] }
-  const upper:  SessionTemplate = { focus: 'Upper Body',  patterns: ['push', 'push', 'pull', 'pull', 'core'] }
-  const lower:  SessionTemplate = { focus: 'Lower Body',  patterns: ['squat', 'squat', 'hinge', 'hinge', 'core'] }
-
-  if (days === 2) return [fullA, fullB]
-  if (days === 3) return [fullA, fullB, fullC]
-  if (days === 4) return [upper, lower, fullA, fullB]
-  if (days === 5) return [fullA, upper, lower, fullB, fullC]
-  return [upper, lower, fullA, upper, lower, fullB]
+  const fbA = fullBody('Full Body A', ['squat', 'hinge', 'h_push', 'h_pull'])
+  const fbB = fullBody('Full Body B', ['h_push', 'h_pull', 'squat', 'hinge'])
+  const fbC = fullBody('Full Body C', ['hinge', 'squat', 'v_pull', 'v_push'])
+  const upper: SessionTemplate = { focus: 'Upper Body', slots: [
+    S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
+    S(['v_pull'], 'secondary'), S(['lat_raise'], 'isolation', { optional: true }), CORE,
+  ] }
+  const lower: SessionTemplate = { focus: 'Lower Body', slots: [
+    S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge', 'squat'], 'accessory'),
+    S(['knee_flexion'], 'isolation'), S(['calf'], 'isolation', { optional: true }), CORE,
+  ] }
+  if (days === 2) return [fbA, fbB]
+  if (days === 3) return [fbA, fbB, fbC]
+  if (days === 4) return [upper, lower, fbA, fbB]
+  if (days === 5) return [fbA, upper, lower, fbB, fbC]
+  return [upper, lower, fbA, upper, lower, fbB]
 }
 
 function buildSessionTemplates(goal: Goal, days: number): SessionTemplate[] {
@@ -222,65 +312,92 @@ function sortPool(pool: ExRow[], goal: Goal): ExRow[] {
   )
 }
 
-// How many exercises a pattern pool keeps for session rotation. Big enough for
+// How many exercises a slot pool keeps for session rotation. Big enough for
 // week-to-week variety, small enough that every pick is a movement a coach would
 // actually program (pools are popularity-sorted before the cap).
-const PATTERN_POOL_CAP = 14
+const SLOT_POOL_CAP = 10
 
-// Which patterns still SERVE a session's focus when its own pool runs dry — a
-// thin Pull day borrows hinge work (rows' posterior-chain cousins), never planks.
-const PATTERN_AFFINITY: Record<string, string[]> = {
-  pull: ['hinge', 'core'],
-  push: ['core'],
-  squat: ['hinge', 'core'],
-  hinge: ['squat', 'pull', 'core'],
-  core: ['mobility'],
-  cardio: ['core', 'mobility'],
+// When a slot's own pool runs dry, which OTHER slots still serve the same job — a
+// thin knee_flexion borrows another hamstring movement, never a plank. Keeps the
+// coaching intent intact rather than padding with whatever's left.
+const SLOT_AFFINITY: Record<Slot, Slot[]> = {
+  squat: ['lunge', 'hinge'],
+  hinge: ['glute_iso', 'squat'],
+  lunge: ['squat', 'quad_iso'],
+  knee_flexion: ['hinge', 'glute_iso'],
+  quad_iso: ['lunge', 'squat'],
+  glute_iso: ['hinge', 'lunge'],
+  calf: ['quad_iso'],
+  h_push: ['v_push', 'chest_iso'],
+  v_push: ['h_push', 'lat_raise'],
+  chest_iso: ['h_push'],
+  triceps: ['h_push'],
+  h_pull: ['v_pull', 'rear_delt'],
+  v_pull: ['h_pull'],
+  rear_delt: ['h_pull', 'lat_raise'],
+  lat_raise: ['v_push', 'rear_delt'],
+  biceps: ['h_pull'],
+  core: [],
+  cardio: ['core'],
   carry: ['core'],
-  mobility: ['core'],
 }
 
-function pickExercises(
-  byPattern: Record<string, ExRow[]>,
-  patterns: string[],
-  sessionIdx: number,
+// Tiers that demand a multi-joint movement — an isolation (curl, shrug, calf)
+// must never fill a primary/secondary/accessory compound slot.
+const COMPOUND_TIERS = new Set<Tier>(['power', 'primary', 'secondary', 'accessory'])
+
+// Fill a template's ordered slots with the best available exercise for each,
+// enforcing role fit (compound slots reject isolation work), anti-redundancy (no
+// two picks share a lift family — never two deadlift variants), rotation for
+// week-to-week variety, and a time budget (optional/tail slots drop first).
+// `rotation` is a per-focus occurrence index so the FIRST time a session appears
+// it opens with the canonical lift (back squat), then varies. Returns ids in
+// session order.
+function selectForSlots(
+  bySlot: Partial<Record<Slot, ExRow[]>>,
+  template: SessionTemplate,
+  rotation: number,
   target: number,
 ): string[] {
-  const usedPerPattern: Record<string, number> = {}
+  const required = template.slots.filter(s => !s.optional)
+  const optional = template.slots.filter(s => s.optional)
+  const chosen = [...required, ...optional].slice(0, Math.max(1, target))
+
+  const usedIds = new Set<string>()
+  const usedFamilies = new Set<string>()
   const ids: string[] = []
 
-  for (const pattern of patterns) {
-    const pool = byPattern[pattern] ?? []
-    if (!pool.length) continue
-    const pickCount = usedPerPattern[pattern] ?? 0
-    usedPerPattern[pattern] = pickCount + 1
-    // Rotate across sessions, but scan for the first exercise not already in the
-    // session — a 2-exercise pool must yield 2 distinct pulls, not 1 duplicate.
-    for (let k = 0; k < pool.length; k++) {
-      const pick = pool[(sessionIdx + pickCount + k) % pool.length]
-      if (pick && !ids.includes(pick.id)) { ids.push(pick.id); break }
+  // Pick the first eligible exercise from a slot pool. `gated` enforces the
+  // compound-tier role rule; a second ungated pass is the safety net so a
+  // thin-equipment slot is never left empty on a technicality.
+  const tryPick = (pool: ExRow[] | undefined, spec: SlotSpec, offset: number, gated: boolean): boolean => {
+    if (!pool?.length) return false
+    const ordered = spec.preferRole
+      ? [...pool].sort((a, b) =>
+          (classifyExercise(b).role === spec.preferRole ? 1 : 0) -
+          (classifyExercise(a).role === spec.preferRole ? 1 : 0))
+      : pool
+    for (let k = 0; k < ordered.length; k++) {
+      const ex = ordered[(rotation + offset + k) % ordered.length]
+      if (!ex || usedIds.has(ex.id)) continue
+      const cls = classifyExercise(ex)
+      if (usedFamilies.has(cls.family)) continue
+      if (gated && COMPOUND_TIERS.has(spec.tier) && cls.role !== 'compound' && cls.role !== 'power') continue
+      usedIds.add(ex.id); usedFamilies.add(cls.family); ids.push(ex.id)
+      return true
     }
+    return false
   }
 
-  // Limited equipment/level can leave a session thin. Pad ONLY with work that
-  // still serves the session's focus: leftovers from its own patterns, then
-  // pattern-affine neighbours, then core — and stop there. A short honest session
-  // beats a "Pull day" of planks and dead bugs (duration is derived from the final
-  // exercise count, so a shorter session also reads as shorter).
-  if (ids.length < target) {
-    const padOrder: string[] = [...patterns]
-    for (const p of patterns) for (const a of PATTERN_AFFINITY[p] ?? []) padOrder.push(a)
-    padOrder.push('core')
-    const visited = new Set<string>()
-    for (const p of padOrder) {
-      if (visited.has(p)) continue
-      visited.add(p)
-      for (const ex of byPattern[p] ?? []) {
-        if (ids.length >= target) return ids
-        if (!ids.includes(ex.id)) ids.push(ex.id)
-      }
-    }
-  }
+  chosen.forEach((spec, i) => {
+    // Preferred slots first, then affinity neighbours — each in preference order.
+    const order: Slot[] = [...spec.slots]
+    for (const s of spec.slots) for (const a of SLOT_AFFINITY[s] ?? []) if (!order.includes(a)) order.push(a)
+    for (const slot of order) if (tryPick(bySlot[slot], spec, i, true)) return
+    for (const slot of order) if (tryPick(bySlot[slot], spec, i, false)) return
+    // Nothing fit (thin equipment/injury) — leave it out; a short honest session
+    // beats padding a Push day with planks.
+  })
 
   return ids
 }
@@ -395,7 +512,7 @@ export async function generatePlan(
 interface BlockBuildCtx {
   slots: number[]
   templates: SessionTemplate[]
-  byPattern: Record<string, ExRow[]>
+  bySlot: Partial<Record<Slot, ExRow[]>>
   targetCount: number
   timeOfDay: TimeOfDay
   experience: Experience
@@ -450,31 +567,32 @@ async function buildBlockContext(
   )
   const pool = safe.length ? safe : filtered
 
-  // Group by pattern, preferring the core pool: a pattern only falls back to the
-  // full library when equipment/injury filters left it with no core movements at
-  // all (better an off-pool exercise than an empty Pull day). Within each pool:
-  // the user's own level first (sorted by goal-relevance + popularity), then the
-  // one-tier-above backups — so a Lat Pulldown labelled "intermediate" can still
-  // complete a beginner's Pull day, but never displaces an in-level pick.
-  const byPattern: Record<string, ExRow[]> = {}
+  // Group by coaching SLOT (via the classifier), not the coarse movement_pattern —
+  // this is what lets a Legs day distinguish a squat from a leg extension from a
+  // calf raise. Mobility rows are warm-up/cooldown work, never a training slot.
+  // Within each slot, prefer the curated core pool (fall back to the full library
+  // only when equipment/injury filters left it empty), the user's own level first
+  // (sorted by goal-relevance + popularity), then one-tier-above backups.
+  const bySlot: Partial<Record<Slot, ExRow[]>> = {}
   for (const ex of pool) {
-    const p = ex.movement_pattern
-    if (!byPattern[p]) byPattern[p] = []
-    byPattern[p].push(ex)
+    if (ex.movement_pattern === 'mobility') continue
+    const slot = classifyExercise(ex).slot
+    ;(bySlot[slot] ??= []).push(ex)
   }
-  for (const p of Object.keys(byPattern)) {
-    const core = byPattern[p].filter(ex => ex.is_core === true)
-    const source = core.length ? core : byPattern[p]
+  for (const slot of Object.keys(bySlot) as Slot[]) {
+    const all = bySlot[slot]!
+    const core = all.filter(ex => ex.is_core === true)
+    const source = core.length ? core : all
     const inLevel = source.filter(ex => expIdxOf(ex) <= userExpIdx)
     const backup = source.filter(ex => expIdxOf(ex) > userExpIdx)
-    byPattern[p] = [...sortPool(inLevel, profile.goal), ...sortPool(backup, profile.goal)].slice(0, PATTERN_POOL_CAP)
+    bySlot[slot] = [...sortPool(inLevel, profile.goal), ...sortPool(backup, profile.goal)].slice(0, SLOT_POOL_CAP)
   }
 
   const days = clampDays(profile.days_per_week)
   return {
     slots: chooseDaySlots(days, constraints.blockedWeekdays),
     templates: buildSessionTemplates(profile.goal, days),
-    byPattern,
+    bySlot,
     // How many exercises fit the user's preferred session length FOR THIS GOAL —
     // a strength day (full 3-min rests) fits fewer lifts than a fat-loss circuit
     // in the same wall-clock window. Duration is then derived from the count we
@@ -499,6 +617,10 @@ function buildBlockRows(
   const todayStr = formatDate(new Date())
   const rows: object[] = []
   let sessionCount = sessionCountStart
+  // Per-focus occurrence index drives exercise rotation, so the FIRST Push/Pull/
+  // Legs each open with the canonical top lift and later ones vary. Seeded from
+  // the rotation offset so a rollover block keeps varying rather than resetting.
+  const focusRotation = new Map<string, number>()
 
   for (let week = weekFrom; week < weekFrom + weekCount; week++) {
     // weekProgression cycles the wave modulo the block length, so week 5 starts a
@@ -513,7 +635,9 @@ function buildBlockRows(
       if (formatDate(date) < todayStr) continue
 
       const template = ctx.templates[sessionCount % ctx.templates.length]
-      const exerciseIds = pickExercises(ctx.byPattern, template.patterns, sessionCount, ctx.targetCount)
+      const rot = (focusRotation.get(template.focus) ?? Math.floor(sessionCountStart / ctx.templates.length))
+      focusRotation.set(template.focus, rot + 1)
+      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount)
 
       rows.push({
         user_id: userId,
@@ -685,11 +809,11 @@ export async function restampFuturePlanForExperience(
     const ctx = await buildBlockContext(client, profile, constraints)
     const mode = (plan.adaptation_mode ?? 'normal') as AdaptationMode
 
-    // Map each session's focus back to its movement patterns so re-selection stays
-    // true to the day (a "Push" day re-picks pushes at the new level, never pulls).
-    const focusToPatterns = new Map<string, string[]>()
+    // Map each session's focus back to its template so re-selection stays true to
+    // the day (a "Push" day re-picks pushes at the new level, never pulls).
+    const focusToTemplate = new Map<string, SessionTemplate>()
     for (const t of buildSessionTemplates(profile.goal, profile.days_per_week)) {
-      focusToPatterns.set(t.focus, t.patterns)
+      focusToTemplate.set(t.focus, t)
     }
 
     const todayStr = formatDate(new Date())
@@ -715,14 +839,19 @@ export async function restampFuturePlanForExperience(
       .eq('source', 'plan')
       .lt('planned_date', todayStr)
 
-    let idx = prior ?? 0
+    // Per-focus rotation, seeded from how many of each focus already ran, so a
+    // re-stamp keeps varying from where the plan was rather than resetting.
+    const templatesLen = Math.max(1, buildSessionTemplates(profile.goal, profile.days_per_week).length)
+    const focusRotation = new Map<string, number>()
+    const priorRot = Math.floor((prior ?? 0) / templatesLen)
     let changed = 0
     for (const w of future) {
-      idx++
       const baseFocus = stripDeloadFocus(w.focus as string)
-      const patterns = focusToPatterns.get(baseFocus)
-      if (!patterns) continue // custom-renamed / unknown focus — leave it untouched
-      const exerciseIds = pickExercises(ctx.byPattern, patterns, idx, ctx.targetCount)
+      const template = focusToTemplate.get(baseFocus)
+      if (!template) continue // custom-renamed / unknown focus — leave it untouched
+      const rot = focusRotation.get(baseFocus) ?? priorRot
+      focusRotation.set(baseFocus, rot + 1)
+      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount)
       if (!exerciseIds.length) continue
       const weekIndex = (w.week_index as number | null) ?? 0
       const progression = weekProgression(weekIndex, profile.experience, mode)
