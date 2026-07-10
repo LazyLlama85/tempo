@@ -18,6 +18,8 @@ import { useRouter } from 'expo-router'
 import { Radius, Spacing } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useReducedMotion } from '@/components/motion'
+import { useTutorialTarget } from '@/components/TutorialOverlay'
+import { TARGET } from '@/lib/tutorial'
 
 type IoniconsName = keyof typeof Ionicons.glyphMap
 
@@ -73,9 +75,14 @@ function TabItem({
 
   const meta = TAB_META[routeName] ?? TAB_META.index
   const color = focused ? C.primary : C.outline
+  // Register Progress / Profile as tutorial spotlight targets (others: null = no-op).
+  const targetRef = useTutorialTarget(
+    routeName === 'progress' ? TARGET.tabProgress : routeName === 'profile' ? TARGET.tabProfile : null,
+  )
 
   return (
     <Pressable
+      ref={targetRef}
       onPress={onPress}
       style={styles.item}
       accessibilityRole="button"
@@ -132,8 +139,10 @@ function GoButton() {
   const to = (v: number) =>
     Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 6 }).start()
 
+  const goRef = useTutorialTarget(TARGET.tabGo)
+
   return (
-    <View style={styles.goWrap}>
+    <View ref={goRef} style={styles.goWrap}>
       <Animated.View
         pointerEvents="none"
         style={[

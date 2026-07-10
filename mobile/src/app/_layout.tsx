@@ -8,6 +8,8 @@ import { QueryClient, QueryClientProvider, QueryCache, focusManager } from '@tan
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { useAuthStore } from '@/stores/auth'
+import { useTutorialStore } from '@/stores/tutorial'
+import { TutorialOverlay } from '@/components/TutorialOverlay'
 import { useTheme, useThemeStore, ThemeTransitionOverlay } from '@/theme'
 import { initAnalytics, track } from '@/lib/analytics'
 import { initCrashReporting, wrapWithCrashReporting, captureApiError } from '@/lib/crashReporting'
@@ -86,6 +88,11 @@ const persistOptions = persister
 
 function RootLayout() {
   const { initialize } = useAuthStore()
+  const sessionUserId = useAuthStore(s => s.session?.user.id)
+  // Load this user's device-local tutorial state whenever the signed-in user changes.
+  useEffect(() => {
+    if (sessionUserId) useTutorialStore.getState().init(sessionUserId)
+  }, [sessionUserId])
   // Live navigation theme — follows the active palette so screen backgrounds and
   // transitions never flash the wrong color when the mode changes.
   const C = useTheme()
@@ -176,8 +183,10 @@ function RootLayout() {
           <Stack.Screen name="exercise-library" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-progress" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-complete" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="welcome" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
         </Stack>
         <ThemeTransitionOverlay />
+        <TutorialOverlay />
       </ThemeProvider>
   )
 

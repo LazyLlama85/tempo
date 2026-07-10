@@ -5,6 +5,7 @@
 
 import type { Goal } from '@/types'
 import type { WeekProgression } from '@/lib/periodization'
+import { roleRepMod, type Role } from '@/lib/exerciseProgramming'
 
 export interface SetPerformance {
   weight_lbs: number | null
@@ -106,11 +107,16 @@ export function buildPrescription(
   readinessLow = false,
   bias: -1 | 0 | 1 = 0,
   period?: WeekProgression | null,
+  role?: Role | null,
 ): ExercisePrescription {
   const scheme = GOAL_SCHEME[goal] ?? GOAL_SCHEME.general_fitness
   const inc = weightIncrement(pattern)
+  // The exercise's ROLE shapes the scheme within the goal: a primary compound
+  // stays heavier/lower-rep with full rest; an isolation goes higher-rep with
+  // shorter rest; core higher still. Base goal numbers are the anchor.
+  const mod = role ? roleRepMod(role) : { setsDelta: 0, repLowDelta: 0, repHighDelta: 0, restMult: 1 }
 
-  let sets = scheme.sets
+  let sets = scheme.sets + mod.setsDelta
   if (readinessLow && sets > 2) sets -= 1
   // Workout-level feedback: "too easy" adds a set, "too hard" trims one.
   if (bias > 0) sets += 1
@@ -119,15 +125,16 @@ export function buildPrescription(
   if (period) sets += period.setsDelta
   sets = Math.max(2, Math.min(6, sets))
 
-  // Periodized rep target shift (deload trims the range).
-  let repLow = scheme.repLow
-  let repHigh = scheme.repHigh
+  // Role- then periodization-adjusted rep target (deload trims the range).
+  let repLow = Math.max(1, scheme.repLow + mod.repLowDelta)
+  let repHigh = Math.max(repLow + 1, scheme.repHigh + mod.repHighDelta)
   if (period?.repBias) {
     repLow = Math.max(1, repLow + period.repBias)
     repHigh = Math.max(repLow + 1, repHigh + period.repBias)
   }
 
-  const base = { sets, repLow, repHigh, restSeconds: scheme.rest }
+  const restSeconds = Math.max(30, Math.round(scheme.rest * mod.restMult))
+  const base = { sets, repLow, repHigh, restSeconds }
 
   // Scale a working weight by the week's intensity (1.0 except on a deload).
   const scaleLoad = (w: number | null): number | null =>
@@ -155,7 +162,7 @@ export function buildPrescription(
     const rpes = last.map(s => s.rpe).filter((r): r is number => r != null)
     const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null
 
-    if (minReps >= scheme.repHigh && (avgRpe == null || avgRpe <= 8)) {
+    if (minReps >= repHigh && (avgRpe == null || avgRpe <= 8)) {
       if (bias < 0) {
         suggestedWeight = topWeight
         direction = 'hold'
@@ -163,9 +170,9 @@ export function buildPrescription(
       } else {
         suggestedWeight = topWeight + inc
         direction = 'up'
-        reason = `You cleared ${scheme.repHigh} reps last time — add ${inc} lbs.`
+        reason = `You cleared ${repHigh} reps last time — add ${inc} lbs.`
       }
-    } else if (minReps < scheme.repLow || (avgRpe != null && avgRpe >= 9.5)) {
+    } else if (minReps < repLow || (avgRpe != null && avgRpe >= 9.5)) {
       suggestedWeight = roundToIncrement(topWeight * 0.9, inc)
       direction = 'down'
       reason = 'That was a grind — drop ~10% and rebuild with clean reps.'

@@ -20,6 +20,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { useTutorialStore } from '@/stores/tutorial'
+import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
 import type { WeekProgression } from '@/lib/periodization'
@@ -35,6 +37,8 @@ import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import { metricsFor } from '@/lib/customExercises'
+import { classifyExercise } from '@/lib/exerciseProgramming'
+import { describeSession } from '@/lib/sessionRationale'
 import { expandEquipment } from '@/lib/equipmentMatch'
 import { useUnitStore, unitLabel, displayWeight, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
 import type { Exercise, Goal, Split, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
@@ -188,6 +192,7 @@ export default function WorkoutsScreen() {
   const quickParam = params.quick || undefined
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const experience = useAuthStore(s => s.profile?.experience)
 
   const [workout, setWorkout] = useState<WorkoutRow | null>(null)
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
@@ -240,6 +245,8 @@ export default function WorkoutsScreen() {
   const [noteSaved, setNoteSaved] = useState(false)
   // One-time coach overlay on the very first live session.
   const [coachVisible, setCoachVisible] = useState(false)
+  // "Why this workout" reasoning sheet (hub).
+  const [whyOpen, setWhyOpen] = useState(false)
   // How this user's real session lengths compare to estimates (historical).
   const [paceFactor, setPaceFactor] = useState(1)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
@@ -499,7 +506,7 @@ export default function WorkoutsScreen() {
               restSeconds: 90, suggestedWeight: cfg.weight_lbs, direction: 'new',
               reason: 'Your target for this workout.', lastSummary: null,
             }
-          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression)
+          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression, classifyExercise(ex).role)
       }
     } else {
       for (const ex of ordered) {
@@ -631,13 +638,21 @@ export default function WorkoutsScreen() {
     return () => { deactivateKeepAwake('tempo-session') }
   }, [sessionActive])
 
-  // First live session ever → a one-time coach overlay explaining the logger.
+  // First live session ever → a one-time coach overlay explaining the logger, plus
+  // the first-workout analytics moment (once per account, framework-tracked).
+  const firstWorkoutTracked = useRef(false)
+  const firstSetTracked = useRef(false)
   useEffect(() => {
     if (!sessionActive) return
     try {
       const seen = (globalThis as { localStorage?: Storage }).localStorage?.getItem('tempo.coach.session')
       if (!seen) setCoachVisible(true)
     } catch { /* no storage → just skip the coach */ }
+    const tut = useTutorialStore.getState()
+    if (!firstWorkoutTracked.current && !tut.data.firstWorkoutCompleted) {
+      firstWorkoutTracked.current = true
+      track('first_workout_started', { experience })
+    }
   }, [sessionActive])
   const dismissCoach = () => {
     setCoachVisible(false)
@@ -680,6 +695,11 @@ export default function WorkoutsScreen() {
     if (!set || set.done) return
 
     haptics.tapLight()
+    // The very first set this account ever logs — the retention hinge moment.
+    if (!firstSetTracked.current && !useTutorialStore.getState().data.firstWorkoutCompleted) {
+      firstSetTracked.current = true
+      track('first_set_logged', { experience })
+    }
     setSets(prev => ({
       ...prev,
       [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: true } : s),
@@ -834,7 +854,7 @@ export default function WorkoutsScreen() {
   // the scheduled row (so an app restart keeps it) and — when the session came
   // from a split — into the split day itself, so every future week has it.
   const addExerciseToSession = async (ex: ExerciseRow, permanent: boolean) => {
-    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null)
+    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role)
     restDefaults.current[ex.id] = prescription.restSeconds
     if (!reduceMotion) {
       LayoutAnimation.configureNext(
@@ -1000,7 +1020,7 @@ export default function WorkoutsScreen() {
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression)
+    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role)
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))
@@ -1372,6 +1392,17 @@ export default function WorkoutsScreen() {
             ))}
           </FadeInView>
 
+          {/* Why this workout — makes the plan feel designed, not random */}
+          {describeSession(exercises, workout.focus) && (
+            <FadeInView delay={100}>
+              <PressableScale style={styles.whyBtn} scaleTo={0.97} onPress={() => setWhyOpen(true)}>
+                <Ionicons name="bulb-outline" size={16} color={C.primary} />
+                <Text style={styles.whyBtnText}>Why this workout?</Text>
+                <Ionicons name="chevron-forward" size={15} color={C.outline} />
+              </PressableScale>
+            </FadeInView>
+          )}
+
           <FadeInView delay={140}>
             <PressableScale
               style={styles.hubStartBtn}
@@ -1405,6 +1436,33 @@ export default function WorkoutsScreen() {
             </PressableScale>
           </View>
         </ScrollView>
+
+        {/* Why this workout — the reasoning behind the order + selection */}
+        <Modal visible={whyOpen} animationType="fade" transparent onRequestClose={() => setWhyOpen(false)}>
+          <View style={styles.coachBackdrop}>
+            <View style={styles.coachCard}>
+              <View style={styles.coachIcon}><Ionicons name="bulb" size={24} color={C.onPrimary} /></View>
+              {(() => {
+                const r = describeSession(exercises, workout.focus)
+                if (!r) return null
+                return (
+                  <>
+                    <Text style={styles.coachTitle}>{r.headline}</Text>
+                    {r.lines.map((l, i) => (
+                      <View key={i} style={styles.whyRow}>
+                        <Text style={styles.whyNum}>{i + 1}</Text>
+                        <Text style={styles.whyLine}>{l}</Text>
+                      </View>
+                    ))}
+                  </>
+                )
+              })()}
+              <PressableScale style={styles.coachBtn} onPress={() => setWhyOpen(false)}>
+                <Text style={styles.coachBtnText}>Got it</Text>
+              </PressableScale>
+            </View>
+          </View>
+        </Modal>
       </ScreenTransition>
     </SafeAreaView>
     )
@@ -2190,6 +2248,18 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.sm, paddingVertical: 5,
   },
   hubEditText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+  whyBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  whyBtnText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
+  whyRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', paddingVertical: 5 },
+  whyNum: {
+    fontFamily: 'Inter_700Bold', fontSize: 12, color: C.onPrimary,
+    backgroundColor: C.primary, width: 20, height: 20, borderRadius: 10,
+    textAlign: 'center', lineHeight: 20, overflow: 'hidden',
+  },
+  whyLine: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 19 },
   hubList: {
     backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
     paddingHorizontal: Spacing.md, ...CardShadow,

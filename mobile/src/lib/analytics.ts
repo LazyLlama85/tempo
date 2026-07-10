@@ -54,6 +54,15 @@ export type EventProperties = {
   share_card_opened: undefined
   // Auto-progression graduated the user to a harder experience level.
   experience_promoted: { from: string; to: string }
+  // ── First-time experience (tutorial framework) ──────────────────────────────
+  tutorial_started: { tutorial: string; experience?: string }
+  tutorial_step_completed: { tutorial: string; step: string; experience?: string }
+  tutorial_skipped: { tutorial: string; experience?: string }
+  tutorial_completed: { tutorial: string; experience?: string }
+  tutorial_replayed: { tutorial: string }
+  first_workout_started: { experience?: string }
+  first_set_logged: { experience?: string }
+  first_workout_completed: { experience?: string; duration_min?: number }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

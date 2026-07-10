@@ -10,6 +10,8 @@ import { FadeInView, PressableScale } from '@/components/motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useTutorialStore } from '@/stores/tutorial'
+import { T } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
 import { generatePlan } from '@/lib/generatePlan'
 import { autoScheduleUpcoming } from '@/lib/autoSchedule'
@@ -208,10 +210,18 @@ export default function PlanPreviewScreen() {
 
       if (isReplan) {
         // Existing user changing plans: straight back into the app (pop the whole
-        // onboarding stack so back-swipe can't land on a stale step).
+        // onboarding stack so back-swipe can't land on a stale step). Re-planners
+        // are NOT armed for the first-run tutorials — they've seen the app.
         if (router.canDismiss()) router.dismissAll()
         router.replace('/(tabs)')
       } else {
+        // Brand-new user: arm the first-run tutorials at this deterministic moment
+        // (the only place they're ever armed, so existing users never see them).
+        // The (tabs) gate then routes through /welcome after profile-setup.
+        const tut = useTutorialStore.getState()
+        tut.init(session.user.id)
+        tut.arm(T.welcome); tut.arm(T.homeTour); tut.arm(T.firstWorkout)
+        tut.setFirstPlanCreated()
         // Finish with a quick "make it yours" profile step before entering the app.
         router.replace('/onboarding/profile-setup')
       }

@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, type LayoutChangeEvent } from 'react-native'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
@@ -7,7 +7,11 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useFocusEffect } from 'expo-router'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
+import { useTutorialTarget } from '@/components/TutorialOverlay'
+import { useTutorialStore } from '@/stores/tutorial'
+import { T, HOME_TOUR_STEPS, TARGET } from '@/lib/tutorial'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
@@ -267,6 +271,29 @@ export default function ScheduleScreen() {
     ['scheduled_workouts'], ['missed_workouts'], ['next_workout'], ['block_phase'],
     ['recovery_today'], ['quick_suggestion'], ['rest_advice'],
     ['progress_workouts'], ['progress_set_logs'], ['goal_projection'], ['travel_mode'],
+  )
+
+  // First-run Home tour: spotlight targets (calendar + today's card here; the GO/
+  // Progress/Profile targets live in the tab bar). Starts once, on first Home focus
+  // after Welcome, only if armed — then never again.
+  const calendarTarget = useTutorialTarget(TARGET.homeCalendar)
+  const todayCardTarget = useTutorialTarget(TARGET.homeToday)
+  useFocusEffect(
+    useCallback(() => {
+      const t = setTimeout(() => {
+        const s = useTutorialStore.getState()
+        const lastStep = HOME_TOUR_STEPS[HOME_TOUR_STEPS.length - 1].id
+        if (
+          s.isArmed(T.homeTour) &&
+          s.isStepDone('welcome_done') &&
+          !s.isStepDone(lastStep) &&
+          !s.activeTour
+        ) {
+          s.startTour(T.homeTour)
+        }
+      }, 650) // let the calendar + card measure first
+      return () => clearTimeout(t)
+    }, []),
   )
 
   // Calendar events for the visible feed range — shown inline with workouts but
@@ -827,7 +854,7 @@ export default function ScheduleScreen() {
         <Text style={[styles.railTime, styles.railTimeActive, { color: accent }]} numberOfLines={1}>
           {formatTime(w.planned_start_time)}
         </Text>
-        <View style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
+        <View ref={hero ? todayCardTarget : undefined} collapsable={false} style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
           {/* Faux-gradient glow: a soft accent blob behind the hero's content */}
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroBlob} />}
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroWash} />}
@@ -1043,6 +1070,7 @@ export default function ScheduleScreen() {
 
         {/* Calendar — weekly strip (day/week) or month grid (month). Keyed by view
             so switching Day/Week/Month crossfades instead of snapping. */}
+        <View ref={calendarTarget} collapsable={false}>
         <FadeInView key={viewMode} duration={240}>
           {viewMode === 'month' ? (
             <View style={styles.grid}>
@@ -1059,6 +1087,7 @@ export default function ScheduleScreen() {
             </View>
           )}
         </FadeInView>
+        </View>
 
         {/* Block phase — tap to see the full "why this week" explanation */}
         {blockPhase?.progression && (
