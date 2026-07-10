@@ -1,0 +1,143 @@
+// Tempo — tutorial store (reactive layer over lib/tutorial).
+//
+// Durable state (armed/completed/skipped/first-*) is persisted to localStorage per
+// user via lib/tutorial. Ephemeral state (the measured target registry + which
+// tour/step is active) lives only in memory — it drives the spotlight overlay.
+
+import { create } from 'zustand'
+import {
+  T, HOME_TOUR_STEPS, readTutorialData, writeTutorialData, emptyTutorialData,
+  type TutorialData, type TutorialId, type TutorialStep,
+} from '@/lib/tutorial'
+import { track } from '@/lib/analytics'
+
+export interface TargetRect { x: number; y: number; width: number; height: number }
+
+interface TutorialStoreState {
+  userId: string | null
+  data: TutorialData
+  // Registry: element id → a function that re-measures it into window coords.
+  measurers: Record<string, () => void>
+  targets: Record<string, TargetRect>
+  // Active overlay tour.
+  activeTour: TutorialId | null
+  stepIndex: number
+
+  init: (userId: string) => void
+  // Durable ops (persist).
+  arm: (id: TutorialId) => void
+  isArmed: (id: TutorialId) => boolean
+  isStepDone: (stepId: string) => boolean
+  completeStep: (stepId: string) => void
+  skip: (id: TutorialId) => void
+  replay: (id: TutorialId) => void
+  setFirstPlanCreated: () => void
+  setFirstWorkoutCompleted: () => void
+  resetAll: () => void
+  // Target registry (ephemeral).
+  registerTarget: (id: string, measure: () => void) => void
+  unregisterTarget: (id: string) => void
+  setTargetRect: (id: string, rect: TargetRect) => void
+  // Tour control (ephemeral).
+  startTour: (id: TutorialId) => void
+  nextStep: () => void
+  endTour: (opts?: { skipped?: boolean }) => void
+  activeSteps: () => TutorialStep[]
+}
+
+const STEPS: Record<TutorialId, TutorialStep[]> = {
+  [T.welcome]: [],
+  [T.homeTour]: HOME_TOUR_STEPS,
+  [T.firstWorkout]: [],
+}
+
+export const useTutorialStore = create<TutorialStoreState>((set, get) => {
+  const persist = (mut: (d: TutorialData) => TutorialData) => {
+    const { userId, data } = get()
+    const next = mut({ ...data })
+    set({ data: next })
+    if (userId) writeTutorialData(userId, next)
+  }
+
+  return {
+    userId: null,
+    data: emptyTutorialData(),
+    measurers: {},
+    targets: {},
+    activeTour: null,
+    stepIndex: 0,
+
+    init: (userId) => {
+      // Reload the durable slice for this user (sign-in swaps users on a device).
+      set({ userId, data: readTutorialData(userId), activeTour: null, stepIndex: 0 })
+    },
+
+    arm: (id) => persist(d => ({ ...d, armed: { ...d.armed, [id]: true } })),
+    isArmed: (id) => !!get().data.armed[id] && !get().data.skipped[id],
+    isStepDone: (stepId) => !!get().data.completedSteps[stepId],
+    completeStep: (stepId) => persist(d => ({ ...d, completedSteps: { ...d.completedSteps, [stepId]: true }, lastSeenAt: 0 })),
+    skip: (id) => persist(d => {
+      // Skipping a tutorial completes its steps so it can't re-fire.
+      const completedSteps = { ...d.completedSteps }
+      for (const s of STEPS[id]) completedSteps[s.id] = true
+      return { ...d, skipped: { ...d.skipped, [id]: true }, completedSteps }
+    }),
+    replay: (id) => {
+      persist(d => {
+        const completedSteps = { ...d.completedSteps }
+        for (const s of STEPS[id]) delete completedSteps[s.id]
+        const skipped = { ...d.skipped }; delete skipped[id]
+        // Special step ids the welcome/first-workout screens track outside STEPS.
+        if (id === T.welcome) delete completedSteps['welcome_done']
+        if (id === T.firstWorkout) delete completedSteps['first_workout_intro']
+        return { ...d, completedSteps, skipped, armed: { ...d.armed, [id]: true } }
+      })
+      track('tutorial_replayed', { tutorial: id })
+    },
+    setFirstPlanCreated: () => persist(d => ({ ...d, firstPlanCreated: true })),
+    setFirstWorkoutCompleted: () => persist(d => ({ ...d, firstWorkoutCompleted: true })),
+    resetAll: () => {
+      const { userId } = get()
+      const fresh = emptyTutorialData()
+      set({ data: fresh })
+      if (userId) writeTutorialData(userId, fresh)
+    },
+
+    registerTarget: (id, measure) => set(s => ({ measurers: { ...s.measurers, [id]: measure } })),
+    unregisterTarget: (id) => set(s => {
+      const measurers = { ...s.measurers }; delete measurers[id]
+      const targets = { ...s.targets }; delete targets[id]
+      return { measurers, targets }
+    }),
+    setTargetRect: (id, rect) => set(s => ({ targets: { ...s.targets, [id]: rect } })),
+
+    startTour: (id) => {
+      set({ activeTour: id, stepIndex: 0 })
+      const { data } = get()
+      track('tutorial_started', { tutorial: id })
+      void data
+    },
+    nextStep: () => {
+      const { activeTour, stepIndex } = get()
+      if (!activeTour) return
+      const steps = STEPS[activeTour]
+      const step = steps[stepIndex]
+      if (step) { get().completeStep(step.id); track('tutorial_step_completed', { tutorial: activeTour, step: step.id }) }
+      if (stepIndex + 1 >= steps.length) {
+        get().endTour()
+        track('tutorial_completed', { tutorial: activeTour })
+      } else {
+        set({ stepIndex: stepIndex + 1 })
+      }
+    },
+    endTour: (opts) => {
+      const { activeTour } = get()
+      if (activeTour && opts?.skipped) { get().skip(activeTour); track('tutorial_skipped', { tutorial: activeTour }) }
+      set({ activeTour: null, stepIndex: 0 })
+    },
+    activeSteps: () => {
+      const { activeTour } = get()
+      return activeTour ? STEPS[activeTour] : []
+    },
+  }
+})
