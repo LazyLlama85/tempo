@@ -20,6 +20,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { useTutorialStore } from '@/stores/tutorial'
+import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
 import type { WeekProgression } from '@/lib/periodization'
@@ -190,6 +192,7 @@ export default function WorkoutsScreen() {
   const quickParam = params.quick || undefined
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const experience = useAuthStore(s => s.profile?.experience)
 
   const [workout, setWorkout] = useState<WorkoutRow | null>(null)
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
@@ -635,13 +638,21 @@ export default function WorkoutsScreen() {
     return () => { deactivateKeepAwake('tempo-session') }
   }, [sessionActive])
 
-  // First live session ever → a one-time coach overlay explaining the logger.
+  // First live session ever → a one-time coach overlay explaining the logger, plus
+  // the first-workout analytics moment (once per account, framework-tracked).
+  const firstWorkoutTracked = useRef(false)
+  const firstSetTracked = useRef(false)
   useEffect(() => {
     if (!sessionActive) return
     try {
       const seen = (globalThis as { localStorage?: Storage }).localStorage?.getItem('tempo.coach.session')
       if (!seen) setCoachVisible(true)
     } catch { /* no storage → just skip the coach */ }
+    const tut = useTutorialStore.getState()
+    if (!firstWorkoutTracked.current && !tut.data.firstWorkoutCompleted) {
+      firstWorkoutTracked.current = true
+      track('first_workout_started', { experience })
+    }
   }, [sessionActive])
   const dismissCoach = () => {
     setCoachVisible(false)
@@ -684,6 +695,11 @@ export default function WorkoutsScreen() {
     if (!set || set.done) return
 
     haptics.tapLight()
+    // The very first set this account ever logs — the retention hinge moment.
+    if (!firstSetTracked.current && !useTutorialStore.getState().data.firstWorkoutCompleted) {
+      firstSetTracked.current = true
+      track('first_set_logged', { experience })
+    }
     setSets(prev => ({
       ...prev,
       [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: true } : s),

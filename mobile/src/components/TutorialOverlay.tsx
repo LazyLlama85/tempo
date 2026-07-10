@@ -23,13 +23,14 @@ import { shouldShowTip, markTipSeen } from '@/lib/tutorial'
 // ── Target registry hook ──────────────────────────────────────────────────────
 // Attach the returned ref to a host View; the overlay can then measure it into
 // window coordinates on demand.
-export function useTutorialTarget(id: string) {
+export function useTutorialTarget(id: string | null) {
   const ref = useRef<RNView>(null)
   const register = useTutorialStore(s => s.registerTarget)
   const unregister = useTutorialStore(s => s.unregisterTarget)
   const setRect = useTutorialStore(s => s.setTargetRect)
 
   useEffect(() => {
+    if (!id) return
     const measure = () => {
       requestAnimationFrame(() => {
         ref.current?.measureInWindow?.((x, y, width, height) => {
