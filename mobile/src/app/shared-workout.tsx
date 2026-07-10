@@ -1,9 +1,11 @@
-// Tempo — shared-workout landing (modal).
+// Tempo — shared-workout / shared-split landing (modal).
 //
-// Deep-link / code-redemption target for a shared workout: shows the snapshot
-// ("Push (Jacob's) — created by Jacob") with its exercise list, then imports it
-// into the viewer's library on Save. Reached via tempo://shared-workout?code=X,
-// the /w/[code] link route, or the paste-a-code box on the Friends screen.
+// Deep-link / code-redemption target for a share: shows the snapshot
+// ("Push (Jacob's) — created by Jacob") with metadata chips and either its
+// exercise list (kind='workout') or its weekly day breakdown (kind='split'),
+// then imports it into the viewer's account on Save. Reached via
+// tempo://shared-workout?code=X, the /w/[code] link route, or the paste-a-code
+// box on the Friends screen.
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
@@ -18,7 +20,11 @@ import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
 import * as haptics from '@/lib/haptics'
-import { fetchWorkoutShare, importWorkoutShare, possessive, type WorkoutShare } from '@/lib/social'
+import { WEEKDAY_LABELS } from '@/lib/splits'
+import {
+  fetchWorkoutShare, importWorkoutShare, importSplitShare, possessive,
+  equipmentSummaryLabel, type WorkoutShare,
+} from '@/lib/social'
 
 export default function SharedWorkoutScreen() {
   const C = useTheme()
@@ -41,23 +47,30 @@ export default function SharedWorkoutScreen() {
       .finally(() => setLoading(false))
   }, [code, userId])
 
+  const isSplit = share?.kind === 'split'
+
   const handleSave = async () => {
     if (!share || saving || savedId) return
     setSaving(true)
-    const { id, dropped } = await importWorkoutShare(supabase, userId, share)
+    const { id, dropped } = isSplit
+      ? await importSplitShare(supabase, userId, share)
+      : await importWorkoutShare(supabase, userId, share)
     setSaving(false)
     if (!id) {
-      Alert.alert('Couldn’t save', 'This workout couldn’t be imported — it may only contain exercises that aren’t available to you.')
+      Alert.alert('Couldn’t save', `This ${isSplit ? 'program' : 'workout'} couldn’t be imported — it may only contain exercises that aren’t available to you.`)
       return
     }
     haptics.success()
     setSavedId(id)
     if (dropped > 0) {
-      Alert.alert('Saved (mostly)', `${dropped} exercise${dropped === 1 ? ' was' : 's were'} custom to the sharer and couldn’t come along. Everything else is in My Workouts.`)
+      Alert.alert('Saved (mostly)', `${dropped} exercise${dropped === 1 ? ' was' : 's were'} custom to the sharer and couldn’t come along. Everything else is saved.`)
     }
   }
 
   const title = share ? (share.owner_name ? `${share.name} (${possessive(share.owner_name)})` : share.name) : ''
+
+  // Split day breakdown (kind='split').
+  const trainingDays = (share?.days ?? []).filter((d) => !d.rest && (d.exercise_ids?.length ?? 0) > 0)
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -65,17 +78,17 @@ export default function SharedWorkoutScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="chevron-down" size={26} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Shared Workout</Text>
+        <Text style={styles.headerTitle}>{isSplit ? 'Shared Program' : 'Shared Workout'}</Text>
         <View style={{ width: 26 }} />
       </View>
 
       {loading ? (
-        <View style={styles.center}><PulseLoader caption="Opening workout…" /></View>
+        <View style={styles.center}><PulseLoader caption="Opening…" /></View>
       ) : !share ? (
         <View style={styles.center}>
           <EmptyState
             kind="flash"
-            title="Workout not found"
+            title="Not found"
             body="This share link or code doesn't match anything — it may have been deleted, or the code was mistyped."
           />
         </View>
@@ -84,53 +97,92 @@ export default function SharedWorkoutScreen() {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
             <FadeInView style={styles.hero}>
               <View style={styles.shareBadge}>
-                <Ionicons name="gift-outline" size={12} color={C.primary} />
-                <Text style={styles.shareBadgeText}>SHARED WITH YOU</Text>
+                <Ionicons name={isSplit ? 'repeat-outline' : 'gift-outline'} size={12} color={C.primary} />
+                <Text style={styles.shareBadgeText}>{isSplit ? 'SHARED PROGRAM' : 'SHARED WITH YOU'}</Text>
               </View>
               <Text style={styles.title}>{title}</Text>
               {!!share.owner_name && <Text style={styles.byline}>Created by {share.owner_name}</Text>}
-              <Text style={styles.meta}>{share.exercises.length} exercise{share.exercises.length === 1 ? '' : 's'} · ~{share.est_duration_min} min</Text>
             </FadeInView>
 
-            <FadeInView delay={70} style={styles.card}>
-              {share.exercises.map((ex, i) => {
-                const cfg = share.config?.find((c) => c.exercise_id === ex.id)
-                return (
-                  <View key={`${ex.id}-${i}`} style={[styles.exRow, i > 0 && styles.exRowDivider]}>
-                    <Text style={styles.exNum}>{i + 1}</Text>
-                    <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
-                    {cfg && <Text style={styles.exSets}>{cfg.sets} × {cfg.rep_high}</Text>}
-                  </View>
-                )
-              })}
+            {/* Metadata chips — creator context at a glance */}
+            <FadeInView delay={40} style={styles.chipRow}>
+              <MetaChip C={C} styles={styles} icon="fitness-outline"
+                label={isSplit ? `${trainingDays.length} day${trainingDays.length === 1 ? '' : 's'}/week` : `${share.exercises.length} exercise${share.exercises.length === 1 ? '' : 's'}`} />
+              <MetaChip C={C} styles={styles} icon="time-outline" label={`~${share.est_duration_min} min`} />
+              <MetaChip C={C} styles={styles} icon="barbell-outline" label={equipmentSummaryLabel(share.equipment)} />
             </FadeInView>
+
+            {isSplit ? (
+              <FadeInView delay={70} style={styles.card}>
+                {(share.days ?? [])
+                  .slice()
+                  .sort((a, b) => a.weekday - b.weekday)
+                  .map((d, i) => (
+                    <View key={d.weekday} style={[styles.dayRow, i > 0 && styles.exRowDivider]}>
+                      <View style={[styles.dayPill, !d.rest && (d.exercise_ids?.length ?? 0) > 0 && styles.dayPillOn]}>
+                        <Text style={[styles.dayPillText, !d.rest && (d.exercise_ids?.length ?? 0) > 0 && styles.dayPillTextOn]}>
+                          {WEEKDAY_LABELS[d.weekday - 1]}
+                        </Text>
+                      </View>
+                      <Text style={[styles.dayLabel, d.rest && { color: C.textSecondary }]} numberOfLines={1}>
+                        {d.rest || !(d.exercise_ids?.length) ? 'Rest' : d.label}
+                      </Text>
+                      {!d.rest && (d.exercise_ids?.length ?? 0) > 0 && (
+                        <Text style={styles.exSets}>{d.exercise_ids!.length} ex</Text>
+                      )}
+                    </View>
+                  ))}
+              </FadeInView>
+            ) : (
+              <FadeInView delay={70} style={styles.card}>
+                {share.exercises.map((ex, i) => {
+                  const cfg = share.config?.find((c) => c.exercise_id === ex.id)
+                  return (
+                    <View key={`${ex.id}-${i}`} style={[styles.exRow, i > 0 && styles.exRowDivider]}>
+                      <Text style={styles.exNum}>{i + 1}</Text>
+                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                      {cfg && <Text style={styles.exSets}>{cfg.sets} × {cfg.rep_high}</Text>}
+                    </View>
+                  )
+                })}
+              </FadeInView>
+            )}
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm }]}>
             {savedId ? (
               <PopIn style={[styles.saveBtn, { backgroundColor: C.success }]}>
                 <Ionicons name="checkmark-circle" size={18} color={C.onPrimary} />
-                <Text style={styles.saveBtnText}>In My Workouts</Text>
+                <Text style={styles.saveBtnText}>{isSplit ? 'Saved to My Splits' : 'In My Workouts'}</Text>
               </PopIn>
             ) : (
               <PressableScale style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color={C.onPrimary} /> : (
                   <>
                     <Ionicons name="download-outline" size={18} color={C.onPrimary} />
-                    <Text style={styles.saveBtnText}>Save Workout</Text>
+                    <Text style={styles.saveBtnText}>{isSplit ? 'Save Program' : 'Save Workout'}</Text>
                   </>
                 )}
               </PressableScale>
             )}
             {savedId && (
-              <PressableScale style={styles.openBtn} onPress={() => router.replace('/my-workouts' as any)}>
-                <Text style={styles.openBtnText}>Open My Workouts</Text>
+              <PressableScale style={styles.openBtn} onPress={() => router.replace((isSplit ? '/my-splits' : '/my-workouts') as any)}>
+                <Text style={styles.openBtnText}>{isSplit ? 'Open My Splits' : 'Open My Workouts'}</Text>
               </PressableScale>
             )}
           </View>
         </>
       )}
     </SafeAreaView>
+  )
+}
+
+function MetaChip({ C, styles, icon, label }: { C: Palette; styles: any; icon: string; label: string }) {
+  return (
+    <View style={styles.metaChip}>
+      <Ionicons name={icon as any} size={13} color={C.primary} />
+      <Text style={styles.metaChipText} numberOfLines={1}>{label}</Text>
+    </View>
   )
 }
 
@@ -149,7 +201,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   shareBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
   title: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.4, marginTop: 4 },
   byline: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
-  meta: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  metaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    paddingHorizontal: Spacing.sm, paddingVertical: 6,
+  },
+  metaChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
   card: {
     backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
     paddingHorizontal: Spacing.md, ...CardShadow,
@@ -159,6 +218,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   exNum: { fontFamily: C.fontDisplay, fontSize: 14, color: C.outline, width: 20, textAlign: 'center' },
   exName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   exSets: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
+  dayPill: { width: 40, height: 28, borderRadius: Radius.full, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
+  dayPillOn: { backgroundColor: C.primarySoft },
+  dayPillText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  dayPillTextOn: { color: C.primary },
+  dayLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   footer: {
     gap: Spacing.sm, paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm,
     borderTopWidth: 0.5, borderTopColor: C.outlineVariant, backgroundColor: C.surface,

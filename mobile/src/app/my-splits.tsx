@@ -5,7 +5,7 @@
 // week onto the calendar (see lib/splitSchedule.activateSplit).
 
 import { useCallback, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native'
 import { PulseLoader } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -19,6 +19,7 @@ import { PressableScale, FadeInView } from '@/components/motion'
 import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
 import { WEEKDAY_LABELS, fetchSplits, deleteSplit, duplicateSplit, isAutoSplit } from '@/lib/splits'
 import { activateSplit, activateAutoPlan } from '@/lib/splitSchedule'
+import { createSplitShare, shareUrl } from '@/lib/social'
 import * as haptics from '@/lib/haptics'
 import type { Split } from '@/types'
 
@@ -76,14 +77,25 @@ export default function MySplitsScreen() {
       return [
         ...(s.is_active ? [] : [{ key: 'activate', label: 'Set as active', sub: 'Switch back to your auto-generated program', icon: 'play-circle-outline' }]),
         { key: 'duplicate', label: 'Duplicate as custom', sub: 'Make an editable copy of this program', icon: 'copy-outline' },
+        { key: 'share', label: 'Share program', sub: 'Friends can import the whole week', icon: 'share-outline' },
       ]
     }
     return [
       ...(s.is_active ? [] : [{ key: 'activate', label: 'Set as active', sub: 'Lay this week onto your calendar', icon: 'play-circle-outline' }]),
       { key: 'edit', label: 'Edit split', icon: 'create-outline' },
       { key: 'duplicate', label: 'Duplicate', icon: 'copy-outline' },
+      { key: 'share', label: 'Share split', sub: 'Friends can import the whole week', icon: 'share-outline' },
       { key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true },
     ]
+  }
+
+  // Share = snapshot the whole weekly program under a short code.
+  const shareSplit = async (s: Split) => {
+    const share = await createSplitShare(supabase, userId, profile?.display_name ?? null, s)
+    if (!share) { Alert.alert('Couldn’t create link', 'Check your connection and try again.'); return }
+    Share.share({
+      message: `Try my "${s.name}" program on Tempo: ${shareUrl(share.code)}\n\nOr paste this code in Tempo → Friends: ${share.code}`,
+    }).catch(() => {})
   }
 
   const onSheetSelect = async (key: string) => {
@@ -93,6 +105,7 @@ export default function MySplitsScreen() {
     if (key === 'activate') activate(s)
     else if (key === 'edit') router.push(`/split-editor?splitId=${s.id}` as any)
     else if (key === 'duplicate') { await duplicateSplit(supabase, userId, s); load() }
+    else if (key === 'share') shareSplit(s)
     else if (key === 'delete') confirmDelete(s)
   }
 
