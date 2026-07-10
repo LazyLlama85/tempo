@@ -207,10 +207,12 @@ export interface RoleRepMod {
 
 export function roleRepMod(role: Role): RoleRepMod {
   switch (role) {
-    case 'power':      return { setsDelta: 1, repLowDelta: -3, repHighDelta: -4, restMult: 1.15 }
+    case 'power':      return { setsDelta: 1, repLowDelta: -3, repHighDelta: -4, restMult: 1.2 }
     case 'compound':   return { setsDelta: 0, repLowDelta: 0,  repHighDelta: 0,  restMult: 1 }
-    case 'isolation':  return { setsDelta: -1, repLowDelta: 3, repHighDelta: 4, restMult: 0.6 }
-    case 'core':       return { setsDelta: 0, repLowDelta: 4,  repHighDelta: 6,  restMult: 0.6 }
+    // Isolations: higher reps, shorter rest, same set count (never drop below the
+    // goal's volume — hypertrophy isolations are 3×12–15, not 2×).
+    case 'isolation':  return { setsDelta: 0, repLowDelta: 2, repHighDelta: 4, restMult: 0.6 }
+    case 'core':       return { setsDelta: 0, repLowDelta: 5, repHighDelta: 8, restMult: 0.5 }
     case 'cardio':     return { setsDelta: -1, repLowDelta: 0, repHighDelta: 0, restMult: 0.5 }
   }
 }
