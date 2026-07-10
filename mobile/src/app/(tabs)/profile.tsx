@@ -33,6 +33,7 @@ import {
 } from '@/lib/units'
 import { getPushEnabled, setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
+import { updateUsername } from '@/lib/social'
 import type { TravelMode, BodyMeasurement } from '@/types'
 
 
@@ -169,6 +170,7 @@ export default function ProfileScreen() {
   // Edit-profile modal
   const [editing, setEditing] = useState(false)
   const [nameInput, setNameInput] = useState('')
+  const [usernameInput, setUsernameInput] = useState('')
   const [avatarId, setAvatarId] = useState(AVATAR_PRESETS[0].id)
   const [saving, setSaving] = useState(false)
 
@@ -415,6 +417,7 @@ export default function ProfileScreen() {
 
   const openEdit = () => {
     setNameInput(profile?.display_name ?? '')
+    setUsernameInput(profile?.username ?? '')
     const match = AVATAR_PRESETS.find(p => p.icon === avatar.icon && p.color === avatar.color)
     setAvatarId(match?.id ?? AVATAR_PRESETS[0].id)
     setEditing(true)
@@ -425,6 +428,23 @@ export default function ProfileScreen() {
     setSaving(true)
     const preset = AVATAR_PRESETS.find(p => p.id === avatarId) ?? AVATAR_PRESETS[0]
     try {
+      // Username first — it can fail validation/uniqueness independently, and
+      // the user should hear about exactly that instead of a generic error.
+      const desired = usernameInput.trim().toLowerCase().replace(/^@/, '')
+      if (desired && desired !== (profile?.username ?? '')) {
+        const res = await updateUsername(supabase, userId, desired)
+        if (res === 'invalid') {
+          Alert.alert('Invalid username', '3–20 characters, lowercase letters, numbers and _ only.')
+          setSaving(false)
+          return
+        }
+        if (res === 'taken') {
+          Alert.alert('Username taken', `@${desired} already belongs to someone else — try another.`)
+          setSaving(false)
+          return
+        }
+        if (res === 'failed') throw new Error('username update failed')
+      }
       await supabase
         .from('user_profiles')
         .update({
@@ -1285,6 +1305,18 @@ export default function ProfileScreen() {
               placeholder="Your name"
               placeholderTextColor={C.outline}
               maxLength={24}
+            />
+
+            <Text style={styles.modalLabel}>USERNAME</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={usernameInput}
+              onChangeText={(v) => setUsernameInput(v.toLowerCase().replace(/[^a-z0-9_@]/g, ''))}
+              placeholder="@username"
+              placeholderTextColor={C.outline}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={21}
             />
 
             <Text style={styles.modalLabel}>AVATAR</Text>

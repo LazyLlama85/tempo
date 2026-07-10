@@ -5,7 +5,8 @@
 // workouts / stats / activity. Backed by lib/social + supabase/add_social.sql.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, Share } from 'react-native'
+import * as Clipboard from 'expo-clipboard'
 import { PulseLoader } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -20,9 +21,21 @@ import { FriendAvatar } from '@/components/FriendAvatar'
 import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
-  fetchPrivacy, updatePrivacy,
+  fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchFriendsLeaderboard,
   type FriendEntry, type SocialProfile, type PrivacyPrefs, type PrivacyLevel,
+  type MyIdentity, type FeedItem, type LeaderboardRow,
 } from '@/lib/social'
+
+// "2h ago" / "3d ago" for feed rows.
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(ms / 60_000)
+  if (min < 60) return `${Math.max(1, min)}m ago`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'yesterday' : `${d}d ago`
+}
 
 const PRIVACY_ORDER: PrivacyLevel[] = ['public', 'friends', 'private']
 const PRIVACY_LABEL: Record<PrivacyLevel, string> = { public: 'Public', friends: 'Friends only', private: 'Private' }
@@ -43,14 +56,34 @@ export default function SocialScreen() {
   const [sentTo, setSentTo] = useState<Set<string>>(new Set())
   const [code, setCode] = useState('')
   const [privacy, setPrivacy] = useState<PrivacyPrefs | null>(null)
+  const [identity, setIdentity] = useState<MyIdentity | null>(null)
+  const [feed, setFeed] = useState<FeedItem[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
     if (!userId) return
     fetchFriends(supabase, userId).then(setFriends).finally(() => setLoading(false))
     fetchPrivacy(supabase, userId).then(setPrivacy).catch(() => {})
+    fetchMyIdentity(supabase, userId).then(setIdentity).catch(() => {})
+    fetchFriendFeed(supabase).then(setFeed).catch(() => {})
+    fetchFriendsLeaderboard(supabase).then(setLeaderboard).catch(() => {})
   }, [userId])
   useFocusEffect(load)
+
+  const shareMyCode = () => {
+    if (!identity?.friend_code) return
+    haptics.tapLight()
+    Share.share({
+      message: `Add me on Tempo! My friend code is ${identity.friend_code}${identity.username ? ` (@${identity.username})` : ''} — paste it in Friends → search.`,
+    }).catch(() => {})
+  }
+  const copyMyCode = async () => {
+    if (!identity?.friend_code) return
+    haptics.tapLight()
+    await Clipboard.setStringAsync(identity.friend_code).catch(() => {})
+    Alert.alert('Copied', `${identity.friend_code} is on your clipboard.`)
+  }
 
   // Debounced live search — results appear as you type, no search button.
   useEffect(() => {
@@ -120,10 +153,15 @@ export default function SocialScreen() {
   const outgoing = friends.filter((f) => f.state === 'outgoing')
   const accepted = friends.filter((f) => f.state === 'friend')
 
-  const personRow = (p: { user_id: string; display_name: string | null; avatar_url: string | null }, right: React.ReactNode, onPress?: () => void) => (
+  // Name + @username: the handle is what disambiguates two people with the
+  // same display name.
+  const personRow = (p: { user_id: string; display_name: string | null; avatar_url: string | null; username?: string | null }, right: React.ReactNode, onPress?: () => void) => (
     <TouchableOpacity key={p.user_id} style={styles.personRow} activeOpacity={onPress ? 0.7 : 1} onPress={onPress} disabled={!onPress}>
       <FriendAvatar avatarUrl={p.avatar_url} size={40} />
-      <Text style={styles.personName} numberOfLines={1}>{p.display_name ?? 'Tempo user'}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.personName} numberOfLines={1}>{p.display_name ?? 'Tempo user'}</Text>
+        {!!p.username && <Text style={styles.personHandle} numberOfLines={1}>@{p.username}</Text>}
+      </View>
       {right}
     </TouchableOpacity>
   )
@@ -149,7 +187,7 @@ export default function SocialScreen() {
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search people by name"
+              placeholder="Name, @username, or friend code"
               placeholderTextColor={C.outline}
               autoCapitalize="none"
               autoCorrect={false}
@@ -159,7 +197,7 @@ export default function SocialScreen() {
           {query.trim().length >= 2 && !searching && (
             <View style={styles.card}>
               {results.length === 0 ? (
-                <Text style={styles.emptyInline}>No one found — names match as typed.</Text>
+                <Text style={styles.emptyInline}>No one found. Try their @username or 6-letter friend code — those always match exactly.</Text>
               ) : results.map((p) => personRow(
                 p,
                 knownIds.has(p.user_id) ? (
@@ -174,6 +212,26 @@ export default function SocialScreen() {
                 ),
                 () => router.push(`/friend-profile?userId=${p.user_id}` as any),
               ))}
+            </View>
+          )}
+
+          {/* Your identity — the thing you hand a gym buddy so they add YOU,
+              and the fix for duplicate display names. */}
+          {identity?.friend_code && (
+            <View style={styles.identityCard}>
+              <View style={{ flex: 1 }}>
+                {!!identity.username && <Text style={styles.identityHandle}>@{identity.username}</Text>}
+                <Text style={styles.identityLabel}>YOUR FRIEND CODE</Text>
+                <Text style={styles.identityCode}>{identity.friend_code}</Text>
+              </View>
+              <View style={styles.identityActions}>
+                <PressableScale style={styles.identityBtn} onPress={copyMyCode} scaleTo={0.9} accessibilityLabel="Copy friend code">
+                  <Ionicons name="copy-outline" size={17} color={C.primary} />
+                </PressableScale>
+                <PressableScale style={styles.identityBtn} onPress={shareMyCode} scaleTo={0.9} accessibilityLabel="Share friend code">
+                  <Ionicons name="share-outline" size={17} color={C.primary} />
+                </PressableScale>
+              </View>
             </View>
           )}
 
@@ -192,6 +250,64 @@ export default function SocialScreen() {
                       <Ionicons name="close-circle" size={22} color={C.outline} />
                     </TouchableOpacity>
                   </View>,
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Activity feed — friends' recent sessions */}
+          {feed.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>FRIEND ACTIVITY</Text>
+              <View style={styles.card}>
+                {feed.slice(0, 10).map((item, i) => (
+                  <View key={`${item.user_id}-${item.completed_at}`}>
+                    {i > 0 && <View style={styles.divider} />}
+                    <TouchableOpacity
+                      style={styles.feedRow}
+                      activeOpacity={0.7}
+                      onPress={() => router.push(`/friend-profile?userId=${item.user_id}` as any)}
+                    >
+                      <FriendAvatar avatarUrl={item.avatar_url} size={34} />
+                      <Text style={styles.feedText} numberOfLines={2}>
+                        <Text style={styles.feedName}>{item.display_name ?? `@${item.username}`}</Text>
+                        {' completed '}
+                        <Text style={styles.feedName}>{item.focus}</Text>
+                      </Text>
+                      <Text style={styles.feedTime}>{timeAgo(item.completed_at)}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Friends-only weekly leaderboard */}
+          {leaderboard.length > 1 && (
+            <>
+              <Text style={styles.sectionLabel}>THIS WEEK</Text>
+              <View style={styles.card}>
+                {leaderboard.slice(0, 8).map((row, i) => (
+                  <View key={row.user_id}>
+                    {i > 0 && <View style={styles.divider} />}
+                    <TouchableOpacity
+                      style={styles.leaderRow}
+                      activeOpacity={row.user_id === userId ? 1 : 0.7}
+                      disabled={row.user_id === userId}
+                      onPress={() => router.push(`/friend-profile?userId=${row.user_id}` as any)}
+                    >
+                      <Text style={[styles.leaderRank, i === 0 && row.workouts_this_week > 0 && { color: C.gold ?? C.primary }]}>
+                        {i + 1}
+                      </Text>
+                      <FriendAvatar avatarUrl={row.avatar_url} size={30} />
+                      <Text style={styles.leaderName} numberOfLines={1}>
+                        {row.user_id === userId ? 'You' : (row.display_name ?? `@${row.username}`)}
+                      </Text>
+                      <Text style={styles.leaderCount}>
+                        {row.workouts_this_week} workout{row.workouts_this_week === 1 ? '' : 's'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             </>
@@ -295,7 +411,28 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
   card: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden', ...CardShadow },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
-  personName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  personName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  personHandle: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  identityCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.primarySoft, borderRadius: Radius.xl, padding: Spacing.md, marginTop: Spacing.sm,
+  },
+  identityHandle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
+  identityLabel: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: C.primary, letterSpacing: 0.6, marginTop: 4 },
+  identityCode: { fontFamily: C.fontNumeric, fontSize: 22, color: C.text, letterSpacing: 3 },
+  identityActions: { flexDirection: 'row', gap: Spacing.sm },
+  identityBtn: {
+    width: 38, height: 38, borderRadius: Radius.full, backgroundColor: C.background,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  feedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  feedText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 18 },
+  feedName: { fontFamily: 'Inter_700Bold', color: C.text },
+  feedTime: { fontFamily: 'Inter_500Medium', fontSize: 11.5, color: C.outline },
+  leaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
+  leaderRank: { width: 20, fontFamily: C.fontDisplay, fontSize: 15, color: C.outline, textAlign: 'center' },
+  leaderName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
+  leaderCount: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
   mutedTag: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

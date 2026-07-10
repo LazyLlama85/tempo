@@ -70,6 +70,10 @@ export interface UserProfile {
   user_id: string
   display_name: string | null
   avatar_url: string | null
+  // Social identity (add_social_v2.sql): unique handle + shareable add-me code.
+  // Optional so the app keeps working before the migration is applied.
+  username?: string | null
+  friend_code?: string | null
   goal: Goal
   experience: Experience
   equipment: Equipment[]

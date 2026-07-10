@@ -22,7 +22,20 @@ import {
   fetchFriendOverview, fetchFriendTemplates, copyTemplateToLibrary,
   type FriendOverview,
 } from '@/lib/social'
+import { useWeightUnit, displayVolume, unitLabel } from '@/lib/units'
 import type { WorkoutTemplate } from '@/types'
+
+const GOAL_LABELS: Record<string, string> = {
+  muscle_gain: 'Build muscle', fat_loss: 'Lose fat', strength: 'Gain strength',
+  general_fitness: 'General fitness', athletic: 'Athletic performance',
+}
+
+function memberSince(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
 
 export default function FriendProfileScreen() {
   const C = useTheme()
@@ -37,6 +50,7 @@ export default function FriendProfileScreen() {
   const [loading, setLoading] = useState(true)
   const [sheetTemplate, setSheetTemplate] = useState<WorkoutTemplate | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+  const unit = useWeightUnit()
 
   useEffect(() => {
     if (!targetId || !myId) return
@@ -81,24 +95,53 @@ export default function FriendProfileScreen() {
           <FadeInView style={styles.hero}>
             <FriendAvatar avatarUrl={overview.avatar_url} size={72} />
             <Text style={styles.name}>{name}</Text>
+            {!!overview.username && <Text style={styles.handle}>@{overview.username}</Text>}
+            {!!memberSince(overview.member_since) && (
+              <Text style={styles.memberSince}>Training with Tempo since {memberSince(overview.member_since)}</Text>
+            )}
           </FadeInView>
 
           {/* Stats */}
           {overview.stats_visible ? (
-            <FadeInView delay={60} style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{overview.streak ?? 0}</Text>
-                <Text style={styles.statLabel}>STREAK</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{overview.total_workouts ?? 0}</Text>
-                <Text style={styles.statLabel}>WORKOUTS</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{overview.total_sets ?? 0}</Text>
-                <Text style={styles.statLabel}>SETS LOGGED</Text>
-              </View>
-            </FadeInView>
+            <>
+              <FadeInView delay={60} style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{overview.streak ?? 0}</Text>
+                  <Text style={styles.statLabel}>STREAK</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{overview.longest_streak ?? 0}</Text>
+                  <Text style={styles.statLabel}>LONGEST</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{overview.workouts_this_week ?? 0}</Text>
+                  <Text style={styles.statLabel}>THIS WEEK</Text>
+                </View>
+              </FadeInView>
+              <FadeInView delay={100} style={styles.card}>
+                {([
+                  ['barbell-outline', 'Total workouts', String(overview.total_workouts ?? 0)],
+                  ['layers-outline', 'Sets logged', String(overview.total_sets ?? 0)],
+                  ['trending-up-outline', 'Volume lifted', overview.total_volume_lbs
+                    ? `${displayVolume(overview.total_volume_lbs, unit)} ${unitLabel(unit)}`
+                    : '—'],
+                  ['body-outline', 'Favorite muscle', overview.favorite_muscle
+                    ? overview.favorite_muscle[0].toUpperCase() + overview.favorite_muscle.slice(1)
+                    : '—'],
+                  ['flag-outline', 'Goal', overview.goal ? (GOAL_LABELS[overview.goal] ?? '—') : '—'],
+                  ['calendar-outline', 'This month', `${overview.workouts_this_month ?? 0} workouts`],
+                ] as [string, string, string][]).map(([icon, label, value], i) => (
+                  <View key={label}>
+                    {i > 0 && <View style={styles.divider} />}
+                    <View style={styles.detailRow}>
+                      <Ionicons name={icon as any} size={16} color={C.primary} />
+                      <Text style={styles.detailLabel}>{label}</Text>
+                      <Text style={styles.detailValue}>{value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </FadeInView>
+            </>
           ) : (
             <View style={styles.privateNote}>
               <Ionicons name="lock-closed-outline" size={14} color={C.textSecondary} />
@@ -183,8 +226,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm },
   headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.xs },
-  hero: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
-  name: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3 },
+  hero: { alignItems: 'center', gap: 3, paddingVertical: Spacing.md },
+  name: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginTop: Spacing.xs },
+  handle: { fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.textSecondary },
+  memberSince: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, marginTop: 2 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  detailLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.textSecondary },
+  detailValue: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
   statsRow: { flexDirection: 'row', gap: Spacing.sm },
   statCard: {
     flex: 1, alignItems: 'center', gap: 2, paddingVertical: Spacing.md,
