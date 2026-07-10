@@ -32,7 +32,7 @@ Lead-PM / design / QA / engineering pass over every system. Each finding is tagg
 
 | Finding | Severity | Status |
 |---|---|---|
-| Share preview lacks context (difficulty/equipment/goal/duration) | Med | **[FIXED-NOW]** — share snapshot now carries equipment summary + est duration + exercise count; preview renders them as chips |
+| Share preview lacks context (difficulty/equipment/goal/duration) | Med | **[FIXED-NOW, partial]** — snapshot carries equipment + est duration + exercise/day count; preview renders them as chips. Difficulty + goal deferred: neither is stored on a template today, so they'd need a source (goal from the sharer's profile, difficulty derived from exercise experience levels) — a clean follow-up, not worth blocking the share on |
 | Can't share a whole split/program | High | **[FIXED-NOW]** — `workout_shares.kind='split'` + `days` jsonb; share from My Splits; import recreates the split (and its day workouts) under the recipient's account with attribution |
 | Share rows accumulate forever | Low | **[WATCH]** — snapshot rows are tiny; add a 1-year TTL sweep if volume ever matters |
 | Shared link requires sign-in (no web preview) | Med | **[DESIGNED]** — `web/` can render a public share page from `workout_shares` via anon read policy scoped to `code =` param. Needs universal links (apple-app-site-association) — same work that makes `tempo.app/w/x` open the app |
@@ -137,10 +137,19 @@ Honest read: **core screens feel intentional (Strava-adjacent); edge screens sti
 
 ## Priority queue after this round
 1. Vacation/pause mode (§6 — designed, needs its own careful pass)
-2. Activity events table → PR feed items + likes (§2)
+2. Activity events table → PR/streak/level feed items + likes (§2)
 3. Progress-photo timeline/compare (§9)
 4. Returning-user Home heroes + encouragement selector (§7)
-5. Web share preview + universal links (§3)
-6. Weekly friend challenges on top of activity events (§2)
-7. QR add (§1) and friend-request push (§10)
-8. Apple Health export (§11)
+5. Goal-step expectation copy + share difficulty/goal chips (§3, §8)
+6. Web share preview + universal links (§3)
+7. Weekly friend challenges on top of activity events (§2)
+8. QR add (§1) and friend-request push (§10)
+9. Apple Health export (§11)
+
+## What shipped this round (branch `expansion/audit-round-2`)
+Identity (username + friend code + duplicate-name disambiguation), activity feed,
+friends-only weekly leaderboard, richer friend profiles, split/program sharing +
+metadata chips, machine-occupied ⋯ menu (swap/move-to-end/reorder/skip), warm-up
+sets (fully excluded from all volume/PR math), session notes, first-session coach
+overlay, active-split edit restamp, and the unbounded-PREV-query perf fix. Two
+applied migrations: `add_social.sql` (last round) + `add_social_v2.sql`.

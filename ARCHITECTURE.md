@@ -102,11 +102,15 @@ you moving."*
   session-detail), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
   the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
   exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
-  targets), **`social`** (Friends home: live people search, requests, friends list, paste-a-code
-  share redemption, tap-to-cycle privacy rows), **`friend-profile`** (privacy-gated streak /
-  workout / set stats + recent activity + browsable workouts with "Save to My Workouts"
-  attributed copies), **`shared-workout`** (share-link landing: preview + one-tap import), and
-  **`w/[code]`** (deep-link route for `tempo.app/w/<code>` / `tempo://w/<code>` → shared-workout).
+  targets), **`social`** (Friends home: **your @username + friend-code card** with copy/share,
+  live search by **name / @username / friend code**, requests, **friend-activity feed**, a
+  **friends-only weekly leaderboard**, friends list, paste-a-code share redemption, tap-to-cycle
+  privacy rows), **`friend-profile`** (privacy-gated @handle + member-since, streak / longest /
+  this-week cards, totals — workouts / sets / **volume in display unit** / favorite muscle / goal /
+  this-month — recent activity + browsable workouts with "Save to My Workouts" attributed copies),
+  **`shared-workout`** (share-link landing for a **workout or a whole split** — metadata chips
+  (exercises/days · ~duration · equipment) + one-tap import), and **`w/[code]`** (deep-link route
+  for `tempo.app/w/<code>` / `tempo://w/<code>` → shared-workout).
 
 ### 3.2 Screen responsibilities
 - **Home / Schedule** (`(tabs)/index.tsx`): unified day/week/month calendar; merges plan workouts
@@ -151,6 +155,18 @@ you moving."*
   log resumes from hub/restart) or **End workout** (finishes, or discards a zero-set session
   including its log row). Exercise completion plays a medium haptic and **auto-expands the next
   incomplete exercise**. The hub carries an **Edit workout** chip → `edit-session` modal.
+  **Gym reality (July 2026):** every exercise has a **⋯ menu** — Swap (equipment-aware),
+  **Move to end** (machine occupied — come back later), **Move up/down** (reorder mid-workout,
+  persisted to the scheduled row's `exercise_ids`), and **Skip for today** (removes from the
+  session + its logged sets, keeps it in the plan). **Warm-up sets** (`set_logs.is_warmup`):
+  "+ Warm-up" inserts a W-tagged set before the first unlogged set; warm-ups render as `W` /
+  "warm-up" and are **excluded from PREV, progression, and every volume/PR aggregation** (prs,
+  useProgressStats, wrapped, weeklyReport, exercise-progress, session-detail, workout-history,
+  friend overview) — completion treats a warm-up-only session as empty. A **session-note FAB**
+  writes `workout_logs.notes` ("bench felt heavy today"), loaded on resume and shown in
+  session-detail. A **one-time first-session coach overlay** (localStorage-gated) explains
+  logging / rest / the ⋯ menu / pause. **PERF:** the PREV/prescription history query is bounded
+  (`.limit`) + warm-up-filtered instead of scanning all-time `set_logs`.
   **Honest time estimates** (`lib/durationEstimate`): hub + header use a realistic static
   estimate (prescribed rests + per-exercise setup/transition time) scaled by a **historical pace
   factor** (median actual/planned over recent sessions), and once sets land the header shows an
@@ -593,7 +609,8 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`exercise_config`** (per-exercise prescription for user-built workouts), **`split_id`**
   (links split-sourced sessions back to their split), and **`travel_restore`** (jsonb stash of the
   pre-travel exercises so travel-mode swaps revert exactly — see §3.5).
-- **workout_logs** / **set_logs** — actual sessions and per-set reps/weight/RPE/**duration/distance**.
+- **workout_logs** / **set_logs** — actual sessions and per-set reps/weight/RPE/**duration/distance**;
+  `set_logs.is_warmup` flags warm-up sets (excluded from PREV/progression/volume/PRs everywhere).
 - **adaptation_events** — audit of feedback + auto-periodization decisions.
 - **exercise_substitutions** — saved per-user swaps.
 - **calendar_connections** / **google_calendar_tokens** — calendar linkage (Google refresh token is
@@ -605,17 +622,27 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **friendships** — the social graph: one row per pair (`requester_id`/`addressee_id`,
   `status` pending→accepted, unordered-pair unique index). RLS: parties only; requester inserts
   pending; addressee accepts; either deletes (decline/cancel/unfriend).
-- **workout_shares** — snapshot sharing: an 8-char `code`, owner + `owner_name`, workout `name`,
-  `exercises` jsonb ([{id,name}] so previews render even when the viewer can't read a custom
-  exercise), `config`, `est_duration_min`. Any signed-in user can read (the link is the
-  capability); owner inserts/deletes.
+- **workout_shares** — snapshot sharing: an 8-char `code`, owner + `owner_name`, `name`,
+  **`kind`** (`workout` | `split`), `exercises` jsonb ([{id,name}] so previews render even when the
+  viewer can't read a custom exercise), `config`, **`days`** (jsonb split snapshot when kind='split'),
+  **`equipment`** (distinct required gear for preview chips), `est_duration_min`. Any signed-in user
+  can read (the link is the capability); owner inserts/deletes.
+- **user_profiles identity columns** — **`username`** (unique, `^[a-z0-9_]{3,20}$`) + **`friend_code`**
+  (unique 6-char, no lookalikes), backfilled for existing rows and auto-set on insert by the
+  `user_profiles_identity` trigger. The friend code is the out-of-band "add me" handle; the
+  username disambiguates duplicate display names.
 - **user_profiles privacy columns** — `privacy_workouts` / `privacy_stats` / `privacy_activity`
   (`public|friends|private`, default `friends`). Enforced by the `Friends can view templates`
   RLS policy on `workout_templates` and inside the `friend_overview` RPC.
-- **Social RPCs (SECURITY DEFINER, authenticated-only):** `search_profiles(q)` +
-  `get_public_profiles(ids)` (name/avatar discovery without opening `user_profiles` RLS),
-  `are_friends(a,b)`, and `friend_overview(target)` (privacy-gated totals + settled sessions for
-  client-side streak math + recent activity). Migration: `add_social.sql` (**applied**).
+- **Social RPCs (SECURITY DEFINER, authenticated-only):** `search_profiles(q)` (name / @username /
+  exact friend-code, code matches first) + `get_public_profiles(ids)` (name/avatar/username
+  discovery without opening `user_profiles` RLS), `are_friends(a,b)`, `friend_overview(target)`
+  (privacy-gated totals — workouts / sets / **volume** (warm-ups excluded) / **favorite muscle** /
+  goal / member-since — + settled sessions for client-side streak math + recent activity),
+  **`friend_feed()`** (accepted friends' completed sessions, last 14 days, activity-privacy-gated),
+  and **`friends_leaderboard()`** (workouts-this-week for you + accepted friends, stats-privacy-gated).
+  Migrations: `add_social.sql` + **`add_social_v2.sql`** (identity, feed, leaderboard, split shares,
+  warm-up column — both **applied**).
 
 ### 4.2 Edge Functions (Deno)
 - **delete-account** — App-Store-required full account + data wipe (service role, JWT-scoped to caller).
