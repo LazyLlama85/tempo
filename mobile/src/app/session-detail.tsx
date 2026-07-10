@@ -91,6 +91,7 @@ export default function SessionDetailScreen() {
           .from('set_logs')
           .select('exercise_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m')
           .eq('workout_log_id', log.id)
+          .not('is_warmup', 'is', true) // the record shows working sets (warm-ups excluded, as elsewhere)
           .order('set_number')
         const setRows = (sets ?? []) as SetRow[]
 

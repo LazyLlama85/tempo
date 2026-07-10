@@ -55,6 +55,7 @@ export default function ExerciseProgressScreen() {
           .select('workout_log_id, weight_lbs, reps_completed, completed_at')
           .eq('exercise_id', exerciseId)
           .not('weight_lbs', 'is', null)
+          .not('is_warmup', 'is', true) // strength story = working sets only
           .order('completed_at', { ascending: true })
 
         // One point per session (workout_log): the best set by estimated 1RM.

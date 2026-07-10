@@ -79,6 +79,9 @@ interface SetState {
   distanceM: string
   rpe: number | null
   done: boolean
+  // Warm-up sets are logged but excluded from progression history, PREV, and
+  // volume/PR math — they'd otherwise drag next session's targets down.
+  warmup?: boolean
 }
 
 // Logged input columns for a set, by tracked metric (RPE is captured separately).
@@ -229,6 +232,14 @@ export default function WorkoutsScreen() {
   const [addChoiceEx, setAddChoiceEx] = useState<ExerciseRow | null>(null)
   // Pause / leave-session sheet (replaces the ambiguous back chevron).
   const [pauseSheet, setPauseSheet] = useState(false)
+  // Per-exercise action sheet (machine occupied → swap / move to end / skip / reorder).
+  const [exActionEx, setExActionEx] = useState<ExerciseRow | null>(null)
+  // Session note ("bench felt heavy today") → workout_logs.notes.
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
+  // One-time coach overlay on the very first live session.
+  const [coachVisible, setCoachVisible] = useState(false)
   // How this user's real session lengths compare to estimates (historical).
   const [paceFactor, setPaceFactor] = useState(1)
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
@@ -352,7 +363,7 @@ export default function WorkoutsScreen() {
     try {
       const { data: openLog } = await supabase
         .from('workout_logs')
-        .select('id, started_at')
+        .select('id, started_at, notes')
         .eq('user_id', userId)
         .eq('scheduled_workout_id', workoutRow.id)
         .is('completed_at', null)
@@ -363,6 +374,8 @@ export default function WorkoutsScreen() {
         const ageMs = Date.now() - new Date(openLog.started_at as string).getTime()
         if (ageMs < 12 * 60 * 60 * 1000) {
           resumedLog = openLog as { id: string; started_at: string }
+          setNoteText((openLog.notes as string | null) ?? '')
+          setNoteSaved(!!(openLog.notes as string | null))
         } else {
           // Too old to resume — zero-length close so it never counts as time trained.
           await supabase.from('workout_logs')
@@ -381,6 +394,8 @@ export default function WorkoutsScreen() {
       setWorkoutLogId(null)
       accumulatedSec.current = 0
       setElapsed(0)
+      setNoteText('')
+      setNoteSaved(false)
     }
 
     const exerciseIds: string[] = workoutRow.exercise_ids ?? []
@@ -448,11 +463,17 @@ export default function WorkoutsScreen() {
     }
 
     if (effectiveIds.length) {
+      // Bounded: we only need each exercise's LAST working session for PREV +
+      // the prescription, so cap the pull instead of scanning years of history
+      // (a 10-year account has tens of thousands of set_logs rows). Warm-ups are
+      // excluded — they must never drag next session's targets or PREV down.
       const { data: history } = await supabase
         .from('set_logs')
         .select('exercise_id, workout_log_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m, completed_at')
         .in('exercise_id', effectiveIds)
+        .not('is_warmup', 'is', true)
         .order('completed_at', { ascending: false })
+        .limit(Math.max(60, effectiveIds.length * 20))
 
       for (const ex of ordered) {
         const rows = (history ?? []).filter(r => r.exercise_id === ex.id)
@@ -520,7 +541,7 @@ export default function WorkoutsScreen() {
       try {
         const { data: loggedSets } = await supabase
           .from('set_logs')
-          .select('exercise_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m')
+          .select('exercise_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m, is_warmup')
           .eq('workout_log_id', resumedLog.id)
           .order('set_number')
         for (const s of (loggedSets ?? []) as any[]) {
@@ -537,6 +558,7 @@ export default function WorkoutsScreen() {
             distanceM: s.distance_m != null ? String(s.distance_m) : '',
             rpe: (s.rpe as number | null) ?? null,
             done: true,
+            warmup: !!s.is_warmup,
           }
         }
       } catch { /* worst case: previously logged sets show as unlogged */ }
@@ -609,6 +631,28 @@ export default function WorkoutsScreen() {
     return () => { deactivateKeepAwake('tempo-session') }
   }, [sessionActive])
 
+  // First live session ever → a one-time coach overlay explaining the logger.
+  useEffect(() => {
+    if (!sessionActive) return
+    try {
+      const seen = (globalThis as { localStorage?: Storage }).localStorage?.getItem('tempo.coach.session')
+      if (!seen) setCoachVisible(true)
+    } catch { /* no storage → just skip the coach */ }
+  }, [sessionActive])
+  const dismissCoach = () => {
+    setCoachVisible(false)
+    try { (globalThis as { localStorage?: Storage }).localStorage?.setItem('tempo.coach.session', '1') } catch { /* best-effort */ }
+  }
+
+  // Session note ("bench felt heavy today") → workout_logs.notes.
+  const saveNote = async () => {
+    setNoteOpen(false)
+    if (!workoutLogId) return
+    const note = noteText.trim()
+    setNoteSaved(!!note)
+    await supabase.from('workout_logs').update({ notes: note || null }).eq('id', workoutLogId).then(() => {}, () => {})
+  }
+
   // ── Set actions ────────────────────────────────────────────────────────────
 
   const updateSet = (exId: string, idx: number, field: 'lbs' | 'reps' | 'durationSec' | 'distanceM', value: string) => {
@@ -671,6 +715,7 @@ export default function WorkoutsScreen() {
       duration_sec: set.durationSec ? parseInt(set.durationSec) : null,
       distance_m: set.distanceM ? parseFloat(set.distanceM) : null,
       rpe: null,
+      is_warmup: !!set.warmup,
       completed_at: new Date().toISOString(),
     })
     if (error) {
@@ -718,6 +763,21 @@ export default function WorkoutsScreen() {
       ...prev,
       [exId]: [...prev[exId], { lbs: '', reps: '', durationSec: '', distanceM: '', rpe: null, done: false }],
     }))
+  }
+
+  // Warm-up sets are excluded from PREV / progression / volume everywhere. They
+  // go before the first NOT-yet-logged set: at the top normally, but never before
+  // an already-logged set (that would shift a done set's position and collide its
+  // server set_number).
+  const addWarmupSet = (exId: string) => {
+    haptics.tapLight()
+    setSets(prev => {
+      const arr = prev[exId] ?? []
+      const firstOpen = arr.findIndex(s => !s.done)
+      const at = firstOpen === -1 ? arr.length : firstOpen
+      const warm: SetState = { lbs: '', reps: '', durationSec: '', distanceM: '', rpe: null, done: false, warmup: true }
+      return { ...prev, [exId]: [...arr.slice(0, at), warm, ...arr.slice(at)] }
+    })
   }
 
   // Remove a set — accidental taps on "+ Add Set" or a mis-logged set shouldn't
@@ -816,6 +876,76 @@ export default function WorkoutsScreen() {
         }
       } catch { /* the session + scheduled row still carry it */ }
     }
+  }
+
+  // ── Exercise ordering / skip (gym reality: machine occupied, changed my mind) ──
+
+  // Persist the current exercise ORDER to the scheduled row so a reorder survives
+  // a pause/restart. Never touches the split template (that's a session-level tweak).
+  const persistOrder = (orderedIds: string[]) => {
+    if (!workout) return
+    setWorkout({ ...workout, exercise_ids: orderedIds })
+    supabase.from('scheduled_workouts').update({ exercise_ids: orderedIds }).eq('id', workout.id).then(() => {}, () => {})
+  }
+
+  const animateReorder = () => {
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+      )
+    }
+  }
+
+  const moveExercise = (exId: string, dir: -1 | 1) => {
+    haptics.tapLight()
+    animateReorder()
+    setExercises(prev => {
+      const i = prev.findIndex(e => e.id === exId)
+      const j = i + dir
+      if (i === -1 || j < 0 || j >= prev.length) return prev
+      const next = [...prev]; [next[i], next[j]] = [next[j], next[i]]
+      persistOrder(next.map(e => e.id))
+      return next
+    })
+  }
+
+  const moveExerciseToEnd = (exId: string) => {
+    haptics.tapMedium()
+    animateReorder()
+    setExercises(prev => {
+      const ex = prev.find(e => e.id === exId)
+      if (!ex) return prev
+      const next = [...prev.filter(e => e.id !== exId), ex]
+      persistOrder(next.map(e => e.id))
+      return next
+    })
+    // Reveal the new first unfinished exercise so the flow keeps moving.
+    setExpandedId(cur => (cur === exId ? (exercises.find(e => e.id !== exId)?.id ?? cur) : cur))
+  }
+
+  // Skip an exercise for THIS session only — removes it from the live grid and the
+  // scheduled row's order, but never from the plan template. Any sets already
+  // logged for it are deleted so it doesn't count.
+  const skipExercise = (ex: ExerciseRow) => {
+    Alert.alert('Skip this exercise?', `${ex.name} will be removed from today's session. Your plan keeps it for next time.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Skip today',
+        style: 'destructive',
+        onPress: async () => {
+          haptics.tapMedium()
+          animateReorder()
+          const remaining = exercises.filter(e => e.id !== ex.id)
+          setExercises(remaining)
+          setExpandedId(cur => (cur === ex.id ? (remaining[0]?.id ?? null) : cur))
+          setSets(prev => { const { [ex.id]: _, ...rest } = prev; return rest })
+          persistOrder(remaining.map(e => e.id))
+          if (workoutLogId) {
+            await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
+          }
+        },
+      },
+    ])
   }
 
   // ── Swap exercise (smart substitutions) ──────────────────────────────────────
@@ -969,11 +1099,13 @@ export default function WorkoutsScreen() {
     const all = Object.values(sets)
     const total = all.reduce((n, arr) => n + arr.length, 0)
     const done = all.reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
+    // Warm-ups don't count as "real work" — a warm-up-only session is empty.
+    const workingDone = all.reduce((n, arr) => n + arr.filter(s => s.done && !s.warmup).length, 0)
 
-    if (done === 0) {
+    if (workingDone === 0) {
       Alert.alert(
-        'No sets logged yet',
-        'Tap the ✓ on a set to log it first — an empty workout would still count toward your streak and stats.',
+        'No working sets logged',
+        'Log at least one working set (warm-ups don’t count) — an empty workout would still count toward your streak and stats.',
       )
       return
     }
@@ -1351,6 +1483,9 @@ export default function WorkoutsScreen() {
           const allDone = exSets.length > 0 && doneCount === exSets.length
           const p = targets[ex.id]
           const cols = columnsFor(exMetrics[ex.id])
+          // Warm-ups show "W"; working sets keep a clean 1..N ordinal.
+          let workCounter = 0
+          const setLabels = exSets.map(s => (s.warmup ? 'W' : String(++workCounter)))
 
           return (
             <View key={ex.id} style={styles.exerciseCard}>
@@ -1396,6 +1531,15 @@ export default function WorkoutsScreen() {
                       {doneCount}/{exSets.length}
                     </Text>
                   )}
+                  {/* Machine occupied? Changed the order? Per-exercise menu. */}
+                  <TouchableOpacity
+                    onPress={() => setExActionEx(ex)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Options for ${ex.name}`}
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={18} color={C.outline} />
+                  </TouchableOpacity>
                   <Ionicons
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}
                     size={18}
@@ -1477,12 +1621,13 @@ export default function WorkoutsScreen() {
                     const followingUp = rpeFollowUp?.exId === ex.id && rpeFollowUp?.idx === idx
                     return (
                     <View key={idx}>
-                      <View style={styles.setRow}>
-                        <Text style={styles.setNum}>{idx + 1}</Text>
+                      <View style={[styles.setRow, set.warmup && styles.setRowWarmup]}>
+                        <Text style={[styles.setNum, set.warmup && styles.setNumWarmup]}>{setLabels[idx]}</Text>
 
-                        {/* PREV column — what you did last session */}
+                        {/* PREV column — hidden for warm-ups; working sets index by
+                            their working ordinal (warm-ups shift the raw row index). */}
                         <Text style={[styles.setCell, styles.prevCell]}>
-                          {prevBySet[ex.id]?.[idx] ?? '—'}
+                          {set.warmup ? 'warm-up' : (prevBySet[ex.id]?.[Number(setLabels[idx]) - 1] ?? '—')}
                         </Text>
 
                         {set.done ? (
@@ -1552,10 +1697,15 @@ export default function WorkoutsScreen() {
                     )
                   })}
 
-                  {/* Add Set */}
-                  <PressableScale style={styles.addSetBtn} onPress={() => addSet(ex.id)} scaleTo={0.95}>
-                    <Text style={styles.addSetBtnText}>+ Add Set</Text>
-                  </PressableScale>
+                  {/* Add Set / Add Warm-up */}
+                  <View style={styles.addSetRow}>
+                    <PressableScale style={styles.addSetBtn} onPress={() => addSet(ex.id)} scaleTo={0.95}>
+                      <Text style={styles.addSetBtnText}>+ Add Set</Text>
+                    </PressableScale>
+                    <PressableScale style={styles.addSetBtn} onPress={() => addWarmupSet(ex.id)} scaleTo={0.95}>
+                      <Text style={styles.addSetBtnText}>+ Warm-up</Text>
+                    </PressableScale>
+                  </View>
                 </>
               )}
             </View>
@@ -1618,6 +1768,14 @@ export default function WorkoutsScreen() {
           accessibilityLabel={restSecondsLeft !== null ? 'Stop rest timer' : 'Start rest timer'}
         >
           <Ionicons name="timer-outline" size={22} color={C.primary} />
+        </PressableScale>
+        <PressableScale
+          style={[styles.floatingTool, noteSaved && styles.floatingToolActive]}
+          onPress={() => setNoteOpen(true)}
+          scaleTo={0.85}
+          accessibilityLabel="Session note"
+        >
+          <Ionicons name={noteSaved ? 'document-text' : 'document-text-outline'} size={21} color={C.primary} />
         </PressableScale>
         <PressableScale style={styles.floatingTool} onPress={handleShowExerciseList} scaleTo={0.85} accessibilityLabel="Show exercise list">
           <Ionicons name="list-outline" size={22} color={C.primary} />
@@ -1715,6 +1873,88 @@ export default function WorkoutsScreen() {
         onSelect={onPauseChoice}
         onClose={() => setPauseSheet(false)}
       />
+
+      {/* Per-exercise menu — machine occupied, changed my mind, reorder. */}
+      <OptionSheet
+        visible={exActionEx !== null}
+        title={exActionEx?.name ?? ''}
+        subtitle="Machine taken or changed your mind? Adjust this exercise."
+        options={(() => {
+          const i = exActionEx ? exercises.findIndex(e => e.id === exActionEx.id) : -1
+          return [
+            { key: 'swap', label: 'Swap exercise', sub: 'Same movement, different equipment', icon: 'swap-horizontal' },
+            { key: 'end', label: 'Move to end', sub: 'Come back to it after the others', icon: 'arrow-down-circle-outline' },
+            ...(i > 0 ? [{ key: 'up', label: 'Move up', icon: 'chevron-up-outline' }] : []),
+            ...(i >= 0 && i < exercises.length - 1 ? [{ key: 'down', label: 'Move down', icon: 'chevron-down-outline' }] : []),
+            { key: 'skip', label: 'Skip for today', sub: 'Remove from this session (kept in your plan)', icon: 'close-circle-outline', destructive: true },
+          ]
+        })()}
+        onSelect={(key) => {
+          const ex = exActionEx
+          setExActionEx(null)
+          if (!ex) return
+          if (key === 'swap') handleSwap(ex)
+          else if (key === 'end') moveExerciseToEnd(ex.id)
+          else if (key === 'up') moveExercise(ex.id, -1)
+          else if (key === 'down') moveExercise(ex.id, 1)
+          else if (key === 'skip') skipExercise(ex)
+        }}
+        onClose={() => setExActionEx(null)}
+      />
+
+      {/* Session note — "bench felt heavy today" → workout_logs.notes */}
+      <Modal visible={noteOpen} animationType="fade" transparent onRequestClose={() => setNoteOpen(false)}>
+        <View style={styles.customRestBackdrop}>
+          <View style={styles.noteCard}>
+            <Text style={styles.customRestTitle}>Session note</Text>
+            <Text style={styles.noteHint}>Anything worth remembering — how it felt, what to change next time. Saved with this session.</Text>
+            <TextInput
+              style={styles.noteInput}
+              value={noteText}
+              onChangeText={setNoteText}
+              placeholder="e.g. Bench felt heavy — try 5 lb less next week"
+              placeholderTextColor={C.outline}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+            <PressableScale style={styles.customRestStart} onPress={saveNote}>
+              <Text style={styles.customRestStartText}>Save note</Text>
+            </PressableScale>
+            <TouchableOpacity onPress={() => setNoteOpen(false)} style={{ paddingVertical: Spacing.xs }}>
+              <Text style={styles.customRestCancel}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* First-session coach overlay (one-time) */}
+      <Modal visible={coachVisible} animationType="fade" transparent onRequestClose={dismissCoach}>
+        <View style={styles.coachBackdrop}>
+          <View style={styles.coachCard}>
+            <View style={styles.coachIcon}><Ionicons name="barbell" size={26} color={C.onPrimary} /></View>
+            <Text style={styles.coachTitle}>Your first session</Text>
+            <Text style={styles.coachBody}>A few things so you can just train:</Text>
+            {[
+              ['checkmark-circle-outline', 'Tap the ○ to log a set', 'Your rest timer starts automatically — no extra taps.'],
+              ['timer-outline', 'Rest is handled', 'You’ll feel a buzz when it’s time, even with the phone locked.'],
+              ['ellipsis-horizontal-circle-outline', 'Machine taken?', 'Tap ⋯ on any exercise to swap, reorder, or skip it.'],
+              ['pause-circle-outline', 'Step away anytime', 'Pause up top — everything you logged is saved.'],
+            ].map(([icon, title, body]) => (
+              <View key={title} style={styles.coachRow}>
+                <Ionicons name={icon as any} size={20} color={C.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.coachRowTitle}>{title}</Text>
+                  <Text style={styles.coachRowBody}>{body}</Text>
+                </View>
+              </View>
+            ))}
+            <PressableScale style={styles.coachBtn} onPress={dismissCoach}>
+              <Text style={styles.coachBtnText}>Let’s go</Text>
+            </PressableScale>
+          </View>
+        </View>
+      </Modal>
     </ScreenTransition>
     </SafeAreaView>
   )
@@ -1795,8 +2035,43 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   prevCell: { flex: 1.5, fontSize: 13, color: C.outline },
   muscleLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.textSecondary, letterSpacing: 0.6, marginTop: 2 },
-  addSetBtn: { paddingVertical: Spacing.sm, alignItems: 'center' },
+  addSetRow: { flexDirection: 'row', gap: Spacing.sm },
+  addSetBtn: { flex: 1, paddingVertical: Spacing.sm, alignItems: 'center' },
   addSetBtnText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  setRowWarmup: { opacity: 0.85 },
+  setNumWarmup: { color: C.primary, fontSize: 12 },
+  noteCard: {
+    alignSelf: 'stretch', backgroundColor: C.surface, borderRadius: Radius.xl,
+    padding: Spacing.lg, gap: Spacing.sm, ...CardShadow,
+  },
+  noteHint: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18 },
+  noteInput: {
+    minHeight: 90, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, padding: Spacing.md,
+    fontFamily: 'Inter_400Regular', fontSize: 15, color: C.text, textAlignVertical: 'top',
+  },
+  coachBackdrop: {
+    flex: 1, backgroundColor: 'rgba(27,27,28,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: Spacing.xl,
+  },
+  coachCard: {
+    alignSelf: 'stretch', backgroundColor: C.surface, borderRadius: Radius.xl,
+    padding: Spacing.lg, gap: Spacing.sm, ...CardShadow,
+  },
+  coachIcon: {
+    width: 52, height: 52, borderRadius: Radius.full, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: Spacing.xs,
+  },
+  coachTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, textAlign: 'center' },
+  coachBody: { fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, textAlign: 'center', marginBottom: Spacing.xs },
+  coachRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', paddingVertical: 5 },
+  coachRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
+  coachRowBody: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 1 },
+  coachBtn: {
+    height: 50, borderRadius: Radius.lg, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', marginTop: Spacing.sm,
+  },
+  coachBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
   emptyStateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   emptyIconWrap: { width: 64, height: 64, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
   emptyStateText: { fontFamily: 'Inter_700Bold', fontSize: 18, color: C.text, textAlign: 'center', marginBottom: Spacing.xs },

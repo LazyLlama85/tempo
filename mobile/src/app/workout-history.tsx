@@ -78,6 +78,7 @@ export default function WorkoutHistoryScreen() {
             .from('set_logs')
             .select('workout_log_id, weight_lbs, reps_completed')
             .in('workout_log_id', logIds)
+            .not('is_warmup', 'is', true) // per-session set count + volume exclude warm-ups
           for (const s of (sets ?? []) as any[]) {
             const agg = setAgg.get(s.workout_log_id) ?? { sets: 0, volume: 0 }
             agg.sets += 1
