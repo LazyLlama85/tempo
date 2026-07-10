@@ -76,6 +76,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
         .from('set_logs')
         .select('workout_log_id, exercise_id, weight_lbs, reps_completed, completed_at')
         .in('workout_log_id', logIds)
+        .not('is_warmup', 'is', true) // warm-ups don't count toward volume/PRs
 
       if (!sets?.length) return { setLogs: [], logDates }
 

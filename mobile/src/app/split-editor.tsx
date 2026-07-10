@@ -54,6 +54,9 @@ export default function SplitEditorScreen() {
   const [editing, setEditing] = useState<number | null>(null)  // index into days
   const [pickerOpen, setPickerOpen] = useState(false)
   const reduceMotion = useReducedMotion()
+  // Whether the split being edited is the currently-active schedule — if so,
+  // saving must restamp its already-materialized future sessions.
+  const [wasActive, setWasActive] = useState(false)
 
   // Saved workouts, prefetched so the "Use a saved workout" picker opens instantly
   // (it used to fetch on tap with no spinner — the button felt dead) and refreshed
@@ -79,6 +82,7 @@ export default function SplitEditorScreen() {
         const s = all.find((x) => x.id === splitId)
         if (!s) return
         setName(s.name)
+        setWasActive(s.is_active)
         const itemsByWeekday = await daysToDraftItems(supabase, s.days.filter((d) => !d.rest))
         setDays(Array.from({ length: 7 }, (_, i) => {
           const d = s.days.find((x) => x.weekday === i + 1)
@@ -225,17 +229,22 @@ export default function SplitEditorScreen() {
     const id = await saveSplit(supabase, userId, { name, days: splitDays, splitId: splitId ?? null })
     if (!id) { setSaving(false); Alert.alert('Could not save', 'Please try again.'); return }
 
-    if (thenActivate) {
+    // Editing the ACTIVE split? Its future sessions are already on the calendar
+    // with the OLD exercises — re-activating retires those and re-materializes
+    // from the edited days, so the change actually reaches the schedule. (Without
+    // this, edits to an active split silently only affected the split row.)
+    const mustRestamp = thenActivate || wasActive
+    if (mustRestamp) {
       const split: Split = {
         id, user_id: userId, name: name.trim(), is_active: true, days: splitDays,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }
       const result = await activateSplit(supabase, userId, split, profile)
       if (result === 'failed') {
-        // The split IS saved — only activation failed. Say so instead of leaving
-        // the user thinking their schedule switched when it didn't.
+        // The split IS saved — only (re)activation failed. Say so instead of
+        // leaving the user thinking their schedule updated when it didn't.
         setSaving(false)
-        Alert.alert('Saved, but not activated', 'Your split was saved. Activating it didn’t go through — open My Splits and set it active to try again.', [
+        Alert.alert('Saved, but schedule not updated', 'Your split was saved, but updating this week’s sessions didn’t go through. Open My Splits and set it active to try again.', [
           { text: 'OK', onPress: () => router.back() },
         ])
         return
@@ -244,7 +253,7 @@ export default function SplitEditorScreen() {
         // Active, but this week's sessions couldn't be written (likely offline) —
         // they self-materialize on the next online app open, so don't say "retry".
         setSaving(false)
-        Alert.alert('Activated', 'Your split is now your schedule. Tempo couldn’t reach the server to build this week’s sessions — they’ll appear next time you open the app online.', [
+        Alert.alert(wasActive ? 'Saved' : 'Activated', 'Your split is your schedule. Tempo couldn’t reach the server to rebuild this week’s sessions — they’ll update next time you open the app online.', [
           { text: 'OK', onPress: () => router.back() },
         ])
         return
@@ -256,6 +265,9 @@ export default function SplitEditorScreen() {
   }
 
   const confirmSave = () => {
+    // Editing the active split: no "make active?" question — it already is, and
+    // we always restamp its sessions. New/inactive split: offer to activate.
+    if (wasActive) { handleSave(false); return }
     Alert.alert('Save split', 'Make this your active schedule now?', [
       { text: 'Save only', onPress: () => handleSave(false) },
       { text: 'Activate', onPress: () => handleSave(true) },

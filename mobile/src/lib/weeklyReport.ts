@@ -63,7 +63,7 @@ export async function computeWeeklyReport(client: SupabaseClient, userId: string
 
     const logIds = logRows.map(l => l.id)
     const { data: sets } = logIds.length
-      ? await client.from('set_logs').select('workout_log_id, exercise_id, weight_lbs, reps_completed, completed_at').in('workout_log_id', logIds)
+      ? await client.from('set_logs').select('workout_log_id, exercise_id, weight_lbs, reps_completed, completed_at').in('workout_log_id', logIds).not('is_warmup', 'is', true)
       : { data: [] as SetRow[] }
     const setRows = (sets ?? []) as SetRow[]
 

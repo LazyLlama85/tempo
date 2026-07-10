@@ -53,6 +53,7 @@ export async function detectSessionPRs(
       .from('set_logs')
       .select('workout_log_id, exercise_id, weight_lbs, reps_completed')
       .in('workout_log_id', logIds)
+      .not('is_warmup', 'is', true) // warm-ups are never PRs
     const rows = (sets ?? []) as SetRow[]
 
     const session = rows.filter(s => s.workout_log_id === targetLog && s.weight_lbs != null && s.weight_lbs > 0)

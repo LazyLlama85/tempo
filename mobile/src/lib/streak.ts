@@ -33,3 +33,22 @@ export function sessionStreak(rows: StreakRow[], todayStr: string): number {
   }
   return streak
 }
+
+// Longest consecutive-completed run in the given window (same session-based
+// definition as sessionStreak). Used for friend profiles ("longest streak").
+export function longestSessionStreak(rows: StreakRow[], todayStr: string): number {
+  const settled = rows.filter(r =>
+    r.planned_date <= todayStr &&
+    (r.status === 'completed' || r.status === 'missed' || r.status === 'skipped'),
+  )
+  const rank = (r: StreakRow) => (r.status === 'completed' ? 0 : 1)
+  settled.sort((a, b) => a.planned_date.localeCompare(b.planned_date) || rank(a) - rank(b))
+
+  let best = 0
+  let run = 0
+  for (const r of settled) {
+    if (r.status === 'completed') { run++; best = Math.max(best, run) }
+    else run = 0
+  }
+  return best
+}
