@@ -81,9 +81,25 @@ you moving."*
   step has the same silent refresh-retry. **`onboarding_complete` flips only AFTER `generatePlan`
   succeeds** (a separate update), so a mid-chain failure + force-quit can't produce an
   "onboarded" account with no plan at next launch.
+- **First-time experience (framework):** a reusable, **device-local, opt-in** tutorial engine
+  (`lib/tutorial.ts` state/defs + `stores/tutorial.ts` reactive layer + `components/TutorialOverlay.tsx`
+  spotlight + `useTutorialTarget`/`useOnceTip` hooks). State (armed/completedSteps/skipped/first-*)
+  persists to localStorage per user — steps complete offline, a failed API can't mark them done, and
+  an app upgrade never resets them (a `version` retires steps without wiping progress). Tutorials are
+  **armed only at the new-user moment** (`plan-preview`, non-replan), so existing users / re-planners /
+  reinstalls never see them. **`welcome`** (`app/welcome.tsx`, fullScreen) is gated by `(tabs)/_layout`
+  — a fresh account is routed through it before the app and **re-shown on reopen until completed**
+  (force-close-proof). **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
+  Profile) that dims the screen + cuts a hole around a measured target + floats a tooltip, without
+  freezing the UI; auto-starts once on first Home focus after Welcome. **`first_workout`** fires
+  `first_workout_started`/`first_set_logged` and the existing coach overlay; the **first completed
+  session** gets a bigger `workout-complete` celebration + a "First Tempo Session" card and sets the
+  durable `firstWorkoutCompleted` flag. **Profile → Replay App Tour** re-arms it. Analytics:
+  `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
+  (experience-tagged; platform/app_version are auto super-props).
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
-  `travel-mode`, `legal` (Privacy + Terms), `workout-complete`, `weekly-report` (Sunday
-  progress recap), `plan-explainer` ("why this week" periodization explanation),
+  `travel-mode`, `legal` (Privacy + Terms), `workout-complete`, `welcome` (post-onboarding reveal),
+  `weekly-report` (Sunday progress recap), `plan-explainer` ("why this week" periodization explanation),
   **`workout-builder`** (two modes: **create/edit** a saved workout = name + exercises → library,
   with no scheduling UI; **schedule** = opened with a `date` param from Add Workout, adds date/time +
   a Schedule action — the time is **smart-pre-filled** from the free-slot engine
@@ -422,8 +438,27 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   and **injuries** via the same restriction mapping Quick Workouts use; supports **2–6 days/week
   including weekend-only** via constraint-aware day-slot selection). It programs **only from the
   curated `is_core` pool** (the ~160 staple movements) so a 1,300-exercise search library can't
-  degrade generated plans, sorting each pattern pool by popularity and capping it for week-to-week
-  variety. **Duration is goal-accurate**: `progression.estimateSessionMinutes` computes real
+  degrade generated plans. **Engine v2 — coach-quality selection (`lib/exerciseProgramming.ts`):**
+  the old engine built sessions from the 8 coarse `movement_pattern` buckets, which miscategorise
+  for programming (biceps curls are `pull`, cleans are `hinge`, and calf raises / leg curls / leg
+  extensions collapse into `squat`/`hinge`) — so leg days read as random lists with bad order +
+  duplicate deadlifts. A pure, shared **classifier** now derives a fine **slot**
+  (squat/hinge/lunge/knee_flexion/quad_iso/calf/h_push/v_push/chest_iso/triceps/h_pull/v_pull/
+  rear_delt/lat_raise/biceps/core/cardio/carry), a **role** (power/compound/isolation/core/cardio),
+  and a lift **family** from `primary_muscles` + name keywords + pattern (no DB migration — those
+  columns already exist). Session templates are **ordered `SlotSpec` lists** (power → primary →
+  secondary → accessory → isolation → finisher) per goal × split; `selectForSlots` fills them
+  enforcing **role fit** (a compound slot rejects isolation work), **anti-redundancy by family**
+  (never two deadlift variants), **per-focus rotation** (the FIRST Legs day opens with the canonical
+  back squat, later ones vary), **affinity fallback** for thin equipment, and the time budget. Pools
+  group **by slot** (mobility excluded). `extendActivePlan` + `restampFuturePlanForExperience` share
+  the path. Validated against the real 163-row core pool (full-gym Legs = Squat → Good Morning →
+  Bulgarian → Leg Curl → Leg Extension → Calf; dumbbells-only adapts to Goblet Squat + DB variants).
+  Prescriptions are **role-aware** (`buildPrescription` takes the classified role: primary compounds
+  heavier/lower-rep + full rest, isolations higher-rep + short rest — within the goal, so
+  autoregulation + periodization stay live), and the runner hub shows a **"Why this workout?"**
+  sheet (`lib/sessionRationale.ts`) explaining the order in plain language.
+  **Duration is goal-accurate**: `progression.estimateSessionMinutes` computes real
   wall-clock time = warm-up + Σ sets×(work + rest) using the goal's actual inter-set rest (strength
   a full 3 min, athletic ~2.5, hypertrophy ~90 s), and `exerciseCountForDuration` inverts it to pick
   how many lifts fit the user's preferred length for that goal — so a 45-min strength day is a few

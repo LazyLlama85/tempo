@@ -34,6 +34,8 @@ import {
 import { getPushEnabled, setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
 import { updateUsername } from '@/lib/social'
+import { useTutorialStore } from '@/stores/tutorial'
+import { T } from '@/lib/tutorial'
 import type { TravelMode, BodyMeasurement } from '@/types'
 
 
@@ -413,6 +415,18 @@ export default function ProfileScreen() {
     setSwapBusy(false)
     setSwapModal(null)
     loadSwaps()
+  }
+
+  // Replay the guided walkthrough: re-arm the Home tour + re-show the first-session
+  // coach overlay, then drop the user on Home where the tour re-fires.
+  const replayTour = () => {
+    const tut = useTutorialStore.getState()
+    tut.completeStep('welcome_done') // ensure the welcome gate stays satisfied
+    tut.replay(T.homeTour)
+    try { (globalThis as { localStorage?: Storage }).localStorage?.removeItem('tempo.coach.session') } catch { /* best-effort */ }
+    Alert.alert('Tour reset', 'The guided walkthrough will play again on Home and in your next workout.', [
+      { text: 'Show me', onPress: () => router.push('/(tabs)') },
+    ])
   }
 
   const openEdit = () => {
@@ -1144,6 +1158,8 @@ export default function ProfileScreen() {
                 })}
               </View>
             </View>
+            <View style={styles.divider} />
+            <SettingRow icon="school-outline" label="REPLAY APP TOUR" value="Show the guided walkthrough again" onPress={replayTour} />
             <View style={styles.divider} />
             <SettingRow icon="shield-outline" label="PRIVACY & TERMS" value="View" onPress={() => router.push('/legal')} />
           </View>

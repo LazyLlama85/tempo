@@ -17,6 +17,7 @@ import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
 import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
+import { useTutorialStore } from '@/stores/tutorial'
 import * as haptics from '@/lib/haptics'
 import { ConfettiBurst, CountUp } from '@/components/celebration'
 import { AnimatedRing } from '@/components/AnimatedRing'
@@ -53,9 +54,19 @@ export default function WorkoutCompleteScreen() {
   // the streak / consistency / weekly figures reflect this workout.
   useEffect(() => { refetch() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Is this the account's FIRST completed session? Captured once on mount, before
+  // we flip the flag — the most important retention moment, so it gets a bigger
+  // celebration and its own card.
+  const [isFirstSession] = useState(() => !useTutorialStore.getState().data.firstWorkoutCompleted)
+
   // The session is logged by the time this screen mounts — record it once.
   useEffect(() => {
     track('session_end', { type: isQuick ? 'quick' : 'planned', duration_min: mins || undefined })
+    if (isFirstSession) {
+      const tut = useTutorialStore.getState()
+      tut.setFirstWorkoutCompleted()
+      track('first_workout_completed', { experience: profile?.experience, duration_min: mins || undefined })
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A PR deserves a second, firmer buzz on top of the completion haptic.
@@ -132,17 +143,32 @@ export default function WorkoutCompleteScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* The moment of celebration — confetti falls once as the summary lands */}
-      <ConfettiBurst count={prs.length > 0 ? 40 : 26} />
+      {/* The moment of celebration — confetti falls once as the summary lands.
+          The first-ever session gets the biggest fall. */}
+      <ConfettiBurst count={isFirstSession ? 64 : prs.length > 0 ? 40 : 26} />
       {/* A bigger, gold-tinted second fall the instant a level-up lands */}
       {promotion && <ConfettiBurst count={72} colors={[C.gold, C.primary, C.primaryBright, C.success]} />}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <PopIn style={styles.badge}>
-          <Ionicons name="checkmark" size={44} color={C.onPrimary} />
+          <Ionicons name={isFirstSession ? 'sparkles' : 'checkmark'} size={44} color={C.onPrimary} />
         </PopIn>
-        <FadeInView delay={120}><Text style={styles.title}>Nice work.</Text></FadeInView>
-        <FadeInView delay={200}><Text style={styles.lead}>{lead}</Text></FadeInView>
+        <FadeInView delay={120}><Text style={styles.title}>{isFirstSession ? 'First workout complete.' : 'Nice work.'}</Text></FadeInView>
+        <FadeInView delay={200}><Text style={styles.lead}>{isFirstSession ? 'You just started your Tempo journey — this is day one.' : lead}</Text></FadeInView>
+
+        {/* First Tempo Session — an unlock moment on day one */}
+        {isFirstSession && (
+          <PopIn delay={240} style={styles.firstCard}>
+            <View style={styles.firstBadge}>
+              <Ionicons name="footsteps" size={24} color={C.onPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.firstTag}>ACHIEVEMENT UNLOCKED</Text>
+              <Text style={styles.firstTitle}>First Tempo Session</Text>
+              <Text style={styles.firstBody}>The hardest one is behind you. Tempo learns from this session to shape your next.</Text>
+            </View>
+          </PopIn>
+        )}
 
         {/* Level up — the plan grew with you. The biggest moment on the screen. */}
         {promotion && (
@@ -291,6 +317,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   title: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center', marginTop: Spacing.sm },
   lead: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xs },
+
+  firstCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.primarySoft, borderRadius: Radius.xl, padding: Spacing.lg,
+    borderWidth: 1.5, borderColor: C.primary,
+  },
+  firstBadge: { width: 48, height: 48, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  firstTag: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
+  firstTitle: { fontFamily: C.fontDisplay, fontSize: 19, color: C.text, letterSpacing: -0.2, marginTop: 1 },
+  firstBody: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
 
   card: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.xs },
   streakCard: { backgroundColor: C.primary, borderColor: C.primary },

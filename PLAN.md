@@ -1,5 +1,13 @@
 # Tempo — Implementation Plan: Programming Engine v2 + First-Time Experience
 
+> **STATUS: IMPLEMENTED** on branch `feature/engine-and-first-run` (7 checkpoints, typecheck +
+> Metro export green at each). Engine-first per the chosen sequencing; tutorial state device-local.
+> Both features shipped with **zero database migrations** (classifier is pure over existing columns;
+> tutorial state is localStorage). Remaining polish deferred (see end): contextual one-off tips for
+> first-Progress / first-Quick-Workout / first-equipment-change, and illustrated empty states — the
+> `useOnceTip` hook + current text empty states cover these adequately for now.
+
+
 Two connected upgrades. The **engine** determines whether a generated workout reads
 like a coach wrote it; the **first-time experience** teaches the user *why* Tempo
 feels intelligent. If the engine still emits random-feeling sessions, no tutorial
