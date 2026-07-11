@@ -11,9 +11,13 @@
 // Exercises with no accurate clip anywhere fall back to an illustration rather
 // than show a misleading demo (gaps tracked in supabase/MISSING_EXERCISE_MEDIA.md).
 //
-// GIFs are served by the ExerciseDB image endpoint, which requires the RapidAPI
-// auth headers, so we attach them to the image request. EXPO_PUBLIC_ vars are
-// inlined into the bundle at build time.
+// GIFs are served from our own public Supabase Storage bucket (`exercise-gifs`),
+// backfilled ONCE from ExerciseDB by scripts/backfill-exercise-media.mjs — the
+// app never calls RapidAPI live for images anymore (that's what exhausted the
+// RapidAPI monthly quota: every install hitting the same shared plan on every
+// view). An exercise not yet backfilled just has no object at that URL yet; the
+// <Image> onError handlers in ExerciseFormSheet/ExerciseMedia fall back to the
+// illustration exactly as they do for a genuine gap.
 
 import { exdbIdForExercise } from '@/lib/exerciseDb'
 
@@ -115,8 +119,8 @@ export const MISSING_MEDIA_UUIDS: string[] = [
   'ed3798cf-4b37-4e5c-b245-067656480e0d', // Cat-Cow
 ]
 
-const EXDB_IMAGE_HOST = 'exercisedb.p.rapidapi.com'
-const RAPIDAPI_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
+const GIF_STORAGE_BASE = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/exercise-gifs` : null
 
 export interface GifSource {
   uri: string
@@ -135,22 +139,15 @@ export function getLocalExerciseGif(exerciseId: string | null | undefined): numb
   return null
 }
 
-// Returns an expo-image source (uri + auth headers) for an exercise's form clip,
-// or null when we have no verified clip or the API key isn't configured.
-export function getExerciseGifSource(
-  exerciseId: string | null | undefined,
-  resolution: 180 | 360 | 720 = 360,
-): number | GifSource | null {
-  // Prefer our own bundled clip when we have one (offline, no API key required).
+// Returns an expo-image source for an exercise's form clip, or null when we have
+// no verified clip. Served from our own Supabase Storage cache (see file header) —
+// not yet backfilled reads as a 404, same as "no clip", handled by the caller's
+// onError fallback.
+export function getExerciseGifSource(exerciseId: string | null | undefined): number | GifSource | null {
+  // Prefer our own bundled clip when we have one (offline, no network required).
   if (exerciseId && LOCAL_GIFS[exerciseId] != null) return LOCAL_GIFS[exerciseId]
   // Curated mapping first, then the id embedded in imported-library UUIDs.
   const exdbId = getExerciseMedia(exerciseId)?.exdbId ?? exdbIdForExercise(exerciseId)
-  if (!exdbId || !RAPIDAPI_KEY) return null
-  return {
-    uri: `https://${EXDB_IMAGE_HOST}/image?exerciseId=${exdbId}&resolution=${resolution}`,
-    headers: {
-      'x-rapidapi-key': RAPIDAPI_KEY,
-      'x-rapidapi-host': EXDB_IMAGE_HOST,
-    },
-  }
+  if (!exdbId || !GIF_STORAGE_BASE) return null
+  return { uri: `${GIF_STORAGE_BASE}/${exdbId}.gif`, headers: {} }
 }

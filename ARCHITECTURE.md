@@ -54,9 +54,16 @@ you moving."*
   query roots on every re-focus, and every workout-state mutation calls
   `invalidateTrainingData(queryClient)` (`src/lib/queryInvalidation.ts`). Route modals blur/refocus
   the tab beneath them, so closing a mutating modal also triggers a refresh.
-- **Onboarding stack** `onboarding/`: `goal → experience → equipment → schedule` (2–6 days/week;
-  choose a calendar — Google via account-safe linking, or the device calendar on **both**
-  platforms — **and** an **auto vs. manual scheduling mode**) `→ availability → plan-preview`
+- **Onboarding stack** `onboarding/`: `goal → schedule → availability → plan-preview` (now **4
+  numbered steps, down from 6**). **`goal` is a single merged "Basics" screen** — a 3-card sequence
+  (goal → experience → equipment) behind one header + progress bar + sub-step dots (formerly three
+  separate pushed screens; `experience.tsx`/`equipment.tsx` removed, route name `goal` kept so the
+  `(tabs)` gate redirect and Profile → Change Plan re-entry are unchanged). **`schedule`** sets 2–6
+  days/week **and** an **auto vs. manual scheduling mode**; **connecting a calendar has moved out of
+  the required path** — a first-time "Connect your calendar" Home context banner (lowest priority)
+  plus Profile → Calendar (`calendar-setup.tsx`) own it now, so a new user's path to a first workout
+  never touches OAuth (a user who never connects still gets auto placement from the free-slot engine).
+  Then `plan-preview`
   (primed notification ask — an explainer sheet *before* the one-shot OS prompt; push-token
   registration happens here on grant, never at sign-in) `→ profile-setup` (name, avatar, and an
   **optional starting weight** that seeds the weight trend + goal countdown on day one;
@@ -71,9 +78,9 @@ you moving."*
   `preferred_duration_min` are never clobbered by the upsert (identity fields only seed when
   empty), training query caches are invalidated so the tabs paint the new plan immediately, and
   on success it pops the whole onboarding stack back into the app instead of re-running
-  profile-setup. The **experience step's preview** is a real "session at this level" card —
-  icon chip + 3-bar intensity meter + three sample lifts with set×rep prescriptions per level
-  (replacing the old gray placeholder box), and the screen scrolls on small phones.
+  profile-setup. The **Basics screen's experience card preview** is a real "session at this level"
+  card — icon chip + 3-bar intensity meter + three sample lifts with set×rep prescriptions per level
+  (replacing the old gray placeholder box), and each card scrolls on small phones.
   `plan-preview` also guards double-taps with a **ref latch** (state alone can't stop two taps
   in one frame), proactively refreshes the auth session before the save chain, auto-retries once
   after a silent token refresh on JWT failures, and maps failures to actionable copy (offline vs
@@ -89,14 +96,28 @@ you moving."*
   **armed only at the new-user moment** (`plan-preview`, non-replan), so existing users / re-planners /
   reinstalls never see them. **`welcome`** (`app/welcome.tsx`, fullScreen) is gated by `(tabs)/_layout`
   — a fresh account is routed through it before the app and **re-shown on reopen until completed**
-  (force-close-proof). **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
+  (force-close-proof). To avoid a double celebration, `plan-preview`'s **new-user** copy is now
+  anticipatory ("Here's your plan" → *we'll build it*) and **`welcome` owns the single "your plan is
+  ready" reveal**; the replan branch (no `welcome`) keeps its own "Your new plan is ready" copy. **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
   Profile) that dims the screen + cuts a hole around a measured target + floats a tooltip, without
-  freezing the UI; auto-starts once on first Home focus after Welcome. **`first_workout`** fires
+  freezing the UI; auto-starts once on first Home focus after Welcome. (Step 2's `home.today` target
+  is anchored to the stable "today" day-group, which always renders in week/day view — not just the
+  hero card, which only exists when today has a workout; previously a new user whose first session
+  wasn't today got no spotlight on that step.) **`first_workout`** fires
   `first_workout_started`/`first_set_logged` and the existing coach overlay; the **first completed
   session** gets a bigger `workout-complete` celebration + a "First Tempo Session" card and sets the
-  durable `firstWorkoutCompleted` flag. **Profile → Replay App Tour** re-arms it. Analytics:
+  durable `firstWorkoutCompleted` flag. **Profile → Replay App Tour** re-arms it (and also clears the
+  `how_tempo_works` one-off tip below, via its localStorage key directly). Analytics:
   `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
-  (experience-tagged; platform/app_version are auto super-props).
+  (experience-tagged; platform/app_version are auto super-props). **`how-tempo-works`** (new screen,
+  triggered via the lighter `shouldShowTip`/`markTipSeen` one-off mechanism rather than
+  `HOME_TOUR_STEPS`, specifically so it doesn't restart the spotlight tour for users who'd already
+  completed it) fires once for every user — new or existing — right before `home_tour`, defining the
+  vocabulary the spotlight tour assumes: what a workout/split is, and the previously-conflated
+  distinction between Tempo **generating** a workout's exercises and Tempo **scheduling** its day/time.
+  It's an **interactive, swipeable tutorial** (one concept per page — swipe or Next, progress dots,
+  Back — with small inline visuals for the split + generate/schedule concepts), not the old static
+  scroll of stacked cards.
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
   `travel-mode`, `legal` (Privacy + Terms), `workout-complete`, `welcome` (post-onboarding reveal),
   `weekly-report` (Sunday progress recap), `plan-explainer` ("why this week" periodization explanation),
@@ -112,14 +133,26 @@ you moving."*
   record + its PRs; opened from a completed card's **Details** on Home or a History row; each
   exercise links to its trend), **`exercise-library`** (browse/search the whole ~1,360-move library —
   instant ranked search + muscle-group & equipment filter chips, with **variant families collapsed**
-  (barbell/dumbbell/cable versions under one expandable row) → the form-guide sheet; entries on the
-  Workouts hub + Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM bars,
-  best-ever tiles, Δ vs a month ago; opened from PR rows on Progress/Profile and from
-  session-detail), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
+  (barbell/dumbbell/cable versions under one expandable row, representative = shortest name on a
+  relevance tie so the plainest variant leads) → the form-guide sheet; also doubles as an **add-to-
+  workout picker** — every row/family carries an add-circle toggle, and a floating "Add to a
+  workout" bar appears once ≥1 is picked, pushing `/workout-builder?addExerciseIds=…` pre-loaded
+  with the picks. Reached from the Plan tab header (book icon, always visible) — no longer linked
+  from Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM bars,
+  best-ever tiles, Δ vs a month ago; opened from PR rows on Progress/Profile/**`pr-browser`** and
+  from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
+  jump to its `exercise-progress` trend), **`calendar-setup`** (dedicated connect/disconnect screen
+  for Google + Device Calendar, replacing the old `Alert.alert` checklist; shows a "needs
+  reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`how-tempo-works`**
+  (one-time — then replayable from Profile → Replay App Tour — explainer defining workout / split /
+  **Tempo *generates* the exercises vs Tempo *schedules* the day & time** / adding & editing /
+  calendar / equipment & goals; shown once per device via `shouldShowTip('how_tempo_works')`, right
+  before the Home spotlight tour), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
   the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
   exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
   targets), **`social`** (Friends home: **your @username + friend-code card** with copy/share,
-  live search by **name / @username / friend code**, requests, **friend-activity feed**, a
+  live search by **name / @username / friend code**, requests, **friend-activity feed** (with a
+  one-tap 🔥 "nice work" reaction + count per row), a
   **friends-only weekly leaderboard**, friends list, paste-a-code share redemption, tap-to-cycle
   privacy rows), **`friend-profile`** (privacy-gated @handle + member-since, streak / longest /
   this-week cards, totals — workouts / sets / **volume in display unit** / favorite muscle / goal /
@@ -130,21 +163,35 @@ you moving."*
 
 ### 3.2 Screen responsibilities
 - **Home / Schedule** (`(tabs)/index.tsx`): unified day/week/month calendar; merges plan workouts
-  with live device + Google calendar events; readiness ring; **block-phase banner** (where you are
-  in the mesocycle); a **weekly-target card** ("2 of 3 sessions" + bar — the winnable loop for a
-  3×/week plan); a **contextual Quick Workout suggestion row** (`lib/quickSuggestion` — free
-  calendar gap / recently missed / momentum restart; hidden whenever today already has a session);
-  **Add Workout** entry + FAB (opens `AddWorkoutSheet` → build new / pick a saved
-  workout / pick a starter template, scheduled onto the selected day via the builder);
-  missed-workout reschedule; rest-day advice; travel
-  banner; "ignore event" to free time; recovery check-in entry. Today's workout flips to a
+  with live device + Google calendar events; readiness ring; a **weekly-target card** ("2 of 3
+  sessions" + bar — the winnable loop for a 3×/week plan, always visible); **Add Workout** FAB
+  (opens `AddWorkoutSheet` → build new / pick a saved workout / pick a starter template, scheduled
+  onto the selected day via the builder); "ignore event" to free time; recovery check-in entry.
+  **Today's-context strip** (`contextItems` array in `index.tsx`): the contextual banners that used
+  to stack independently — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
+  block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), and the
+  Quick Workout suggestion (`lib/quickSuggestion`) — are now priority-resolved so **at most one shows
+  as a full banner** (priority order: missed → reconnect → travel → rest → block → goal → report →
+  quick), with every other *currently-eligible* one demoted to a **swipeable chip** below it. Each
+  banner's original eligibility gate is unchanged (this only caps how many render at once and in
+  what form); the goal-countdown card and the standalone "Add a workout" row (redundant with the FAB)
+  were removed as separate rows. Today's workout flips to a
   gentle **overdue "still on for this?"** state an hour past its start (ember treatment +
-  Reschedule / Skip), a workout a calendar event now overlaps shows a **proactive "move it?"**
+  Reschedule / Skip); a **past-day row whose status flipped to `'missed'`** now gets its own
+  distinct treatment too (red **MISSED** badge/dumbbell tint, a dedicated note, and a red calendar
+  dot via `renderDayCell`'s new `dotMissed` variant) — previously a missed row rendered
+  indistinguishably from any other scheduled workout once you weren't looking at *today*. A workout
+  a calendar event now overlaps shows a **proactive "move it?"**
   one-tap reschedule (the felt-intelligent case in manual mode, where times aren't auto-moved),
   and a completed card gets a **Details** action into `session-detail`. On open, Home also runs
   **plan rollover** (`extendActivePlan` + re-place times), the split horizon refresh, conflict
   resolution, and a **14-day reminder reconciliation sweep** (newly materialized or auto-moved
-  sessions always carry a correct 30-min reminder; never prompts for permission).
+  sessions always carry a correct 30-min reminder; never prompts for permission). `checkMissedWorkouts`
+  itself only ran on cold-start/sign-in (`stores/auth.ts` deliberately skips it on `TOKEN_REFRESHED`,
+  which fires on every foreground) — so a workout that went stale while the app just sat
+  backgrounded across midnight was never flipped until the next cold start. A lightweight `AppState`
+  listener now re-runs just that cheap check (not the whole entry sweep) whenever the app foregrounds
+  on a new calendar day. A "Google Calendar needs reconnecting" banner (see §5) can also appear here.
 - **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
   Tapping the tab (no `workoutId` param) lands on the **hub** — the day's session previewed
   (focus, exercise list, sets) with a **Start session** button, plus Quick Workout / My Workouts /
@@ -229,9 +276,15 @@ you moving."*
   (travel mode's label field, availability, profile-setup, workout builder) use keyboard insets
   so the keyboard never covers a field or its Save button. Long option lists inside sheets
   (equipment, injuries) scroll within a capped height so Save stays reachable on small phones.
-- **Progress** (`(tabs)/progress.tsx`): stats, PRs, charts/history.
-- **Profile** (`(tabs)/profile.tsx`): gaming-style level/XP hero, achievements grid, PRs, **Body
-  Stats** (weight + body-fat + waist trends, progress-photo capture), saved exercise swaps, a
+- **Progress** (`(tabs)/progress.tsx`): the single stats home — consistency ring, streak, next
+  milestone, completion rate, volume chart, weight trend, PRs, and the achievements grid. Profile no
+  longer duplicates any of these (see below).
+- **Profile** (`(tabs)/profile.tsx`): identity + config surface. A single glanceable stat — the
+  gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1"). The
+  stat grid, achievements grid, and Personal Records card were **removed** so Progress owns all
+  performance stats; Profile keeps **Body
+  Stats** (weight + body-fat + waist trends, progress-photo capture — the only place to *log* a
+  measurement; "View trend" links to Progress), saved exercise swaps, a
   **"Right Now"** section (temporary/personal adjustments — **travel mode + injuries**, surfaced at
   the top of settings rather than buried in the plan), **My Plan** (workouts/splits/history/library +
   goal/experience/days/equipment/Change Plan), settings (availability, calendar — connect **and
@@ -247,8 +300,10 @@ you moving."*
   Scheduling**. In `manual` mode `autoScheduleUpcoming`/`resolveCalendarConflicts` self-guard and
   no-op (the calendar is still read for busy times / event sync); the user owns the times.
 - **Calendar sync:** in auto mode scheduling is automatic (placed around the calendar at plan/split
-  creation + conflict auto-resolve on app open). Connecting a calendar (Profile → Calendar, Google
-  inline OAuth or device) is for reading busy times / scheduling around real life — it does **not**
+  creation + conflict auto-resolve on app open). Connecting a calendar (Profile → Calendar →
+  **`calendar-setup`** — a dedicated screen now, replacing the old `Alert.alert` checklist for
+  connect + a second `Alert.alert` for disconnect; Google inline OAuth or device) is for reading
+  busy times / scheduling around real life — it does **not**
   start writing to the calendar. **"Add workouts to my calendar" is opt-IN (default OFF)**, a separate
   Settings toggle independent of scheduling mode: `lib/calendarAutoSync.autoSyncEnabled` treats only an
   explicit `true` as on. Turning it **on** (with a calendar connected) runs `syncUpcomingWorkouts`
@@ -264,23 +319,57 @@ you moving."*
   the raw backend error. When the Google identity is already ANOTHER Tempo account's login (user
   signed in with Google once, now on an Apple/guest account), the redirect carries
   `identity_already_exists` — surfaced as **`identity_taken`** with copy telling them to sign back
-  in with Google or use the Device Calendar (profile.tsx + onboarding/schedule.tsx).
+  in with Google or use the Device Calendar (calendar-setup.tsx — the post-onboarding connect
+  surface; calendar connection is no longer part of the onboarding `schedule` step).
+  **Fixed bug:** when Google's refresh token is revoked/expired, the token edge function correctly
+  deletes the stored row and returns `409 reconnect_required` — but `getGoogleAccessToken()` used to
+  discard that signal and every caller (`calendarSync.getCalendarEventsForRange` in particular)
+  swallows fetch failures to `[]` so the feed never breaks — net effect, Google events silently
+  vanished forever with zero indication why ("used to work, now nothing shows" — likely because the
+  OAuth consent screen is still in Google's "Testing" publish status, which auto-expires refresh
+  tokens after 7 days; that's a Google Cloud Console setting, not something fixable from the repo).
+  `CalendarAuthService` now exposes `googleCalendarNeedsReconnect()`, set whenever that specific
+  reason is detected; Home shows a "Google Calendar needs reconnecting" banner (tap → calendar-setup)
+  and calendar-setup shows the same banner inline.
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 
-### 3.3 Components (`src/components/`, ~26)
+### 3.3 Components (`src/components/`, ~27)
+**`TempoSheet`** — the shared swipeable bottom sheet every other sheet in this list is built on
+(`@gorhom/bottom-sheet` under the hood). Replaced 15 instances across 11 files that used a plain
+RN `<Modal>` with a decorative drag-handle that had **no pan gesture wired to it at all** — the
+handle looked swipeable but wasn't; `TempoSheet` makes it real (pan-to-dismiss, and
+`BottomSheetScrollView`/`BottomSheetFlatList` for any scrollable content so the dismiss gesture and
+content scroll are arbitrated instead of fighting). Also fixes the body-measurement modal's
+keyboard-covers-Save-button bug structurally (built-in keyboard handling) rather than needing a
+per-modal fix. Takes the same `visible`/`onClose` props the old `<Modal>` API used, so callers
+barely changed. New deps: `@gorhom/bottom-sheet` + `react-native-svg` (the latter for upcoming
+Progress chart work) — both need one `expo run:ios`/`run:android` rebuild, and the root layout now
+wraps the app in `GestureHandlerRootView` + `BottomSheetModalProvider`.
 `EditWorkoutSheet`, `ExerciseFormSheet`, `ExerciseMedia`, `RecoveryCheckIn`, `ShareCardSheet`,
+**`SaveProgressSheet`** (the single guest → permanent-account upgrade surface, §1.1 — Apple/Google
+buttons over `lib/accountLinking`, shared by the Profile card and the post-3rd-workout modal;
+account-protection wording, never a hard gate),
 `WrappedCard`, `TimePickerSheet`, `LoadingCard` (shimmer skeleton), `ErrorBanner`,
 **`CustomExerciseSheet`** (create/edit a custom exercise), **`ExercisePickerSheet`** (search library +
-custom, add to a workout), **`AddWorkoutSheet`** (calendar "add a workout": build new / saved
+custom, add to a workout — the fast in-context picker used by `split-editor`/`edit-session`; the
+main workout-builder flow now opens `exercise-library` directly instead, for its richer equipment
+filter), **`AddWorkoutSheet`** (calendar "add a workout": build new / saved
 workout / starter template → builder), **`OptionSheet`** (the branded bottom-sheet option picker —
 replaces every multi-option `Alert.alert` menu, which Android caps at 3 buttons; items take a
 `destructive` flag that renders red — the affordance Alert's `style:'destructive'` gave Delete
 rows; used for starter
 workout/split presets, "use a saved workout", template actions in My Workouts, split actions in
-My Splits, and the runner's rest-length picker), **`Avatar`** (the shared profile picture — chosen
-icon+colour or photo, read from the auth store; used in every header so none fall back to a
-default icon), themed primitives, plus a `ui/` set. **Brand & delight set (all dependency-free, Reduce-Motion
+My Splits, and the runner's rest-length picker; the remaining confirm/picker stragglers were
+migrated onto it too — Profile's Change-Plan + "remove all Tempo events", Home's remove-from-calendar,
+and the runner's skip-exercise + swap-exercise picker, the last of which had silently dropped its
+4th+ substitute past Android's 3-button alert cap), **`Avatar`** (the shared profile picture — chosen
+icon+colour, or now a real uploaded photo, read from the auth store; used in every header so none
+fall back to a default icon — `lib/avatar.uploadAvatar()` picks + uploads to the new public
+`avatars` Storage bucket, `supabase/add_avatar_storage.sql`, RLS-scoped to `<user_id>/…`, and writes
+the resulting public URL straight into the existing `user_profiles.avatar_url` column, which
+`parseAvatar()` already rendered as an image for any `http(s)` value — no schema change needed),
+themed primitives, plus a `ui/` set. **Brand & delight set (all dependency-free, Reduce-Motion
 aware):**
 - **`motion`** — `PressableScale`, `FadeInView`, `PopIn`, `Shimmer`, `ScreenTransition`,
   `useReducedMotion`, `useScreenFocused`. Entrances run on plain JS `Animated` and follow one hard
@@ -304,9 +393,29 @@ aware):**
   rhythm mark; loading + celebration accents), `PulseLoader`, `ScreenHeader` (masthead + primary
   tick/hairline rule). The glyph now rides in every masthead (all tabs + onboarding steps) and a
   brand footer on Profile, so the actual logo — not just the wordmark text — carries the brand.
+  **`ScreenHeader` is now the one shared masthead across every screen** — the 4 root tabs, the live
+  workout runner, and all ~21 secondary/modal screens. Props: `title` (omit → wordmark leads),
+  `subtitle`, `right` (trailing action(s)), `leading` (dismiss/back affordance — presence flips the
+  header to a balanced, centered layout with the title/wordmark between the two sides; when the sides
+  differ in width, e.g. the runner's Pause vs avatar, the masthead is optically- not pixel-centered),
+  `rule` (the amber tick + hairline, default `true`), and `size` (`'md'` = 24px root tabs, `'sm'` =
+  18px + no pulse for the runner and modals). Two siblings ride alongside it: **`DismissButton`**
+  (`kind` `'chevron'` | `'x'` | `'back'` — the single source for every modal/pushed-screen dismiss
+  affordance, replacing the ~21 hand-rolled copies) and **`HeaderActions`** (a gap'd row wrapper so
+  `right` can hold several actions, e.g. Home's readiness ring + avatar). Avatars stay per-screen
+  (Home renders a photo via `parseAvatar`/`expo-image`; the runner a glyph) rather than being pulled
+  into the primitives file.
 - **`AnimatedRing`** — SVG-free circular progress that animates every value change (two clipped
-  half-circle fills on one Animated value). Used by Home's weekly target, Progress's consistency
-  score, workout-complete's weekly ring.
+  half-circle fills on one Animated value). Used by Home's weekly target and workout-complete's
+  weekly ring. **`SvgProgressRing`** is the real-SVG sibling (gradient stroke-dashoffset, on
+  `react-native-svg`) used specifically by Progress's Consistency Score, where a gradient stroke
+  reads closer to the Apple-Fitness/WHOOP reference than a flat fill — additive, not a replacement,
+  so Home/workout-complete are untouched. **`SvgLineChart`** — small line+area chart (fixed viewBox +
+  `preserveAspectRatio="none"` so it fills its container without measuring), first used for
+  Progress's weight trend. **`SvgGrowBar`** — the volume chart's gradient-filled, animated bar
+  (same viewBox trick, normalized 0–100 width so it fills whatever a flex column gives it); also
+  now backs **Exercise Progress's** per-session est-1RM bars, so that recap screen's chart matches
+  the Progress tab instead of using a one-off flat-color bar.
 - **`celebration`** — `ConfettiBurst` (one-shot, tasteful, auto-unmounts) + `CountUp` (stats tick
   up to their value; lands on the final number even if interrupted).
 - **`EmptyState`** — illustrated empty states (geometric View-built art: calendar/barbell/chart/
@@ -431,6 +540,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **skip the profile re-fetch** when a profile is already held; the `user_signup` vs `login`
   analytics split keys on a *confirmed* missing row (`res.ok && !profile`), never on a failed
   fetch — a returning user on a fresh install with a network blip is a login, not a signup.
+- **`stores/entitlements.ts`** (Tempo Pro, §10) — two facts: `proEnabled` (the dormant remote flag)
+  and `isPro` (the RevenueCat entitlement). A feature is `locked` only when `proEnabled && !isPro`,
+  so while dormant nothing is gated. `useProAccess()` exposes the state; `useProGate()` wraps a
+  paid feature (`requirePro()` shows the paywall when locked, resolves true immediately when not).
+  Loaded/synced in `_layout.tsx` on each session change; a live RevenueCat listener fires
+  `trial_started` / `trial_converted` / `subscription_cancelled` on entitlement transitions.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;
@@ -478,7 +593,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   duplicate schedule can be inserted — all via the shared `retireWorkouts.sweepScheduledPlanRows`. Its **`extendActivePlan` rollover** runs on app open: when
   <7 days of plan remain it materializes the next 4-week block — `week_index` keeps counting, the
   mesocycle wave cycles via `weekProgression`, and the new block reflects the *current* profile +
-  `adaptation_mode` — **so the plan never just ends at week 4**.
+  `adaptation_mode` — **so the plan never just ends at week 4**. The runway/week-count *decision*
+  (the exact logic the "4-week cliff" bug lived in) is factored into the pure, unit-tested
+  **`planRollover`** module (`PLAN_RUNWAY_DAYS` / `planNeedsExtension` / `planExtensionWeeks` +
+  the shared `formatLocalDate` that `generatePlan.formatDate` delegates to); `extendActivePlan`
+  now orchestrates the DB reads/writes around it. See the test suite in §8.
   `periodization` (mesocycle: overload weeks + scheduled deload; modes normal/recovery/deload/
   maintenance), `progression` (autoregulated per-exercise load via RPE + rep targets + the
   session-duration model), `adaptation` (workout-feel feedback + the engine that flips
@@ -588,13 +707,37 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Home's skip, split-editor template loads, and sign-in), `analytics` (PostHog, typed events),
   `crashReporting` (Sentry), `pushTokens` (register/enable device push — **never prompts for
   permission itself**; onboarding's primed ask and the Profile toggle own the OS prompt),
-  `notifications` (local pre-workout reminder + **rest-done notification** + `hasReminderPermission`
-  probe for no-prompt background paths), **`units`** (lb/kg display preference — persisted per
+  `notifications` (local pre-workout reminder — now gated at its single choke point by the
+  device-local `pre_workout` pref — + **rest-done notification** + `hasReminderPermission`
+  probe for no-prompt background paths),
+  **`notificationPrefs`** (per-rule opt-outs, §6.1: account-level server rules in
+  `user_profiles.notification_prefs` via `loadNotificationPrefs`/`setServerRuleEnabled`, read by
+  the retention-push function; the device-local pre-workout reminder via
+  `get/setPreWorkoutEnabled`; `DEFAULT_PREFS` all-on to preserve prior behavior),
+  **`returningUser`** (§5.1: `getReturningState` derives a 3/7/30-day absence tier from the last
+  completed session + the next scheduled one — drives Home's returning-user hero),
+  **`purchases`** (§10 — the ONLY module touching react-native-purchases / -ui; guarded like
+  `haptics` so a pre-rebuild JS reload no-ops instead of crashing, and entitlement reads fail
+  *closed*: `configurePurchases`/`identifyPurchases`/`resetPurchasesUser`, `fetchIsPro` +
+  `addProUpdateListener`, `presentPaywall`/`presentPaywallIfNeeded`/`presentCustomerCenter`,
+  `restorePurchases`; `PRO_ENTITLEMENT` + SDK keys from env, offerings from the dashboard's current
+  offering — no product IDs hardcoded),
+  **`proConfig`** (§10 — `fetchProEnabled` reads the `app_config` `pro_enabled` row on app open:
+  the dormant-launch flag, defaults hard to OFF, with a per-account allow-list for private testing),
+  **`units`** (lb/kg display preference — persisted per
   device like the theme; storage is ALWAYS lbs, every training surface converts at the UI edge:
   runner inputs/targets/PREV, progress, profile tiles + body stats + log entry, history,
   session detail, weekly report, PR lines, builder; toggle in Profile → Settings → Units.
   Deliberately still lbs: Wrapped share cards/captions, goal-projection copy, achievement
   milestones, and waist stays inches), `exerciseGif` (RapidAPI media), `account` (delete),
+  **`accountLinking`** (guest → permanent account, §1.1: `linkGuestAccount('google'|'apple')`
+  attaches the identity onto the existing anonymous user via **`linkIdentity()`** — NEVER
+  `signInWithOAuth`/`signInWithIdToken`, which would swap the session and orphan all the guest's
+  data — mirroring `CalendarAuthService`'s safe pattern incl. the post-exchange "did the user id
+  change?" guard and `identity_already_exists` handling; `link_unavailable` when the project's
+  "manual linking" setting is off. Also `countCompletedWorkouts` and the durable, per-user,
+  force-close-proof `guestSavePromptSeen`/`markGuestSavePromptSeen` gate for the one-time
+  post-workout prompt, `GUEST_SAVE_PROMPT_AFTER = 3`),
   `types` (domain types).
 - **Session UX & social (July 2026 overhaul):**
   **`durationEstimate`** (realistic session-length model: per-exercise `SETUP_SEC` transition +
@@ -674,10 +817,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   discovery without opening `user_profiles` RLS), `are_friends(a,b)`, `friend_overview(target)`
   (privacy-gated totals — workouts / sets / **volume** (warm-ups excluded) / **favorite muscle** /
   goal / member-since — + settled sessions for client-side streak math + recent activity),
-  **`friend_feed()`** (accepted friends' completed sessions, last 14 days, activity-privacy-gated),
+  **`friend_feed()`** (accepted friends' completed sessions, last 14 days, activity-privacy-gated;
+  each row now also carries `workout_id` + a `reaction_count` / `i_reacted` summary),
   and **`friends_leaderboard()`** (workouts-this-week for you + accepted friends, stats-privacy-gated).
-  Migrations: `add_social.sql` + **`add_social_v2.sql`** (identity, feed, leaderboard, split shares,
-  warm-up column — both **applied**).
+  **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
+  `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
+  toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates
+  `are_friends` + completed-session visibility and returns the fresh count/state; the client
+  (`lib/social.toggleActivityReaction`) updates the feed row optimistically and reconciles. The
+  reaction control only renders when a row has a `workout_id`, so the feed still works if the
+  migration isn't applied yet. Migrations: `add_social.sql` + **`add_social_v2.sql`** (identity, feed,
+  leaderboard, split shares, warm-up column — both **applied**) + **`add_activity_reactions.sql`**
+  (table + RLS + feed/toggle RPCs — **applied**).
 
 ### 4.2 Edge Functions (Deno)
 - **delete-account** — App-Store-required full account + data wipe (service role, JWT-scoped to caller).
@@ -686,11 +837,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   on Sunday evenings; **missed_workout** as the daytime "session still open" nudge; **streak_at_risk**
   only when *today's scheduled session* is still open in the evening — **never on a planned rest
   day**, matching the session-based streak; free-time gap; reactivation), sends via the Expo
-  Push API in batches, logs every send, and disables dead tokens.
+  Push API in batches, logs every send, and disables dead tokens. **Per-rule opt-out (§6.1):**
+  reads each user's `user_profiles.notification_prefs` and skips any rule the user turned off
+  (`reactivation` is always-on and not user-exposed; every other rule defaults on). A missing
+  column/row falls back to all-on, so the filter is a safe no-op until the migration is applied.
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).
-- **Storage:** private **`progress-photos`** bucket with per-user-folder RLS.
+- **Storage:** private **`progress-photos`** bucket with per-user-folder RLS, and a **public
+  `avatars`** bucket (`add_avatar_storage.sql`) — public because avatars are shown to friends
+  elsewhere in the app and need no signed-URL refresh cycle; write access is still RLS-scoped to
+  each user's own `<user_id>/…` folder.
 - **Migrations:** SQL files in `mobile/supabase/` (`schema.sql`, `seed_*`, and incremental `add_*`
   migrations) — all applied to the live project. Recent: `add_exercise_library_v2` (is_core/
   popularity/muscle_group + backfill) & `seed_exercise_library_v2` (the ~1,300-row import),
@@ -715,17 +872,40 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   app's synced-event references (calendar events already created stay in Google); the device "stop
   using" path turns off auto-add, clears the chosen calendar + event references, and points to system
   Settings for the OS-owned permission Tempo can't revoke itself.
-- **Auth:** Apple (`expo-apple-authentication`), Google, guest (Supabase anonymous).
+- **Auth:** Apple (`expo-apple-authentication`), Google, guest (Supabase anonymous). Guests can
+  upgrade to a permanent account without losing history via `lib/accountLinking` (§1.1) — the same
+  `linkIdentity()` path the calendar connect uses, surfaced through `SaveProgressSheet` from a
+  guest-only Profile card and a one-time modal after the 3rd completed workout. (Apple linking uses
+  Apple's *web* OAuth, so it needs an Apple **Services ID** + return URL configured in Supabase
+  Auth — unlike the native Apple sign-in button; Google is the fully-proven path. Both fail soft.)
 - **Push:** Expo Push API (server-driven) + local `expo-notifications` for the 30-min pre-workout
   reminder.
-- **Media:** ExerciseDB via RapidAPI (`EXPO_PUBLIC_RAPIDAPI_KEY`). `src/data/exerciseMedia.ts`
-  resolves an exercise's form GIF from three sources in priority order: **(1)** bundled local GIFs
-  (`mobile/assets/exercise-gifs/`) for the 8 the remote library lacked; **(2)** a curated
-  UUID→clip map for the original hand-written seed (with optional "close variant" notes);
-  **(3) derivation** — the ~1,300 imported rows EMBED their ExerciseDB clip id in their UUID
-  (`edb00000-0000-4000-8000-<id>`), so `lib/exerciseDb.exdbIdForExercise` recovers the GIF **and**
-  the on-demand how-to steps with no shipped lookup table. `exerciseGif` remains the legacy
-  name-search fallback for anything without a verified clip.
+- **Media:** exercise GIFs are self-hosted, not fetched live. They used to be requested straight
+  from the ExerciseDB image endpoint (RapidAPI) on every device on every view — that's a *shared*
+  quota (RapidAPI BASIC = 690 req/month total across **all** installs), so it exhausted almost
+  immediately and most exercises silently stopped showing a clip. Fixed by caching each GIF exactly
+  once: `mobile/scripts/backfill-exercise-media.mjs` downloads each exercise's GIF from RapidAPI
+  (throttled, resumable, stops cleanly on the monthly quota) and uploads it to the public Supabase
+  Storage bucket `exercise-gifs` (`add_exercise_gif_storage.sql`); the same run also backfills
+  `exercises.instructions` for imported rows still empty, straight from the ExerciseDB detail
+  endpoint, using the same free quota. `src/data/exerciseMedia.ts` resolves an exercise's form GIF
+  from three sources in priority order: **(1)** bundled local GIFs (`mobile/assets/exercise-gifs/`)
+  for the 8 the remote library lacked; **(2)** a curated UUID→clip map for the original
+  hand-written seed (with optional "close variant" notes); **(3) derivation** — the ~1,300 imported
+  rows EMBED their ExerciseDB clip id in their UUID (`edb00000-0000-4000-8000-<id>`), so
+  `lib/exerciseDb.exdbIdForExercise` recovers the id. Either way the app now builds a Supabase
+  Storage URL (`${EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/exercise-gifs/<id>.gif`) and
+  never calls RapidAPI live for images — an exercise not yet backfilled just 404s like a genuine
+  gap. `EXPO_PUBLIC_RAPIDAPI_KEY` is now build/backfill-time only for the image path; `exerciseGif`
+  still does a live RapidAPI name-search as a last resort for custom user exercises with no
+  embedded id (low volume, can't be pre-cached). Since the 690/month cap covers ~1,300 exercises
+  ×2 calls (GIF + instructions), a full backfill takes a few monthly re-runs of
+  `npm run backfill:media` (needs a `SUPABASE_SERVICE_ROLE_KEY` env var, never committed) —
+  already-cached/backfilled exercises are always skipped, so re-running is safe. **Fixed bug:** the
+  curated/derived clip's `<Image>` in `ExerciseFormSheet` had **no `onError` handler at all** —
+  since almost every one of the ~1,300 imported rows takes this path, a single failed request
+  rendered nothing with no fallback. Now retries the same request once, then falls back to the
+  "form video coming soon" illustration only after both attempts fail.
 - **Analytics/crash:** PostHog + Sentry.
 
 ---
@@ -799,10 +979,58 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 ---
 
 ## 8. Known gaps / roadmap
+- ~~No monetization anywhere (no paywall / subscriptions / billing)~~ **Built, shipped DORMANT
+  (§10)**: RevenueCat via `react-native-purchases` + `-ui` (`lib/purchases`), the entitlement store,
+  Profile Upgrade + Customer Center rows, and a post-first-workout paywall trigger — the ENTIRE
+  system is gated behind the `app_config.pro_enabled` remote flag (`lib/proConfig`), defaulted OFF,
+  so the public v1 is free-only and Pro turns on later with one SQL update (no rebuild/resubmit).
+  While dormant every gate is unlocked, so the free app is unchanged. **Native module → needs an
+  `eas build`.** Dashboard prerequisites: create the `pro` entitlement + products
+  (lifetime/yearly/monthly) + a paywall + Customer Center config; the `test_` key is the Test Store
+  key (add real `appl_`/`goog_` keys for live billing). No existing feature is gated yet — `useProGate`
+  is the hook to wrap the paid features (adaptive coaching, deep analytics, progress-photo suite,
+  smart reprogramming, Health export) when you flip the flag. Migration `add_app_config.sql`.
+- ~~Guests had no discoverable way to save their history off-device (data loss on reinstall/new
+  phone)~~ **Done (§1.1)**: `lib/accountLinking` + `SaveProgressSheet` — a guest-only "Save your
+  progress" card on Profile plus a one-time modal after the 3rd completed workout, both linking an
+  Apple/Google identity onto the anonymous account via `linkIdentity()`. (Server-side prerequisite:
+  "manual linking" enabled on the Supabase project — the calendar guest-link already relies on it;
+  Apple *web* OAuth needs a Services ID in Supabase Auth for the Apple button specifically.)
+- ~~Notification controls were all-or-nothing~~ **Done (§6.1)**: per-rule switches in Profile →
+  App (`lib/notificationPrefs` + the retention-push filter) — mute one nag without silencing the
+  rest. Server rules persist to `user_profiles.notification_prefs` (**migration
+  `add_notification_prefs.sql` must be applied + the function redeployed**); the pre-workout
+  reminder is device-local. All default on to preserve prior behavior.
+- ~~A lapsing user's return was treated like any other day~~ **Done (§5.1)**: `lib/returningUser`
+  drives a top-priority Home banner with 3/7/30-day states — resume the next session, one-tap into
+  recovery mode (`applyAdaptationMode`), or a plan re-check (Change Plan) — all from existing data.
 - Free-time-gap push uses a daytime heuristic (true calendar free/busy needs backend calendar sync).
 - Progress-photo gallery / before-after compare (capture + storage exist; no timeline UI yet).
 - HealthKit / Google Fit import; Apple Watch.
-- No automated test suite yet (pure logic is structured for it).
+- ~~No automated test suite yet~~ **Started (§4.2/§11.2)**: Jest + ts-jest cover the deterministic
+  core — `src/lib/__tests__/` has 82 tests over periodization (one deload / 4 weeks), progression
+  autoregulation + duration math, the exercise classifier (~30-exercise fixture), streak continuity,
+  goal-projection ETAs, and the **`planRollover`** cliff regression (horizon never < 7 days, no
+  duplicated/dropped `week_index`). `npm test`. Config: `jest.config.js` + `tsconfig.jest.json`
+  (transpile-only via ts-jest; the app's own `tsconfig.json` excludes `src/**/__tests__`). No RN/
+  Supabase in the suite — pure logic only.
+- ~~Progress tab rings/bars are hand-rolled `Animated.View`s, not real SVG~~ **Done**: `SvgProgressRing`
+  (gradient stroke-dashoffset ring), `SvgLineChart` (the weight-trend math in `bodyMeasurements.ts`
+  now actually has a chart, not just text numbers on Profile), and `SvgGrowBar` (gradient volume
+  bars) all ship on `react-native-svg`. A small data-driven insight line ("+12% volume vs last
+  week") sits under the volume chart — real deltas only, no generated copy.
+- ~~Profile is not yet regrouped into clear sections~~ **Done**: split into Training / Social /
+  Calendar & Scheduling / App / Account cards (was two mega-cards, "My Plan" + "Settings"). Username
+  shows under the display name; avatar is tappable → real photo upload; Body Stats links out to the
+  new Progress trend chart instead of duplicating it.
+- ~~The same stats (streak / workouts / volume / badges), the achievements grid, and PRs render on
+  both Profile and Progress~~ **Done**: Profile's stat grid, achievements grid, and PR card were
+  removed. Progress is now the sole stats/achievements/PR home; Profile is identity + config, with
+  the level/XP hero as its one glanceable stat. Body Stats (logging) and Exercise Swaps (config)
+  intentionally stay on Profile.
+- Exercise-library "too many hyper-specific variants" complaint: partially addressed (family
+  collapse is now the default view + shortest-name tie-break for the representative); no further
+  data-level curation/pruning has been done.
 
 ---
 

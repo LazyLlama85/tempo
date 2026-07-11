@@ -7,7 +7,7 @@ import {
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import { useReducedMotion, PressableScale, PopIn, FadeInView, ScreenTransition } from '@/components/motion'
 import { Image } from 'expo-image'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -15,7 +15,7 @@ import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
-import { TempoWordmark, PulseLoader } from '@/components/brand'
+import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
@@ -183,6 +183,7 @@ function AnimatedFill({ pct, style }: { pct: number; style?: StyleProp<ViewStyle
 export default function WorkoutsScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const router = useRouter()
   const queryClient = useQueryClient()
   const params = useLocalSearchParams<{ workoutId?: string; quick?: string }>()
@@ -237,6 +238,11 @@ export default function WorkoutsScreen() {
   const [addChoiceEx, setAddChoiceEx] = useState<ExerciseRow | null>(null)
   // Pause / leave-session sheet (replaces the ambiguous back chevron).
   const [pauseSheet, setPauseSheet] = useState(false)
+  const [discardConfirm, setDiscardConfirm] = useState(false)
+  const [finishEarlyConfirm, setFinishEarlyConfirm] = useState<{ remaining: number; done: number; total: number } | null>(null)
+  const [removeSetConfirm, setRemoveSetConfirm] = useState<{ exId: string; idx: number; wasDone: boolean } | null>(null)
+  const [skipExerciseConfirm, setSkipExerciseConfirm] = useState<ExerciseRow | null>(null)
+  const [swapSheet, setSwapSheet] = useState<{ ex: ExerciseRow; candidates: ExerciseRow[] } | null>(null)
   // Per-exercise action sheet (machine occupied → swap / move to end / skip / reorder).
   const [exActionEx, setExActionEx] = useState<ExerciseRow | null>(null)
   // Session note ("bench felt heavy today") → workout_logs.notes.
@@ -809,43 +815,41 @@ export default function WorkoutsScreen() {
       Alert.alert('Can’t remove', 'Every exercise needs at least one set — swap or skip the exercise instead.')
       return
     }
-    Alert.alert('Remove set?', `Set ${idx + 1} will be removed${arr[idx].done ? ' and its logged numbers deleted' : ''}.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          haptics.tapMedium()
-          const wasDone = arr[idx].done
-          setRpeFollowUp(cur => (cur?.exId === exId ? null : cur))
-          setSets(prev => prev[exId]
-            ? { ...prev, [exId]: prev[exId].filter((_, i) => i !== idx) }
-            : prev)
-          if (!workoutLogId) return
-          try {
-            if (wasDone) {
-              await supabase.from('set_logs')
-                .delete()
-                .eq('workout_log_id', workoutLogId)
-                .eq('exercise_id', exId)
-                .eq('set_number', idx + 1)
-            }
-            // Close the numbering gap so resume/PREV rebuilds line up with the
-            // shifted local rows — later LOGGED sets slide down one slot whether
-            // the removed set was logged or not.
-            const { data: later } = await supabase.from('set_logs')
-              .select('id, set_number')
-              .eq('workout_log_id', workoutLogId)
-              .eq('exercise_id', exId)
-              .gt('set_number', idx + 1)
-              .order('set_number')
-            for (const row of (later ?? []) as { id: string; set_number: number }[]) {
-              await supabase.from('set_logs').update({ set_number: row.set_number - 1 }).eq('id', row.id)
-            }
-          } catch { /* worst case: a gap in set numbers — totals still correct */ }
-        },
-      },
-    ])
+    setRemoveSetConfirm({ exId, idx, wasDone: arr[idx].done })
+  }
+
+  const doRemoveSet = async () => {
+    const confirm = removeSetConfirm
+    setRemoveSetConfirm(null)
+    if (!confirm) return
+    const { exId, idx, wasDone } = confirm
+    haptics.tapMedium()
+    setRpeFollowUp(cur => (cur?.exId === exId ? null : cur))
+    setSets(prev => prev[exId]
+      ? { ...prev, [exId]: prev[exId].filter((_, i) => i !== idx) }
+      : prev)
+    if (!workoutLogId) return
+    try {
+      if (wasDone) {
+        await supabase.from('set_logs')
+          .delete()
+          .eq('workout_log_id', workoutLogId)
+          .eq('exercise_id', exId)
+          .eq('set_number', idx + 1)
+      }
+      // Close the numbering gap so resume/PREV rebuilds line up with the
+      // shifted local rows — later LOGGED sets slide down one slot whether
+      // the removed set was logged or not.
+      const { data: later } = await supabase.from('set_logs')
+        .select('id, set_number')
+        .eq('workout_log_id', workoutLogId)
+        .eq('exercise_id', exId)
+        .gt('set_number', idx + 1)
+        .order('set_number')
+      for (const row of (later ?? []) as { id: string; set_number: number }[]) {
+        await supabase.from('set_logs').update({ set_number: row.set_number - 1 }).eq('id', row.id)
+      }
+    } catch { /* worst case: a gap in set numbers — totals still correct */ }
   }
 
   // ── Add exercise mid-session ────────────────────────────────────────────────
@@ -946,26 +950,18 @@ export default function WorkoutsScreen() {
   // Skip an exercise for THIS session only — removes it from the live grid and the
   // scheduled row's order, but never from the plan template. Any sets already
   // logged for it are deleted so it doesn't count.
-  const skipExercise = (ex: ExerciseRow) => {
-    Alert.alert('Skip this exercise?', `${ex.name} will be removed from today's session. Your plan keeps it for next time.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Skip today',
-        style: 'destructive',
-        onPress: async () => {
-          haptics.tapMedium()
-          animateReorder()
-          const remaining = exercises.filter(e => e.id !== ex.id)
-          setExercises(remaining)
-          setExpandedId(cur => (cur === ex.id ? (remaining[0]?.id ?? null) : cur))
-          setSets(prev => { const { [ex.id]: _, ...rest } = prev; return rest })
-          persistOrder(remaining.map(e => e.id))
-          if (workoutLogId) {
-            await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
-          }
-        },
-      },
-    ])
+  const skipExercise = (ex: ExerciseRow) => setSkipExerciseConfirm(ex)
+  const doSkipExercise = async (ex: ExerciseRow) => {
+    haptics.tapMedium()
+    animateReorder()
+    const remaining = exercises.filter(e => e.id !== ex.id)
+    setExercises(remaining)
+    setExpandedId(cur => (cur === ex.id ? (remaining[0]?.id ?? null) : cur))
+    setSets(prev => { const { [ex.id]: _, ...rest } = prev; return rest })
+    persistOrder(remaining.map(e => e.id))
+    if (workoutLogId) {
+      await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
+    }
   }
 
   // ── Swap exercise (smart substitutions) ──────────────────────────────────────
@@ -1008,12 +1004,9 @@ export default function WorkoutsScreen() {
         return
       }
 
-      const buttons: any[] = candidates.slice(0, 4).map(c => ({
-        text: c.name,
-        onPress: () => replaceExercise(ex.id, c),
-      }))
-      buttons.push({ text: 'Cancel', style: 'cancel' })
-      Alert.alert('Swap exercise', `Replace ${ex.name} with:`, buttons)
+      // A sheet, not Alert.alert — Android caps alerts at 3 buttons and silently
+      // drops the rest, so a 4-candidate swap list lost options there.
+      setSwapSheet({ ex, candidates: candidates.slice(0, 8) })
     } finally {
       setSwapping(false)
     }
@@ -1129,15 +1122,8 @@ export default function WorkoutsScreen() {
       )
       return
     }
-    if (total > 0 && done < total / 2) {
-      Alert.alert(
-        'Finish early?',
-        `Only ${done} of ${total} sets are logged. Complete the workout anyway?`,
-        [
-          { text: 'Keep training', style: 'cancel' },
-          { text: 'Complete workout', onPress: () => { finishWorkout().catch(() => setCompleting(false)) } },
-        ],
-      )
+    if (total > 0 && done < total) {
+      setFinishEarlyConfirm({ remaining: total - done, done, total })
       return
     }
     finishWorkout().catch(() => setCompleting(false))
@@ -1172,10 +1158,7 @@ export default function WorkoutsScreen() {
     } else if (key === 'end') {
       const done = Object.values(sets).reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
       if (done === 0) {
-        Alert.alert('End workout?', 'Nothing is logged yet — this session will be discarded (it won’t count toward your streak or stats).', [
-          { text: 'Keep training', style: 'cancel' },
-          { text: 'Discard session', style: 'destructive', onPress: () => { discardSession().catch(() => {}) } },
-        ])
+        setDiscardConfirm(true)
       } else {
         handleCompleteWorkout()
       }
@@ -1281,12 +1264,18 @@ export default function WorkoutsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-        <View style={styles.header}>
-          <TempoWordmark size={18} pulse={false} />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
-            <Avatar size={32} iconSize={16} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          right={
+            <HeaderActions>
+              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
+                <Ionicons name="book-outline" size={22} color={C.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+                <Avatar size={32} iconSize={16} />
+              </TouchableOpacity>
+            </HeaderActions>
+          }
+        />
         <View style={styles.emptyStateContainer}>
           <PulseLoader caption="Loading today's session…" />
         </View>
@@ -1299,12 +1288,18 @@ export default function WorkoutsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-        <View style={styles.header}>
-          <TempoWordmark size={18} pulse={false} />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
-            <Avatar size={32} iconSize={16} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          right={
+            <HeaderActions>
+              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
+                <Ionicons name="book-outline" size={22} color={C.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+                <Avatar size={32} iconSize={16} />
+              </TouchableOpacity>
+            </HeaderActions>
+          }
+        />
         <View style={styles.emptyStateContainer}>
           <EmptyState
             kind="flash"
@@ -1341,12 +1336,18 @@ export default function WorkoutsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-        <View style={styles.header}>
-          <TempoWordmark size={18} pulse={false} />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
-            <Avatar size={32} iconSize={16} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          right={
+            <HeaderActions>
+              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
+                <Ionicons name="book-outline" size={22} color={C.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
+                <Avatar size={32} iconSize={16} />
+              </TouchableOpacity>
+            </HeaderActions>
+          }
+        />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           <FadeInView style={styles.hubHero}>
             <View style={styles.hubEyebrowRow}>
@@ -1473,23 +1474,30 @@ export default function WorkoutsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-      {/* Header — an explicit, labeled Pause control. The old bare chevron read
-          as "exit workout" and scared people into thinking progress was lost. */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.pauseBtn}
-          onPress={() => setPauseSheet(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Pause or end this workout"
-        >
-          <Ionicons name="pause" size={16} color={C.text} />
-          <Text style={styles.pauseBtnText}>Pause</Text>
-        </TouchableOpacity>
-        <TempoWordmark size={18} pulse={false} />
-        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open your profile">
-          <Ionicons name="person" size={16} color={C.onPrimary} />
-        </TouchableOpacity>
-      </View>
+      {/* Header — an explicit, labeled Pause control leads the centered masthead.
+          The old bare chevron read as "exit workout" and scared people into
+          thinking progress was lost; the session title bar sits flush below, so
+          the amber rule is suppressed here. */}
+      <ScreenHeader
+        size="sm"
+        rule={false}
+        leading={
+          <TouchableOpacity
+            style={styles.pauseBtn}
+            onPress={() => setPauseSheet(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Pause or end this workout"
+          >
+            <Ionicons name="pause" size={16} color={C.text} />
+            <Text style={styles.pauseBtnText}>Pause</Text>
+          </TouchableOpacity>
+        }
+        right={
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open your profile">
+            <Ionicons name="person" size={16} color={C.onPrimary} />
+          </TouchableOpacity>
+        }
+      />
 
       {/* Session title bar */}
       <View style={styles.sessionBar}>
@@ -1801,7 +1809,7 @@ export default function WorkoutsScreen() {
       </ScrollView>
 
       {restSecondsLeft !== null && (
-        <PopIn style={styles.restPill}>
+        <PopIn style={[styles.restPill, { bottom: insets.bottom + 84 }]}>
           <View style={styles.restPillRow}>
             <Ionicons name="timer-outline" size={18} color="#fff" />
             <Text style={styles.restPillText}>Rest · {formatElapsed(restSecondsLeft)}</Text>
@@ -1818,7 +1826,7 @@ export default function WorkoutsScreen() {
           </View>
         </PopIn>
       )}
-      <View style={styles.floatingTools}>
+      <View style={[styles.floatingTools, { bottom: insets.bottom + 84 }]}>
         <PressableScale
           style={[styles.floatingTool, restSecondsLeft !== null && styles.floatingToolActive]}
           onPress={handleRestTimer}
@@ -1932,6 +1940,35 @@ export default function WorkoutsScreen() {
         onClose={() => setPauseSheet(false)}
       />
 
+      <OptionSheet
+        visible={discardConfirm}
+        title="End workout?"
+        subtitle="Nothing is logged yet — this session will be discarded (it won’t count toward your streak or stats)."
+        options={[{ key: 'discard', label: 'Discard session', icon: 'trash-outline', destructive: true }]}
+        onSelect={() => { setDiscardConfirm(false); discardSession().catch(() => {}) }}
+        onClose={() => setDiscardConfirm(false)}
+      />
+
+      <OptionSheet
+        visible={finishEarlyConfirm !== null}
+        title="Finish early?"
+        subtitle={finishEarlyConfirm
+          ? `${finishEarlyConfirm.remaining} set${finishEarlyConfirm.remaining === 1 ? '' : 's'} ${finishEarlyConfirm.remaining === 1 ? "isn't" : "aren't"} logged yet (${finishEarlyConfirm.done} of ${finishEarlyConfirm.total} done). Complete the workout anyway?`
+          : ''}
+        options={[{ key: 'complete', label: 'Complete workout', icon: 'checkmark-circle-outline' }]}
+        onSelect={() => { setFinishEarlyConfirm(null); finishWorkout().catch(() => setCompleting(false)) }}
+        onClose={() => setFinishEarlyConfirm(null)}
+      />
+
+      <OptionSheet
+        visible={removeSetConfirm !== null}
+        title="Remove set?"
+        subtitle={removeSetConfirm ? `Set ${removeSetConfirm.idx + 1} will be removed${removeSetConfirm.wasDone ? ' and its logged numbers deleted' : ''}.` : ''}
+        options={[{ key: 'remove', label: 'Remove', icon: 'trash-outline', destructive: true }]}
+        onSelect={doRemoveSet}
+        onClose={() => setRemoveSetConfirm(null)}
+      />
+
       {/* Per-exercise menu — machine occupied, changed my mind, reorder. */}
       <OptionSheet
         visible={exActionEx !== null}
@@ -1958,6 +1995,29 @@ export default function WorkoutsScreen() {
           else if (key === 'skip') skipExercise(ex)
         }}
         onClose={() => setExActionEx(null)}
+      />
+
+      <OptionSheet
+        visible={skipExerciseConfirm !== null}
+        title="Skip this exercise?"
+        subtitle={skipExerciseConfirm ? `${skipExerciseConfirm.name} will be removed from today's session. Your plan keeps it for next time.` : ''}
+        options={[{ key: 'skip', label: 'Skip today', icon: 'close-circle-outline', destructive: true }]}
+        onSelect={() => { const ex = skipExerciseConfirm; setSkipExerciseConfirm(null); if (ex) void doSkipExercise(ex) }}
+        onClose={() => setSkipExerciseConfirm(null)}
+      />
+
+      <OptionSheet
+        visible={swapSheet !== null}
+        title="Swap exercise"
+        subtitle={swapSheet ? `Replace ${swapSheet.ex.name} with:` : ''}
+        options={(swapSheet?.candidates ?? []).map(c => ({ key: c.id, label: c.name, icon: 'swap-horizontal' }))}
+        onSelect={(key) => {
+          const s = swapSheet
+          setSwapSheet(null)
+          const next = s?.candidates.find(c => c.id === key)
+          if (s && next) void replaceExercise(s.ex.id, next)
+        }}
+        onClose={() => setSwapSheet(null)}
       />
 
       {/* Session note — "bench felt heavy today" → workout_logs.notes */}
@@ -2034,6 +2094,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   avatar: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   sessionBar: {
@@ -2083,7 +2144,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   upNextInfo: { flex: 1 },
   upNextName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   upNextMeta: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 2 },
-  floatingTools: { position: 'absolute', right: Spacing.containerPadding, bottom: 112, gap: Spacing.sm },
+  // `bottom` is set inline (insets-aware, clears the floating dock) — see caller.
+  floatingTools: { position: 'absolute', right: Spacing.containerPadding, gap: Spacing.sm },
   floatingTool: { width: 44, height: 44, borderRadius: Radius.full, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center', ...CardShadow, shadowOpacity: 0.08 },
 
   // ── New ───────────────────────────────────────────────────────────────────
@@ -2149,7 +2211,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   floatingToolActive: { borderWidth: 1.5, borderColor: C.primary },
   restPill: {
     position: 'absolute',
-    bottom: 112,           // floats above the tab dock
+    // `bottom` is set inline (insets-aware, clears the floating dock) — see caller.
     alignSelf: 'center',
     minWidth: 230,
     gap: 8,

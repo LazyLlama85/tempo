@@ -1,14 +1,23 @@
+// Tempo — Onboarding "Basics" (goal → experience → equipment in one screen).
+//
+// These three questions used to be three separate pushed screens (goal.tsx,
+// experience.tsx, equipment.tsx), each with its own header + progress chrome.
+// They're all single-screen "pick and advance" steps, so they now live here as a
+// 3-card sequence behind one header. The route name stays /onboarding/goal so the
+// (tabs) gate redirect and Profile → "Change Plan" re-entry keep working unchanged.
+// Every card preserves its original selection logic, copy, and profile-seeding.
+
 import { useState } from 'react'
 import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius } from '@/constants/theme'
+import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
-import { PressableScale } from '@/components/motion'
+import { PressableScale, FadeInView } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
-import type { Goal } from '@/types'
+import type { Goal, Experience, Equipment } from '@/types'
 
 
 const GOALS: { id: Goal; label: string; description: string; icon: string }[] = [
@@ -19,24 +28,111 @@ const GOALS: { id: Goal; label: string; description: string; icon: string }[] = 
   { id: 'general_fitness', label: 'General Fitness', description: 'Longevity and everyday wellness.', icon: 'pulse-outline' },
 ]
 
-export default function GoalScreen() {
+// Each level previews a real slice of the program it unlocks — sample lifts with
+// honest set×rep prescriptions — so the choice communicates consequences, not vibes.
+const LEVELS: {
+  id: Experience
+  label: string
+  tagline: string
+  sub: string
+  icon: string
+  intensity: 1 | 2 | 3
+  lifts: { name: string; rx: string }[]
+}[] = [
+  {
+    id: 'beginner',
+    label: 'Beginner',
+    tagline: 'Build the foundation',
+    sub: 'Form-first coaching and steady, confident progress.',
+    icon: 'leaf-outline',
+    intensity: 1,
+    lifts: [
+      { name: 'Goblet Squat', rx: '3 × 10' },
+      { name: 'Push-Up', rx: '3 × 8' },
+      { name: 'Dumbbell Row', rx: '3 × 10' },
+    ],
+  },
+  {
+    id: 'intermediate',
+    label: 'Intermediate',
+    tagline: 'Drive progressive overload',
+    sub: 'Compound lifts, volume waves, and planned deloads.',
+    icon: 'barbell-outline',
+    intensity: 2,
+    lifts: [
+      { name: 'Barbell Squat', rx: '4 × 8' },
+      { name: 'Bench Press', rx: '4 × 8' },
+      { name: 'Romanian Deadlift', rx: '3 × 10' },
+    ],
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced',
+    tagline: 'Chase peak performance',
+    sub: 'Periodized intensity with autoregulated heavy work.',
+    icon: 'flash-outline',
+    intensity: 3,
+    lifts: [
+      { name: 'Back Squat', rx: '5 × 5' },
+      { name: 'Weighted Pull-Up', rx: '4 × 6' },
+      { name: 'Barbell RDL', rx: '4 × 8' },
+    ],
+  },
+]
+
+const EQUIPMENT: { id: Equipment; label: string; description: string; icon: string }[] = [
+  { id: 'full_gym', label: 'Full gym', description: 'Barbells, cables, machines — the works', icon: 'business-outline' },
+  { id: 'dumbbells', label: 'Dumbbells', description: 'Adjustable or fixed dumbbells at home', icon: 'barbell-outline' },
+  { id: 'barbell', label: 'Barbell & plates', description: 'Home setup with a rack or bench', icon: 'fitness-outline' },
+  { id: 'kettlebell', label: 'Kettlebells', description: 'One or two kettlebells at home', icon: 'fitness-outline' },
+  { id: 'resistance_bands', label: 'Resistance bands', description: 'Bands and bodyweight only', icon: 'pulse-outline' },
+  { id: 'pull_up_bar', label: 'Pull-up & dip bar', description: 'Doorway bar, dip station, or rings', icon: 'body-outline' },
+  { id: 'bodyweight', label: 'No equipment', description: 'Floor work only — no bar or dips', icon: 'walk-outline' },
+]
+
+export default function BasicsScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { signOut, profile } = useAuthStore()
-  // Re-running onboarding (Change Plan) starts from the current goal instead of
-  // making the user re-answer from scratch; brand-new users start unselected.
-  const [selected, setSelected] = useState<Goal | null>(profile?.goal ?? null)
 
-  // This is the first onboarding step. Reached straight after sign-in it's a fresh
-  // stack (the tabs layout redirects here), so router.back() has nowhere to go —
-  // signing out returns the user to the login screen, which is what "back" means at
-  // step 1. When onboarding is re-entered from Profile ("Change Plan") there IS a
-  // stack, so we just pop instead.
+  // 0 = goal, 1 = experience, 2 = equipment.
+  const [cardIndex, setCardIndex] = useState(0)
+
+  // Re-running onboarding (Change Plan) starts from the current answers instead of
+  // making the user re-answer from scratch; brand-new users start unselected /
+  // at the sensible defaults each original screen used.
+  const [goalSel, setGoalSel] = useState<Goal | null>(profile?.goal ?? null)
+  const [expSel, setExpSel] = useState<Experience>(profile?.experience ?? 'beginner')
+  const [equipSel, setEquipSel] = useState<Equipment[]>((profile?.equipment as Equipment[]) ?? [])
+
+  const toggleEquip = (id: Equipment) =>
+    setEquipSel((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]))
+
+  // Back: within the sequence, step a card back. On the first card it behaves exactly
+  // as the old goal.tsx did — pop when there's a stack (Change Plan re-entry), else
+  // sign out (which is what "back" means at the very first onboarding screen; that's
+  // the only route back to the login screen for a brand-new user).
   const handleBack = () => {
+    if (cardIndex > 0) { setCardIndex(cardIndex - 1); return }
     if (router.canGoBack()) router.back()
     else void signOut()
   }
+
+  const canContinue = cardIndex === 0 ? !!goalSel : cardIndex === 2 ? equipSel.length > 0 : true
+
+  const onContinue = () => {
+    if (!canContinue) return
+    if (cardIndex < 2) { setCardIndex(cardIndex + 1); return }
+    router.push({
+      pathname: '/onboarding/schedule',
+      params: { goal: goalSel!, experience: expSel, equipment: equipSel.join(',') },
+    })
+  }
+
+  const current = LEVELS.find((l) => l.id === expSel)!
+  // Step 1 of 4 overall; fill that first quarter in thirds as the cards advance.
+  const progressPct = `${((cardIndex + 1) * 25) / 3}%` as `${number}%`
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -51,47 +147,162 @@ export default function GoalScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '20%' }]} />
+        <View style={[styles.progressFill, { width: progressPct }]} />
+      </View>
+
+      {/* Sub-step dots (which of the 3 basics cards) */}
+      <View style={styles.dots}>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={[styles.dot, i === cardIndex && styles.dotOn, i < cardIndex && styles.dotDone]} />
+        ))}
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Step label */}
-        <Text style={styles.stepLabel}>STEP 1 OF 6</Text>
-        <Text style={styles.title}>What is your primary goal?</Text>
-        <Text style={styles.subtitle}>
-          Select the outcome that best describes your ideal fitness transformation. You can refine this later.
-        </Text>
+        <Text style={styles.stepLabel}>STEP 1 OF 4</Text>
 
-        {/* Goal list */}
-        <View style={styles.options}>
-          {GOALS.map((goal) => {
-            const isSelected = selected === goal.id
-            return (
-              <PressableScale
-                key={goal.id}
-                style={[styles.option, isSelected && styles.optionSelected]}
-                onPress={() => setSelected(goal.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
-                  <Ionicons name={goal.icon as any} size={22} color={isSelected ? C.onPrimary : C.primary} />
+        {/* Crossfade between cards so the sequence feels alive. */}
+        <FadeInView key={cardIndex} duration={220} style={{ gap: Spacing.md }}>
+          {cardIndex === 0 && (
+            <>
+              <Text style={styles.title}>What is your primary goal?</Text>
+              <Text style={styles.subtitle}>
+                Select the outcome that best describes your ideal fitness transformation. You can refine this later.
+              </Text>
+              <View style={styles.options}>
+                {GOALS.map((goal) => {
+                  const isSelected = goalSel === goal.id
+                  return (
+                    <PressableScale
+                      key={goal.id}
+                      style={[styles.option, isSelected && styles.optionSelected]}
+                      onPress={() => setGoalSel(goal.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
+                        <Ionicons name={goal.icon as any} size={22} color={isSelected ? C.onPrimary : C.primary} />
+                      </View>
+                      <View style={styles.optionText}>
+                        <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{goal.label}</Text>
+                        <Text style={styles.optionDesc}>{goal.description}</Text>
+                      </View>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+            </>
+          )}
+
+          {cardIndex === 1 && (
+            <>
+              <Text style={styles.title}>How much experience do you have?</Text>
+              <Text style={styles.subtitle}>This sets your exercises, starting weights, and how hard we push from day one.</Text>
+
+              {/* Segmented control */}
+              <View style={styles.segmented}>
+                {LEVELS.map((level) => (
+                  <PressableScale
+                    key={level.id}
+                    style={[styles.segment, expSel === level.id && styles.segmentActive]}
+                    onPress={() => setExpSel(level.id)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: expSel === level.id }}
+                  >
+                    <Text style={[styles.segmentText, expSel === level.id && styles.segmentTextActive]}>
+                      {level.label}
+                    </Text>
+                  </PressableScale>
+                ))}
+              </View>
+
+              {/* Preview card — a real glimpse of training at this level, crossfading as
+                  the selection changes so the choice feels alive. */}
+              <FadeInView key={expSel} duration={220}>
+                <View style={styles.previewCard}>
+                  <View style={styles.previewHead}>
+                    <View style={styles.previewIconChip}>
+                      <Ionicons name={current.icon as any} size={20} color={C.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.previewTagline}>{current.tagline}</Text>
+                      <Text style={styles.previewSub}>{current.sub}</Text>
+                    </View>
+                    <View
+                      style={styles.meter}
+                      accessible
+                      accessibilityLabel={`Training intensity ${current.intensity} of 3`}
+                    >
+                      {[1, 2, 3].map((i) => (
+                        <View
+                          key={i}
+                          style={[styles.meterBar, { height: 8 + i * 5 }, i <= current.intensity && styles.meterBarOn]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.previewDivider} />
+
+                  <Text style={styles.previewEyebrow}>A SESSION AT THIS LEVEL</Text>
+                  {current.lifts.map((l) => (
+                    <View key={l.name} style={styles.liftRow}>
+                      <Ionicons name="checkmark-circle" size={16} color={C.primary} />
+                      <Text style={styles.liftName}>{l.name}</Text>
+                      <Text style={styles.liftRx}>{l.rx}</Text>
+                    </View>
+                  ))}
                 </View>
-                <View style={styles.optionText}>
-                  <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{goal.label}</Text>
-                  <Text style={styles.optionDesc}>{goal.description}</Text>
-                </View>
-              </PressableScale>
-            )
-          })}
-        </View>
+              </FadeInView>
+
+              {/* Reassurance: this isn't a permanent label. */}
+              <View style={styles.hintRow}>
+                <Ionicons name="trending-up" size={16} color={C.primary} />
+                <Text style={styles.hintText}>
+                  Start where you are — Tempo automatically levels you up as you get stronger.
+                </Text>
+              </View>
+            </>
+          )}
+
+          {cardIndex === 2 && (
+            <>
+              <Text style={styles.title}>What equipment do you have?</Text>
+              <Text style={styles.subtitle}>Select all that apply. We'll only program what you can actually use.</Text>
+              <View style={styles.options}>
+                {EQUIPMENT.map((option) => {
+                  const isSelected = equipSel.includes(option.id)
+                  return (
+                    <PressableScale
+                      key={option.id}
+                      style={[styles.option, isSelected && styles.optionSelected]}
+                      onPress={() => toggleEquip(option.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
+                        <Ionicons name={option.icon as any} size={22} color={isSelected ? C.onPrimary : C.primary} />
+                      </View>
+                      <View style={styles.optionText}>
+                        <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{option.label}</Text>
+                        <Text style={styles.optionDesc}>{option.description}</Text>
+                      </View>
+                      <View style={[styles.check, isSelected && styles.checkOn]}>
+                        {isSelected && <Ionicons name="checkmark" size={15} color={C.onPrimary} />}
+                      </View>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+            </>
+          )}
+        </FadeInView>
       </ScrollView>
 
       {/* CTA */}
       <View style={styles.footer}>
         <PressableScale
-          style={[styles.continueBtn, !selected && styles.continueBtnDisabled]}
-          onPress={() => selected && router.push({ pathname: '/onboarding/experience', params: { goal: selected } })}
-          disabled={!selected}
+          style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
+          onPress={onContinue}
+          disabled={!canContinue}
           activeOpacity={0.85}
         >
           <Text style={styles.continueBtnText}>Continue →</Text>
@@ -108,13 +319,18 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
-  progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
+  progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
+  dots: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: Spacing.sm, marginBottom: Spacing.md },
+  dot: { width: 6, height: 6, borderRadius: Radius.full, backgroundColor: C.surfaceContainerHigh },
+  dotOn: { backgroundColor: C.primary, width: 18 },
+  dotDone: { backgroundColor: C.primary },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
+
+  // Goal + equipment option rows
   options: { gap: Spacing.sm, marginTop: Spacing.xs },
   option: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
@@ -131,6 +347,43 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   optionLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
   optionLabelSelected: { color: C.primary },
   optionDesc: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 2, lineHeight: 18 },
+  check: {
+    width: 24, height: 24, borderRadius: Radius.full, borderWidth: 1.5, borderColor: C.outlineVariant,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkOn: { backgroundColor: C.primary, borderColor: C.primary },
+
+  // Experience segmented + preview
+  segmented: {
+    flexDirection: 'row', backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.lg, padding: 4, gap: 4,
+  },
+  segment: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center' },
+  segmentActive: { backgroundColor: C.background, shadowColor: C.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  segmentText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
+  previewCard: {
+    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm,
+  },
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  previewIconChip: {
+    width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewTagline: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  previewSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
+  meter: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 23 },
+  meterBar: { width: 5, borderRadius: Radius.full, backgroundColor: C.surfaceContainerHigh },
+  meterBarOn: { backgroundColor: C.primary },
+  previewDivider: { height: 1, backgroundColor: C.surfaceContainerHigh },
+  previewEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6 },
+  liftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: 2 },
+  liftName: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14.5, color: C.text },
+  liftRx: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.xs },
+  hintText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   continueBtnDisabled: { backgroundColor: C.surfaceContainerHigh },

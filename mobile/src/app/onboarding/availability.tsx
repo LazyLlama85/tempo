@@ -196,11 +196,11 @@ export default function OnboardingAvailabilityScreen() {
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '83%' }]} />
+        <View style={[styles.progressFill, { width: '75%' }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 5 OF 6</Text>
+        <Text style={styles.stepLabel}>STEP 3 OF 4</Text>
         <Text style={styles.title}>When does life happen?</Text>
         <Text style={styles.subtitle}>
           Tell Tempo your real hours and it'll slot workouts into the gaps — never on top

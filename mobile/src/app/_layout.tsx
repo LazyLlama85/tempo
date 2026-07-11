@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { AppState, Text, TextInput } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, router } from 'expo-router'
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router'
 import * as Notifications from 'expo-notifications'
@@ -7,12 +8,20 @@ import { StatusBar } from 'expo-status-bar'
 import { QueryClient, QueryClientProvider, QueryCache, focusManager } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
 import { TutorialOverlay } from '@/components/TutorialOverlay'
 import { useTheme, useThemeStore, ThemeTransitionOverlay } from '@/theme'
 import { initAnalytics, track } from '@/lib/analytics'
 import { initCrashReporting, wrapWithCrashReporting, captureApiError } from '@/lib/crashReporting'
+import { supabase } from '@/lib/supabase'
+import {
+  configurePurchases, identifyPurchases, resetPurchasesUser,
+  fetchIsPro, addProUpdateListener, infoHasActiveTrial,
+} from '@/lib/purchases'
+import { fetchProEnabled } from '@/lib/proConfig'
+import { useEntitlementStore } from '@/stores/entitlements'
 import {
   useFonts,
   Inter_400Regular,
@@ -43,6 +52,9 @@ const MAX_FONT_SCALE = 1.4
 // during startup are still captured. Both are no-ops when their env keys are unset.
 initCrashReporting()
 initAnalytics()
+// Configure RevenueCat once (anonymous until a user signs in). No-ops safely if the
+// native module isn't in this binary yet (pre-rebuild) — Pro stays dormant anyway.
+configurePurchases()
 
 const queryClient = new QueryClient({
   // Surface every failed query (network / Supabase / API) to crash reporting
@@ -92,6 +104,38 @@ function RootLayout() {
   // Load this user's device-local tutorial state whenever the signed-in user changes.
   useEffect(() => {
     if (sessionUserId) useTutorialStore.getState().init(sessionUserId)
+  }, [sessionUserId])
+
+  // Tempo Pro (§10): tie RevenueCat to the signed-in user, load the dormant remote
+  // flag, read current entitlement, and watch for live changes. All of it no-ops
+  // while Pro is dormant or the native module isn't present — the free app is
+  // unchanged until the flag is flipped on.
+  useEffect(() => {
+    let unsubscribe = () => {}
+    let cancelled = false
+    ;(async () => {
+      const store = useEntitlementStore.getState()
+      if (sessionUserId) await identifyPurchases(sessionUserId)
+      else await resetPurchasesUser()
+
+      const [enabled, isPro] = await Promise.all([
+        fetchProEnabled(supabase, sessionUserId ?? ''),
+        fetchIsPro(),
+      ])
+      if (cancelled) return
+      store.setProEnabled(enabled)
+      store.setIsPro(isPro)
+      store.setReady(true)
+
+      // Purchases / renewals / expirations arrive here while the app is open.
+      unsubscribe = addProUpdateListener((nowPro, info) => {
+        const wasPro = useEntitlementStore.getState().isPro
+        useEntitlementStore.getState().setIsPro(nowPro)
+        if (nowPro && !wasPro) track(infoHasActiveTrial(info) ? 'trial_started' : 'trial_converted')
+        else if (!nowPro && wasPro) track('subscription_cancelled')
+      })
+    })().catch(() => {})
+    return () => { cancelled = true; unsubscribe() }
   }, [sessionUserId])
   // Live navigation theme — follows the active palette so screen backgrounds and
   // transitions never flash the wrong color when the mode changes.
@@ -182,6 +226,9 @@ function RootLayout() {
           <Stack.Screen name="session-detail" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-library" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-progress" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="pr-browser" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="calendar-setup" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="how-tempo-works" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-complete" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen name="welcome" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
         </Stack>
@@ -191,12 +238,20 @@ function RootLayout() {
   )
 
   // Persisted cache when storage is available (native); plain provider otherwise.
-  return persistOptions ? (
+  const withQueryClient = persistOptions ? (
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       {app}
     </PersistQueryClientProvider>
   ) : (
     <QueryClientProvider client={queryClient}>{app}</QueryClientProvider>
+  )
+
+  // @gorhom/bottom-sheet needs a GestureHandlerRootView ancestor for pan gestures to
+  // work, and BottomSheetModalProvider to host the imperative sheet portal.
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>{withQueryClient}</BottomSheetModalProvider>
+    </GestureHandlerRootView>
   )
 }
 

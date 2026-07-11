@@ -16,6 +16,10 @@ import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
 import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
 import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
+import { SaveProgressSheet } from '@/components/SaveProgressSheet'
+import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
+import { useProAccess } from '@/stores/entitlements'
+import { presentPaywallIfNeeded } from '@/lib/purchases'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
 import { useTutorialStore } from '@/stores/tutorial'
 import * as haptics from '@/lib/haptics'
@@ -49,6 +53,7 @@ export default function WorkoutCompleteScreen() {
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [prs, setPrs] = useState<SessionPR[]>([])
   const [promotion, setPromotion] = useState<ExperiencePromotion | null>(null)
+  const [saveSheetVisible, setSaveSheetVisible] = useState(false)
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
@@ -97,6 +102,41 @@ export default function WorkoutCompleteScreen() {
       .catch(() => {})
   }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Guests build up real, losable history here — this is the moment there's
+  // finally something worth protecting. After the 3rd completed workout, offer a
+  // one-time (durable, force-close-proof) prompt to attach an account (§1.1).
+  // Marked seen on present so it never re-nags, even if dismissed. Delayed so the
+  // celebration lands first; never fires for real accounts.
+  useEffect(() => {
+    if (!userId || !session?.user.is_anonymous || guestSavePromptSeen(userId)) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    countCompletedWorkouts(userId)
+      .then((n) => {
+        if (n < GUEST_SAVE_PROMPT_AFTER) return
+        timer = setTimeout(() => {
+          markGuestSavePromptSeen(userId)
+          track('guest_save_prompt_shown', { context: 'post_workout' })
+          setSaveSheetVisible(true)
+        }, 1600)
+      })
+      .catch(() => {})
+    return () => { if (timer) clearTimeout(timer) }
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tempo Pro (§10): the first completed workout is the highest-converting moment
+  // to introduce Pro — anchor the paywall here, right after the celebration, and
+  // never before it. Dormant-safe: no-ops entirely while the remote flag is off or
+  // the user is already Pro, so today this changes nothing.
+  const { locked } = useProAccess()
+  useEffect(() => {
+    if (!isFirstSession || !locked) return
+    const timer = setTimeout(() => {
+      track('paywall_shown', { context: 'first_workout' })
+      void presentPaywallIfNeeded()
+    }, 2600) // let the confetti + first-session card land first
+    return () => clearTimeout(timer)
+  }, [isFirstSession, locked])
+
   const handleFeel = async (f: WorkoutFeel) => {
     setFeel(f)
     track('workout_feedback_submitted', { feel: f })
@@ -122,6 +162,37 @@ export default function WorkoutCompleteScreen() {
   const weeklyTarget = profile?.days_per_week ?? 3
   const weekPct = Math.min(100, Math.round((stats.thisWeek / weeklyTarget) * 100))
 
+  // Priority ranking for this screen's "moment" cards. Eligibility (WHEN a card can
+  // appear) is unchanged from before — this only decides which single eligible card
+  // gets the full celebratory treatment when more than one fires at once. Everything
+  // else eligible folds into one compact summary row instead of stacking full cards.
+  type Tier = 'levelup' | 'pr' | 'achievement' | 'routine'
+  const TIER_ORDER: Tier[] = ['levelup', 'pr', 'achievement', 'routine']
+  const tierEligible: Record<Tier, boolean> = {
+    levelup: !!promotion,
+    pr: prs.length > 0,
+    achievement: isFirstSession,
+    routine: true, // streak + the 2 stat tiles always show
+  }
+  const hero: Tier = TIER_ORDER.find((t) => tierEligible[t]) ?? 'routine'
+  const tierSummaryItems = (t: Tier): { key: string; icon: string; label: string; value: string }[] => {
+    switch (t) {
+      case 'levelup':
+        return promotion ? [{ key: 'levelup', icon: 'trending-up', label: 'Level up', value: LEVEL_UP_COPY[promotion.to as 'intermediate' | 'advanced'].title }] : []
+      case 'pr':
+        return prs.length > 0 ? [{ key: 'pr', icon: 'trophy', label: prs.length === 1 ? 'New PR' : 'New PRs', value: `${prs.length}` }] : []
+      case 'achievement':
+        return [{ key: 'achievement', icon: 'footsteps', label: 'Milestone', value: 'First session' }]
+      case 'routine':
+        return [
+          { key: 'streak', icon: 'flame', label: 'Streak', value: `${stats.streak} ${stats.streak === 1 ? 'session' : 'sessions'}` },
+          { key: 'consistency', icon: 'stats-chart', label: 'Consistency', value: `${stats.consistency_pct}%` },
+          { key: 'duration', icon: 'time-outline', label: 'Duration', value: `${mins} min` },
+        ]
+    }
+  }
+  const summaryItems = TIER_ORDER.filter((t) => t !== hero && tierEligible[t]).flatMap(tierSummaryItems)
+
   if (!session) return <Redirect href="/sign-in" />
 
   // Momentum lead — make people *feel* progress, not just "Workout Complete".
@@ -143,11 +214,12 @@ export default function WorkoutCompleteScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* The moment of celebration — confetti falls once as the summary lands.
-          The first-ever session gets the biggest fall. */}
-      <ConfettiBurst count={isFirstSession ? 64 : prs.length > 0 ? 40 : 26} />
-      {/* A bigger, gold-tinted second fall the instant a level-up lands */}
-      {promotion && <ConfettiBurst count={72} colors={[C.gold, C.primary, C.primaryBright, C.success]} />}
+      {/* The moment of celebration — confetti falls once, sized/colored to whichever
+          single card is winning the priority ranking (level-up > PR > achievement > routine). */}
+      <ConfettiBurst
+        count={hero === 'levelup' ? 72 : hero === 'achievement' ? 64 : hero === 'pr' ? 40 : 26}
+        colors={hero === 'levelup' ? [C.gold, C.primary, C.primaryBright, C.success] : undefined}
+      />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <PopIn style={styles.badge}>
@@ -156,8 +228,9 @@ export default function WorkoutCompleteScreen() {
         <FadeInView delay={120}><Text style={styles.title}>{isFirstSession ? 'First workout complete.' : 'Nice work.'}</Text></FadeInView>
         <FadeInView delay={200}><Text style={styles.lead}>{isFirstSession ? 'You just started your Tempo journey — this is day one.' : lead}</Text></FadeInView>
 
-        {/* First Tempo Session — an unlock moment on day one */}
-        {isFirstSession && (
+        {/* First Tempo Session — an unlock moment on day one. Full treatment only
+            when it's the highest-ranked eligible card this visit. */}
+        {hero === 'achievement' && (
           <PopIn delay={240} style={styles.firstCard}>
             <View style={styles.firstBadge}>
               <Ionicons name="footsteps" size={24} color={C.onPrimary} />
@@ -170,8 +243,8 @@ export default function WorkoutCompleteScreen() {
           </PopIn>
         )}
 
-        {/* Level up — the plan grew with you. The biggest moment on the screen. */}
-        {promotion && (
+        {/* Level up — the plan grew with you. The biggest moment on the screen when eligible. */}
+        {hero === 'levelup' && promotion && (
           <PopIn delay={240} style={styles.levelCard}>
             <View style={styles.levelBadge}>
               <Ionicons name="trending-up" size={26} color="#1a1a1a" />
@@ -184,8 +257,8 @@ export default function WorkoutCompleteScreen() {
           </PopIn>
         )}
 
-        {/* PRs — celebrate them aggressively */}
-        {prs.length > 0 && (
+        {/* PRs — celebrate them aggressively, but only as the top-ranked card */}
+        {hero === 'pr' && prs.length > 0 && (
           <PopIn delay={260} style={styles.prCard}>
             <View style={styles.prHeader}>
               <Ionicons name="trophy" size={18} color="#fff" />
@@ -200,42 +273,59 @@ export default function WorkoutCompleteScreen() {
           </PopIn>
         )}
 
-        {/* Streak impact — the number ticks up to today */}
-        <FadeInView delay={280} style={[styles.card, styles.streakCard]}>
-          <View style={styles.streakRow}>
-            <Ionicons name="flame" size={22} color="#fff" />
-            <Text style={styles.streakTag}>STREAK</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-            <CountUp value={stats.streak} delay={500} duration={700} style={styles.streakNum} />
-            <Text style={styles.streakUnit}>{stats.streak === 1 ? 'session' : 'sessions'}</Text>
-          </View>
-          <Text style={styles.streakCaption}>
-            {stats.streak > 1
-              ? `That's ${stats.streak} sessions in a row with no misses. Rest days don't break it — missed ones do.`
-              : 'Your streak starts now — complete your next scheduled session to build it.'}
-          </Text>
-        </FadeInView>
+        {/* Streak + stat tiles — the default "moment" when nothing higher-ranked fired */}
+        {hero === 'routine' && (
+          <>
+            <FadeInView delay={280} style={[styles.card, styles.streakCard]}>
+              <View style={styles.streakRow}>
+                <Ionicons name="flame" size={22} color="#fff" />
+                <Text style={styles.streakTag}>STREAK</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                <CountUp value={stats.streak} delay={500} duration={700} style={styles.streakNum} />
+                <Text style={styles.streakUnit}>{stats.streak === 1 ? 'session' : 'sessions'}</Text>
+              </View>
+              <Text style={styles.streakCaption}>
+                {stats.streak > 1
+                  ? `That's ${stats.streak} sessions in a row with no misses. Rest days don't break it — missed ones do.`
+                  : 'Your streak starts now — complete your next scheduled session to build it.'}
+              </Text>
+            </FadeInView>
 
-        {/* Stat tiles + the weekly ring */}
-        <FadeInView delay={360} style={styles.tileRow}>
-          <View style={styles.tile}>
-            <Text style={styles.tileLabel}>CONSISTENCY</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <CountUp value={stats.consistency_pct} delay={600} style={styles.tileValue} />
-              <Text style={styles.tileValue}>%</Text>
-            </View>
-            <Text style={styles.tileSub}>{stats.deltaStr}</Text>
-          </View>
-          <View style={styles.tile}>
-            <Text style={styles.tileLabel}>DURATION</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <CountUp value={mins} delay={600} style={styles.tileValue} />
-              <Text style={styles.tileValueUnit}> min</Text>
-            </View>
-            <Text style={styles.tileSub}>logged today</Text>
-          </View>
-        </FadeInView>
+            <FadeInView delay={360} style={styles.tileRow}>
+              <View style={styles.tile}>
+                <Text style={styles.tileLabel}>CONSISTENCY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <CountUp value={stats.consistency_pct} delay={600} style={styles.tileValue} />
+                  <Text style={styles.tileValue}>%</Text>
+                </View>
+                <Text style={styles.tileSub}>{stats.deltaStr}</Text>
+              </View>
+              <View style={styles.tile}>
+                <Text style={styles.tileLabel}>DURATION</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <CountUp value={mins} delay={600} style={styles.tileValue} />
+                  <Text style={styles.tileValueUnit}> min</Text>
+                </View>
+                <Text style={styles.tileSub}>logged today</Text>
+              </View>
+            </FadeInView>
+          </>
+        )}
+
+        {/* Everything else eligible this visit, folded into one compact row —
+            no confetti, no count-up, just icon + label + value per item. */}
+        {summaryItems.length > 0 && (
+          <FadeInView delay={320} style={styles.summaryRow}>
+            {summaryItems.map((item) => (
+              <View key={item.key} style={styles.summaryItem}>
+                <Ionicons name={item.icon as any} size={15} color={C.primary} />
+                <Text style={styles.summaryLabel}>{item.label}</Text>
+                <Text style={styles.summaryValue}>{item.value}</Text>
+              </View>
+            ))}
+          </FadeInView>
+        )}
 
         {/* Weekly target — a ring that sweeps to where this session put you */}
         <FadeInView delay={430} style={[styles.card, styles.weekCard]}>
@@ -303,6 +393,13 @@ export default function WorkoutCompleteScreen() {
       </View>
 
       <ShareCardSheet visible={shareOpen} cards={cards} onClose={() => setShareOpen(false)} />
+
+      <SaveProgressSheet
+        visible={saveSheetVisible}
+        context="post_workout"
+        onClose={() => setSaveSheetVisible(false)}
+        onLinked={() => { refreshProfile().catch(() => {}) }}
+      />
     </SafeAreaView>
   )
 }
@@ -362,6 +459,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   tileValue: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -1 },
   tileValueUnit: { fontFamily: 'Inter_400Regular', fontSize: 18, color: C.textSecondary },
   tileSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary },
+
+  summaryRow: {
+    flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.lg, rowGap: Spacing.sm,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  summaryItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  summaryLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.3 },
+  summaryValue: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text },
 
   weekLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   weekCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },

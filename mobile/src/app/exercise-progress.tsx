@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,6 +16,7 @@ import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { SvgGrowBar } from '@/components/SvgGrowBar'
 import { estimate1RM } from '@/lib/progression'
 import { useWeightUnit, unitLabel, displayWeight, formatWeight } from '@/lib/units'
 
@@ -103,13 +104,11 @@ export default function ExerciseProgressScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close exercise progress">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Progress</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Progress"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close exercise progress" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your progress…" /></View>
@@ -164,12 +163,11 @@ export default function ExerciseProgressScreen() {
                         {isLast && (
                           <Text style={styles.barValue}>{displayWeight(p.bestE1rm, unit)}</Text>
                         )}
-                        <View
-                          style={[
-                            styles.bar,
-                            { height: h, backgroundColor: isLast ? C.primary : C.surfaceContainerHigh },
-                          ]}
-                        />
+                        {/* Shared gradient bar primitive (same as the Progress tab's
+                            volume chart) — grows from the baseline on mount. */}
+                        <View style={{ width: '100%', justifyContent: 'flex-end' }}>
+                          <SvgGrowBar height={h} delay={i * 40} color={isLast ? C.primary : C.surfaceContainerHigh} />
+                        </View>
                         <Text style={[styles.barDate, isLast && styles.barDateActive]} numberOfLines={1}>
                           {shown.length <= 6 || i % 2 === (shown.length - 1) % 2 ? fmtDay(p.date) : ''}
                         </Text>

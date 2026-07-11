@@ -6,8 +6,8 @@
 // week onto the calendar (see lib/splitSchedule.activateSplit).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, LayoutAnimation, Platform } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator, LayoutAnimation } from 'react-native'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
@@ -16,6 +16,7 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale, useReducedMotion } from '@/components/motion'
+import { TempoSheet } from '@/components/TempoSheet'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
 import {
@@ -279,13 +280,16 @@ export default function SplitEditorScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}><Ionicons name="chevron-down" size={26} color={C.text} /></TouchableOpacity>
-        <Text style={styles.headerTitle}>{splitId ? 'Edit Split' : 'New Split'}</Text>
-        <TouchableOpacity onPress={confirmSave} disabled={saving} hitSlop={8}>
-          {saving ? <ActivityIndicator color={C.primary} /> : <Text style={styles.save}>Save</Text>}
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title={splitId ? 'Edit Split' : 'New Split'}
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+        right={
+          <TouchableOpacity onPress={confirmSave} disabled={saving} hitSlop={8}>
+            {saving ? <ActivityIndicator color={C.primary} /> : <Text style={styles.save}>Save</Text>}
+          </TouchableOpacity>
+        }
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your split…" /></View>
@@ -349,12 +353,16 @@ export default function SplitEditorScreen() {
         </ScrollView>
       )}
 
-      {/* Day editor */}
-      <Modal visible={editing !== null} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
-        <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditing(null)} />
+      {/* Day editor.
+          `scroll`: single top-level BottomSheetScrollView — a nested one inside a
+          non-scroll TempoSheet never gets a bounded viewport to scroll within
+          (gorhom's BottomSheetView has no bottom/height in its default style), so
+          a day with enough exercises to exceed the 90% snap point had its bottom
+          rows and "Add exercise" clipped with no way to reach them. The header
+          and rest-day toggle now scroll with the list instead of staying pinned —
+          the sheet is still swipe-to-dismiss / backdrop-tap-to-close from anywhere. */}
+      <TempoSheet visible={editing !== null} onClose={() => setEditing(null)} snapPoints={['90%']} scroll>
           <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-            <View style={styles.sheetHandle} />
             {openDay && editing !== null && (
               <>
                 <View style={styles.sheetHeader}>
@@ -372,7 +380,7 @@ export default function SplitEditorScreen() {
                 </View>
 
                 {!openDay.rest && (
-                  <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                  <>
                     <Text style={styles.fieldLabel}>WORKOUT NAME</Text>
                     <TextInput
                       style={styles.input}
@@ -422,12 +430,11 @@ export default function SplitEditorScreen() {
                         <Text style={styles.link}>Replace with a saved workout</Text>
                       </TouchableOpacity>
                     )}
-                  </ScrollView>
+                  </>
                 )}
               </>
             )}
           </View>
-        </KeyboardAvoidingView>
 
         <ExercisePickerSheet
           visible={pickerOpen}
@@ -439,8 +446,8 @@ export default function SplitEditorScreen() {
           onRemove={(ex) => removeExercise(ex.id)}
         />
 
-        {/* Nested inside the day-editor Modal so it can actually present over it on
-            iOS (a sibling Modal cannot — see fillFromTemplate). */}
+        {/* @gorhom/bottom-sheet's BottomSheetModal portals to the root provider, so
+            this can present over the day-editor sheet regardless of nesting. */}
         <OptionSheet
           visible={templateSheetOpen}
           title="Use a saved workout"
@@ -457,7 +464,7 @@ export default function SplitEditorScreen() {
           onSelect={applyTemplateChoice}
           onClose={() => setTemplateSheetOpen(false)}
         />
-      </Modal>
+      </TempoSheet>
 
       <OptionSheet
         visible={presetSheet}
@@ -515,9 +522,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   daySub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   hint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, marginTop: Spacing.md },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.xs, maxHeight: '90%' },
-  sheetHandle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
+  sheet: { padding: Spacing.lg, gap: Spacing.xs },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sheetTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   restRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm },

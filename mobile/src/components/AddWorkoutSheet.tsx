@@ -6,8 +6,9 @@
 // the tapped calendar day pre-filled.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { TempoSheet } from '@/components/TempoSheet'
 import { TempoPulse } from '@/components/brand'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useRouter } from 'expo-router'
@@ -53,79 +54,79 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
   const niceDate = new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-          <View style={styles.handle} />
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.title}>Add a workout</Text>
-              <Text style={styles.subtitle}>{niceDate}</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} hitSlop={8}><Ionicons name="close" size={24} color={C.textSecondary} /></TouchableOpacity>
+    // `scroll`: content is one flat scrollable flow (not a BottomSheetScrollView
+    // nested inside TempoSheet's own non-scrolling BottomSheetView) — gorhom's
+    // BottomSheetView has no bottom/height in its default style, so a fixed
+    // snapPoints sheet with a *nested* scroll view never gets a bounded height to
+    // scroll within: the list just renders at full content height and anything
+    // past the 88% snap point is clipped with no way to reach it (saved workouts /
+    // templates below the fold). Folding the header into the scroll content (as
+    // TempoSheet's other working `scroll` sheets already do) fixes that.
+    <TempoSheet visible={visible} onClose={onClose} snapPoints={['88%']} scroll>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>Add a workout</Text>
+            <Text style={styles.subtitle}>{niceDate}</Text>
           </View>
+          <TouchableOpacity onPress={onClose} hitSlop={8}><Ionicons name="close" size={24} color={C.textSecondary} /></TouchableOpacity>
+        </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }} contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.sm }}>
-            <TouchableOpacity style={styles.primaryRow} onPress={() => go({})} activeOpacity={0.85}>
-              <View style={styles.iconWrap}><Ionicons name="add" size={20} color={C.onPrimary} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.primaryRowTitle}>Build a new workout</Text>
-                <Text style={styles.primaryRowSub}>Pick exercises and schedule it</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.onPrimary} />
-            </TouchableOpacity>
+        <TouchableOpacity style={styles.primaryRow} onPress={() => go({})} activeOpacity={0.85}>
+          <View style={styles.iconWrap}><Ionicons name="add" size={20} color={C.onPrimary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.primaryRowTitle}>Build a new workout</Text>
+            <Text style={styles.primaryRowSub}>Pick exercises and schedule it</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.onPrimary} />
+        </TouchableOpacity>
 
-            <Text style={styles.section}>YOUR SAVED WORKOUTS</Text>
-            {loading ? (
-              <View style={{ paddingVertical: Spacing.md, alignItems: 'center' }}><TempoPulse size={26} /></View>
-            ) : templates.length === 0 ? (
-              <Text style={styles.empty}>No saved workouts yet. Build one and it'll show up here.</Text>
-            ) : (
-              <View style={styles.card}>
-                {templates.map((t, i) => (
-                  <View key={t.id}>
-                    {i > 0 && <View style={styles.divider} />}
-                    <TouchableOpacity style={styles.row} onPress={() => go({ templateId: t.id })} activeOpacity={0.7}>
-                      <View style={styles.rowIcon}><Ionicons name="barbell-outline" size={18} color={C.primary} /></View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.rowName} numberOfLines={1}>{t.name}</Text>
-                        <Text style={styles.rowMeta}>{t.exercise_ids.length} exercise{t.exercise_ids.length === 1 ? '' : 's'} · ~{t.est_duration_min} min</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={C.outline} />
-                    </TouchableOpacity>
+        <Text style={styles.section}>YOUR SAVED WORKOUTS</Text>
+        {loading ? (
+          <View style={{ paddingVertical: Spacing.md, alignItems: 'center' }}><TempoPulse size={26} /></View>
+        ) : templates.length === 0 ? (
+          <Text style={styles.empty}>No saved workouts yet. Build one and it'll show up here.</Text>
+        ) : (
+          <View style={styles.card}>
+            {templates.map((t, i) => (
+              <View key={t.id}>
+                {i > 0 && <View style={styles.divider} />}
+                <TouchableOpacity style={styles.row} onPress={() => go({ templateId: t.id })} activeOpacity={0.7}>
+                  <View style={styles.rowIcon}><Ionicons name="barbell-outline" size={18} color={C.primary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowName} numberOfLines={1}>{t.name}</Text>
+                    <Text style={styles.rowMeta}>{t.exercise_ids.length} exercise{t.exercise_ids.length === 1 ? '' : 's'} · ~{t.est_duration_min} min</Text>
                   </View>
-                ))}
+                  <Ionicons name="chevron-forward" size={16} color={C.outline} />
+                </TouchableOpacity>
               </View>
-            )}
+            ))}
+          </View>
+        )}
 
-            <Text style={styles.section}>TEMPLATES</Text>
-            <View style={styles.card}>
-              {WORKOUT_PRESETS.map((p, i) => (
-                <View key={p.id}>
-                  {i > 0 && <View style={styles.divider} />}
-                  <TouchableOpacity style={styles.row} onPress={() => go({ presetId: p.id })} activeOpacity={0.7}>
-                    <View style={styles.rowIcon}><Ionicons name="sparkles" size={16} color={C.primary} /></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowName} numberOfLines={1}>{p.name}</Text>
-                      <Text style={styles.rowMeta}>{p.exercises.length} exercises</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={C.outline} />
-                  </TouchableOpacity>
+        <Text style={styles.section}>TEMPLATES</Text>
+        <View style={styles.card}>
+          {WORKOUT_PRESETS.map((p, i) => (
+            <View key={p.id}>
+              {i > 0 && <View style={styles.divider} />}
+              <TouchableOpacity style={styles.row} onPress={() => go({ presetId: p.id })} activeOpacity={0.7}>
+                <View style={styles.rowIcon}><Ionicons name="sparkles" size={16} color={C.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowName} numberOfLines={1}>{p.name}</Text>
+                  <Text style={styles.rowMeta}>{p.exercises.length} exercises</Text>
                 </View>
-              ))}
+                <Ionicons name="chevron-forward" size={16} color={C.outline} />
+              </TouchableOpacity>
             </View>
-          </ScrollView>
+          ))}
         </View>
       </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.sm, maxHeight: '88%' },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
+  sheet: { padding: Spacing.lg, gap: Spacing.sm },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   subtitle: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, marginTop: 1 },

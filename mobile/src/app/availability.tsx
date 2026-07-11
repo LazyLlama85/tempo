@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter } from 'expo-router'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -183,13 +184,11 @@ export default function AvailabilityScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Availability</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Availability"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>

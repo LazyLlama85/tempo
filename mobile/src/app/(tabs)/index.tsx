@@ -1,8 +1,8 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, type LayoutChangeEvent } from 'react-native'
+import { useState, useRef, useMemo, useEffect, useCallback, type ReactNode } from 'react'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, type LayoutChangeEvent } from 'react-native'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -11,17 +11,18 @@ import { useFocusEffect } from 'expo-router'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { useTutorialTarget } from '@/components/TutorialOverlay'
 import { useTutorialStore } from '@/stores/tutorial'
-import { T, HOME_TOUR_STEPS, TARGET } from '@/lib/tutorial'
+import { T, HOME_TOUR_STEPS, TARGET, shouldShowTip } from '@/lib/tutorial'
 import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
-import { TempoWordmark } from '@/components/brand'
+import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { AnimatedRing } from '@/components/AnimatedRing'
 import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
+import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/CalendarAuthService'
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
@@ -38,8 +39,10 @@ import {
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
-import { suggestNextSlot, rescheduleWorkout } from '@/lib/reschedule'
+import { suggestNextSlot, rescheduleWorkout, type SlotSuggestion } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
+import { getReturningState } from '@/lib/returningUser'
+import { applyAdaptationMode } from '@/lib/adaptation'
 import { getTodayCheckin } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
 import { parseAvatar } from '@/lib/avatar'
@@ -51,6 +54,7 @@ import type { WorkoutSource } from '@/types'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
+import { OptionSheet } from '@/components/OptionSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -191,11 +195,26 @@ interface DayGroup {
   items: FeedItem[]
 }
 
+// A single "today's context" item. The whole Home feed used to stack up to eight of
+// these as full-width cards; now only the highest-priority *eligible* one renders as
+// a full banner (`primary`), and every other eligible one is demoted to a compact
+// swipeable chip. The `eligible` flag mirrors each banner's ORIGINAL show condition
+// exactly — this change only controls how many show at once and in what form, never
+// WHEN a banner is allowed to appear. Array order = priority (first eligible wins the
+// banner slot).
+type ContextItem = {
+  id: string
+  eligible: boolean
+  primary: () => ReactNode
+  chip: { icon: IconName; label: string; tint: string; onPress: () => void }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ScheduleScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const insets = useSafeAreaInsets()
   const router = useRouter()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
@@ -211,6 +230,9 @@ export default function ScheduleScreen() {
   const [showRecovery, setShowRecovery] = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<ScheduledWorkout | null>(null)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
+  const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
+  const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
+  const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
   // Ticks every minute so a workout flips to "overdue" an hour after its start
   // without needing a manual refresh.
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -283,12 +305,16 @@ export default function ScheduleScreen() {
       const t = setTimeout(() => {
         const s = useTutorialStore.getState()
         const lastStep = HOME_TOUR_STEPS[HOME_TOUR_STEPS.length - 1].id
-        if (
-          s.isArmed(T.homeTour) &&
-          s.isStepDone('welcome_done') &&
-          !s.isStepDone(lastStep) &&
-          !s.activeTour
-        ) {
+        if (!s.isStepDone('welcome_done')) return
+        // Definitions (workout/split/generates-vs-schedules/etc.) come before the
+        // spotlight tour — it explains WHAT things are; the tour then shows WHERE.
+        // A one-off tip, not part of HOME_TOUR_STEPS, so it can't re-trigger the
+        // spotlight tour for users who already completed it.
+        if (shouldShowTip('how_tempo_works')) {
+          router.push('/how-tempo-works' as any)
+          return
+        }
+        if (s.isArmed(T.homeTour) && !s.isStepDone(lastStep) && !s.activeTour) {
           s.startTour(T.homeTour)
         }
       }, 650) // let the calendar + card measure first
@@ -308,6 +334,13 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   })
+
+  // getCalendarEventsForRange swallows Google fetch failures to an empty array
+  // (so a calendar hiccup never blanks the whole feed) — which used to mean a
+  // revoked/expired Google token made events silently vanish forever with no
+  // hint why. Surface it here once the fetch has actually run.
+  const [googleNeedsReconnect, setGoogleNeedsReconnect] = useState(false)
+  useEffect(() => { setGoogleNeedsReconnect(googleCalendarNeedsReconnect()) }, [events])
 
   const { data: missed = [] } = useQuery<ScheduledWorkout[]>({
     queryKey: ['missed_workouts', userId],
@@ -444,6 +477,33 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Returning-user off-ramp (§5.1): after 3/7/30 days away, Home leads with a
+  // "welcome back" banner instead of the guilt of a normal day. Reads existing data
+  // (last completed session); null for daily users and brand-new users alike.
+  const { data: returning } = useQuery({
+    queryKey: ['returning', userId, todayStr],
+    queryFn: () => getReturningState(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+  const [easingBack, setEasingBack] = useState(false)
+  const handleEaseIntoRecovery = async () => {
+    if (!userId || easingBack) return
+    setEasingBack(true)
+    try {
+      await applyAdaptationMode(supabase, userId, 'recovery')
+      // Re-stamped future weeks + the new mode → refresh everything that reads them.
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['block_phase', userId] })
+      queryClient.invalidateQueries({ queryKey: ['returning', userId] })
+      Alert.alert('Welcome back', "Your next few weeks are lighter now — trimmed volume so you ease back in. You can return to normal anytime from your plan.")
+    } catch {
+      Alert.alert('Could not adjust', 'Please try again in a moment.')
+    } finally {
+      setEasingBack(false)
+    }
+  }
+
   // On entry: collapse duplicate days, then mark past-due 'scheduled' as 'missed'.
   useEffect(() => {
     if (!userId) return
@@ -507,6 +567,30 @@ export default function ScheduleScreen() {
       } catch { /* reminders are best-effort */ }
     })()
   }, [userId])
+
+  // The full entry sweep above only runs once per sign-in (auth.ts deliberately
+  // skips it on TOKEN_REFRESHED, which fires on every foreground). That means a
+  // workout that goes stale while the app just sits backgrounded across midnight
+  // never gets flipped to 'missed' until the next cold start. Re-run just the
+  // cheap missed-workout check (a single UPDATE) whenever the app comes back to
+  // the foreground on a new calendar day — not the whole heavy sweep.
+  const lastMissedCheckDate = useRef(todayStr)
+  useEffect(() => {
+    if (!userId) return
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status !== 'active') return
+      const nowDateStr = toDateStr(new Date())
+      if (nowDateStr === lastMissedCheckDate.current) return
+      lastMissedCheckDate.current = nowDateStr
+      checkMissedWorkouts(supabase, userId).then((count) => {
+        if (count > 0) {
+          queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+          queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+        }
+      })
+    })
+    return () => sub.remove()
+  }, [userId, queryClient])
 
   // ── Derived feed ──────────────────────────────────────────────────────────--
   const workoutsByDate = useMemo(() => {
@@ -606,44 +690,33 @@ export default function ScheduleScreen() {
     }
   }
 
-  const handleRemoveFromCalendar = (workout: ScheduledWorkout) => {
-    const where = workout.calendar_provider === 'google' ? 'Google Calendar' : 'your calendar'
-    Alert.alert('Remove from Calendar?', `This will delete the event from ${where}.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeWorkoutFromCalendar(supabase, workout, userId)
-            markCalendar(workout.id, null, null)
-          } catch {
-            Alert.alert('Error', 'Could not remove calendar event.')
-          }
-        },
-      },
-    ])
+  const handleRemoveFromCalendar = (workout: ScheduledWorkout) => setRemoveCalWorkout(workout)
+  const doRemoveFromCalendar = async (workout: ScheduledWorkout) => {
+    try {
+      await removeWorkoutFromCalendar(supabase, workout, userId)
+      markCalendar(workout.id, null, null)
+    } catch {
+      Alert.alert('Error', 'Could not remove calendar event.')
+    }
   }
 
   // Mark a workout skipped (after offering to reschedule instead — no shame, but a
   // clear "you didn't do this" outcome). Skipped workouts drop out of the feed.
-  const handleSkip = (workout: ScheduledWorkout) => {
-    Alert.alert(
-      `Skip ${workout.focus}?`,
-      "It'll be marked skipped. Rescheduling it keeps your week on track — want to do that instead?",
-      [
-        { text: 'Reschedule instead', onPress: () => handleReschedule(workout) },
-        {
-          text: 'Skip it', style: 'destructive', onPress: async () => {
-            const { error } = await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
-            if (error) { const info = describeSaveError(error, 'skip this workout'); Alert.alert('Couldn’t skip', info.message); return }
-            cancelWorkoutReminder(workout.id).catch(() => {})
-            queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    )
+  const handleSkip = (workout: ScheduledWorkout) => setSkipSheetWorkout(workout)
+
+  const skipWorkout = async (workout: ScheduledWorkout) => {
+    const { error } = await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
+    if (error) { const info = describeSaveError(error, 'skip this workout'); Alert.alert('Couldn’t skip', info.message); return }
+    cancelWorkoutReminder(workout.id).catch(() => {})
+    queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+  }
+
+  const onSkipSheetSelect = (key: string) => {
+    const workout = skipSheetWorkout
+    setSkipSheetWorkout(null)
+    if (!workout) return
+    if (key === 'reschedule') handleReschedule(workout)
+    else if (key === 'skip') skipWorkout(workout)
   }
 
   const handleReschedule = async (workout: ScheduledWorkout) => {
@@ -659,36 +732,32 @@ export default function ScheduleScreen() {
       const why = slot.reason
         ? `${slot.reason}.`
         : (slot.fromCalendar ? 'Tempo found this free window in your calendar.' : '')
-      Alert.alert(
-        'Reschedule workout',
-        `Move "${workout.focus}" to ${slot.label}?${why ? `\n\n${why}` : ''}`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Move it',
-            onPress: async () => {
-              try {
-                await rescheduleWorkout(supabase, userId, workout.id, slot)
-                // Re-point the synced calendar event + pre-workout reminder at the
-                // new slot, so the calendar never disagrees with the app.
-                resyncMovedWorkout(supabase, userId, {
-                  ...workout,
-                  planned_date: slot.date,
-                  planned_start_time: slot.start_time,
-                }).catch(() => {})
-                queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-                queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
-              } catch {
-                Alert.alert('Could not reschedule', 'Something went wrong moving that workout. Please try again.')
-              }
-            },
-          },
-        ],
-      )
+      setRescheduleConfirm({ workout, slot, message: `Move "${workout.focus}" to ${slot.label}?${why ? `\n\n${why}` : ''}` })
     } catch {
       Alert.alert('Could not reschedule', 'We had trouble finding a new slot. Please try again.')
     } finally {
       setRescheduling(false)
+    }
+  }
+
+  const confirmMoveWorkout = async () => {
+    const confirm = rescheduleConfirm
+    setRescheduleConfirm(null)
+    if (!confirm) return
+    const { workout, slot } = confirm
+    try {
+      await rescheduleWorkout(supabase, userId, workout.id, slot)
+      // Re-point the synced calendar event + pre-workout reminder at the
+      // new slot, so the calendar never disagrees with the app.
+      resyncMovedWorkout(supabase, userId, {
+        ...workout,
+        planned_date: slot.date,
+        planned_start_time: slot.start_time,
+      }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+    } catch {
+      Alert.alert('Could not reschedule', 'Something went wrong moving that workout. Please try again.')
     }
   }
 
@@ -771,6 +840,7 @@ export default function ScheduleScreen() {
     const inMonth = day.getMonth() === selDate.getMonth()
     const hasWorkout = dayWorkouts.length > 0
     const allDone = hasWorkout && dayWorkouts.every(w => w.status === 'completed')
+    const anyMissed = hasWorkout && !allDone && dayWorkouts.some(w => w.status === 'missed')
 
     return (
       <PressableScale
@@ -800,7 +870,7 @@ export default function ScheduleScreen() {
           </Text>
         </View>
         {hasWorkout ? (
-          <View style={[styles.dayDot, allDone ? styles.dotDone : styles.dotWorkout, isSelected && styles.dotOnSelected]} />
+          <View style={[styles.dayDot, allDone ? styles.dotDone : anyMissed ? styles.dotMissed : styles.dotWorkout, isSelected && styles.dotOnSelected]} />
         ) : (
           <View style={styles.dayDotPlaceholder} />
         )}
@@ -839,40 +909,44 @@ export default function ScheduleScreen() {
 
   function renderWorkout(w: ScheduledWorkout, hero: boolean) {
     const done = w.status === 'completed'
+    const missed = w.status === 'missed'
     const overdue = isOverdueWorkout(w, nowMs, todayStr)
     const conflict = !done && !overdue ? conflictingEvent(w, eventsByDate[w.planned_date] ?? []) : null
-    const attention = overdue || !!conflict
+    const attention = overdue || missed || !!conflict
     // "Early" = the scheduled time is still more than ~45 min away (or it's a future
     // day). You can still train now, but the button says "Do it now instead" so it
     // doesn't pretend it's go-time.
     const early = !done && !attention && (workoutStartMs(w) - nowMs) / 60000 > 45
     const soft = attention || early
-    const accent = done ? C.success : attention ? C.ember : C.primary
+    const accent = done ? C.success : missed ? C.error : attention ? C.ember : C.primary
 
     return (
       <View style={styles.row}>
         <Text style={[styles.railTime, styles.railTimeActive, { color: accent }]} numberOfLines={1}>
           {formatTime(w.planned_start_time)}
         </Text>
-        <View ref={hero ? todayCardTarget : undefined} collapsable={false} style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
+        <View collapsable={false} style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
           {/* Faux-gradient glow: a soft accent blob behind the hero's content */}
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroBlob} />}
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroWash} />}
 
           <View style={styles.workoutTop}>
-            <View style={[styles.badge, done ? styles.badgeDone : attention ? styles.badgeAttn : styles.badgeWorkout]}>
-              <Ionicons name={done ? 'checkmark' : overdue ? 'alert-circle' : conflict ? 'warning' : 'flash'} size={11} color={accent} />
+            <View style={[styles.badge, done ? styles.badgeDone : missed ? styles.badgeMissed : attention ? styles.badgeAttn : styles.badgeWorkout]}>
+              <Ionicons name={done ? 'checkmark' : missed ? 'close-circle' : overdue ? 'alert-circle' : conflict ? 'warning' : 'flash'} size={11} color={accent} />
               <Text style={[styles.badgeText, { color: accent }]}>
-                {done ? 'DONE' : overdue ? 'STILL ON FOR THIS?' : conflict ? 'CALENDAR CONFLICT' : hero ? "TODAY'S WORKOUT" : 'WORKOUT'}
+                {done ? 'DONE' : missed ? 'MISSED' : overdue ? 'STILL ON FOR THIS?' : conflict ? 'CALENDAR CONFLICT' : hero ? "TODAY'S WORKOUT" : 'WORKOUT'}
               </Text>
             </View>
-            <View style={[styles.dumbbell, { backgroundColor: done ? C.successSoft : attention ? C.emberSoft : C.primarySoft }]}>
+            <View style={[styles.dumbbell, { backgroundColor: done ? C.successSoft : missed ? C.dangerSoft : attention ? C.emberSoft : C.primarySoft }]}>
               <Ionicons name="barbell" size={hero ? 18 : 16} color={accent} />
             </View>
           </View>
 
-          <Text style={[hero ? styles.heroTitle : styles.workoutTitle, done && styles.workoutTitleDone]}>{w.focus}</Text>
+          <Text style={[hero ? styles.heroTitle : styles.workoutTitle, (done || missed) && styles.workoutTitleDone]}>{w.focus}</Text>
 
+          {missed && (
+            <Text style={styles.attnNote}>This workout was missed. Reschedule it to get back on track, or skip it and move on.</Text>
+          )}
           {overdue && (
             <Text style={styles.attnNote}>This was scheduled for {formatTime(w.planned_start_time)}. Want to do it tomorrow instead?</Text>
           )}
@@ -969,51 +1043,311 @@ export default function ScheduleScreen() {
     return g.date.toLocaleDateString('en-US', { weekday: 'long' })
   }
 
+  // ── Today's-context strip ─────────────────────────────────────────────────────
+  // Collapses the old stack of contextual banners into ONE full banner (the top
+  // eligible item) plus a swipeable chip strip for the rest. Priority is the array
+  // order below; each `eligible` predicate is the banner's exact original gate.
+  const goQuick = () =>
+    quickSuggestion &&
+    router.push({
+      pathname: '/quick-workout',
+      params: {
+        minutes: String(quickSuggestion.minutes),
+        ...(quickSuggestion.purpose ? { purpose: quickSuggestion.purpose } : {}),
+        ...(quickSuggestion.targetPattern ? { targetPattern: quickSuggestion.targetPattern } : {}),
+        ...(quickSuggestion.daysSinceTrained != null ? { daysSinceTrained: String(quickSuggestion.daysSinceTrained) } : {}),
+        ...(quickSuggestion.fromCalendarGap ? { fromCalendarGap: '1' } : {}),
+      },
+    })
+
+  const contextItems: ContextItem[] = [
+    // 0 — Returning user (§5.1): the highest-leverage retention moment. After 3/7/30
+    // days away, lead with a "welcome back" off-ramp ahead of every normal banner.
+    // Disappears the instant they train again (last-completed becomes today).
+    {
+      id: 'returning',
+      eligible: !!returning,
+      primary: () => {
+        if (!returning) return null
+        const content =
+          returning.tier === 'd30'
+            ? { title: "It's been a while", sub: "Let's make sure your plan still fits.", cta: 'Review plan', icon: 'sparkles' as IconName, busy: false, onPress: () => router.push('/onboarding/goal') }
+            : returning.tier === 'd7'
+            ? { title: 'Welcome back', sub: 'Want a lighter week to ease back in?', cta: easingBack ? 'One sec…' : 'Ease me in', icon: 'leaf' as IconName, busy: easingBack, onPress: handleEaseIntoRecovery }
+            : { title: 'Pick up where you left off', sub: `It's been ${returning.days} days — your next session is ready.`, cta: "Let's go", icon: 'play' as IconName, busy: false, onPress: () => router.push(returning.nextWorkoutId ? { pathname: '/(tabs)/plan', params: { workoutId: returning.nextWorkoutId } } : '/(tabs)/plan') }
+        return (
+          <View style={styles.missedBanner}>
+            <View style={styles.missedIcon}>
+              <Ionicons name={content.icon} size={18} color={C.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.missedTitle}>{content.title}</Text>
+              <Text style={styles.missedSub}>{content.sub}</Text>
+            </View>
+            <PressableScale
+              style={[styles.missedBtn, content.busy && { opacity: 0.6 }]}
+              onPress={content.onPress}
+              disabled={content.busy}
+              scaleTo={0.92}
+            >
+              <Text style={styles.missedBtnText}>{content.cta}</Text>
+            </PressableScale>
+          </View>
+        )
+      },
+      chip: {
+        icon: 'sparkles',
+        label: returning?.tier === 'd7' ? 'Welcome back' : returning?.tier === 'd30' ? 'Review plan' : 'Resume',
+        tint: C.primary,
+        onPress: () => {
+          if (!returning) return
+          if (returning.tier === 'd30') router.push('/onboarding/goal')
+          else if (returning.tier === 'd7') handleEaseIntoRecovery()
+          else router.push(returning.nextWorkoutId ? { pathname: '/(tabs)/plan', params: { workoutId: returning.nextWorkoutId } } : '/(tabs)/plan')
+        },
+      },
+    },
+    // 1 — Missed workout: a concrete recovery action about the user's own training.
+    {
+      id: 'missed',
+      eligible: missed.length > 0,
+      primary: () => missed.length > 0 ? (
+        <View style={styles.missedBanner}>
+          <View style={styles.missedIcon}>
+            <Ionicons name="refresh" size={18} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missedTitle}>
+              Missed {missed[0].focus}{missed.length > 1 ? ` +${missed.length - 1} more` : ''}
+            </Text>
+            <Text style={styles.missedSub}>No worries — let's find a new slot.</Text>
+          </View>
+          <PressableScale
+            style={[styles.missedBtn, rescheduling && { opacity: 0.6 }]}
+            onPress={() => handleReschedule(missed[0])}
+            disabled={rescheduling}
+            scaleTo={0.92}
+          >
+            <Text style={styles.missedBtnText}>Reschedule</Text>
+          </PressableScale>
+        </View>
+      ) : null,
+      chip: { icon: 'refresh', label: 'Missed workout', tint: C.primary, onPress: () => missed.length > 0 && handleReschedule(missed[0]) },
+    },
+    // 2 — Google reconnect: the calendar is silently showing incomplete data.
+    {
+      id: 'reconnect',
+      eligible: googleNeedsReconnect,
+      primary: () => (
+        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup' as any)} scaleTo={0.98}>
+          <View style={[styles.missedIcon, { backgroundColor: C.dangerSoft }]}>
+            <Ionicons name="warning" size={18} color={C.error} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missedTitle}>Google Calendar needs reconnecting</Text>
+            <Text style={styles.missedSub}>Access expired, so its events stopped showing. Tap to reconnect.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.error} />
+        </PressableScale>
+      ),
+      chip: { icon: 'warning', label: 'Reconnect calendar', tint: C.error, onPress: () => router.push('/calendar-setup' as any) },
+    },
+    // 3 — Travel mode: an active adaptation affecting every upcoming session.
+    {
+      id: 'travel',
+      eligible: !!travel,
+      primary: () => travel ? (
+        <PressableScale style={styles.travelBanner} onPress={() => router.push('/travel-mode')} scaleTo={0.98}>
+          <Ionicons name="airplane" size={16} color={C.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.travelBannerText}>
+              Workouts adjusted for {describeTravelEquipment(travel.equipment)}
+            </Text>
+            <Text style={styles.travelBannerSub}>Travel mode · {describeTravelUntil(travel.until)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.outline} />
+        </PressableScale>
+      ) : null,
+      chip: { icon: 'airplane', label: 'Travel mode', tint: C.primary, onPress: () => router.push('/travel-mode') },
+    },
+    // 4 — Rest day: recovery recommendation. Outranks Quick Workout so we never push a
+    // session when we're advising rest. Chip taps into the recovery check-in.
+    {
+      id: 'rest',
+      eligible: !!restAdvice,
+      primary: () => restAdvice ? (
+        <View style={styles.restBanner}>
+          <View style={styles.restIcon}>
+            <Ionicons name="bed-outline" size={18} color={C.success} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.restTitle}>{restAdvice.title}</Text>
+            <Text style={styles.restBody}>{restAdvice.body}</Text>
+          </View>
+        </View>
+      ) : null,
+      chip: { icon: 'bed-outline', label: 'Rest day', tint: C.success, onPress: () => setShowRecovery(true) },
+    },
+    // 5 — Block phase: where the user sits in the mesocycle (overload / deload).
+    {
+      id: 'block',
+      eligible: !!blockPhase?.progression,
+      primary: () => blockPhase?.progression ? (
+        <PressableScale
+          style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
+          onPress={() => router.push('/plan-explainer' as any)} /* typed-routes regen on next run */
+          scaleTo={0.98}
+        >
+          <View style={[styles.phaseIcon, blockPhase.progression.isDeload && { backgroundColor: C.successSoft }]}>
+            <Ionicons
+              name={blockPhase.progression.isDeload ? 'leaf' : blockPhase.progression.phase === 'peak' ? 'trending-up' : 'barbell'}
+              size={18}
+              color={blockPhase.progression.isDeload ? C.success : C.primary}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.phaseTitle}>
+              Week {blockPhase.progression.weekIndex + 1} · {blockPhase.progression.label}
+              {(blockPhase.mode === 'recovery' || blockPhase.mode === 'deload') ? ' · auto-adjusted' : ''}
+            </Text>
+            <Text style={styles.phaseBody} numberOfLines={2}>{blockPhase.progression.note}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.outline} />
+        </PressableScale>
+      ) : null,
+      chip: {
+        icon: blockPhase?.progression?.isDeload ? 'leaf' : 'barbell',
+        label: blockPhase?.progression ? `Week ${blockPhase.progression.weekIndex + 1} · ${blockPhase.progression.label}` : '',
+        tint: blockPhase?.progression?.isDeload ? C.success : C.primary,
+        onPress: () => router.push('/plan-explainer' as any),
+      },
+    },
+    // 6 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
+    {
+      id: 'goal',
+      eligible: !!projection,
+      primary: () => projection ? (
+        <View style={styles.goalCard}>
+          <View style={styles.goalIcon}>
+            <Ionicons name={projection.icon as IconName} size={18} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.goalHeadline} numberOfLines={1}>{projection.headline}</Text>
+            <Text style={styles.goalSub} numberOfLines={1}>{projection.sub}</Text>
+            {projection.pct != null && (
+              <View style={styles.goalTrack}>
+                <View style={[styles.goalFill, { width: `${Math.max(2, Math.min(100, projection.pct))}%` as `${number}%` }]} />
+              </View>
+            )}
+          </View>
+        </View>
+      ) : null,
+      chip: { icon: (projection?.icon as IconName) ?? 'flag', label: 'Goal ETA', tint: C.primary, onPress: () => router.push('/(tabs)/progress') },
+    },
+    // 7 — Weekly report: the Sun/Mon recap nudge (same gate as before).
+    {
+      id: 'report',
+      eligible: stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1),
+      primary: () => (
+        <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} scaleTo={0.98}>
+          <View style={styles.reportIcon}>
+            <Ionicons name="stats-chart" size={18} color={C.onPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reportTitle}>Your weekly progress report</Text>
+            <Text style={styles.reportSub} numberOfLines={1}>See how this week stacked up — and share it.</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
+        </PressableScale>
+      ),
+      chip: { icon: 'stats-chart', label: 'Weekly report', tint: C.primary, onPress: () => router.push('/weekly-report' as any) },
+    },
+    // 8 — Quick Workout: opportunistic wedge (only fires when today has no actionable
+    // session anyway, so it can safely sit last).
+    {
+      id: 'quick',
+      eligible: !!quickSuggestion,
+      primary: () => quickSuggestion ? (
+        <PressableScale style={styles.quickRow} onPress={goQuick} scaleTo={0.98}>
+          <View style={styles.quickIcon}>
+            <Ionicons name={quickSuggestion.icon as IconName} size={18} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickTitle} numberOfLines={1}>{quickSuggestion.headline}</Text>
+            <Text style={styles.quickSub} numberOfLines={1}>{quickSuggestion.sub}</Text>
+          </View>
+          <Ionicons name="flash" size={18} color={C.primary} />
+        </PressableScale>
+      ) : null,
+      chip: { icon: 'flash', label: 'Quick workout', tint: C.primary, onPress: goQuick },
+    },
+    // 9 — Connect calendar: first-time nudge for a user who never linked one, so auto
+    // scheduling can place workouts around real events. Calendar connect moved out of
+    // onboarding's required path, so this is where new users are invited to do it.
+    // Lowest priority — it never outranks real training context, and disappears the
+    // moment a calendar is set (preferred_calendar becomes non-null).
+    {
+      id: 'connectCalendar',
+      eligible: !!profile && !profile.preferred_calendar,
+      primary: () => (
+        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup' as any)} scaleTo={0.98}>
+          <View style={styles.missedIcon}>
+            <Ionicons name="calendar-outline" size={18} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missedTitle}>Connect your calendar</Text>
+            <Text style={styles.missedSub}>Let Tempo schedule workouts around your real events.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.outline} />
+        </PressableScale>
+      ),
+      chip: { icon: 'calendar-outline', label: 'Connect calendar', tint: C.primary, onPress: () => router.push('/calendar-setup' as any) },
+    },
+  ]
+
+  const eligibleContext = contextItems.filter(i => i.eligible)
+  const primaryContext = eligibleContext[0]
+  const overflowContext = eligibleContext.slice(1)
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-      {/* Header — Tempo wordmark, readiness ring, profile avatar */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <TempoWordmark size={24} />
-          <Text style={styles.headerDate}>{todayDateLabel}</Text>
-        </View>
+      {/* Header — Tempo wordmark + date, readiness ring, profile avatar. The
+          signature amber tick + hairline rule is baked into ScreenHeader. */}
+      <ScreenHeader
+        subtitle={todayDateLabel}
+        right={
+          <HeaderActions>
+            <TouchableOpacity
+              style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
+              onPress={() => setShowRecovery(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={checkin ? `Recovery readiness ${checkin.readiness} of 100. Tap to check in.` : 'Daily recovery check-in'}
+            >
+              {checkin ? (
+                <Text style={[styles.ringValue, { color: readinessColor(checkin.readiness, C) }]}>{checkin.readiness}</Text>
+              ) : (
+                <Ionicons name="pulse" size={16} color={C.primary} />
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
-          onPress={() => setShowRecovery(true)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={checkin ? `Recovery readiness ${checkin.readiness} of 100. Tap to check in.` : 'Daily recovery check-in'}
-        >
-          {checkin ? (
-            <Text style={[styles.ringValue, { color: readinessColor(checkin.readiness, C) }]}>{checkin.readiness}</Text>
-          ) : (
-            <Ionicons name="pulse" size={16} color={C.primary} />
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.avatar, { backgroundColor: avatar.color }]}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Open your profile"
-        >
-          {avatar.imageUri ? (
-            <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
-          ) : (
-            <Ionicons name={avatar.icon as IconName} size={18} color="#fff" />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Signature: a short amber tick + hairline under the masthead — the
-          hand-ruled line at the top of a training journal page. */}
-      <View style={styles.craftRuleRow}>
-        <View style={styles.craftRuleTick} />
-        <View style={styles.craftRuleLine} />
-      </View>
+            <TouchableOpacity
+              style={[styles.avatar, { backgroundColor: avatar.color }]}
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open your profile"
+            >
+              {avatar.imageUri ? (
+                <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
+              ) : (
+                <Ionicons name={avatar.icon as IconName} size={18} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </HeaderActions>
+        }
+      />
 
       {/* Day / Week / Month filter */}
       <View style={styles.segment}>
@@ -1037,19 +1371,6 @@ export default function ScheduleScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
       >
-        {travel && (
-          <PressableScale style={styles.travelBanner} onPress={() => router.push('/travel-mode')} scaleTo={0.98}>
-            <Ionicons name="airplane" size={16} color={C.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.travelBannerText}>
-                Workouts adjusted for {describeTravelEquipment(travel.equipment)}
-              </Text>
-              <Text style={styles.travelBannerSub}>Travel mode · {describeTravelUntil(travel.until)}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={C.outline} />
-          </PressableScale>
-        )}
-
         {/* Range header + navigation */}
         <View style={styles.rangeRow}>
           <Text style={styles.rangeText}>{rangeLabel}</Text>
@@ -1089,61 +1410,27 @@ export default function ScheduleScreen() {
         </FadeInView>
         </View>
 
-        {/* Block phase — tap to see the full "why this week" explanation */}
-        {blockPhase?.progression && (
-          <PressableScale
-            style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
-            onPress={() => router.push('/plan-explainer' as any)} /* typed-routes regen on next run */
-            scaleTo={0.98}
-          >
-            <View style={[styles.phaseIcon, blockPhase.progression.isDeload && { backgroundColor: C.successSoft }]}>
-              <Ionicons
-                name={blockPhase.progression.isDeload ? 'leaf' : blockPhase.progression.phase === 'peak' ? 'trending-up' : 'barbell'}
-                size={18}
-                color={blockPhase.progression.isDeload ? C.success : C.primary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.phaseTitle}>
-                Week {blockPhase.progression.weekIndex + 1} · {blockPhase.progression.label}
-                {(blockPhase.mode === 'recovery' || blockPhase.mode === 'deload') ? ' · auto-adjusted' : ''}
-              </Text>
-              <Text style={styles.phaseBody} numberOfLines={2}>{blockPhase.progression.note}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={C.outline} />
-          </PressableScale>
-        )}
-
-        {/* Goal countdown — an ETA people can chase */}
-        {projection && (
-          <View style={styles.goalCard}>
-            <View style={styles.goalIcon}>
-              <Ionicons name={projection.icon as IconName} size={18} color={C.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.goalHeadline} numberOfLines={1}>{projection.headline}</Text>
-              <Text style={styles.goalSub} numberOfLines={1}>{projection.sub}</Text>
-              {projection.pct != null && (
-                <View style={styles.goalTrack}>
-                  <View style={[styles.goalFill, { width: `${Math.max(2, Math.min(100, projection.pct))}%` as `${number}%` }]} />
-                </View>
-              )}
-            </View>
+        {/* Today's-context strip — at most ONE full banner (the top-priority eligible
+            item) plus a swipeable chip row for the rest. Replaces the old stack of up
+            to eight independently-rendered banners. */}
+        {primaryContext && (
+          <View style={styles.contextStrip}>
+            {primaryContext.primary()}
+            {overflowContext.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipStripContent}
+              >
+                {overflowContext.map(i => (
+                  <PressableScale key={i.id} style={styles.contextChip} onPress={i.chip.onPress} scaleTo={0.94}>
+                    <Ionicons name={i.chip.icon} size={14} color={i.chip.tint} />
+                    <Text style={[styles.contextChipText, { color: i.chip.tint }]} numberOfLines={1}>{i.chip.label}</Text>
+                  </PressableScale>
+                ))}
+              </ScrollView>
+            )}
           </View>
-        )}
-
-        {/* Weekly progress report — prominent on Sun/Mon, when the recap lands best */}
-        {stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1) && (
-          <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} scaleTo={0.98}>
-            <View style={styles.reportIcon}>
-              <Ionicons name="stats-chart" size={18} color={C.onPrimary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.reportTitle}>Your weekly progress report</Text>
-              <Text style={styles.reportSub} numberOfLines={1}>See how this week stacked up — and share it.</Text>
-            </View>
-            <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
-          </PressableScale>
         )}
 
         {/* Weekly target — the winnable loop for a 3×/week plan: rest days can't
@@ -1175,81 +1462,6 @@ export default function ScheduleScreen() {
                   ]}
                 />
               </View>
-            </View>
-          </View>
-        )}
-
-        {/* Quick Workout — the wedge: a contextual "this fits your day right now" */}
-        {quickSuggestion && (
-          <PressableScale
-            style={styles.quickRow}
-            onPress={() => router.push({
-              pathname: '/quick-workout',
-              params: {
-                minutes: String(quickSuggestion.minutes),
-                ...(quickSuggestion.purpose ? { purpose: quickSuggestion.purpose } : {}),
-                ...(quickSuggestion.targetPattern ? { targetPattern: quickSuggestion.targetPattern } : {}),
-                ...(quickSuggestion.daysSinceTrained != null ? { daysSinceTrained: String(quickSuggestion.daysSinceTrained) } : {}),
-                ...(quickSuggestion.fromCalendarGap ? { fromCalendarGap: '1' } : {}),
-              },
-            })}
-            scaleTo={0.98}
-          >
-            <View style={styles.quickIcon}>
-              <Ionicons name={quickSuggestion.icon as IconName} size={18} color={C.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.quickTitle} numberOfLines={1}>{quickSuggestion.headline}</Text>
-              <Text style={styles.quickSub} numberOfLines={1}>{quickSuggestion.sub}</Text>
-            </View>
-            <Ionicons name="flash" size={18} color={C.primary} />
-          </PressableScale>
-        )}
-
-        {/* Add Workout — schedule a saved workout, a template, or a new one onto this day */}
-        <PressableScale style={styles.quickRow} onPress={() => setAddWorkoutOpen(true)} scaleTo={0.98}>
-          <View style={styles.quickIcon}>
-            <Ionicons name="add-circle-outline" size={18} color={C.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.quickTitle} numberOfLines={1}>Add a workout</Text>
-            <Text style={styles.quickSub} numberOfLines={1}>Schedule a saved workout, template, or a new one.</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={18} color={C.primary} />
-        </PressableScale>
-
-        {/* Missed-workout reschedule prompt (no shame — just a new slot) */}
-        {missed.length > 0 && (
-          <View style={styles.missedBanner}>
-            <View style={styles.missedIcon}>
-              <Ionicons name="refresh" size={18} color={C.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.missedTitle}>
-                Missed {missed[0].focus}{missed.length > 1 ? ` +${missed.length - 1} more` : ''}
-              </Text>
-              <Text style={styles.missedSub}>No worries — let's find a new slot.</Text>
-            </View>
-            <PressableScale
-              style={[styles.missedBtn, rescheduling && { opacity: 0.6 }]}
-              onPress={() => handleReschedule(missed[0])}
-              disabled={rescheduling}
-              scaleTo={0.92}
-            >
-              <Text style={styles.missedBtnText}>Reschedule</Text>
-            </PressableScale>
-          </View>
-        )}
-
-        {/* Rest-day recommendation — clear, and only when recovery is actually due */}
-        {restAdvice && (
-          <View style={styles.restBanner}>
-            <View style={styles.restIcon}>
-              <Ionicons name="bed-outline" size={18} color={C.success} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.restTitle}>{restAdvice.title}</Text>
-              <Text style={styles.restBody}>{restAdvice.body}</Text>
             </View>
           </View>
         )}
@@ -1340,6 +1552,13 @@ export default function ScheduleScreen() {
             return (
               <View
                 key={g.dateStr}
+                // Step 2 of the Home tour anchors here (the stable "today" group, which
+                // always renders in week/day view — even on a rest day). Previously the
+                // target lived only on the hero card, so a new user whose first session
+                // wasn't today had no measurable target and the spotlight fell back to a
+                // generic centered card.
+                ref={g.isToday ? todayCardTarget : undefined}
+                collapsable={false}
                 style={styles.dayGroup}
                 onLayout={(e: LayoutChangeEvent) => { sectionY.current[g.dateStr] = e.nativeEvent.layout.y }}
               >
@@ -1378,8 +1597,18 @@ export default function ScheduleScreen() {
 
       </ScrollView>
 
-      {/* FAB — one-tap Add Workout from anywhere on the schedule */}
-      <PressableScale style={styles.fab} onPress={() => setAddWorkoutOpen(true)} scaleTo={0.9} accessibilityLabel="Add a workout">
+      {/* FAB — one-tap Add Workout from anywhere on the schedule. Bottom offset is
+          insets-aware so it always clears the floating tab dock (which itself sits
+          on insets.bottom + ~30px of GO-button headroom) — a flat value here used to
+          land right under the dock's hitSlop-expanded touch zone on some devices,
+          making the bottom of the FAB visually crowd (and sometimes lose taps to)
+          the Profile tab behind it. */}
+      <PressableScale
+        style={[styles.fab, { bottom: insets.bottom + 84 }]}
+        onPress={() => setAddWorkoutOpen(true)}
+        scaleTo={0.9}
+        accessibilityLabel="Add a workout"
+      >
         <Ionicons name="add" size={30} color={C.onPrimary} />
       </PressableScale>
 
@@ -1413,6 +1642,36 @@ export default function ScheduleScreen() {
           queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
         }}
       />
+
+      <OptionSheet
+        visible={skipSheetWorkout !== null}
+        title={`Skip ${skipSheetWorkout?.focus ?? ''}?`}
+        subtitle="It'll be marked skipped. Rescheduling it keeps your week on track — want to do that instead?"
+        options={[
+          { key: 'reschedule', label: 'Reschedule instead', icon: 'calendar-outline' },
+          { key: 'skip', label: 'Skip it', icon: 'close-circle-outline', destructive: true },
+        ]}
+        onSelect={onSkipSheetSelect}
+        onClose={() => setSkipSheetWorkout(null)}
+      />
+
+      <OptionSheet
+        visible={rescheduleConfirm !== null}
+        title="Reschedule workout"
+        subtitle={rescheduleConfirm?.message ?? ''}
+        options={[{ key: 'move', label: 'Move it', icon: 'calendar-outline' }]}
+        onSelect={confirmMoveWorkout}
+        onClose={() => setRescheduleConfirm(null)}
+      />
+
+      <OptionSheet
+        visible={removeCalWorkout !== null}
+        title="Remove from Calendar?"
+        subtitle={`This will delete the event from ${removeCalWorkout?.calendar_provider === 'google' ? 'Google Calendar' : 'your calendar'}.`}
+        options={[{ key: 'remove', label: 'Remove', icon: 'trash-outline', destructive: true }]}
+        onSelect={() => { const w = removeCalWorkout; setRemoveCalWorkout(null); if (w) void doRemoveFromCalendar(w) }}
+        onClose={() => setRemoveCalWorkout(null)}
+      />
     </ScreenTransition>
     </SafeAreaView>
   )
@@ -1423,22 +1682,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingBottom: 140 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.containerPadding,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  wordmark: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.6 },
-  craftRuleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: Spacing.containerPadding, marginBottom: Spacing.xs,
-  },
-  craftRuleTick: { width: 26, height: 3, borderRadius: 2, backgroundColor: C.primary },
-  craftRuleLine: { flex: 1, height: 1, backgroundColor: C.outlineVariant },
-  headerDate: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, marginTop: 1 },
   ring: {
     width: 40, height: 40, borderRadius: Radius.full,
     borderWidth: 2.5, alignItems: 'center', justifyContent: 'center',
@@ -1465,10 +1708,27 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   segmentText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
   segmentTextActive: { color: C.onPrimary },
 
+  // ── Today's-context strip ─────────────────────────────────────────────────────
+  // Container for the single priority banner + the swipeable overflow chips.
+  contextStrip: {},
+  chipStripContent: {
+    flexDirection: 'row', gap: Spacing.xs,
+    paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.sm,
+  },
+  contextChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.background,
+    borderWidth: 1, borderColor: C.outlineVariant, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm + 2, paddingVertical: 7,
+  },
+  contextChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, letterSpacing: -0.1, maxWidth: 180 },
+
   // ── Range row ──────────────────────────────────────────────────────────────
+  // Travel banner is one of the context-strip banners; no top margin (it's never the
+  // first element now) and a bottom margin to separate it from the overflow chips.
   travelBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    marginHorizontal: Spacing.containerPadding, marginTop: Spacing.md,
+    marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
     backgroundColor: C.primarySoft, borderRadius: Radius.lg,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
   },
@@ -1515,6 +1775,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   dayDot: { width: 5, height: 5, borderRadius: Radius.full },
   dotWorkout: { backgroundColor: C.primary },
   dotDone: { backgroundColor: C.success },
+  dotMissed: { backgroundColor: C.error },
   dotOnSelected: { backgroundColor: '#FFFFFF' },
   dayDotPlaceholder: { width: 5, height: 5 },
 
@@ -1759,6 +2020,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   badgeWorkout: { backgroundColor: C.primarySoft },
   badgeDone: { backgroundColor: C.successSoft },
   badgeAttn: { backgroundColor: C.emberSoft },
+  badgeMissed: { backgroundColor: C.dangerSoft },
   badgeText: { fontFamily: C.fontDisplay, fontSize: 10, letterSpacing: 0.6 },
   attnNote: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
   dumbbell: { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
@@ -1807,9 +2069,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   setupBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary, textAlign: 'center' },
 
   // ── FAB ──────────────────────────────────────────────────────────────────--
+  // `bottom` is set inline (insets-aware, clears the floating dock) — see caller.
   fab: {
     position: 'absolute',
-    bottom: 100,
     right: Spacing.containerPadding,
     width: 56, height: 56, borderRadius: Radius.full,
     backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',

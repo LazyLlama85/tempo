@@ -10,7 +10,8 @@ import { useMemo, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, ScrollView,
 } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
+import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -64,6 +65,14 @@ export default function ExerciseLibraryScreen() {
   const [equip, setEquip] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [formEx, setFormEx] = useState<FormExercise | null>(null)
+  // Tap the add-circle on any row to stage it, then "Add to a workout" opens the
+  // builder pre-loaded with everything staged — the Library was previously a
+  // dead end (view-only); this is the direct add path the builder's own picker
+  // sheet already had.
+  const [picked, setPicked] = useState<Exercise[]>([])
+  const isPicked = (id: string) => picked.some((p) => p.id === id)
+  const togglePick = (ex: Exercise) =>
+    setPicked((p) => (p.some((x) => x.id === ex.id) ? p.filter((x) => x.id !== ex.id) : [...p, ex]))
 
   const families = useMemo(
     () => groupFamilies(searchLibrary(library ?? [], query, { muscleGroup: group, equipment: equip })),
@@ -83,15 +92,19 @@ export default function ExerciseLibraryScreen() {
     setExpanded(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
   const totalCount = useMemo(() => families.reduce((n, f) => n + f.members.length, 0), [families])
 
+  const addToWorkout = () => {
+    const ids = picked.map((p) => p.id).join(',')
+    setPicked([])
+    router.push({ pathname: '/workout-builder', params: { addExerciseIds: ids } } as any)
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close library">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Exercise Library</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Exercise Library"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close library" />}
+      />
 
       {/* Search */}
       <View style={styles.searchBox}>
@@ -148,16 +161,33 @@ export default function ExerciseLibraryScreen() {
             </Text>
           }
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Nothing matches — try a different search or filter.</Text>
+            <EmptyState kind="chart" title="No results" body="Nothing matches — try a different search or filter." />
           }
           renderItem={({ item }) => item.type === 'variant'
-            ? <VariantRow ex={item.ex} styles={styles} C={C} onPress={() => setFormEx(item.ex as FormExercise)} />
+            ? <VariantRow ex={item.ex} styles={styles} C={C}
+                onPress={() => setFormEx(item.ex as FormExercise)}
+                isPicked={isPicked(item.ex.id)} onTogglePick={() => togglePick(item.ex)} />
             : <FamilyRow family={item.family} styles={styles} C={C}
                 isOpen={expanded.has(item.family.key)}
                 onToggle={() => toggle(item.family.key)}
-                onPress={() => setFormEx(item.family.representative as FormExercise)} />
+                onPress={() => setFormEx(item.family.representative as FormExercise)}
+                isPicked={isPicked(item.family.representative.id)}
+                onTogglePick={() => togglePick(item.family.representative)} />
           }
         />
+      )}
+
+      {picked.length > 0 && (
+        <View style={[styles.pickBar, { paddingBottom: Math.max(Spacing.sm, 8) }]}>
+          <TouchableOpacity onPress={() => setPicked([])} hitSlop={8} style={styles.pickClear}>
+            <Ionicons name="close" size={16} color={C.textSecondary} />
+            <Text style={styles.pickClearText}>{picked.length} selected</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.pickAddBtn} onPress={addToWorkout} activeOpacity={0.85}>
+            <Ionicons name="arrow-forward-circle" size={18} color={C.onPrimary} />
+            <Text style={styles.pickAddBtnText}>Add to a workout</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <ExerciseFormSheet exercise={formEx} onClose={() => setFormEx(null)} />
@@ -165,8 +195,22 @@ export default function ExerciseLibraryScreen() {
   )
 }
 
-function FamilyRow({ family, styles, C, isOpen, onToggle, onPress }: {
+function AddPickButton({ isPicked, onPress, C }: { isPicked: boolean; onPress: () => void; C: Palette }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={isPicked ? 'Remove from selection' : 'Add to workout selection'}
+    >
+      <Ionicons name={isPicked ? 'checkmark-circle' : 'add-circle-outline'} size={26} color={isPicked ? C.success : C.primary} />
+    </TouchableOpacity>
+  )
+}
+
+function FamilyRow({ family, styles, C, isOpen, onToggle, onPress, isPicked, onTogglePick }: {
   family: ExerciseFamily; styles: any; C: Palette; isOpen: boolean; onToggle: () => void; onPress: () => void
+  isPicked: boolean; onTogglePick: () => void
 }) {
   const item = family.representative
   const count = family.members.length
@@ -192,12 +236,14 @@ function FamilyRow({ family, styles, C, isOpen, onToggle, onPress }: {
           </TouchableOpacity>
         )}
       </View>
-      <Ionicons name="chevron-forward" size={15} color={C.outline} />
+      <AddPickButton isPicked={isPicked} onPress={onTogglePick} C={C} />
     </TouchableOpacity>
   )
 }
 
-function VariantRow({ ex, styles, C, onPress }: { ex: Exercise; styles: any; C: Palette; onPress: () => void }) {
+function VariantRow({ ex, styles, C, onPress, isPicked, onTogglePick }: {
+  ex: Exercise; styles: any; C: Palette; onPress: () => void; isPicked: boolean; onTogglePick: () => void
+}) {
   const equip = equipLabelFor(ex)
   return (
     <TouchableOpacity style={styles.variantRow} onPress={onPress} activeOpacity={0.7}>
@@ -206,7 +252,7 @@ function VariantRow({ ex, styles, C, onPress }: { ex: Exercise; styles: any; C: 
         <Text style={styles.variantName} numberOfLines={1}>{ex.name}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>{[equip, ex.experience_level].filter(Boolean).join(' · ')}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={14} color={C.outline} />
+      <AddPickButton isPicked={isPicked} onPress={onTogglePick} C={C} />
     </TouchableOpacity>
   )
 }
@@ -279,4 +325,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   variantTick: { width: 3, height: 24, borderRadius: 2, backgroundColor: C.outlineVariant },
   variantName: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.text },
+  pickBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm,
+    backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.outlineVariant,
+  },
+  pickClear: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pickClearText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+  pickAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.primary,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2,
+  },
+  pickAddBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.onPrimary },
 })

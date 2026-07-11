@@ -5,11 +5,11 @@
 // fresh (create), with ?templateId to edit a saved template, and ?date to preset the
 // schedule day (e.g. tapped a calendar day).
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator,
 } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -22,6 +22,7 @@ import { scheduleWorkoutReminders, requestPermissions } from '@/lib/notification
 import { suggestTimeOnDate } from '@/lib/reschedule'
 import { useWeightUnit, unitLabel, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
+import { useExerciseLibrary } from '@/lib/exerciseSearch'
 import { OptionSheet } from '@/components/OptionSheet'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { EXERCISE_COLUMNS } from '@/lib/customExercises'
@@ -44,7 +45,7 @@ export default function WorkoutBuilderScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { templateId, date, presetId, forSplit } = useLocalSearchParams<{ templateId?: string; date?: string; presetId?: string; forSplit?: string }>()
+  const { templateId, date, presetId, forSplit, addExerciseIds } = useLocalSearchParams<{ templateId?: string; date?: string; presetId?: string; forSplit?: string; addExerciseIds?: string }>()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const unit = useWeightUnit()
@@ -99,6 +100,20 @@ export default function WorkoutBuilderScreen() {
       })()
     }
   }, [templateId, presetId, userId])
+
+  // Exercises picked from the standalone Exercise Library (which has no way to
+  // hold a draft of its own) arrive as ids on the URL; add them once the shared,
+  // already-cached library query resolves. Gated on a ref so re-navigating back
+  // to this same screen instance (e.g. after removing one) doesn't re-add it.
+  const { data: pickerLibrary } = useExerciseLibrary(!!addExerciseIds)
+  const appliedPickRef = useRef(false)
+  useEffect(() => {
+    if (!addExerciseIds || appliedPickRef.current || !pickerLibrary) return
+    appliedPickRef.current = true
+    const ids = new Set(addExerciseIds.split(',').filter(Boolean))
+    const toAdd = pickerLibrary.filter((ex) => ids.has(ex.id))
+    if (toAdd.length) setItems((p) => [...p, ...toAdd.filter((ex) => !p.some((i) => i.exercise.id === ex.id)).map(makeDraftItem)])
+  }, [addExerciseIds, pickerLibrary])
 
   // Suggest a calendar-aware time whenever the chosen day changes (schedule mode
   // only). It fills the field only while the user hasn't picked a time themselves.
@@ -373,17 +388,16 @@ function Header({ C, styles, onClose, title, onSave, saving, saveLabel }: {
   onSave?: () => void; saving?: boolean; saveLabel?: string
 }) {
   return (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"><Ionicons name="close" size={26} color={C.text} /></TouchableOpacity>
-      <Text style={styles.headerTitle}>{title}</Text>
-      {onSave ? (
+    <ScreenHeader
+      title={title}
+      size="sm"
+      leading={<DismissButton kind="x" onPress={onClose} label="Close" />}
+      right={onSave ? (
         <TouchableOpacity onPress={onSave} disabled={saving} hitSlop={8} accessibilityRole="button" accessibilityLabel={saveLabel ?? 'Save'}>
           {saving ? <ActivityIndicator color={C.primary} /> : <Text style={styles.headerSave}>{saveLabel ?? 'Save'}</Text>}
         </TouchableOpacity>
-      ) : (
-        <View style={{ width: 44 }} />
-      )}
-    </View>
+      ) : undefined}
+    />
   )
 }
 

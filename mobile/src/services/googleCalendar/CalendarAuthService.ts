@@ -25,6 +25,17 @@ const SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ')
 let accessToken: string | null = null
 let accessTokenExpiry = 0
 
+// Set when the Edge Function reports the stored refresh token was revoked/expired
+// (it deletes the row server-side and returns 409 reconnect_required — most often
+// because the Google OAuth consent screen is still in "Testing" mode, which
+// auto-expires refresh tokens after 7 days). Callers used to just see a generic
+// failure and silently get an empty event list forever; this flag lets the UI
+// show a real "reconnect Google Calendar" prompt instead.
+let reconnectRequired = false
+export function googleCalendarNeedsReconnect(): boolean {
+  return reconnectRequired
+}
+
 export interface ConnectResult {
   ok: boolean
   /** machine-readable reason when ok === false (e.g. 'cancelled', 'no_refresh_token') */
@@ -174,6 +185,7 @@ export async function connectGoogleCalendar(): Promise<ConnectResult> {
     accessToken = providerToken
     accessTokenExpiry = Date.now() + 55 * 60 * 1000
   }
+  reconnectRequired = false
   return { ok: true }
 }
 
@@ -190,8 +202,11 @@ export async function getGoogleAccessToken(): Promise<string | null> {
   if (error || !data?.access_token) {
     accessToken = null
     accessTokenExpiry = 0
+    const reason = error ? await fnErrorReason(error) : (data as { error?: string } | null)?.error
+    reconnectRequired = reason === 'reconnect_required'
     return null
   }
+  reconnectRequired = false
   accessToken = data.access_token
   accessTokenExpiry = Date.now() + (data.expires_in ?? 3600) * 1000
   return accessToken
@@ -217,6 +232,7 @@ export async function isGoogleCalendarConnected(): Promise<boolean> {
 export async function disconnectGoogleCalendar(): Promise<void> {
   accessToken = null
   accessTokenExpiry = 0
+  reconnectRequired = false
   try {
     await supabase.functions.invoke(TOKEN_EDGE_FUNCTION, { body: { action: 'disconnect' } })
   } catch {

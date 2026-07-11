@@ -9,6 +9,7 @@
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter } from 'expo-router'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -46,13 +47,11 @@ export default function LegalScreen() {
   const router = useRouter()
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Privacy & Terms</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Privacy & Terms"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Privacy Policy</Text>

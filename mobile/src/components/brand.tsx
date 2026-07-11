@@ -2,13 +2,18 @@
 //
 //   • TempoWordmark — the lowercase wordmark with the pulsing metronome dot
 //   • TempoPulse    — the 4-bar rhythm mark (loading / celebration accent)
-//   • ScreenHeader  — shared masthead: wordmark or title, right-side actions,
-//                     and the signature amber tick + hairline rule
+//   • ScreenHeader  — shared masthead: wordmark or title, an optional leading
+//                     dismiss affordance, right-side actions, and the signature
+//                     amber tick + hairline rule
+//   • DismissButton — the leading chevron/X/back affordance for modal & pushed
+//                     screens (kills the 18× hand-rolled copies)
+//   • HeaderActions — a row wrapper so `right` can hold several actions
 //
 // The pulse is Tempo's signature motif: training is rhythm, the app keeps time.
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Animated, Easing, Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Animated, Easing, Image, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { Spacing } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useReducedMotion, useScreenFocused } from '@/components/motion'
@@ -154,29 +159,54 @@ interface HeaderProps {
   title?: string
   subtitle?: string
   right?: ReactNode
+  /**
+   * A leading affordance on the left (dismiss chevron / X / back). When present
+   * the header switches to a balanced, centered layout — the title (or wordmark)
+   * sits between `leading` and `right`. Typically a <DismissButton />.
+   */
+  leading?: ReactNode
   /** The amber tick + hairline rule under the masthead (default true). */
   rule?: boolean
+  /** 'md' = 24px masthead (root tabs); 'sm' = 18px + no pulse (runner, modals). */
+  size?: 'md' | 'sm'
 }
 
-export function ScreenHeader({ title, subtitle, right, rule = true }: HeaderProps) {
+// Minimum width reserved on each side in centered mode, so a modal title with an
+// empty right slot still lands optically centered (the DismissButton's width).
+const HEADER_SIDE = 32
+
+export function ScreenHeader({ title, subtitle, right, leading, rule = true, size = 'md' }: HeaderProps) {
   const styles = useThemedStyles(makeHeaderStyles)
+  const centered = leading != null
+  const titleStyle = size === 'sm' ? styles.titleSm : styles.title
+
+  const masthead = title ? (
+    <>
+      <Text style={[titleStyle, centered && styles.centerText]} numberOfLines={1}>{title}</Text>
+      {subtitle ? <Text style={[styles.subtitle, centered && styles.centerText]} numberOfLines={1}>{subtitle}</Text> : null}
+    </>
+  ) : (
+    <>
+      <TempoWordmark size={size === 'sm' ? 18 : 24} pulse={size !== 'sm'} />
+      {subtitle ? <Text style={[styles.subtitle, centered && styles.centerText]} numberOfLines={1}>{subtitle}</Text> : null}
+    </>
+  )
+
   return (
     <View>
       <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          {title ? (
-            <>
-              <Text style={styles.title} numberOfLines={1}>{title}</Text>
-              {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
-            </>
-          ) : (
-            <>
-              <TempoWordmark />
-              {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
-            </>
-          )}
-        </View>
-        {right}
+        {centered ? (
+          <>
+            <View style={styles.side}>{leading}</View>
+            <View style={styles.center}>{masthead}</View>
+            <View style={[styles.side, styles.sideRight]}>{right}</View>
+          </>
+        ) : (
+          <>
+            <View style={{ flex: 1 }}>{masthead}</View>
+            {right}
+          </>
+        )}
       </View>
       {rule && (
         <View style={styles.ruleRow}>
@@ -188,12 +218,39 @@ export function ScreenHeader({ title, subtitle, right, rule = true }: HeaderProp
   )
 }
 
+/** Leading dismiss affordance for modal (chevron/X) and pushed (back) screens. */
+export function DismissButton({
+  kind = 'chevron', onPress, label = 'Close',
+}: { kind?: 'chevron' | 'x' | 'back'; onPress: () => void; label?: string }) {
+  const C = useTheme()
+  const icon = kind === 'x' ? 'close' : kind === 'back' ? 'chevron-back' : 'chevron-down'
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name={icon} size={26} color={C.text} />
+    </TouchableOpacity>
+  )
+}
+
+/** Row wrapper so a header's `right` slot can hold several actions with a gap. */
+export function HeaderActions({ children }: { children: ReactNode }) {
+  return <View style={styles_headerActions}>{children}</View>
+}
+const styles_headerActions: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }
+
 const makeHeaderStyles = (C: Palette) => StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm,
   },
+  // Centered layout: equal-width sides frame a centered masthead. When the two
+  // sides differ in width (e.g. a wide Pause vs a narrow avatar) the masthead is
+  // optically — not pixel — centered, matching the runner's old space-between look.
+  side: { minWidth: HEADER_SIDE, justifyContent: 'center' },
+  sideRight: { alignItems: 'flex-end' },
+  center: { flex: 1, alignItems: 'center' },
+  centerText: { textAlign: 'center' },
   title: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.5 },
+  titleSm: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   subtitle: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, marginTop: 1 },
   ruleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

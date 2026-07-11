@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 import { computeReadiness, readinessLabel, saveCheckin, type RecoveryInputs } from '@/lib/recovery'
 
 
@@ -36,11 +37,8 @@ export function RecoveryCheckIn({ visible, userId, onClose, onSaved }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+    <TempoSheet visible={visible} onClose={onClose}>
         <View style={styles.sheet}>
-          <View style={styles.handle} />
           <Text style={styles.eyebrow}>DAILY CHECK-IN</Text>
           <Text style={styles.title}>How are you recovering?</Text>
 
@@ -88,23 +86,17 @@ export function RecoveryCheckIn({ visible, userId, onClose, onSaved }: Props) {
             <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save check-in'}</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: C.surface,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.containerPadding,
     paddingBottom: Spacing.lg,
     gap: Spacing.sm,
   },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.sm },
   metric: { gap: 6, marginBottom: Spacing.xs },

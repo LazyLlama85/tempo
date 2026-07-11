@@ -6,14 +6,18 @@
 // the rest of Tempo's dark sheets. Values are 'HH:MM:SS' (24h) for storage.
 
 import { useEffect, useRef } from 'react'
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native'
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 
 const STEP = 15
 const ROW_H = 48
+const SNAP_FRACTION = 0.70   // must match the TempoSheet snapPoints={['70%']} below
+const HEADER_H = 44          // approx. rendered height of the title/Clear row
 
 export interface TimeOption { value: string; label: string }
 
@@ -63,8 +67,19 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
-  const scrollRef = useRef<ScrollView>(null)
+  const { height: winH } = useWindowDimensions()
+  const scrollRef = useRef<any>(null)
   const selectedKey = toKey(value)
+
+  // gorhom's BottomSheetView (used for the non-`scroll` TempoSheet mode, needed
+  // here to keep the header pinned above the list) has no bottom/height in its
+  // default style — inside a fixed snapPoints sheet that leaves the nested
+  // BottomSheetScrollView with no bounded viewport to scroll within, so it just
+  // renders all 96 rows at full height and anything past the snap point is
+  // clipped with no way to reach it (can't pick a time later than ~mid-afternoon).
+  // Giving the list an explicit height (snap-point fraction of the window, minus
+  // the header) restores real scrolling.
+  const listHeight = Math.max(ROW_H * 3, winH * SNAP_FRACTION - HEADER_H - Spacing.sm - Math.max(insets.bottom, Spacing.md))
 
   // Jump the list to the current value when the sheet opens.
   useEffect(() => {
@@ -76,49 +91,42 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
   }, [visible, selectedKey])
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            {onClear && (
-              <TouchableOpacity onPress={onClear} hitSlop={8}>
-                <Text style={styles.clear}>Clear</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <ScrollView ref={scrollRef} style={styles.list} showsVerticalScrollIndicator={false}>
-            {OPTIONS.map(o => {
-              const sel = o.value === selectedKey
-              return (
-                <TouchableOpacity
-                  key={o.value}
-                  style={[styles.row, sel && styles.rowSel]}
-                  onPress={() => onSelect(o.value)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.rowText, sel && styles.rowTextSel]}>{o.label}</Text>
-                  {sel && <Ionicons name="checkmark" size={18} color={C.primary} />}
-                </TouchableOpacity>
-              )
-            })}
-            <View style={{ height: Spacing.lg }} />
-          </ScrollView>
+    <TempoSheet visible={visible} onClose={onClose} snapPoints={['70%']}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{title}</Text>
+          {onClear && (
+            <TouchableOpacity onPress={onClear} hitSlop={8}>
+              <Text style={styles.clear}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
+        <BottomSheetScrollView ref={scrollRef} style={[styles.list, { height: listHeight }]} showsVerticalScrollIndicator={false}>
+          {OPTIONS.map(o => {
+            const sel = o.value === selectedKey
+            return (
+              <TouchableOpacity
+                key={o.value}
+                style={[styles.row, sel && styles.rowSel]}
+                onPress={() => onSelect(o.value)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.rowText, sel && styles.rowTextSel]}>{o.label}</Text>
+                {sel && <Ionicons name="checkmark" size={18} color={C.primary} />}
+              </TouchableOpacity>
+            )
+          })}
+          <View style={{ height: Spacing.lg }} />
+        </BottomSheetScrollView>
       </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md, maxHeight: '70%',
+    flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md,
   },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
   title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   clear: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.error },

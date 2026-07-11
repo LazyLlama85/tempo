@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator,
 } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -155,15 +155,16 @@ export default function EditSessionScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Workout</Text>
-        <TouchableOpacity onPress={save} disabled={saving} hitSlop={8}>
-          {saving ? <ActivityIndicator color={C.primary} /> : <Text style={styles.save}>Save</Text>}
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Edit Workout"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+        right={
+          <TouchableOpacity onPress={save} disabled={saving} hitSlop={8}>
+            {saving ? <ActivityIndicator color={C.primary} /> : <Text style={styles.save}>Save</Text>}
+          </TouchableOpacity>
+        }
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading workout…" /></View>

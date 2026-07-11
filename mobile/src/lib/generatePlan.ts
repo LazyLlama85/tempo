@@ -7,6 +7,7 @@ import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { sweepScheduledPlanRows } from '@/lib/retireWorkouts'
 import { ensureAutoSplit } from '@/lib/splits'
 import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgramming'
+import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
 
 export interface PlanProfile {
   goal: Goal
@@ -97,10 +98,10 @@ function getStartMonday(): Date {
   return monday
 }
 
+// Delegates to the shared formatter in planRollover so the rollover kernel and the
+// plan generator can never disagree on how a planned_date is spelled.
 function formatDate(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
+  return formatLocalDate(d)
 }
 
 // A session as a coach would write it: an ORDERED list of slots, each with a
@@ -660,8 +661,9 @@ function buildBlockRows(
 }
 
 // ── Plan rollover — the plan never just ends ──────────────────────────────────
-
-const PLAN_RUNWAY_DAYS = 7
+// The runway/week-count decision lives in the pure, unit-tested `planRollover`
+// kernel (PLAN_RUNWAY_DAYS / planNeedsExtension / planExtensionWeeks) — this
+// orchestrates the DB reads/writes around it.
 
 // When the active plan's last scheduled session is within PLAN_RUNWAY_DAYS (or
 // already past), materialize the next 4-week block: week_index keeps counting up,
@@ -693,9 +695,7 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const runwayEnd = new Date(today)
-    runwayEnd.setDate(today.getDate() + PLAN_RUNWAY_DAYS)
-    if ((lastRow.planned_date as string) > formatDate(runwayEnd)) return 0
+    if (!planNeedsExtension(lastRow.planned_date as string, today, PLAN_RUNWAY_DAYS)) return 0
 
     const { data: lastWeekRow } = await client
       .from('scheduled_workouts')
@@ -737,8 +737,7 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
     // today + a full block; past-dated rows are skipped, so only the future lands.
     const startMonday = new Date(`${plan.start_date}T00:00:00`)
     const weeksSinceStart = Math.max(0, Math.floor((today.getTime() - startMonday.getTime()) / (7 * 86_400_000)))
-    const weekFrom = lastWeek + 1
-    const weekCount = Math.max(BLOCK_WEEKS, weeksSinceStart + BLOCK_WEEKS - weekFrom + 1)
+    const { weekFrom, weekCount } = planExtensionWeeks({ lastWeek, weeksSinceStart })
 
     const rows = buildBlockRows(
       ctx, userId, plan.id as string, startMonday,

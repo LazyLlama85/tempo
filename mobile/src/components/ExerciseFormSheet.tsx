@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Modal, View, Text, ScrollView, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, Linking, Animated, ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { TempoSheet } from '@/components/TempoSheet'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
@@ -39,6 +40,22 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   // Shown directly — far more reliable than a fuzzy name search.
   const curated = getExerciseGifSource(exercise?.id)
   const curatedNote = getExerciseMedia(exercise?.id)?.note ?? null
+  // The curated/derived clip's <Image> had NO error handling at all — a single
+  // failed request (RapidAPI rate limit, a transient network hiccup, an id the
+  // image endpoint doesn't have) rendered nothing with no fallback, which reads
+  // as "this exercise has no GIF" even though the vast majority genuinely have
+  // one. Retry the exact same request once (remount via `key`), then fall back
+  // to the illustration so a real gap and a transient blip don't look identical.
+  const [curatedRetry, setCuratedRetry] = useState(0)
+  const [curatedFailed, setCuratedFailed] = useState(false)
+  useEffect(() => { setCuratedRetry(0); setCuratedFailed(false) }, [exercise?.id])
+  const handleCuratedError = () => {
+    setCuratedRetry((n) => {
+      if (n < 1) return n + 1
+      setCuratedFailed(true)
+      return n
+    })
+  }
   const [gifId, setGifId] = useState<string | null>(null)
   const [gifLoading, setGifLoading] = useState(false)
   // Imported-library rows keep their steps in ExerciseDB, not the DB (the seed
@@ -107,18 +124,18 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   }, [gifLoading])
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={styles.backdropTap} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-          <View style={styles.handle} />
-
-          {exercise && (
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scroll}
-              bounces={false}
-            >
+    // `scroll`: TempoSheet's own BottomSheetScrollView is the single top-level
+    // scroll container (gorhom's non-scroll BottomSheetView has no bottom/height
+    // in its default style, so a *nested* scroll view inside it never gets a
+    // bounded viewport to scroll within — the whole form guide, including "Done"
+    // below it, would render at full content height and anything past the 92%
+    // snap point was clipped and unreachable for exercises with long
+    // instructions). "Done" now lives as the last scrollable item instead of a
+    // separately-pinned footer — reachable the same way the rest of the guide is.
+    <TempoSheet visible={visible} onClose={onClose} snapPoints={['92%']} scroll>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        {exercise && (
+          <>
               {/* Title */}
               <Text style={styles.eyebrow}>
                 {exercise.movement_pattern.replace(/_/g, ' ').toUpperCase()} · FORM GUIDE
@@ -128,9 +145,15 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
               {/* GIF hero */}
               <View style={styles.mediaContainer}>
                 {/* Verified clip by id (local or curated) — shown directly */}
-                {curated && (
+                {curated && !curatedFailed && (
                   <View style={styles.gifWrapper}>
-                    <Image source={curated} style={styles.gifImage} contentFit="contain" />
+                    <Image
+                      key={curatedRetry}
+                      source={curated}
+                      style={styles.gifImage}
+                      contentFit="contain"
+                      onError={handleCuratedError}
+                    />
                     {exercise.video_url && (
                       <TouchableOpacity
                         style={styles.playPill}
@@ -145,7 +168,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* Loading skeleton */}
-                {!curated && gifLoading && (
+                {(!curated || curatedFailed) && gifLoading && (
                   <Animated.View style={[styles.skeleton, { opacity: pulseAnim }]}>
                     <View style={styles.skeletonIcon}>
                       <Ionicons name="barbell-outline" size={36} color={C.outlineVariant} />
@@ -155,7 +178,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* GIF with fade-in */}
-                {!curated && !gifLoading && gifId && (
+                {(!curated || curatedFailed) && !gifLoading && gifId && (
                   <Animated.View style={[styles.gifWrapper, { opacity: fadeAnim }]}>
                     <Image
                       source={gifSource(gifId)}
@@ -176,7 +199,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* No GIF fallback */}
-                {!curated && !gifLoading && !gifId && (
+                {(!curated || curatedFailed) && !gifLoading && !gifId && (
                   <TouchableOpacity
                     style={styles.noGifFallback}
                     activeOpacity={exercise.video_url ? 0.8 : 1}
@@ -195,7 +218,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
               </View>
 
               {/* Caveat when the clip is a close variant (e.g. loaded version) */}
-              {curated && curatedNote && (
+              {curated && !curatedFailed && curatedNote && (
                 <View style={styles.noteRow}>
                   <Ionicons name="information-circle-outline" size={13} color={C.outline} />
                   <Text style={styles.noteText}>{curatedNote}</Text>
@@ -256,44 +279,24 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                   </View>
                 </>
               )}
-            </ScrollView>
-          )}
 
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.closeBtnText}>Done</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
+                <Text style={styles.closeBtnText}>Done</Text>
+              </TouchableOpacity>
+          </>
+        )}
       </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(10,10,12,0.6)',
-    justifyContent: 'flex-end',
-  },
-  backdropTap: { flex: 1 },
   sheet: {
-    backgroundColor: C.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '92%',
+    gap: Spacing.sm,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.containerPadding,
     paddingBottom: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 20,
   },
-  handle: {
-    width: 36, height: 4, borderRadius: Radius.full,
-    backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.lg,
-  },
-  scroll: { gap: Spacing.sm, paddingBottom: Spacing.md },
 
   eyebrow: {
     fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary,

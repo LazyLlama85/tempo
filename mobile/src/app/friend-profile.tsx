@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -78,13 +78,11 @@ export default function FriendProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Profile"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Back" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading profile…" /></View>

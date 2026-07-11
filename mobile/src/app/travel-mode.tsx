@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Colors, Spacing, Radius } from '@/constants/theme'
@@ -125,13 +126,11 @@ export default function TravelModeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Travel Mode</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Travel Mode"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       {/* Keyboard insets: the label field is the last element, so the keyboard
           would otherwise cover it completely. */}

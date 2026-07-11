@@ -1,36 +1,14 @@
-import { useState, useEffect } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, ScrollView, Platform, ActivityIndicator, Alert } from 'react-native'
+import { useState } from 'react'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius } from '@/constants/theme'
+import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
-import { connectGoogleCalendar, isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
-import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
 import { useAuthStore } from '@/stores/auth'
 
-
-const WHY_CONNECT = [
-  'Tempo schedules your workouts automatically around your real events',
-  'When a meeting moves, your workout quietly reschedules itself',
-  'Tempo only reads busy times to plan around — your events are never stored on our servers',
-]
-
-// Map the connect error codes to plain language (mirrors the Smart Scheduler).
-function friendlyConnect(code?: string): string {
-  switch (code) {
-    case 'cancelled': return 'Sign-in was cancelled.'
-    case 'no_refresh_token': return 'Google didn’t grant offline access — allow Calendar permission and try again.'
-    case 'store_failed': return 'Couldn’t reach the scheduling service. Please try again.'
-    case 'not_signed_in': return 'Please sign in first, then connect your calendar.'
-    case 'identity_taken': return 'That Google account already has its own Tempo login. To use it, sign out and sign back in with Google — or connect your Device Calendar instead.'
-    case 'link_unavailable': return 'Google Calendar can’t be attached to a non-Google account on this build — connect your Device Calendar instead (it works the same way).'
-    case 'session_switched': return 'That Google account doesn’t match your Tempo account. Please try again with the same account.'
-    default: return code ? `Connection failed — ${code}` : 'Something went wrong connecting. Please try again.'
-  }
-}
 
 export default function ScheduleScreen() {
   const C = useTheme()
@@ -45,58 +23,19 @@ export default function ScheduleScreen() {
     return d >= 2 && d <= 6 ? d : 3
   })
   // Connecting a calendar does NOT force automatic scheduling — the user chooses.
+  // Calendar connection itself now happens after onboarding (Home prompt / Profile →
+  // Calendar), so the critical path to a first workout never touches OAuth. A user
+  // who never connects still gets auto placement from Tempo's free-slot engine.
   const [schedulingMode, setSchedulingMode] = useState<'auto' | 'manual'>(
     profile?.scheduling_mode === 'manual' ? 'manual' : 'auto',
   )
-  // Real connection state — which calendar is connected, and which (if any) is
-  // mid-connect. No more "just turn the button green".
-  const [connectedProvider, setConnectedProvider] = useState<'google' | 'device' | null>(null)
-  const [connecting, setConnecting] = useState<null | 'google' | 'device'>(null)
 
-  // Reflect a real, deliberate prior connection (e.g. re-running onboarding via
-  // "Change Plan"): Google when its token is stored, the device calendar only when
-  // the user explicitly chose it before (preferred_calendar) AND access is granted.
-  // A pre-existing OS permission alone never auto-connects the device calendar.
-  useEffect(() => {
-    (async () => {
-      try {
-        if (await isGoogleCalendarConnected()) { setConnectedProvider('google'); return }
-        if (profile?.preferred_calendar === 'device' && (await getCalendarPermissionStatus()) === 'granted') {
-          setConnectedProvider('device')
-        }
-      } catch { /* leave disconnected */ }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Real Google OAuth — the exact same flow as Settings / Smart Scheduler.
-  const handleConnectGoogle = async () => {
-    if (connecting) return
-    setConnecting('google')
-    const r = await connectGoogleCalendar()
-    setConnecting(null)
-    if (r.ok) setConnectedProvider('google')
-    else Alert.alert('Couldn’t connect', friendlyConnect(r.error))
-  }
-
-  // Device (Apple) calendar — real OS permission prompt.
-  const handleConnectDevice = async () => {
-    if (connecting) return
-    setConnecting('device')
-    const granted = await requestCalendarPermissions()
-    setConnecting(null)
-    if (granted) setConnectedProvider('device')
-    else Alert.alert('Permission needed', 'Allow calendar access to sync workouts to your device calendar. You can enable this later in Settings.')
-  }
-
-  // Carry the connected calendar forward so the availability + plan steps can use it.
+  // Carry the cadence + scheduling mode forward. (An already-connected calendar, e.g.
+  // on Change Plan re-entry, keeps its saved preferred_calendar — plan-preview leaves
+  // that field untouched when no preferredCalendar param is present.)
   const goNext = () => router.push({
     pathname: '/onboarding/availability',
-    params: {
-      goal, experience, equipment, daysPerWeek: String(daysPerWeek),
-      schedulingMode,
-      ...(connectedProvider ? { preferredCalendar: connectedProvider } : {}),
-    },
+    params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode },
   })
 
   return (
@@ -112,15 +51,15 @@ export default function ScheduleScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '66%' }]} />
+        <View style={[styles.progressFill, { width: '50%' }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 4 OF 6</Text>
-        <Text style={styles.title}>Choose your calendar.</Text>
+        <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
+        <Text style={styles.title}>Your training rhythm.</Text>
         <Text style={styles.subtitle}>
-          Pick the calendar you actually use. Tempo reads your free time from it and
-          schedules your workouts around your real life — automatically.
+          How many days a week, and whether Tempo places each workout for you or you
+          pick the times yourself. You can connect a calendar later for smarter placement.
         </Text>
 
         {/* Days per week selector */}
@@ -142,57 +81,7 @@ export default function ScheduleScreen() {
           </View>
         </View>
 
-        {/* Calendar connect buttons — real auth, clear connected status */}
-        {connectedProvider ? (
-          <View style={styles.connectedBadge}>
-            <Ionicons name="checkmark-circle" size={20} color={C.success} />
-            <Text style={styles.connectedText}>
-              {connectedProvider === 'google' ? 'Google Calendar connected' : 'Device Calendar connected'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.calendarButtons}>
-            <PressableScale
-              style={[styles.calendarBtn, !!connecting && { opacity: 0.6 }]}
-              onPress={handleConnectGoogle}
-              disabled={!!connecting}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#EA4335" />
-              <Text style={styles.calendarBtnText}>Connect Google Calendar</Text>
-              {connecting === 'google'
-                ? <ActivityIndicator color={C.primary} />
-                : <Ionicons name="chevron-forward" size={16} color={C.outline} />}
-            </PressableScale>
-            {/* The device calendar works on BOTH platforms (expo-calendar) — Android
-                users on Samsung/Outlook/local calendars need this option too. */}
-            <PressableScale
-              style={[styles.calendarBtn, !!connecting && { opacity: 0.6 }]}
-              onPress={handleConnectDevice}
-              disabled={!!connecting}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="calendar" size={20} color={C.text} />
-              <Text style={styles.calendarBtnText}>Connect Device Calendar</Text>
-              {connecting === 'device'
-                ? <ActivityIndicator color={C.primary} />
-                : <Ionicons name="chevron-forward" size={16} color={C.outline} />}
-            </PressableScale>
-          </View>
-        )}
-
-        {/* Why connect */}
-        <View style={styles.whySection}>
-          <Text style={styles.whyLabel}>WHY CONNECT?</Text>
-          {WHY_CONNECT.map((item) => (
-            <View key={item} style={styles.whyRow}>
-              <Ionicons name="checkmark-circle-outline" size={18} color={C.primary} />
-              <Text style={styles.whyText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* How to schedule — connecting a calendar doesn't force automatic */}
+        {/* How to schedule — connecting a calendar (later) doesn't force automatic */}
         <View style={styles.modeSection}>
           <Text style={styles.whyLabel}>HOW DO YOU WANT WORKOUTS SCHEDULED?</Text>
           {([
@@ -218,7 +107,7 @@ export default function ScheduleScreen() {
           })}
         </View>
 
-        {/* Calendar preview */}
+        {/* Calendar preview — a glimpse of automatic placement around real events */}
         <View style={styles.calendarPreview}>
           <View style={styles.previewHeader}>
             <Text style={styles.previewDate}>Tuesday, Oct 24</Text>
@@ -256,9 +145,6 @@ export default function ScheduleScreen() {
         <PressableScale style={styles.continueBtn} onPress={goNext} activeOpacity={0.85}>
           <Text style={styles.continueBtnText}>Continue</Text>
         </PressableScale>
-        <TouchableOpacity onPress={goNext}>
-          <Text style={styles.skipText}>Maybe later</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   )
@@ -271,26 +157,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.lg },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
-  connectedBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: C.successSoft, padding: Spacing.md, borderRadius: Radius.lg },
-  connectedText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.success },
-  calendarButtons: { gap: Spacing.sm },
-  calendarBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: C.background, borderRadius: Radius.lg,
-    padding: Spacing.md, borderWidth: 1, borderColor: C.outlineVariant,
-  },
-  calendarBtnText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  whySection: { gap: Spacing.sm },
   whyLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  whyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  whyText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
   modeSection: { gap: Spacing.sm },
   modeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: C.background, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, borderColor: C.outlineVariant },
   modeCardSel: { borderColor: C.primary, backgroundColor: C.primarySoft },
@@ -318,7 +191,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
-  skipText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.outline, textAlign: 'center', paddingVertical: Spacing.xs },
   daysSection: { gap: Spacing.xs },
   daysSectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   daysRow: { flexDirection: 'row', gap: Spacing.sm },

@@ -262,7 +262,16 @@ export function searchLibrary(rows: Exercise[], query: string, filters?: Library
     scored.push({ item, score })
   }
 
-  scored.sort((a, b) => b.score - a.score || a.item.ex.name.localeCompare(b.item.ex.name))
+  // On a real relevance tie (notably: no search query at all, pure browsing),
+  // prefer the shorter/plainer name as the tie-break — "Bench Press" reads as
+  // the representative before "Incline Dumbbell Bench Press" rather than
+  // whichever happened to sort alphabetically first. A genuine search match
+  // (e.g. "dumbbell bench") already differentiates scores via scoreToken, so
+  // this never overrides an intentional relevance match.
+  scored.sort((a, b) =>
+    b.score - a.score ||
+    a.item.ex.name.length - b.item.ex.name.length ||
+    a.item.ex.name.localeCompare(b.item.ex.name))
   return scored.map(s => s.item.ex)
 }
 

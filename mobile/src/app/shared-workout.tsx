@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -74,13 +74,11 @@ export default function SharedWorkoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isSplit ? 'Shared Program' : 'Shared Workout'}</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title={isSplit ? 'Shared Program' : 'Shared Workout'}
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Opening…" /></View>

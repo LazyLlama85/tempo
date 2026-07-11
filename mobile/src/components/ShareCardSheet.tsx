@@ -6,12 +6,13 @@
 
 import { useRef, useState } from 'react'
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 import { WrappedCard } from '@/components/WrappedCard'
 import { captionFor, type WrappedCard as CardModel } from '@/lib/wrapped'
 
@@ -102,11 +103,8 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+    <TempoSheet visible={visible} onClose={onClose}>
         <View style={styles.sheet}>
-          <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.title}>Share your card</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
@@ -166,18 +164,12 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
           </TouchableOpacity>
           <View style={{ height: Math.max(insets.bottom, Spacing.md) }} />
         </View>
-      </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm,
-  },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
+  sheet: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
   title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
 

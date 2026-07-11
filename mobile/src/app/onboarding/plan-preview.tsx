@@ -273,10 +273,10 @@ export default function PlanPreviewScreen() {
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView>
-          <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 6 OF 6'}</Text>
-          <Text style={styles.title}>{isReplan ? 'Your new plan is ready.' : 'Your plan is ready.'}</Text>
+          <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 4 OF 4'}</Text>
+          <Text style={styles.title}>{isReplan ? 'Your new plan is ready.' : "Here's your plan."}</Text>
           <Text style={styles.subtitle}>
-            {isReplan ? 'This replaces your current plan — history and PRs stay.' : "Here's what we built for you."}
+            {isReplan ? 'This replaces your current plan — history and PRs stay.' : "Take a look, then we'll build it and set up your week."}
           </Text>
         </FadeInView>
 

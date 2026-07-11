@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -128,13 +128,11 @@ export default function SessionDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close session detail">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Session</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Session"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close session detail" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading this session…" /></View>

@@ -5,11 +5,12 @@
 // lost options there — and a system alert reads generic besides. This is the
 // branded, scrollable list the design system uses instead.
 
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 
 export interface OptionSheetItem {
   key: string
@@ -36,54 +37,43 @@ export function OptionSheet({ visible, title, subtitle, options, onSelect, onClo
   const insets = useSafeAreaInsets()
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>{title}</Text>
-          {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-          <ScrollView style={{ flexGrow: 0 }} showsVerticalScrollIndicator={false}>
-            <View style={styles.list}>
-              {options.map((o) => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={styles.row}
-                  onPress={() => onSelect(o.key)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={o.label}
-                >
-                  {!!o.icon && (
-                    <View style={[styles.iconWrap, o.destructive && { backgroundColor: C.dangerSoft }]}>
-                      <Ionicons name={o.icon as any} size={18} color={o.destructive ? C.error : C.primary} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.rowLabel, o.destructive && { color: C.error }]} numberOfLines={1}>{o.label}</Text>
-                    {!!o.sub && <Text style={styles.rowSub} numberOfLines={2}>{o.sub}</Text>}
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.8}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        <Text style={styles.title}>{title}</Text>
+        {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        <View style={styles.list}>
+          {options.map((o) => (
+            <TouchableOpacity
+              key={o.key}
+              style={styles.row}
+              onPress={() => onSelect(o.key)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={o.label}
+            >
+              {!!o.icon && (
+                <View style={[styles.iconWrap, o.destructive && { backgroundColor: C.dangerSoft }]}>
+                  <Ionicons name={o.icon as any} size={18} color={o.destructive ? C.error : C.primary} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowLabel, o.destructive && { color: C.error }]} numberOfLines={1}>{o.label}</Text>
+                {!!o.sub && <Text style={styles.rowSub} numberOfLines={2}>{o.sub}</Text>}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />
+            </TouchableOpacity>
+          ))}
         </View>
+        <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(27,27,28,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    padding: Spacing.lg, gap: Spacing.sm, maxHeight: '85%',
-  },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
+  sheet: { padding: Spacing.lg, gap: Spacing.sm },
   title: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   list: { gap: Spacing.xs, marginTop: Spacing.xs },

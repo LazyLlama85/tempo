@@ -1,7 +1,61 @@
 # Tempo Project
 
+## ⚠️ No Regressions — Do Not Break Existing Functionality
+This is a recurring, high-priority failure mode: asked to fix/move/restyle one thing, something
+unrelated breaks. Treat every edit as if it must pass a "nothing else changed" diff review.
+
+- **Before editing a file**, read enough of it (and its callers/importers) to know what already
+  works there. Don't guess at surrounding behavior from a snippet.
+- **When moving or refactoring UI**, preserve every existing prop, handler, conditional render,
+  accessibility attribute, and edge-case branch — even ones that look redundant. If you don't
+  understand why a check/branch exists, keep it and ask rather than deleting it.
+- **When "improving" logic**, diff your version against the original behavior mentally (or with
+  `git diff`) before finishing: every input that worked before must still produce the same output,
+  unless the user asked you to change that specific behavior.
+- **Never do drive-by cleanup** on code adjacent to your change (renaming, deleting "unused"
+  branches, reordering) unless asked — it's exactly how unrelated things break.
+- **After the change**, re-check the other screens/components that import or share state with
+  the file(s) you touched, not just the one you were asked about.
+- If a change is large enough that you can't be sure nothing broke, say so explicitly instead of
+  reporting success — call out what you verified and what you didn't.
+
+## Working Method (apply to EVERY feature request)
+Act as a senior staff engineer, product designer, QA engineer, and systems architect at once.
+Never stop at the first solution: always produce an initial solution → a skeptical critique →
+an improved solution, and recommend the improved one. Work through these phases before writing code:
+
+**Phase 1 — Understand:** Restate the feature in your own words. Explain how it interacts with
+existing Tempo systems. List assumptions and missing information.
+
+**Phase 2 — Architecture Review:** Analyze the impact on navigation, state management, database,
+analytics, onboarding, offline behavior, and upgrade/migration.
+
+**Phase 3 — Edge Cases** (write an explicit "Edge Cases" section): force close; offline; a failed
+request; the user skips a step; the user leaves and returns later; upgrading from an older version;
+two actions at once; stale cached data; denied permissions; settings changed mid-flow.
+
+**Phase 4 — "Potential Problems With My Design"** (explicit section): argue as a skeptical senior
+engineer trying to REJECT the proposal — architecture, UX, performance, maintenance, and future-
+scalability risks — then revise the design to address them.
+
+**Phase 5 — Final Recommendation:** only after the self-critique, give implementation recommendations
+(the improved solution, not the first).
+
+**Extend before creating.** Before adding a new table, store, hook, service, or provider, first
+check whether an existing Tempo system already solves part of the problem and whether it can be
+extended safely. Explicitly justify every new architectural component.
+
+(For large multi-part builds, do this analysis up front and proportionally — a short written pass for
+small changes, a full `PLAN.md`-style document for anything touching multiple systems. See `PLAN.md`
+and `AUDIT.md` for the depth expected on big features.)
+
 ## GitHub Push Protocol
-Don't push to GitHub. Make code changes locally only — no commits or pushes unless explicitly asked.
+After each logical unit of work (a bug fix, a feature, a self-contained change) — commit it and
+push to GitHub automatically, without waiting for explicit instruction each time. Write a clear,
+descriptive commit message per the standard commit format. Keep each commit scoped to that one
+change; don't sweep in unrelated uncommitted files. Still never force-push, rewrite history, or
+push anything that looks like it could contain a secret without stopping to confirm first —
+those stay opt-in, not automatic.
 
 ## Documentation Protocol
 **Update `ARCHITECTURE.md` (repo root) every time a change is made** — whenever you add or

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
-import { TempoPulse } from '@/components/brand'
+import { TempoPulse, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
@@ -125,13 +125,11 @@ export default function QuickWorkoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="close" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quick Workout</Text>
-        <View style={{ width: 38 }} />
-      </View>
+      <ScreenHeader
+        title="Quick Workout"
+        size="sm"
+        leading={<DismissButton kind="x" onPress={() => router.back()} label="Close" />}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.lead}>How much time do you have?</Text>

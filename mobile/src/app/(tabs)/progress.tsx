@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Animated, Easing, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { useEffect, useState } from 'react'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -11,17 +11,21 @@ import { useRouter } from 'expo-router'
 import { useProgressStats, type ChartPeriod } from '@/hooks/useProgressStats'
 import { ACHIEVEMENTS, type AchievementStats } from '@/lib/achievements'
 import { LoadingCard } from '@/components/LoadingCard'
-import { TempoWordmark } from '@/components/brand'
+import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { ErrorBanner } from '@/components/ErrorBanner'
-import { FadeInView, PopIn, PressableScale, useReducedMotion, ScreenTransition } from '@/components/motion'
-import { AnimatedRing } from '@/components/AnimatedRing'
+import { FadeInView, PopIn, PressableScale, ScreenTransition } from '@/components/motion'
+import { SvgProgressRing } from '@/components/SvgProgressRing'
+import { SvgLineChart } from '@/components/SvgLineChart'
+import { SvgGrowBar } from '@/components/SvgGrowBar'
 import { CountUp, ConfettiBurst } from '@/components/celebration'
 import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { Avatar } from '@/components/Avatar'
-import { useWeightUnit, unitLabel, displayWeight, displayVolume } from '@/lib/units'
+import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
+import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
+import type { BodyMeasurement } from '@/types'
 
 
 const TIER_COLOR: Record<string, string> = {
@@ -39,22 +43,6 @@ function fmtDate(iso: string): string {
   }
 }
 
-// A chart bar that grows up from the baseline when its value lands or the
-// period changes — the volume chart builds itself in front of you.
-function GrowBar({ height, color, delay = 0 }: { height: number; color: string; delay?: number }) {
-  const reduce = useReducedMotion()
-  const h = useRef(new Animated.Value(reduce ? height : 2)).current
-  useEffect(() => {
-    if (reduce) { h.setValue(height); return }
-    const anim = Animated.timing(h, {
-      toValue: height, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: false,
-    })
-    anim.start()
-    return () => anim.stop()
-  }, [height, reduce, h, delay])
-  return <Animated.View style={{ width: '100%', borderRadius: 6, height: h, backgroundColor: color }} />
-}
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
@@ -67,6 +55,7 @@ export default function ProgressScreen() {
   const unit = useWeightUnit()
   const { stats, isLoading, isError, refetch } = useProgressStats(userId, period)
   const [shareOpen, setShareOpen] = useState(false)
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
 
   const { data: cards = [] } = useQuery<WrappedCard[]>({
     queryKey: ['wrapped_cards', userId],
@@ -78,6 +67,18 @@ export default function ProgressScreen() {
   // Fresh numbers every time the tab comes back into focus — completing a
   // workout must show up here immediately, not after an app restart.
   useRefreshOnFocus(['progress_workouts'], ['progress_set_logs'], ['wrapped_cards'])
+
+  // Weight trend: the math (computeWeightTrend/rollingAverage) already existed
+  // in lib/bodyMeasurements — it was just never charted, only shown as text
+  // numbers on Profile. Same 120-day fetch Profile uses.
+  useEffect(() => {
+    if (userId) fetchMeasurements(supabase, userId, 120).then(setMeasurements).catch(() => {})
+  }, [userId])
+  const weightTrend = computeWeightTrend(measurements)
+  const weightChartPoints = measurements
+    .filter((m) => m.weight_lbs != null)
+    .map((m) => ({ label: m.measured_at, value: displayWeight(m.weight_lbs as number, unit) }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 
   const consistency_pct = stats?.consistency_pct ?? 0
   const streak = stats?.streak ?? 0
@@ -141,15 +142,16 @@ export default function ProgressScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
       {/* Header */}
-      <View style={styles.header}>
-        <TempoWordmark size={18} pulse={false} />
-        <View style={styles.headerRight}>
-          {cards.length > 0 && (
-            <TouchableOpacity onPress={() => setShareOpen(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Share a progress card"><Ionicons name="share-outline" size={22} color={C.text} /></TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile"><Avatar size={32} iconSize={16} /></TouchableOpacity>
-        </View>
-      </View>
+      <ScreenHeader
+        right={
+          <HeaderActions>
+            {cards.length > 0 && (
+              <TouchableOpacity onPress={() => setShareOpen(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Share a progress card"><Ionicons name="share-outline" size={22} color={C.text} /></TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile"><Avatar size={32} iconSize={16} /></TouchableOpacity>
+          </HeaderActions>
+        }
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Title */}
@@ -180,13 +182,13 @@ export default function ProgressScreen() {
             <FadeInView style={styles.ringCard} delay={40}>
               <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
               <View style={styles.ringWrap}>
-                <AnimatedRing value={consistency_pct} size={140} stroke={14} holeColor={C.surfaceContainerLow}>
+                <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                     <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
                     <Text style={[styles.ringPercent, { fontSize: 20 }]}>%</Text>
                   </View>
                   <Text style={styles.ringSubLabel}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
-                </AnimatedRing>
+                </SvgProgressRing>
               </View>
               <Text style={styles.ringCaption}>
                 {consistency_pct > 0
@@ -275,7 +277,7 @@ export default function ProgressScreen() {
                   return (
                     <View key={`${period}-${i}`} style={styles.weekBarCol}>
                       <View style={{ width: '100%', justifyContent: 'flex-end', opacity: barH > 0 ? 1 : 0.4 }}>
-                        <GrowBar
+                        <SvgGrowBar
                           height={barH > 0 ? barH : 2}
                           delay={i * 50}
                           color={barH > 0 && isCurrent ? C.primary : C.surfaceContainerHigh}
@@ -288,12 +290,55 @@ export default function ProgressScreen() {
                   )
                 })}
               </View>
+              {(() => {
+                // A small, data-driven insight — no invented claims, just the real
+                // delta between the current bucket and the one before it.
+                const n = chartVolumes.length
+                if (n < 2) return null
+                const cur = chartVolumes[n - 1]
+                const prev = chartVolumes[n - 2]
+                if (prev <= 0) return null
+                const pct = Math.round(((cur - prev) / prev) * 100)
+                if (pct === 0) return null
+                const noun = period === 'W' ? 'last week' : period === 'M' ? 'last month' : 'the prior period'
+                return (
+                  <View style={styles.insightRow}>
+                    <Ionicons name={pct > 0 ? 'trending-up' : 'trending-down'} size={14} color={pct > 0 ? C.success : C.textSecondary} />
+                    <Text style={styles.insightText}>
+                      {pct > 0 ? '+' : ''}{pct}% volume vs {noun}
+                    </Text>
+                  </View>
+                )
+              })()}
+            </View>
+
+            {/* Weight trend — the math already existed (bodyMeasurements.ts), it just
+                had no chart anywhere, only text numbers on Profile. */}
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>WEIGHT TREND</Text>
+              <View style={styles.statRow}>
+                <Text style={styles.statValue}>
+                  {weightTrend.currentAvg != null ? displayWeight(weightTrend.currentAvg, unit) : '—'}{' '}
+                  <Text style={styles.statUnit}>{unitLabel(unit)}</Text>
+                </Text>
+                <Text style={styles.statDelta}>
+                  {weightTrend.lbsPerWeek != null ? `${formatWeightDelta(weightTrend.lbsPerWeek, unit)}/wk` : '—'}
+                </Text>
+              </View>
+              <SvgLineChart
+                points={weightChartPoints}
+                color={C.primary}
+                emptyText="Log a few weigh-ins on Profile to see your trend here."
+              />
             </View>
 
             {/* Personal records */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Personal Records</Text>
+                <TouchableOpacity onPress={() => router.push('/pr-browser' as any)} hitSlop={8}>
+                  <Text style={styles.sectionAction}>Search all →</Text>
+                </TouchableOpacity>
               </View>
               {prs.length > 0 ? prs.map((pr) => (
                 <PressableScale
@@ -437,6 +482,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   dayDotLabel: { fontFamily: 'Inter_500Medium', fontSize: 10, color: C.outline },
   dayDotLabelActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
+  insightRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  insightText: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
 
   unlockToast: {
     position: 'absolute', top: 96, left: Spacing.containerPadding, right: Spacing.containerPadding,
@@ -455,6 +502,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   section: { gap: Spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text, letterSpacing: -0.2 },
+  sectionAction: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
 
   recordRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.surfaceContainerHigh },
   recordIcon: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },

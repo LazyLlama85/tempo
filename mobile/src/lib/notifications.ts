@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications'
+import { getPreWorkoutEnabled } from '@/lib/notificationPrefs'
 
 // Handle notifications while the app is in the foreground
 Notifications.setNotificationHandler({
@@ -36,6 +37,13 @@ export async function hasReminderPermission(): Promise<boolean> {
 }
 
 export async function scheduleWorkoutReminders(workouts: ScheduledWorkout[]): Promise<void> {
+  // Respect the per-device "Pre-workout reminder" setting (audit §6.1). Default on,
+  // so this is a no-op change unless the user has explicitly turned it off. Gating
+  // at this single choke point means every caller (Home sync, builder, edit, move)
+  // honors the preference without each having to check it. The rest-timer alert is
+  // a separate function and is unaffected.
+  if (!getPreWorkoutEnabled()) return
+
   const now = Date.now()
 
   for (const workout of workouts) {

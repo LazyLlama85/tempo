@@ -5,8 +5,9 @@
 // My Workouts screen (edit/delete).
 
 import { useEffect, useState } from 'react'
-import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { TempoSheet } from '@/components/TempoSheet'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
@@ -116,15 +117,13 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      {/* Lift the sheet above the keyboard — the name field autofocuses, and the
-          Save button lives outside the ScrollView so it would otherwise be buried. */}
-      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>{editing ? 'Edit exercise' : 'New exercise'}</Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.sm }} keyboardShouldPersistTaps="handled">
+    // `scroll`: single top-level BottomSheetScrollView (see AddWorkoutSheet for why
+    // a nested one inside a non-scroll TempoSheet leaves the "Create exercise"
+    // button unreachable — gorhom's BottomSheetView has no bounded height for a
+    // nested scroll view to scroll within).
+    <TempoSheet visible={visible} onClose={onClose} snapPoints={['90%']} scroll>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        <Text style={styles.title}>{editing ? 'Edit exercise' : 'New exercise'}</Text>
             <Text style={styles.label}>NAME</Text>
             <TextInput
               style={styles.input}
@@ -183,21 +182,17 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
               multiline
               maxLength={400}
             />
-          </ScrollView>
 
-          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-            {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>{editing ? 'Save changes' : 'Create exercise'}</Text>}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+          {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>{editing ? 'Save changes' : 'Create exercise'}</Text>}
+        </TouchableOpacity>
+      </View>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.xs, maxHeight: '90%' },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
+  sheet: { padding: Spacing.lg, gap: Spacing.xs },
   title: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.xs },
   label: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
   input: { minHeight: 48, backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontFamily: 'Inter_500Medium', fontSize: 16, color: C.text },

@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -54,13 +54,11 @@ export default function WeeklyReportScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your Week</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Your Week"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Building your report…" /></View>

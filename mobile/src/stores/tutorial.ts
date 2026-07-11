@@ -42,7 +42,6 @@ interface TutorialStoreState {
   startTour: (id: TutorialId) => void
   nextStep: () => void
   endTour: (opts?: { skipped?: boolean }) => void
-  activeSteps: () => TutorialStep[]
 }
 
 const STEPS: Record<TutorialId, TutorialStep[]> = {
@@ -134,10 +133,6 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
       const { activeTour } = get()
       if (activeTour && opts?.skipped) { get().skip(activeTour); track('tutorial_skipped', { tutorial: activeTour }) }
       set({ activeTour: null, stepIndex: 0 })
-    },
-    activeSteps: () => {
-      const { activeTour } = get()
-      return activeTour ? STEPS[activeTour] : []
     },
   }
 })

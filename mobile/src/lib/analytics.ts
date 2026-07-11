@@ -63,6 +63,18 @@ export type EventProperties = {
   first_workout_started: { experience?: string }
   first_set_logged: { experience?: string }
   first_workout_completed: { experience?: string; duration_min?: number }
+  // ── Guest → permanent account linking (§1.1) ────────────────────────────────
+  // `context` distinguishes the Profile card from the post-workout modal.
+  guest_save_prompt_shown: { context: 'profile' | 'post_workout' }
+  guest_save_started: { method: 'google' | 'apple'; context: 'profile' | 'post_workout' }
+  guest_upgraded: { method: 'google' | 'apple'; context: 'profile' | 'post_workout' }
+  // ── Tempo Pro / monetization (§10) ──────────────────────────────────────────
+  // Derived client-side from RevenueCat entitlement transitions; RevenueCat
+  // webhooks remain the source of truth for revenue reporting.
+  paywall_shown: { context: string }
+  trial_started: undefined
+  trial_converted: undefined
+  subscription_cancelled: undefined
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

@@ -6,13 +6,14 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { scheduleWorkoutReminders, cancelWorkoutReminder, requestPermissions } from '@/lib/notifications'
@@ -136,49 +137,45 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-          <View style={styles.handle} />
-          <Text style={styles.eyebrow}>EDIT WORKOUT</Text>
-          <Text style={styles.title}>{workout.focus}</Text>
+    <TempoSheet visible={visible} onClose={onClose}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        <Text style={styles.eyebrow}>EDIT WORKOUT</Text>
+        <Text style={styles.title}>{workout.focus}</Text>
 
-          <Text style={styles.label}>DAY</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
-            {NEXT_DAYS.map(d => {
-              const ds = toDateStr(d)
-              const on = ds === date
-              return (
-                <TouchableOpacity key={ds} style={[styles.dayChip, on && styles.dayChipOn]} onPress={() => setDate(ds)} activeOpacity={0.8}>
-                  <Text style={[styles.dayWd, on && styles.dayTextOn]}>{WD[d.getDay()]}</Text>
-                  <Text style={[styles.dayNum, on && styles.dayTextOn]}>{d.getDate()}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
+        <Text style={styles.label}>DAY</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daysRow}>
+          {NEXT_DAYS.map(d => {
+            const ds = toDateStr(d)
+            const on = ds === date
+            return (
+              <TouchableOpacity key={ds} style={[styles.dayChip, on && styles.dayChipOn]} onPress={() => setDate(ds)} activeOpacity={0.8}>
+                <Text style={[styles.dayWd, on && styles.dayTextOn]}>{WD[d.getDay()]}</Text>
+                <Text style={[styles.dayNum, on && styles.dayTextOn]}>{d.getDate()}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
 
-          <Text style={styles.label}>TIME</Text>
-          <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTime(true)} activeOpacity={0.7}>
-            <Ionicons name="time-outline" size={18} color={C.primary} />
-            <Text style={styles.timeBtnText}>{formatTime12(time)}</Text>
-            <Ionicons name="chevron-forward" size={16} color={C.outline} />
-          </TouchableOpacity>
+        <Text style={styles.label}>TIME</Text>
+        <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTime(true)} activeOpacity={0.7}>
+          <Ionicons name="time-outline" size={18} color={C.primary} />
+          <Text style={styles.timeBtnText}>{formatTime12(time)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={C.outline} />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.saveBtn, (!changed || saving) && { opacity: 0.5 }]}
-            onPress={handleSave}
-            disabled={!changed || saving}
-            activeOpacity={0.85}
-          >
-            {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>Save changes</Text>}
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveBtn, (!changed || saving) && { opacity: 0.5 }]}
+          onPress={handleSave}
+          disabled={!changed || saving}
+          activeOpacity={0.85}
+        >
+          {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>Save changes</Text>}
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={saving} activeOpacity={0.7}>
-            <Ionicons name="trash-outline" size={16} color={C.error} />
-            <Text style={styles.removeBtnText}>Remove from schedule</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={saving} activeOpacity={0.7}>
+          <Ionicons name="trash-outline" size={16} color={C.error} />
+          <Text style={styles.removeBtnText}>Remove from schedule</Text>
+        </TouchableOpacity>
       </View>
 
       <TimePickerSheet
@@ -188,17 +185,12 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
         onSelect={v => { setTime(v); setShowTime(false) }}
         onClose={() => setShowTime(false)}
       />
-    </Modal>
+    </TempoSheet>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    padding: Spacing.lg, gap: Spacing.xs,
-  },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.sm },
+  sheet: { padding: Spacing.lg, gap: Spacing.xs },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: Spacing.xs },
   label: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.sm },

@@ -5,7 +5,8 @@
 
 import { useCallback, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
+import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -99,11 +100,11 @@ export default function MyWorkoutsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"><Ionicons name="chevron-down" size={26} color={C.text} /></TouchableOpacity>
-        <Text style={styles.headerTitle}>My Workouts</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="My Workouts"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your workouts…" /></View>
@@ -128,7 +129,7 @@ export default function MyWorkoutsScreen() {
           {/* Templates */}
           <Text style={styles.sectionLabel}>SAVED WORKOUTS</Text>
           {templates.length === 0 ? (
-            <Text style={styles.empty}>No saved workouts yet. Build one and save it as a template to reuse and schedule it anytime.</Text>
+            <EmptyState kind="barbell" title="No saved workouts yet" body="Build one and save it as a template to reuse and schedule it anytime." />
           ) : (
             <View style={styles.card}>
               {templates.map((t, i) => (
@@ -153,7 +154,7 @@ export default function MyWorkoutsScreen() {
             <TouchableOpacity onPress={() => { setEditEx(null); setEditOpen(true) }} hitSlop={6}><Text style={styles.link}>New</Text></TouchableOpacity>
           </View>
           {exercises.length === 0 ? (
-            <Text style={styles.empty}>No custom exercises yet. Create exercises for anything not in the library — they work everywhere built-ins do.</Text>
+            <EmptyState kind="flash" title="No custom exercises yet" body="Create exercises for anything not in the library — they work everywhere built-ins do." />
           ) : (
             <View style={styles.card}>
               {exercises.map((e, i) => (

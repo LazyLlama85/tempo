@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, Share } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,10 +18,12 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView } from '@/components/motion'
 import { FriendAvatar } from '@/components/FriendAvatar'
+import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
   fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchFriendsLeaderboard,
+  toggleActivityReaction,
   type FriendEntry, type SocialProfile, type PrivacyPrefs, type PrivacyLevel,
   type MyIdentity, type FeedItem, type LeaderboardRow,
 } from '@/lib/social'
@@ -59,6 +61,7 @@ export default function SocialScreen() {
   const [identity, setIdentity] = useState<MyIdentity | null>(null)
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
+  const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
@@ -70,6 +73,28 @@ export default function SocialScreen() {
     fetchFriendsLeaderboard(supabase).then(setLeaderboard).catch(() => {})
   }, [userId])
   useFocusEffect(load)
+
+  // "Nice work" reaction — optimistic flip, reconciled with the server's count.
+  // Keyed by workout_id; a row without one (old feed shape / pre-migration) has no
+  // reaction control at all, so this is only ever called with a real id.
+  const onReact = useCallback(async (item: FeedItem) => {
+    const id = item.workout_id
+    if (!id) return
+    haptics.tapLight()
+    const wasReacted = !!item.i_reacted
+    const optimistic = (item.reaction_count ?? 0) + (wasReacted ? -1 : 1)
+    setFeed((prev) => prev.map((f) =>
+      f.workout_id === id ? { ...f, i_reacted: !wasReacted, reaction_count: Math.max(0, optimistic) } : f,
+    ))
+    const res = await toggleActivityReaction(supabase, id)
+    setFeed((prev) => prev.map((f) => {
+      if (f.workout_id !== id) return f
+      // Success → trust the server's numbers; failure → revert to the prior state.
+      return res
+        ? { ...f, i_reacted: res.reacted, reaction_count: res.count }
+        : { ...f, i_reacted: wasReacted, reaction_count: item.reaction_count ?? 0 }
+    }))
+  }, [])
 
   const shareMyCode = () => {
     if (!identity?.friend_code) return
@@ -119,15 +144,14 @@ export default function SocialScreen() {
     if (await acceptFriendRequest(supabase, f.friendshipId)) load()
   }
 
-  const handleRemove = (f: FriendEntry) => {
-    const verb = f.state === 'friend' ? 'Remove friend' : f.state === 'incoming' ? 'Decline request' : 'Cancel request'
-    Alert.alert(`${verb}?`, f.display_name ?? 'This user', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: verb, style: 'destructive',
-        onPress: async () => { haptics.tapMedium(); if (await removeFriendship(supabase, f.friendshipId)) load() },
-      },
-    ])
+  const handleRemove = (f: FriendEntry) => setRemoveConfirm(f)
+
+  const doRemoveFriendship = async () => {
+    const f = removeConfirm
+    setRemoveConfirm(null)
+    if (!f) return
+    haptics.tapMedium()
+    if (await removeFriendship(supabase, f.friendshipId)) load()
   }
 
   const redeemCode = () => {
@@ -168,13 +192,11 @@ export default function SocialScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Friends</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Friends"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your people…" /></View>
@@ -263,19 +285,44 @@ export default function SocialScreen() {
                 {feed.slice(0, 10).map((item, i) => (
                   <View key={`${item.user_id}-${item.completed_at}`}>
                     {i > 0 && <View style={styles.divider} />}
-                    <TouchableOpacity
-                      style={styles.feedRow}
-                      activeOpacity={0.7}
-                      onPress={() => router.push(`/friend-profile?userId=${item.user_id}` as any)}
-                    >
-                      <FriendAvatar avatarUrl={item.avatar_url} size={34} />
-                      <Text style={styles.feedText} numberOfLines={2}>
-                        <Text style={styles.feedName}>{item.display_name ?? `@${item.username}`}</Text>
-                        {' completed '}
-                        <Text style={styles.feedName}>{item.focus}</Text>
-                      </Text>
-                      <Text style={styles.feedTime}>{timeAgo(item.completed_at)}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.feedRow}>
+                      <TouchableOpacity
+                        style={styles.feedMain}
+                        activeOpacity={0.7}
+                        onPress={() => router.push(`/friend-profile?userId=${item.user_id}` as any)}
+                      >
+                        <FriendAvatar avatarUrl={item.avatar_url} size={34} />
+                        <Text style={styles.feedText} numberOfLines={2}>
+                          <Text style={styles.feedName}>{item.display_name ?? `@${item.username}`}</Text>
+                          {' completed '}
+                          <Text style={styles.feedName}>{item.focus}</Text>
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={styles.feedRight}>
+                        <Text style={styles.feedTime}>{timeAgo(item.completed_at)}</Text>
+                        {!!item.workout_id && (
+                          <TouchableOpacity
+                            style={[styles.reactBtn, item.i_reacted && styles.reactBtnOn]}
+                            onPress={() => onReact(item)}
+                            activeOpacity={0.7}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={item.i_reacted ? 'Remove your reaction' : 'React: nice work'}
+                          >
+                            <Ionicons
+                              name={item.i_reacted ? 'flame' : 'flame-outline'}
+                              size={15}
+                              color={item.i_reacted ? C.ember : C.textSecondary}
+                            />
+                            {(item.reaction_count ?? 0) > 0 && (
+                              <Text style={[styles.reactCount, item.i_reacted && { color: C.ember }]}>
+                                {item.reaction_count}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -392,6 +439,22 @@ export default function SocialScreen() {
           <Text style={styles.hint}>Tap a row to switch between Public, Friends only and Private. Private hides it from everyone, including friends.</Text>
         </ScrollView>
       )}
+
+      <OptionSheet
+        visible={removeConfirm !== null}
+        title={removeConfirm
+          ? `${removeConfirm.state === 'friend' ? 'Remove friend' : removeConfirm.state === 'incoming' ? 'Decline request' : 'Cancel request'}?`
+          : ''}
+        subtitle={removeConfirm?.display_name ?? 'This user'}
+        options={removeConfirm ? [{
+          key: 'confirm',
+          label: removeConfirm.state === 'friend' ? 'Remove friend' : removeConfirm.state === 'incoming' ? 'Decline request' : 'Cancel request',
+          icon: 'person-remove-outline',
+          destructive: true,
+        }] : []}
+        onSelect={doRemoveFriendship}
+        onClose={() => setRemoveConfirm(null)}
+      />
     </SafeAreaView>
   )
 }
@@ -426,9 +489,18 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.outlineVariant,
   },
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  feedMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   feedText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 18 },
   feedName: { fontFamily: 'Inter_700Bold', color: C.text },
+  feedRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   feedTime: { fontFamily: 'Inter_500Medium', fontSize: 11.5, color: C.outline },
+  reactBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: Radius.full,
+    backgroundColor: C.surfaceContainerLow,
+  },
+  reactBtnOn: { backgroundColor: C.emberSoft },
+  reactCount: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   leaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
   leaderRank: { width: 20, fontFamily: C.fontDisplay, fontSize: 15, color: C.outline, textAlign: 'center' },
   leaderName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },

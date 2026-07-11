@@ -100,6 +100,10 @@ export interface UserProfile {
   preferred_calendar: CalendarProvider | null
   // Auto-add scheduled workouts to the connected calendar (default true).
   calendar_autosync?: boolean
+  // Per-rule notification opt-outs (add_notification_prefs.sql, §6.1). jsonb keyed
+  // by retention-rule name → boolean; absent key = that rule's default. Optional so
+  // the app keeps working before the column migration is applied.
+  notification_prefs?: Record<string, boolean> | null
   // Whether Tempo auto-places/auto-moves workout times. Optional so the app keeps
   // working before the column migration is applied; treated as 'auto' when absent.
   scheduling_mode?: SchedulingMode

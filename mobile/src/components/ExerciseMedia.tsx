@@ -12,7 +12,6 @@ interface Props {
   height?: number
   rounded?: boolean
   showNote?: boolean
-  resolution?: 180 | 360 | 720
 }
 
 // Renders an exercise's form-guide GIF when we have a verified clip, otherwise a
@@ -22,11 +21,10 @@ export function ExerciseMedia({
   height = 180,
   rounded = true,
   showNote = true,
-  resolution = 360,
 }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const source = getExerciseGifSource(exerciseId, resolution)
+  const source = getExerciseGifSource(exerciseId)
   const media = getExerciseMedia(exerciseId)
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)

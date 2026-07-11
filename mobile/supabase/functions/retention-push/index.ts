@@ -47,6 +47,18 @@ function todayStr(d = new Date()): string {
   return d.toISOString().slice(0, 10)
 }
 
+// Per-rule opt-out (audit §6.1). `reactivation` is always on (low-frequency
+// win-back, not user-exposed). Every other rule defaults ON so nothing a user
+// currently receives silently stops when this ships; a user only loses a rule by
+// explicitly turning it off. (To make free_time_gap opt-in per the audit, default
+// it to false here AND in lib/notificationPrefs.ts.) Keep these two in sync.
+function ruleEnabled(prefs: Record<string, unknown> | undefined, type: NotificationType): boolean {
+  if (type === 'reactivation') return true
+  const v = prefs?.[type]
+  if (typeof v === 'boolean') return v
+  return true
+}
+
 Deno.serve(async (req: Request) => {
   // Cron invokes with the service-role bearer; reject anything else.
   if (req.method !== 'POST') return new Response('method_not_allowed', { status: 405 })
@@ -88,7 +100,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
   if (userIds.length === 0) return candidates
 
   // Pull the day's signal in bulk to keep this O(few queries) rather than per-user.
-  const [{ data: scheduled }, { data: logs }, { data: alreadySent }] = await Promise.all([
+  const [{ data: scheduled }, { data: logs }, { data: alreadySent }, { data: profiles }] = await Promise.all([
     admin
       .from('scheduled_workouts')
       .select('user_id, planned_date, planned_start_time, status, focus')
@@ -105,8 +117,16 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
       .select('user_id, type')
       .gte('created_at', today + 'T00:00:00Z')
       .in('user_id', userIds),
+    // Per-user rule preferences (audit §6.1). Absent row / absent key = default.
+    admin
+      .from('user_profiles')
+      .select('user_id, notification_prefs')
+      .in('user_id', userIds),
   ])
 
+  const prefsByUser = new Map<string, Record<string, unknown>>(
+    (profiles ?? []).map((r) => [r.user_id as string, (r.notification_prefs ?? {}) as Record<string, unknown>]),
+  )
   const sentKey = new Set((alreadySent ?? []).map((r) => `${r.user_id}:${r.type}`))
   const completedDates = byUser(logs ?? [], (r) => (r.completed_at as string | null)?.slice(0, 10))
   const sched = groupBy(scheduled ?? [], (r) => r.user_id as string)
@@ -120,8 +140,10 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const completed = completedDates.get(userId) ?? new Set<string>()
     const mine = sched.get(userId) ?? []
     const completedToday = completed.has(today)
+    const prefs = prefsByUser.get(userId)
 
     const add = (c: Omit<Candidate, 'userId'>) => {
+      if (!ruleEnabled(prefs, c.type)) return         // user muted this rule (§6.1)
       if (sentKey.has(`${userId}:${c.type}`)) return // de-dup: one per type per day
       candidates.push({ userId, ...c })
       sentKey.add(`${userId}:${c.type}`)             // also prevent two rules colliding

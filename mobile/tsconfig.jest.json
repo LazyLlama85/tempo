@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "target": "es2020",
+    "rootDir": ".",
+    "noEmit": false,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": false,
+    "types": ["jest", "node"]
+  },
+  "include": ["src/**/*.ts"]
+}

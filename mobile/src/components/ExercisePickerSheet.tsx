@@ -11,13 +11,14 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
 } from 'react-native'
+import { BottomSheetFlatList } from '@gorhom/bottom-sheet'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
+import { TempoSheet } from '@/components/TempoSheet'
 import { PulseLoader } from '@/components/brand'
 import {
   useExerciseLibrary, searchLibrary, groupFamilies, muscleGroupOf, MUSCLE_GROUPS,
@@ -133,128 +134,122 @@ export function ExercisePickerSheet({ visible, userId, client, existingIds, onCl
   )
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.backdrop}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.headerRow}>
-              <Text style={styles.title}>Add exercises</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <Ionicons name="close" size={24} color={C.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchRow}>
-              <Ionicons name="search" size={18} color={C.outline} />
-              <TextInput
-                style={styles.searchInput}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search 1,300+ exercises…"
-                placeholderTextColor={C.outline}
-                autoCorrect={false}
-                autoCapitalize="none"
-                returnKeyType="search"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={C.outline} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Muscle-group filter */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.chipScroll}
-              contentContainerStyle={styles.chipRow}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Chip label="All" on={group === null} onPress={() => setGroup(null)} styles={styles} />
-              {MUSCLE_GROUPS.map(g => (
-                <Chip key={g.id} label={g.label} on={group === g.id} onPress={() => setGroup(group === g.id ? null : g.id)} styles={styles} />
-              ))}
-            </ScrollView>
-
-            {isLoading ? (
-              <View style={styles.center}><PulseLoader caption="Loading exercises…" /></View>
-            ) : (
-              <FlatList
-                data={rows}
-                keyExtractor={(r) => r.type === 'rep' ? r.family.key : `v:${r.ex.id}`}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                showsVerticalScrollIndicator={false}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: Spacing.lg }}
-                initialNumToRender={14}
-                maxToRenderPerBatch={20}
-                windowSize={8}
-                ListHeaderComponent={
-                  <TouchableOpacity style={styles.newBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.85}>
-                    <Ionicons name="add-circle-outline" size={18} color={C.primary} />
-                    <Text style={styles.newBtnText}>New custom exercise</Text>
-                  </TouchableOpacity>
-                }
-                ListEmptyComponent={
-                  <Text style={styles.empty}>
-                    No exercises match “{query}”. Try a muscle (“chest”), a movement (“press”), or create a custom one above.
-                  </Text>
-                }
-                renderItem={({ item }) => {
-                  if (item.type === 'variant') {
-                    const ex = item.ex
-                    const equip = EQUIP_SHORT[ex.required_equipment?.[0] ?? ''] ?? ''
-                    return (
-                      <View style={styles.variantRow}>
-                        <View style={styles.variantTick} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.variantName} numberOfLines={1}>{ex.name}</Text>
-                          <Text style={styles.exMeta} numberOfLines={1}>{[equip, ex.experience_level].filter(Boolean).join(' · ')}</Text>
-                        </View>
-                        {renderInfoButton(ex)}
-                        {renderAddButton(ex)}
-                      </View>
-                    )
-                  }
-                  const fam = item.family
-                  const ex = fam.representative
-                  const count = fam.members.length
-                  const isOpen = expanded.has(fam.key)
-                  const groupLabel = MUSCLE_GROUPS.find(g => g.id === muscleGroupOf(ex))?.label
-                  const equip = EQUIP_SHORT[ex.required_equipment?.[0] ?? ''] ?? ''
-                  return (
-                    <View style={styles.row}>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.nameRow}>
-                          <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
-                          {ex.is_custom && <View style={styles.customTag}><Text style={styles.customTagText}>CUSTOM</Text></View>}
-                        </View>
-                        <Text style={styles.exMeta} numberOfLines={1}>
-                          {[groupLabel, equip, ex.experience_level].filter(Boolean).join(' · ')}
-                        </Text>
-                        {count > 1 && (
-                          <TouchableOpacity style={styles.variationsBtn} onPress={() => toggle(fam.key)} hitSlop={6}>
-                            <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={13} color={C.primary} />
-                            <Text style={styles.variationsText}>
-                              {isOpen ? 'Hide' : `${count - 1} more`} variation{count - 1 === 1 ? '' : 's'}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {renderInfoButton(ex)}
-                      {renderAddButton(ex)}
-                    </View>
-                  )
-                }}
-              />
-            )}
-          </View>
+    <TempoSheet visible={visible} onClose={onClose} snapPoints={['92%']}>
+      <View style={styles.sheet}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Add exercises</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+            <Ionicons name="close" size={24} color={C.textSecondary} />
+          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={18} color={C.outline} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search 1,300+ exercises…"
+            placeholderTextColor={C.outline}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color={C.outline} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Muscle-group filter */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Chip label="All" on={group === null} onPress={() => setGroup(null)} styles={styles} />
+          {MUSCLE_GROUPS.map(g => (
+            <Chip key={g.id} label={g.label} on={group === g.id} onPress={() => setGroup(group === g.id ? null : g.id)} styles={styles} />
+          ))}
+        </ScrollView>
+
+        {isLoading ? (
+          <View style={styles.center}><PulseLoader caption="Loading exercises…" /></View>
+        ) : (
+          <BottomSheetFlatList
+            data={rows}
+            keyExtractor={(r) => r.type === 'rep' ? r.family.key : `v:${r.ex.id}`}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: Spacing.lg }}
+            initialNumToRender={14}
+            maxToRenderPerBatch={20}
+            windowSize={8}
+            ListHeaderComponent={
+              <TouchableOpacity style={styles.newBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.85}>
+                <Ionicons name="add-circle-outline" size={18} color={C.primary} />
+                <Text style={styles.newBtnText}>New custom exercise</Text>
+              </TouchableOpacity>
+            }
+            ListEmptyComponent={
+              <Text style={styles.empty}>
+                No exercises match “{query}”. Try a muscle (“chest”), a movement (“press”), or create a custom one above.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              if (item.type === 'variant') {
+                const ex = item.ex
+                const equip = EQUIP_SHORT[ex.required_equipment?.[0] ?? ''] ?? ''
+                return (
+                  <View style={styles.variantRow}>
+                    <View style={styles.variantTick} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.variantName} numberOfLines={1}>{ex.name}</Text>
+                      <Text style={styles.exMeta} numberOfLines={1}>{[equip, ex.experience_level].filter(Boolean).join(' · ')}</Text>
+                    </View>
+                    {renderInfoButton(ex)}
+                    {renderAddButton(ex)}
+                  </View>
+                )
+              }
+              const fam = item.family
+              const ex = fam.representative
+              const count = fam.members.length
+              const isOpen = expanded.has(fam.key)
+              const groupLabel = MUSCLE_GROUPS.find(g => g.id === muscleGroupOf(ex))?.label
+              const equip = EQUIP_SHORT[ex.required_equipment?.[0] ?? ''] ?? ''
+              return (
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                      {ex.is_custom && <View style={styles.customTag}><Text style={styles.customTagText}>CUSTOM</Text></View>}
+                    </View>
+                    <Text style={styles.exMeta} numberOfLines={1}>
+                      {[groupLabel, equip, ex.experience_level].filter(Boolean).join(' · ')}
+                    </Text>
+                    {count > 1 && (
+                      <TouchableOpacity style={styles.variationsBtn} onPress={() => toggle(fam.key)} hitSlop={6}>
+                        <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={13} color={C.primary} />
+                        <Text style={styles.variationsText}>
+                          {isOpen ? 'Hide' : `${count - 1} more`} variation{count - 1 === 1 ? '' : 's'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {renderInfoButton(ex)}
+                  {renderAddButton(ex)}
+                </View>
+              )
+            }}
+          />
+        )}
+      </View>
 
       <CustomExerciseSheet
         visible={createOpen}
@@ -264,7 +259,7 @@ export function ExercisePickerSheet({ visible, userId, client, existingIds, onCl
         onSaved={(ex) => { handleAdd(ex); refetch() }}
       />
       <ExerciseFormSheet exercise={formEx} onClose={() => setFormEx(null)} />
-    </Modal>
+    </TempoSheet>
   )
 }
 
@@ -277,12 +272,7 @@ function Chip({ label, on, onPress, styles }: { label: string; on: boolean; onPr
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    padding: Spacing.lg, paddingBottom: 0, gap: Spacing.sm, height: '92%',
-  },
-  handle: { width: 40, height: 4, borderRadius: Radius.full, backgroundColor: C.outlineVariant, alignSelf: 'center', marginBottom: Spacing.xs },
+  sheet: { flex: 1, padding: Spacing.lg, paddingBottom: 0, gap: Spacing.sm },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.md, height: 46 },

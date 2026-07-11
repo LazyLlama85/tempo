@@ -6,7 +6,7 @@
 
 import { useCallback, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import { PulseLoader } from '@/components/brand'
+import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -109,13 +109,11 @@ export default function WorkoutHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close history">
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>History</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="History"
+        size="sm"
+        leading={<DismissButton onPress={() => router.back()} label="Close history" />}
+      />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your history…" /></View>

@@ -18,7 +18,10 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale, useReducedMotion } from '@/components/motion'
 import * as haptics from '@/lib/haptics'
 import { useTutorialStore, type TargetRect } from '@/stores/tutorial'
-import { shouldShowTip, markTipSeen } from '@/lib/tutorial'
+import { shouldShowTip, markTipSeen, HOME_TOUR_STEPS, T, type TutorialStep } from '@/lib/tutorial'
+
+// Stable empty reference so the "no active tour" case never mints a new array.
+const EMPTY_STEPS: TutorialStep[] = []
 
 // ── Target registry hook ──────────────────────────────────────────────────────
 // Attach the returned ref to a host View; the overlay can then measure it into
@@ -67,12 +70,15 @@ export function TutorialOverlay() {
 
   const activeTour = useTutorialStore(s => s.activeTour)
   const stepIndex = useTutorialStore(s => s.stepIndex)
-  const steps = useTutorialStore(s => s.activeSteps())
   const targets = useTutorialStore(s => s.targets)
   const measurers = useTutorialStore(s => s.measurers)
   const nextStep = useTutorialStore(s => s.nextStep)
   const endTour = useTutorialStore(s => s.endTour)
 
+  // Derive steps from a STABLE module constant — selecting `activeSteps()` from the
+  // store returned a fresh array every render, which makes zustand's snapshot compare
+  // unequal every time → "getSnapshot should be cached" infinite loop.
+  const steps = activeTour === T.homeTour ? HOME_TOUR_STEPS : EMPTY_STEPS
   const step = activeTour ? steps[stepIndex] : null
   const rect: TargetRect | undefined = step?.target ? targets[step.target] : undefined
 

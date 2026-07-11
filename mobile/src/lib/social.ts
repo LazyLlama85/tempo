@@ -80,11 +80,36 @@ export async function updateUsername(
 export interface FeedItem extends SocialProfile {
   focus: string
   completed_at: string
+  /** The completed session this row represents — the reaction target. Optional so
+   *  the feed still renders if the reactions migration hasn't been applied yet. */
+  workout_id?: string
+  reaction_count?: number
+  i_reacted?: boolean
 }
 
 export async function fetchFriendFeed(client: SupabaseClient): Promise<FeedItem[]> {
   const { data } = await client.rpc('friend_feed')
-  return (data ?? []) as FeedItem[]
+  return ((data ?? []) as (FeedItem & { reaction_count?: number | string; i_reacted?: boolean })[]).map((r) => ({
+    ...r,
+    reaction_count: Number(r.reaction_count) || 0,
+    i_reacted: !!r.i_reacted,
+  }))
+}
+
+/**
+ * Toggle the current user's "nice work" reaction on a friend's completed session.
+ * Returns the fresh count + whether the user is now reacting, or null on failure
+ * (e.g. offline, or the reactions migration not yet applied — the caller reverts).
+ */
+export async function toggleActivityReaction(
+  client: SupabaseClient,
+  workoutId: string,
+): Promise<{ count: number; reacted: boolean } | null> {
+  const { data, error } = await client.rpc('toggle_activity_reaction', { target_workout: workoutId })
+  if (error) return null
+  const row = (Array.isArray(data) ? data[0] : data) as { reaction_count?: number | string; i_reacted?: boolean } | null
+  if (!row) return null
+  return { count: Number(row.reaction_count) || 0, reacted: !!row.i_reacted }
 }
 
 export interface LeaderboardRow extends SocialProfile {
