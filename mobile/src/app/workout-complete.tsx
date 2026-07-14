@@ -19,7 +19,6 @@ import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { SaveProgressSheet } from '@/components/SaveProgressSheet'
 import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
 import { useProAccess } from '@/stores/entitlements'
-import { presentPaywallIfNeeded } from '@/lib/purchases'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
 import { useTutorialStore } from '@/stores/tutorial'
 import * as haptics from '@/lib/haptics'
@@ -132,7 +131,7 @@ export default function WorkoutCompleteScreen() {
     if (!isFirstSession || !locked) return
     const timer = setTimeout(() => {
       track('paywall_shown', { context: 'first_workout' })
-      void presentPaywallIfNeeded()
+      router.push({ pathname: '/paywall', params: { context: 'first_workout' } } as never)
     }, 2600) // let the confetti + first-session card land first
     return () => clearTimeout(timer)
   }, [isFirstSession, locked])

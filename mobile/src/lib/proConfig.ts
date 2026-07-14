@@ -8,8 +8,14 @@
 // testers) exercise the real paywall privately while it stays off for everyone else.
 //
 //   app_config row:  key = 'pro_enabled'
-//                    value (jsonb) = { "enabled": false, "test_user_ids": ["<uuid>"] }
+//                    value (jsonb) = {
+//                      "enabled": false,           // Pro system LIVE for everyone
+//                      "test_user_ids": ["<uuid>"],// system live for just these (paywall testing)
+//                      "pro_user_ids":  ["<uuid>"] // GRANTED Pro (unlocked, no purchase) — comps
+//                    }
 //
+// `pro_user_ids` is the comp/grant list: a way to hand a tester or reviewer the full
+// unlocked experience without a real purchase — no App Store fee, works over-the-air.
 // See supabase/add_app_config.sql.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -17,14 +23,26 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 interface ProFlagValue {
   enabled?: boolean
   test_user_ids?: string[]
+  pro_user_ids?: string[]
+}
+
+export interface ProConfigState {
+  /** The Pro system is live for this user (they see the paywall + gates). */
+  proEnabled: boolean
+  /** This user is comped Pro (unlocked without paying). */
+  proGranted: boolean
+}
+
+function inList(list: unknown, userId: string): boolean {
+  return !!userId && Array.isArray(list) && (list as string[]).includes(userId)
 }
 
 /**
- * Whether the Pro system should be live for THIS user right now. Global `enabled`
- * flips it on for everyone; otherwise an allow-listed user id turns it on just for
- * them (private paywall testing). Fails closed → dormant.
+ * Resolve the remote Pro state for THIS user in one read. Global `enabled` flips the
+ * system on for everyone; `test_user_ids` flips it on for just those accounts; a
+ * granted account (`pro_user_ids`) is both live AND unlocked. Fails closed → dormant.
  */
-export async function fetchProEnabled(client: SupabaseClient, userId: string): Promise<boolean> {
+export async function fetchProState(client: SupabaseClient, userId: string): Promise<ProConfigState> {
   try {
     const { data } = await client
       .from('app_config')
@@ -32,10 +50,15 @@ export async function fetchProEnabled(client: SupabaseClient, userId: string): P
       .eq('key', 'pro_enabled')
       .maybeSingle()
     const v = (data?.value ?? {}) as ProFlagValue
-    if (v.enabled === true) return true
-    if (userId && Array.isArray(v.test_user_ids) && v.test_user_ids.includes(userId)) return true
-    return false
+    const granted = inList(v.pro_user_ids, userId)
+    const enabled = v.enabled === true || inList(v.test_user_ids, userId) || granted
+    return { proEnabled: enabled, proGranted: granted }
   } catch {
-    return false
+    return { proEnabled: false, proGranted: false }
   }
+}
+
+/** Back-compat thin wrapper (still used where only the live flag matters). */
+export async function fetchProEnabled(client: SupabaseClient, userId: string): Promise<boolean> {
+  return (await fetchProState(client, userId)).proEnabled
 }

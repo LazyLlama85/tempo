@@ -40,7 +40,7 @@ import {
 } from '@/lib/notificationPrefs'
 import { scheduleWorkoutReminders, cancelAllReminders, hasReminderPermission } from '@/lib/notifications'
 import { useProAccess } from '@/stores/entitlements'
-import { presentPaywall, presentCustomerCenter } from '@/lib/purchases'
+import { presentCustomerCenter } from '@/lib/purchases'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
 import { updateUsername } from '@/lib/social'
 import { useTutorialStore } from '@/stores/tutorial'
@@ -368,7 +368,7 @@ export default function ProfileScreen() {
   // Tempo Pro (§10). Both rows stay hidden while Pro is dormant (proEnabled false),
   // so Profile is visually unchanged until the flag is flipped on.
   const { isPro, proEnabled } = useProAccess()
-  const openPaywall = () => { track('paywall_shown', { context: 'profile' }); void presentPaywall() }
+  const openPaywall = () => { track('paywall_shown', { context: 'profile' }); router.push({ pathname: '/paywall', params: { context: 'profile' } } as never) }
   const [saveSheetVisible, setSaveSheetVisible] = useState(false)
   const openSaveProgress = () => { track('guest_save_prompt_shown', { context: 'profile' }); setSaveSheetVisible(true) }
 

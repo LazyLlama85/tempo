@@ -20,7 +20,7 @@ import {
   configurePurchases, identifyPurchases, resetPurchasesUser,
   fetchIsPro, addProUpdateListener, infoHasActiveTrial,
 } from '@/lib/purchases'
-import { fetchProEnabled } from '@/lib/proConfig'
+import { fetchProState } from '@/lib/proConfig'
 import { useEntitlementStore } from '@/stores/entitlements'
 import {
   useFonts,
@@ -118,12 +118,13 @@ function RootLayout() {
       if (sessionUserId) await identifyPurchases(sessionUserId)
       else await resetPurchasesUser()
 
-      const [enabled, isPro] = await Promise.all([
-        fetchProEnabled(supabase, sessionUserId ?? ''),
+      const [proState, isPro] = await Promise.all([
+        fetchProState(supabase, sessionUserId ?? ''),
         fetchIsPro(),
       ])
       if (cancelled) return
-      store.setProEnabled(enabled)
+      store.setProEnabled(proState.proEnabled)
+      store.setGranted(proState.proGranted)
       store.setIsPro(isPro)
       store.setReady(true)
 
@@ -213,6 +214,7 @@ function RootLayout() {
           <Stack.Screen name="availability" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="travel-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="legal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="weekly-report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="plan-explainer" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-builder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

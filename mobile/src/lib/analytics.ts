@@ -72,6 +72,12 @@ export type EventProperties = {
   // Derived client-side from RevenueCat entitlement transitions; RevenueCat
   // webhooks remain the source of truth for revenue reporting.
   paywall_shown: { context: string }
+  paywall_dismissed: { context: string }
+  // The custom paywall's purchase funnel (RevenueCat webhooks remain the revenue truth).
+  purchase_started: { plan: string; context: string }
+  purchase_completed: { plan: string; context: string }
+  purchase_failed: { plan: string; reason: 'cancelled' | 'error' }
+  restore_completed: { restored: boolean }
   trial_started: undefined
   trial_converted: undefined
   subscription_cancelled: undefined

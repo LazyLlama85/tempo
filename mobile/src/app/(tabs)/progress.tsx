@@ -14,6 +14,8 @@ import { LoadingCard } from '@/components/LoadingCard'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { FadeInView, PressableScale, ScreenTransition } from '@/components/motion'
+import { ProGate, ProBadge } from '@/components/ProGate'
+import { useProGate } from '@/stores/entitlements'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { SvgLineChart } from '@/components/SvgLineChart'
 import { SvgGrowBar } from '@/components/SvgGrowBar'
@@ -49,6 +51,7 @@ export default function ProgressScreen() {
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
   const { stats, workouts, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { requirePro, locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
 
@@ -214,7 +217,9 @@ export default function ProgressScreen() {
               </View>
             </View>
 
-            {/* Volume + period chart */}
+            {/* Volume + period chart — Pro (advanced analytics). Dormant-safe:
+                ProGate renders the card unchanged while Pro is off. */}
+            <ProGate feature="advanced_analytics">
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>VOLUME LIFTED</Text>
               <View style={styles.statRow}>
@@ -277,6 +282,7 @@ export default function ProgressScreen() {
                 )
               })()}
             </View>
+            </ProGate>
 
             {/* Weight trend — the math already existed (bodyMeasurements.ts), it just
                 had no chart anywhere, only text numbers on Profile. */}
@@ -302,7 +308,8 @@ export default function ProgressScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Personal Records</Text>
-                <TouchableOpacity onPress={() => router.push('/pr-browser' as any)} hitSlop={8}>
+                <TouchableOpacity onPress={() => { if (requirePro('advanced_analytics')) router.push('/pr-browser' as any) }} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {proLocked && <ProBadge />}
                   <Text style={styles.sectionAction}>Search all →</Text>
                 </TouchableOpacity>
               </View>
@@ -310,7 +317,7 @@ export default function ProgressScreen() {
                 <PressableScale
                   key={pr.name}
                   style={styles.recordRow}
-                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any)}
+                  onPress={() => { if (requirePro('advanced_analytics')) router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any) }}
                   scaleTo={0.98}
                 >
                   <View style={styles.recordIcon}>

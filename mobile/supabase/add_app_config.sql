@@ -4,10 +4,13 @@
 -- by the `pro_enabled` row read on app open (lib/proConfig). Flip Pro on for
 -- everyone with a single UPDATE — no new build, no store resubmission.
 --
---   value shape:  { "enabled": <bool>, "test_user_ids": ["<uuid>", ...] }
+--   value shape:  { "enabled": <bool>, "test_user_ids": ["<uuid>"], "pro_user_ids": ["<uuid>"] }
 --     enabled       — turn Pro on for ALL users.
 --     test_user_ids — turn it on for just these accounts (private paywall testing)
 --                     while it stays off for everyone else.
+--     pro_user_ids  — GRANT Pro (fully unlocked, no purchase) to these accounts —
+--                     comps / reviewers / your own test device. Works over-the-air,
+--                     no App Store fee. A granted user is both live AND unlocked.
 
 create table if not exists app_config (
   key        text primary key,
@@ -17,7 +20,7 @@ create table if not exists app_config (
 
 -- Seed the flag DISABLED so the public v1 launches free-only.
 insert into app_config (key, value)
-values ('pro_enabled', '{"enabled": false, "test_user_ids": []}'::jsonb)
+values ('pro_enabled', '{"enabled": false, "test_user_ids": [], "pro_user_ids": []}'::jsonb)
 on conflict (key) do nothing;
 
 -- Read-only to clients (the flag is public, non-sensitive); writes go through the
@@ -33,7 +36,11 @@ create policy app_config_read on app_config
 -- Everyone:
 --   update app_config set value = jsonb_set(value, '{enabled}', 'true'), updated_at = now()
 --   where key = 'pro_enabled';
--- Just your own account (private testing):
+-- Just your own account (private paywall testing — sees paywall + gates, not unlocked):
 --   update app_config
 --     set value = jsonb_set(value, '{test_user_ids}', '["YOUR-USER-UUID"]'::jsonb), updated_at = now()
+--   where key = 'pro_enabled';
+-- Grant a comp (fully unlocked, no purchase — reviewers / your own device):
+--   update app_config
+--     set value = jsonb_set(value, '{pro_user_ids}', '["YOUR-USER-UUID"]'::jsonb, true), updated_at = now()
 --   where key = 'pro_enabled';

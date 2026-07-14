@@ -551,9 +551,20 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **`stores/entitlements.ts`** (Tempo Pro, §10) — two facts: `proEnabled` (the dormant remote flag)
   and `isPro` (the RevenueCat entitlement). A feature is `locked` only when `proEnabled && !isPro`,
   so while dormant nothing is gated. `useProAccess()` exposes the state; `useProGate()` wraps a
-  paid feature (`requirePro()` shows the paywall when locked, resolves true immediately when not).
-  Loaded/synced in `_layout.tsx` on each session change; a live RevenueCat listener fires
-  `trial_started` / `trial_converted` / `subscription_cancelled` on entitlement transitions.
+  paid feature *action* — `requirePro(context)` returns true (proceed) when unlocked, else routes to
+  the custom paywall (`/paywall?context=…`) and returns false. Loaded/synced in `_layout.tsx` on
+  each session change; a live RevenueCat listener fires `trial_started` / `trial_converted` /
+  `subscription_cancelled` on entitlement transitions. The declarative layer is
+  **`components/ProGate`** — `<ProGate feature>` renders children when unlocked (or dormant) and a
+  branded `ProLockCard` (icon + benefit + "Unlock with Pro" → paywall) when locked, plus `ProBadge`.
+  **First live gate:** the Progress tab's **Advanced Analytics** — the volume-trends card is wrapped
+  in `<ProGate feature="advanced_analytics">` and the strength-trend deep-dives (PR-browser +
+  per-lift `exercise-progress`) route through `requirePro`; free keeps the consistency ring, streak,
+  next milestone, completion rate, recent-PR list, and weight trend. **The custom paywall**
+  (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
+  free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
+  StoreKit-compliant. Everything ships DORMANT — flip `app_config.pro_enabled` (or allow-list a uid)
+  to go live with no rebuild.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;
@@ -727,9 +738,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`purchases`** (§10 — the ONLY module touching react-native-purchases / -ui; guarded like
   `haptics` so a pre-rebuild JS reload no-ops instead of crashing, and entitlement reads fail
   *closed*: `configurePurchases`/`identifyPurchases`/`resetPurchasesUser`, `fetchIsPro` +
-  `addProUpdateListener`, `presentPaywall`/`presentPaywallIfNeeded`/`presentCustomerCenter`,
-  `restorePurchases`; `PRO_ENTITLEMENT` + SDK keys from env, offerings from the dashboard's current
-  offering — no product IDs hardcoded),
+  `addProUpdateListener`, `restorePurchases`, and — for the **custom** paywall (`app/paywall.tsx`) —
+  `getProOffering` (the dashboard's current offering), `purchaseProPackage` (returns
+  `{ok,isPro,cancelled}`, distinguishing a real failure from a user cancel), and
+  `packageHasIntroOffer` (free-trial detection). The hosted-UI helpers
+  `presentPaywall`/`presentPaywallIfNeeded` remain as fallbacks and `presentCustomerCenter`
+  powers Profile's "manage subscription"; `PRO_ENTITLEMENT` + SDK keys from env, **no product IDs
+  or prices hardcoded** — the paywall renders whatever the current offering contains),
+  **`proFeatures`** (§10 — the typed gated-feature registry: `ProFeatureId` + `PRO_FEATURES` upsell
+  copy (title/benefit/icon) so every lock card + the paywall speak one voice from one place, plus
+  `PAYWALL_POINTS`, the honest delivered-value bullets the paywall lists — never advertises an
+  unbuilt feature),
   **`proConfig`** (§10 — `fetchProEnabled` reads the `app_config` `pro_enabled` row on app open:
   the dormant-launch flag, defaults hard to OFF, with a per-account allow-list for private testing),
   **`units`** (lb/kg display preference — persisted per
@@ -1043,11 +1062,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   system is gated behind the `app_config.pro_enabled` remote flag (`lib/proConfig`), defaulted OFF,
   so the public v1 is free-only and Pro turns on later with one SQL update (no rebuild/resubmit).
   While dormant every gate is unlocked, so the free app is unchanged. **Native module → needs an
-  `eas build`.** Dashboard prerequisites: create the `pro` entitlement + products
-  (lifetime/yearly/monthly) + a paywall + Customer Center config; the `test_` key is the Test Store
-  key (add real `appl_`/`goog_` keys for live billing). No existing feature is gated yet — `useProGate`
-  is the hook to wrap the paid features (adaptive coaching, deep analytics, progress-photo suite,
-  smart reprogramming, Health export) when you flip the flag. Migration `add_app_config.sql`.
+  `eas build`.** **Now delivered (Depth & horizon model):** a **custom on-brand paywall**
+  (`app/paywall.tsx`, dynamic pricing from the current offering — monthly/annual, auto-computed
+  savings, trial CTA, Restore, Terms/Privacy), the `proFeatures` registry + `ProGate`/`ProLockCard`/
+  `ProBadge` gating primitives, and the **first live gate: Advanced Analytics** (volume trends +
+  strength-trend deep-dive on Progress). The engine stays FREE (plan generation, adaptation, quick
+  workouts, logging, scheduling, basic progress) so free is fully functional. Dashboard
+  prerequisites: the entitlement (`EXPO_PUBLIC_PRO_ENTITLEMENT`, currently `Tempo: Fitness Planner
+  Pro` — must match exactly) + monthly ($4.99) / annual ($34.99) products in a **current offering** +
+  Customer Center config; real `appl_` key is in `eas.json`. **Fast-follow Pro surfaces** (registry
+  entries already stubbed, each a `<ProGate>` wrap away): smart scheduling optimization, muscle-group
+  analysis + PR forecasting, long-horizon/goal-date planning, premium themes + app icons, and
+  **Tempo Coach** (the tentpole). Migration `add_app_config.sql`.
 - ~~Guests had no discoverable way to save their history off-device (data loss on reinstall/new
   phone)~~ **Done (§1.1)**: `lib/accountLinking` + `SaveProgressSheet` — a guest-only "Save your
   progress" card on Profile plus a one-time modal after the 3rd completed workout, both linking an

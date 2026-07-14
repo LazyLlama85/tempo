@@ -18,7 +18,7 @@
 // hardcoded here, so lifetime/yearly/monthly are configured entirely in the dashboard.
 
 import { Platform } from 'react-native'
-import type { CustomerInfo } from 'react-native-purchases'
+import type { CustomerInfo, PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
 import { captureApiError } from '@/lib/crashReporting'
 
 // The entitlement that unlocks Pro. Change via env to match your dashboard.
@@ -135,6 +135,47 @@ export async function restorePurchases(): Promise<boolean> {
     captureApiError('purchases.restore', e)
     return false
   }
+}
+
+// ── Offerings + purchase (the custom Tempo paywall reads these) ──────────────────
+// No product IDs or prices are hardcoded: the paywall renders whatever the "current"
+// offering in the RevenueCat dashboard contains, so pricing/trial/offer changes take
+// effect with zero app changes. Returns null when the SDK isn't present (dev/Expo Go)
+// or no offering is configured — the paywall degrades to a graceful unavailable state.
+export async function getProOffering(): Promise<PurchasesOffering | null> {
+  if (!configured || !Purchases) return null
+  try {
+    const offerings = await Purchases.getOfferings()
+    return offerings?.current ?? null
+  } catch (e) {
+    captureApiError('purchases.getOfferings', e)
+    return null
+  }
+}
+
+export interface PurchaseResult {
+  ok: boolean        // the purchase call completed without error
+  isPro: boolean     // the user now holds the Pro entitlement
+  cancelled: boolean // the user dismissed the native purchase sheet
+}
+
+/** Buy a package. Distinguishes a real failure from a user cancel so the UI stays quiet on cancel. */
+export async function purchaseProPackage(pkg: PurchasesPackage): Promise<PurchaseResult> {
+  if (!configured || !Purchases) return { ok: false, isPro: false, cancelled: false }
+  try {
+    const { customerInfo } = await Purchases.purchasePackage(pkg)
+    return { ok: true, isPro: infoIsPro(customerInfo), cancelled: false }
+  } catch (e) {
+    // RevenueCat sets userCancelled on the error when the user backs out of the sheet.
+    if ((e as { userCancelled?: boolean })?.userCancelled) return { ok: false, isPro: false, cancelled: true }
+    captureApiError('purchases.purchasePackage', e)
+    return { ok: false, isPro: false, cancelled: false }
+  }
+}
+
+/** Whether a package grants a free trial / intro offer the current user is eligible to see. */
+export function packageHasIntroOffer(pkg: PurchasesPackage | null | undefined): boolean {
+  return !!pkg && !!pkg.product.introPrice && pkg.product.introPrice.price === 0
 }
 
 // ── Paywall + Customer Center (react-native-purchases-ui) ───────────────────────
