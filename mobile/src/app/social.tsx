@@ -19,6 +19,7 @@ import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView } from '@/components/motion'
 import { FriendAvatar } from '@/components/FriendAvatar'
 import { OptionSheet } from '@/components/OptionSheet'
+import { TempoSheet } from '@/components/TempoSheet'
 import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
@@ -85,6 +86,9 @@ export default function SocialScreen() {
   const [groupName, setGroupName] = useState('')
   const [groupCode, setGroupCode] = useState('')
   const [invites, setInvites] = useState<WorkoutInvite[]>([])
+  const [addOpen, setAddOpen] = useState(false)
+  const [groupSheetOpen, setGroupSheetOpen] = useState(false)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
   const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -259,67 +263,17 @@ export default function SocialScreen() {
         title="Friends"
         size="sm"
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
+        right={
+          <TouchableOpacity onPress={() => setAddOpen(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add friends">
+            <Ionicons name="person-add" size={22} color={C.text} />
+          </TouchableOpacity>
+        }
       />
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading your people…" /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Search */}
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={17} color={C.outline} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Name, @username, or friend code"
-              placeholderTextColor={C.outline}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searching && <ActivityIndicator size="small" color={C.primary} />}
-          </View>
-          {query.trim().length >= 2 && !searching && (
-            <View style={styles.card}>
-              {results.length === 0 ? (
-                <Text style={styles.emptyInline}>No one found. Try their @username or 6-letter friend code — those always match exactly.</Text>
-              ) : results.map((p) => personRow(
-                p,
-                knownIds.has(p.user_id) ? (
-                  <Text style={styles.mutedTag}>{friends.find((f) => f.user_id === p.user_id)?.state === 'friend' ? 'Friends' : 'Pending'}</Text>
-                ) : sentTo.has(p.user_id) ? (
-                  <Text style={styles.mutedTag}>Sent ✓</Text>
-                ) : (
-                  <PressableScale style={styles.addBtn} onPress={() => handleAdd(p)} scaleTo={0.9}>
-                    <Ionicons name="person-add" size={14} color={C.onPrimary} />
-                    <Text style={styles.addBtnText}>Add</Text>
-                  </PressableScale>
-                ),
-                () => router.push(`/friend-profile?userId=${p.user_id}` as any),
-              ))}
-            </View>
-          )}
-
-          {/* Your identity — the thing you hand a gym buddy so they add YOU,
-              and the fix for duplicate display names. */}
-          {identity?.friend_code && (
-            <View style={styles.identityCard}>
-              <View style={{ flex: 1 }}>
-                {!!identity.username && <Text style={styles.identityHandle}>@{identity.username}</Text>}
-                <Text style={styles.identityLabel}>YOUR FRIEND CODE</Text>
-                <Text style={styles.identityCode}>{identity.friend_code}</Text>
-              </View>
-              <View style={styles.identityActions}>
-                <PressableScale style={styles.identityBtn} onPress={copyMyCode} scaleTo={0.9} accessibilityLabel="Copy friend code">
-                  <Ionicons name="copy-outline" size={17} color={C.primary} />
-                </PressableScale>
-                <PressableScale style={styles.identityBtn} onPress={shareMyCode} scaleTo={0.9} accessibilityLabel="Share friend code">
-                  <Ionicons name="share-outline" size={17} color={C.primary} />
-                </PressableScale>
-              </View>
-            </View>
-          )}
-
           {/* Incoming requests */}
           {incoming.length > 0 && (
             <>
@@ -376,6 +330,18 @@ export default function SocialScreen() {
                   </View>
                 ))}
               </View>
+            </>
+          )}
+
+          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score (shared board). */}
+          {board.length > 1 && (
+            <>
+              <Text style={styles.sectionLabel}>LEADERBOARD</Text>
+              <LeaderboardBoard
+                rows={board}
+                currentUserId={userId}
+                onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}` as any)}
+              />
             </>
           )}
 
@@ -448,18 +414,6 @@ export default function SocialScreen() {
             </>
           )}
 
-          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score (shared board). */}
-          {board.length > 1 && (
-            <>
-              <Text style={styles.sectionLabel}>LEADERBOARD</Text>
-              <LeaderboardBoard
-                rows={board}
-                currentUserId={userId}
-                onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}` as any)}
-              />
-            </>
-          )}
-
           {/* Groups — private circles, each with its own leaderboards */}
           <Text style={styles.sectionLabel}>GROUPS</Text>
           {groups.length > 0 && (
@@ -483,37 +437,10 @@ export default function SocialScreen() {
               ))}
             </View>
           )}
-          <View style={styles.codeRow}>
-            <TextInput
-              style={styles.codeInput}
-              value={groupName}
-              onChangeText={setGroupName}
-              placeholder="New group name"
-              placeholderTextColor={C.outline}
-              maxLength={40}
-              returnKeyType="done"
-              onSubmitEditing={onCreateGroup}
-            />
-            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={onCreateGroup} scaleTo={0.92}>
-              <Text style={styles.addBtnText}>Create</Text>
-            </PressableScale>
-          </View>
-          <View style={[styles.codeRow, { marginTop: Spacing.xs }]}>
-            <TextInput
-              style={styles.codeInput}
-              value={groupCode}
-              onChangeText={setGroupCode}
-              placeholder="Join with a group code"
-              placeholderTextColor={C.outline}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              returnKeyType="go"
-              onSubmitEditing={onJoinGroup}
-            />
-            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={onJoinGroup} scaleTo={0.92}>
-              <Text style={styles.addBtnText}>Join</Text>
-            </PressableScale>
-          </View>
+          <TouchableOpacity style={styles.actionRow} onPress={() => setGroupSheetOpen(true)} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={20} color={C.primary} />
+            <Text style={styles.actionRowText}>New group or join by code</Text>
+          </TouchableOpacity>
 
           {/* Friends */}
           <Text style={styles.sectionLabel}>MY FRIENDS{accepted.length ? ` · ${accepted.length}` : ''}</Text>
@@ -521,7 +448,7 @@ export default function SocialScreen() {
             <EmptyState
               kind="flash"
               title="No friends yet"
-              body="Search a name above to send your first request. Friends can see each other's workouts and progress — as much or as little as you choose below."
+              body="Tap ＋ in the top right to search for people or share your friend code. Friends can see each other's workouts and progress — as much or as little as you choose."
             />
           ) : (
             <View style={styles.card}>
@@ -547,29 +474,99 @@ export default function SocialScreen() {
             </Text>
           )}
 
-          {/* Redeem a share */}
-          <Text style={styles.sectionLabel}>GOT A SHARED WORKOUT?</Text>
+          {/* Settings — privacy + who-can-see, tucked into a sheet to keep this clean */}
+          <TouchableOpacity style={[styles.actionRow, { marginTop: Spacing.md }]} onPress={() => setPrivacyOpen(true)} activeOpacity={0.7}>
+            <Ionicons name="lock-closed-outline" size={19} color={C.primary} />
+            <Text style={styles.actionRowText}>Privacy & sharing</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* Add friends — search, your friend code, redeem a shared workout */}
+      <TempoSheet visible={addOpen} onClose={() => setAddOpen(false)} snapPoints={['85%']} scroll>
+        <View style={styles.sheetPad}>
+          <Text style={styles.sheetTitle}>Add friends</Text>
+          {identity?.friend_code && (
+            <View style={styles.identityCard}>
+              <View style={{ flex: 1 }}>
+                {!!identity.username && <Text style={styles.identityHandle}>@{identity.username}</Text>}
+                <Text style={styles.identityLabel}>YOUR FRIEND CODE</Text>
+                <Text style={styles.identityCode}>{identity.friend_code}</Text>
+              </View>
+              <View style={styles.identityActions}>
+                <PressableScale style={styles.identityBtn} onPress={copyMyCode} scaleTo={0.9} accessibilityLabel="Copy friend code">
+                  <Ionicons name="copy-outline" size={17} color={C.primary} />
+                </PressableScale>
+                <PressableScale style={styles.identityBtn} onPress={shareMyCode} scaleTo={0.9} accessibilityLabel="Share friend code">
+                  <Ionicons name="share-outline" size={17} color={C.primary} />
+                </PressableScale>
+              </View>
+            </View>
+          )}
+          <View style={[styles.searchBox, { marginTop: Spacing.md }]}>
+            <Ionicons name="search" size={17} color={C.outline} />
+            <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder="Name, @username, or friend code" placeholderTextColor={C.outline} autoCapitalize="none" autoCorrect={false} />
+            {searching && <ActivityIndicator size="small" color={C.primary} />}
+          </View>
+          {query.trim().length >= 2 && !searching && (
+            <View style={[styles.card, { marginTop: Spacing.xs }]}>
+              {results.length === 0 ? (
+                <Text style={styles.emptyInline}>No one found. Try their @username or 6-letter friend code — those always match exactly.</Text>
+              ) : results.map((p) => personRow(
+                p,
+                knownIds.has(p.user_id) ? (
+                  <Text style={styles.mutedTag}>{friends.find((f) => f.user_id === p.user_id)?.state === 'friend' ? 'Friends' : 'Pending'}</Text>
+                ) : sentTo.has(p.user_id) ? (
+                  <Text style={styles.mutedTag}>Sent ✓</Text>
+                ) : (
+                  <PressableScale style={styles.addBtn} onPress={() => handleAdd(p)} scaleTo={0.9}>
+                    <Ionicons name="person-add" size={14} color={C.onPrimary} />
+                    <Text style={styles.addBtnText}>Add</Text>
+                  </PressableScale>
+                ),
+              ))}
+            </View>
+          )}
+          <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>GOT A SHARED WORKOUT?</Text>
           <View style={styles.codeRow}>
-            <TextInput
-              style={styles.codeInput}
-              value={code}
-              onChangeText={setCode}
-              placeholder="Paste a link or code"
-              placeholderTextColor={C.outline}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={redeemCode}
-              returnKeyType="go"
-            />
-            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={redeemCode} scaleTo={0.92}>
+            <TextInput style={styles.codeInput} value={code} onChangeText={setCode} placeholder="Paste a link or code" placeholderTextColor={C.outline} autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => { setAddOpen(false); redeemCode() }} returnKeyType="go" />
+            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={() => { setAddOpen(false); redeemCode() }} scaleTo={0.92}>
               <Text style={styles.addBtnText}>Open</Text>
             </PressableScale>
           </View>
+        </View>
+      </TempoSheet>
 
-          {/* Privacy */}
-          <Text style={styles.sectionLabel}>PRIVACY</Text>
+      {/* Groups — create / join by code */}
+      <TempoSheet visible={groupSheetOpen} onClose={() => setGroupSheetOpen(false)} snapPoints={['58%']} scroll>
+        <View style={styles.sheetPad}>
+          <Text style={styles.sheetTitle}>Groups</Text>
+          <Text style={styles.sheetHint}>Create a private group or join one with its code — each gets its own leaderboards.</Text>
+          <Text style={styles.sectionLabel}>NEW GROUP</Text>
+          <View style={styles.codeRow}>
+            <TextInput style={styles.codeInput} value={groupName} onChangeText={setGroupName} placeholder="Group name" placeholderTextColor={C.outline} maxLength={40} returnKeyType="done" onSubmitEditing={() => { setGroupSheetOpen(false); onCreateGroup() }} />
+            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={() => { setGroupSheetOpen(false); onCreateGroup() }} scaleTo={0.92}>
+              <Text style={styles.addBtnText}>Create</Text>
+            </PressableScale>
+          </View>
+          <Text style={[styles.sectionLabel, { marginTop: Spacing.md }]}>JOIN A GROUP</Text>
+          <View style={styles.codeRow}>
+            <TextInput style={styles.codeInput} value={groupCode} onChangeText={setGroupCode} placeholder="Group code" placeholderTextColor={C.outline} autoCapitalize="characters" autoCorrect={false} returnKeyType="go" onSubmitEditing={() => { setGroupSheetOpen(false); onJoinGroup() }} />
+            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={() => { setGroupSheetOpen(false); onJoinGroup() }} scaleTo={0.92}>
+              <Text style={styles.addBtnText}>Join</Text>
+            </PressableScale>
+          </View>
+        </View>
+      </TempoSheet>
+
+      {/* Privacy & sharing */}
+      <TempoSheet visible={privacyOpen} onClose={() => setPrivacyOpen(false)} snapPoints={['72%']} scroll>
+        <View style={styles.sheetPad}>
+          <Text style={styles.sheetTitle}>Privacy & sharing</Text>
+          <Text style={styles.sheetHint}>Tap a row to switch between Public, Friends only and Private. Private hides it from everyone, including friends.</Text>
           {privacy && (
-            <View style={styles.card}>
+            <View style={[styles.card, { marginTop: Spacing.sm }]}>
               {([
                 ['privacy_workouts', 'Workouts', 'Who can browse and save your saved workouts'],
                 ['privacy_stats', 'Stats', 'Streak, totals and session history'],
@@ -592,9 +589,8 @@ export default function SocialScreen() {
               ))}
             </View>
           )}
-          <Text style={styles.hint}>Tap a row to switch between Public, Friends only and Private. Private hides it from everyone, including friends.</Text>
-        </ScrollView>
-      )}
+        </View>
+      </TempoSheet>
 
       <OptionSheet
         visible={removeConfirm !== null}
@@ -633,6 +629,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   personName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   personHandle: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   groupIcon: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  actionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.md,
+    backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  actionRowText: { fontFamily: 'Inter_700Bold', fontSize: 14.5, color: C.text },
+  sheetPad: { padding: Spacing.lg, gap: Spacing.xs },
+  sheetTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: 2 },
+  sheetHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, marginBottom: Spacing.xs },
   identityCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.primarySoft, borderRadius: Radius.xl, padding: Spacing.md, marginTop: Spacing.sm,

@@ -150,11 +150,13 @@ you moving."*
   before the Home spotlight tour), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
   the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
   exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
-  targets), **`social`** (Friends home: **your @username + friend-code card** with copy/share,
-  live search by **name / @username / friend code**, requests, **friend-activity feed** (with a
-  one-tap 🔥 "nice work" reaction + count per row), a
-  **friends-only weekly leaderboard**, friends list, paste-a-code share redemption, tap-to-cycle
-  privacy rows), **`friend-profile`** (privacy-gated @handle + member-since, streak / longest /
+  targets), **`social`** (Friends home — decluttered so the scroll is only content: requests →
+  workout invites → leaderboard → activity feed → groups → friends → a Privacy row. The "loose"
+  actions moved into sheets: a header **＋** opens **Add friends** (your friend-code card + search by
+  name/@username/code + redeem a shared workout), a **New group / join** button opens the Groups
+  sheet, and **Privacy & sharing** opens the tap-to-cycle privacy sheet (workouts/stats/activity/
+  **availability**). Feed rows have a one-tap 🔥 reaction), **`friend-profile`** (privacy-gated
+  @handle + member-since, **Schedule together**, badges, streak / longest /
   this-week cards, totals — workouts / sets / **volume in display unit** / favorite muscle / goal /
   this-month — recent activity + browsable workouts with "Save to My Workouts" attributed copies),
   **`shared-workout`** (share-link landing for a **workout or a whole split** — metadata chips
