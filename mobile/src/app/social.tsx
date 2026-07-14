@@ -22,11 +22,13 @@ import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
-  fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchLeaderboardV2, sortLeaderboard,
+  fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchLeaderboardV2,
   toggleActivityReaction, fetchFriendEvents, describeFriendEvent,
   type FriendEntry, type SocialProfile, type PrivacyPrefs, type PrivacyLevel,
-  type MyIdentity, type FeedItem, type LeaderboardV2Row, type LeaderboardMetric, type FriendEventItem,
+  type MyIdentity, type FeedItem, type LeaderboardV2Row, type FriendEventItem,
 } from '@/lib/social'
+import { LeaderboardBoard } from '@/components/LeaderboardBoard'
+import { listMyGroups, createGroup, joinGroup, type GroupSummary } from '@/lib/groups'
 
 // "2h ago" / "3d ago" for feed rows.
 function timeAgo(iso: string): string {
@@ -68,7 +70,9 @@ export default function SocialScreen() {
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [events, setEvents] = useState<FriendEventItem[]>([])
   const [board, setBoard] = useState<LeaderboardV2Row[]>([])
-  const [boardTab, setBoardTab] = useState<LeaderboardMetric>('weekly')
+  const [groups, setGroups] = useState<GroupSummary[]>([])
+  const [groupName, setGroupName] = useState('')
+  const [groupCode, setGroupCode] = useState('')
   const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -80,6 +84,7 @@ export default function SocialScreen() {
     fetchFriendFeed(supabase).then(setFeed).catch(() => {})
     fetchFriendEvents(supabase).then(setEvents).catch(() => {})
     fetchLeaderboardV2(supabase).then(setBoard).catch(() => {})
+    listMyGroups(supabase).then(setGroups).catch(() => {})
   }, [userId])
   useFocusEffect(load)
 
@@ -170,6 +175,25 @@ export default function SocialScreen() {
     router.push(`/shared-workout?code=${encodeURIComponent(c)}` as any)
   }
 
+  const onCreateGroup = async () => {
+    const name = groupName.trim()
+    if (!name) return
+    haptics.tapLight()
+    setGroupName('')
+    const g = await createGroup(supabase, name)
+    if (g) { load(); router.push(`/group-detail?id=${g.id}` as any) }
+    else Alert.alert('Couldn’t create group', 'Please try again.')
+  }
+  const onJoinGroup = async () => {
+    const c = groupCode.trim()
+    if (!c) return
+    haptics.tapLight()
+    setGroupCode('')
+    const gid = await joinGroup(supabase, c)
+    if (gid) { load(); router.push(`/group-detail?id=${gid}` as any) }
+    else Alert.alert('Group not found', 'Double-check the code and try again.')
+  }
+
   const cyclePrivacy = async (key: keyof PrivacyPrefs) => {
     if (!privacy) return
     haptics.tapLight()
@@ -185,7 +209,6 @@ export default function SocialScreen() {
   const incoming = friends.filter((f) => f.state === 'incoming')
   const outgoing = friends.filter((f) => f.state === 'outgoing')
   const accepted = friends.filter((f) => f.state === 'friend')
-  const sortedBoard = sortLeaderboard(board, boardTab)
   const activity: ActivityItem[] = [
     ...feed.map((c) => ({ kind: 'completed' as const, at: c.completed_at, c })),
     ...events.map((e) => ({ kind: 'event' as const, at: e.created_at, e })),
@@ -362,75 +385,72 @@ export default function SocialScreen() {
             </>
           )}
 
-          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score.
-              Consistency-first: a steady beginner can top a flaky advanced lifter. */}
+          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score (shared board). */}
           {board.length > 1 && (
             <>
               <Text style={styles.sectionLabel}>LEADERBOARD</Text>
-              <View style={styles.boardTabs}>
-                {([['weekly', 'This Week'], ['streak', 'Streak'], ['tempo', 'Tempo Score']] as [LeaderboardMetric, string][]).map(([key, label]) => {
-                  const on = boardTab === key
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[styles.boardTab, on && styles.boardTabOn]}
-                      onPress={() => { haptics.tapLight(); setBoardTab(key) }}
-                      activeOpacity={0.85}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                    >
-                      <Text style={[styles.boardTabText, on && styles.boardTabTextOn]}>{label}</Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-              <View style={styles.card}>
-                {sortedBoard.slice(0, 8).map((row, i) => {
-                  const isMe = row.user_id === userId
-                  const hasValue = boardTab === 'streak' ? row.current_streak > 0
-                    : boardTab === 'tempo' ? row.tempo_score > 0
-                      : row.completed_this_week > 0
-                  const medal = i < 3 && hasValue ? ['🥇', '🥈', '🥉'][i] : null
-                  return (
-                    <View key={row.user_id}>
-                      {i > 0 && <View style={styles.divider} />}
-                      <TouchableOpacity
-                        style={[styles.leaderRow, isMe && styles.leaderRowMe]}
-                        activeOpacity={isMe ? 1 : 0.7}
-                        disabled={isMe}
-                        onPress={() => router.push(`/friend-profile?userId=${row.user_id}` as any)}
-                      >
-                        {medal
-                          ? <Text style={styles.medal}>{medal}</Text>
-                          : <Text style={styles.leaderRank}>{i + 1}</Text>}
-                        <FriendAvatar avatarUrl={row.avatar_url} size={30} />
-                        <Text style={styles.leaderName} numberOfLines={1}>
-                          {isMe ? 'You' : (row.display_name ?? `@${row.username}`)}
-                        </Text>
-                        <View style={styles.leaderMetricWrap}>
-                          {boardTab === 'weekly' && <>
-                            <Text style={styles.leaderMetric}>{row.completed_this_week}/{row.scheduled_this_week}</Text>
-                            <Text style={styles.leaderMetricSub}>{row.completion_pct}%</Text>
-                          </>}
-                          {boardTab === 'streak' && <>
-                            <Text style={styles.leaderMetric}>🔥 {row.current_streak}</Text>
-                            <Text style={styles.leaderMetricSub}>day{row.current_streak === 1 ? '' : 's'}</Text>
-                          </>}
-                          {boardTab === 'tempo' && <>
-                            <Text style={styles.leaderMetric}>{row.tempo_score}</Text>
-                            <Text style={styles.leaderMetricSub}>pts</Text>
-                          </>}
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  )
-                })}
-              </View>
-              {boardTab === 'tempo' && (
-                <Text style={styles.hint}>Tempo Score rewards consistency over strength — finishing what you plan, hitting your weekly goal, and keeping a streak. A steady beginner can outscore a flaky pro.</Text>
-              )}
+              <LeaderboardBoard
+                rows={board}
+                currentUserId={userId}
+                onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}` as any)}
+              />
             </>
           )}
+
+          {/* Groups — private circles, each with its own leaderboards */}
+          <Text style={styles.sectionLabel}>GROUPS</Text>
+          {groups.length > 0 && (
+            <View style={styles.card}>
+              {groups.map((g, i) => (
+                <View key={g.id}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <TouchableOpacity
+                    style={styles.personRow}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/group-detail?id=${g.id}` as any)}
+                  >
+                    <View style={styles.groupIcon}><Ionicons name="people-circle" size={24} color={C.primary} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.personName} numberOfLines={1}>{g.name}</Text>
+                      <Text style={styles.personHandle}>{g.member_count} member{g.member_count === 1 ? '' : 's'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={styles.codeRow}>
+            <TextInput
+              style={styles.codeInput}
+              value={groupName}
+              onChangeText={setGroupName}
+              placeholder="New group name"
+              placeholderTextColor={C.outline}
+              maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={onCreateGroup}
+            />
+            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={onCreateGroup} scaleTo={0.92}>
+              <Text style={styles.addBtnText}>Create</Text>
+            </PressableScale>
+          </View>
+          <View style={[styles.codeRow, { marginTop: Spacing.xs }]}>
+            <TextInput
+              style={styles.codeInput}
+              value={groupCode}
+              onChangeText={setGroupCode}
+              placeholder="Join with a group code"
+              placeholderTextColor={C.outline}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={onJoinGroup}
+            />
+            <PressableScale style={[styles.addBtn, { paddingVertical: 10 }]} onPress={onJoinGroup} scaleTo={0.92}>
+              <Text style={styles.addBtnText}>Join</Text>
+            </PressableScale>
+          </View>
 
           {/* Friends */}
           <Text style={styles.sectionLabel}>MY FRIENDS{accepted.length ? ` · ${accepted.length}` : ''}</Text>
@@ -548,6 +568,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   personRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   personName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   personHandle: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  groupIcon: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   identityCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.primarySoft, borderRadius: Radius.xl, padding: Spacing.md, marginTop: Spacing.sm,

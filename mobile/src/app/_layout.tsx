@@ -221,6 +221,7 @@ function RootLayout() {
           <Stack.Screen name="social" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="friend-profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="badges" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="group-detail" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="shared-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="split-editor" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-history" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

@@ -851,6 +851,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   perfect-week/badge, RLS + dedupe) feeds **`friend_events()`**; the Friends screen merges it with
   completions chronologically. `friend_overview()` now also returns `stored_badges` + `days_per_week`
   and computes a friend's `earned_badges` in `fetchFriendOverview`. 15 unit tests (tempoScore+badges).
+  **Social upgrade Stage 3 — private groups** (`add_social_groups.sql`, **applied**; `lib/groups.ts`):
+  `groups` + `group_members` (RLS via SECURITY-DEFINER `is_group_member()` to avoid policy recursion);
+  RPCs `create_group` / `join_group` (by invite code) / `leave_group` (owner-leave deletes the group) /
+  `list_my_groups` / **`group_leaderboard(gid)`** (the `friends_leaderboard_v2` shape scoped to a
+  group's members, members-only). UI: a **Groups** section on the Friends screen (list · create · join
+  by code) + a **`group-detail`** modal (shareable code, member-scoped board, leave/delete). The
+  three-tab board is now the shared **`LeaderboardBoard`** component used by both friends and groups
+  (`mapLeaderboardV2Rows` maps either RPC's rows). End-to-end verified on the live DB.
   **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
   `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
   toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates
