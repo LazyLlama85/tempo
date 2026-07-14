@@ -518,7 +518,38 @@ export function muscleBalance(sets: { group: string | null }[]): MuscleBalance {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 10. JOURNEY TIMELINE — the emotional "how far you've come" story.
+// 10. STRENGTH TRENDS — "am I getting stronger?" top movers (start → now).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface StrengthSet { id: string; name: string; weight: number | null; at: string | null }
+export interface StrengthTrend { id: string; name: string; from: number; to: number; pct: number; sessions: number }
+
+/** Per exercise: max weight on the earliest logged day vs the latest, with % gain.
+ *  Only lifts with ≥2 distinct training days and a positive baseline qualify. */
+export function strengthTrends(sets: StrengthSet[], limit = 4): StrengthTrend[] {
+  const byEx = new Map<string, { name: string; days: Map<string, number> }>()
+  for (const s of sets) {
+    if (s.weight == null || s.weight <= 0 || !s.at) continue
+    const day = s.at.slice(0, 10)
+    let e = byEx.get(s.id)
+    if (!e) { e = { name: s.name, days: new Map() }; byEx.set(s.id, e) }
+    e.days.set(day, Math.max(e.days.get(day) ?? 0, s.weight))
+  }
+
+  const trends: StrengthTrend[] = []
+  for (const [id, e] of byEx) {
+    const days = [...e.days.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    if (days.length < 2) continue
+    const from = days[0][1]
+    const to = days[days.length - 1][1]
+    if (from <= 0 || to <= from) continue
+    trends.push({ id, name: e.name, from, to, pct: Math.round(((to - from) / from) * 1000) / 10, sessions: days.length })
+  }
+  return trends.sort((a, b) => b.pct - a.pct).slice(0, limit)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 11. JOURNEY TIMELINE — the emotional "how far you've come" story.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface JourneyEvent { date: string; title: string; detail: string; icon: string }

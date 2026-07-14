@@ -8,6 +8,7 @@ import {
   consistencyHeatmap,
   frequencySeries,
   muscleBalance,
+  strengthTrends,
   journeyTimeline,
 } from '../fitnessInsights'
 import type { StreakRow } from '../streak'
@@ -129,6 +130,24 @@ describe('muscleBalance', () => {
     const mb = muscleBalance(sets)
     expect(mb.slices.reduce((a, b) => a + b.sets, 0)).toBe(14)
     expect(mb.insight).toMatch(/core/i)
+  })
+})
+
+describe('strengthTrends', () => {
+  it('reports gains and ignores flat / single-day lifts', () => {
+    const sets = [
+      { id: 'bench', name: 'Bench Press', weight: 100, at: `${d(-30)}T17:00:00` },
+      { id: 'bench', name: 'Bench Press', weight: 120, at: `${d(-2)}T17:00:00` },
+      { id: 'squat', name: 'Back Squat', weight: 200, at: `${d(-30)}T17:00:00` },
+      { id: 'squat', name: 'Back Squat', weight: 200, at: `${d(-2)}T17:00:00` },
+      { id: 'ohp', name: 'Overhead Press', weight: 80, at: `${d(-3)}T17:00:00` },
+    ]
+    const t = strengthTrends(sets)
+    const bench = t.find((x) => x.id === 'bench')
+    expect(bench).toBeTruthy()
+    expect(bench!.pct).toBeCloseTo(20, 1)
+    expect(t.find((x) => x.id === 'squat')).toBeUndefined() // no gain
+    expect(t.find((x) => x.id === 'ohp')).toBeUndefined() // single day
   })
 })
 

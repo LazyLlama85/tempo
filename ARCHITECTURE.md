@@ -284,11 +284,13 @@ you moving."*
   milestone, completion rate, Pro-gated volume chart, weight trend, PRs, share cards, empty/error/
   loading). Added on top (from `lib/fitnessInsights` + `components/ProgressCards`): a **Tempo Score
   hero** with "why" bars, **Readiness** (history-based, works with no health hardware), **Momentum**,
-  a weekly **consistency predictor**, a GitHub-style **consistency heatmap**, a 3-day **workout
-  forecast**, **Tempo Insights** (optimal-window + behavioural patterns + muscle-balance nudge), and a
-  **journey timeline**. Data comes from `useProgressStats` (extended additively to also expose
-  `logTimes` + `muscleSets` from its existing set-log query — no new fetches). Profile no longer
-  duplicates any of the performance cards (see below).
+  a weekly **consistency predictor**, a GitHub-style **consistency heatmap**, a **Weekly Review** card
+  (opens the full `weekly-report`), a 3-day **workout forecast**, **Tempo Insights** (optimal-window +
+  behavioural patterns + muscle-balance nudge), a **training-frequency** graph (1M–1Y range), a
+  **muscle-balance** radar (`react-native-svg`), a **strength-progress** top-movers list (→
+  `exercise-progress`), and a **journey timeline**. Data comes from `useProgressStats` (extended
+  additively to also expose `logTimes` + `muscleSets` + `strengthSets` from its existing set-log query
+  — no new fetches). Profile no longer duplicates any of the performance cards (see below).
 - **Profile** (`(tabs)/profile.tsx`): identity + config surface. A single glanceable stat — the
   gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1"). The
   stat grid, achievements grid, and Personal Records card were **removed** so Progress owns all
@@ -708,8 +710,9 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `optimalWindow` / `successPatterns` (real time-of-day + weekday patterns from log timestamps),
   `workoutForecast` (3-day fatigue outlook), `consistencyPredictor` (weekly-goal projection),
   `consistencyHeatmap` (GitHub-style adherence grid), `frequencySeries`, `muscleBalance`,
-  `journeyTimeline`. Every output ships a human message and honest empty/low-confidence states; no
-  invented numbers. 14 unit tests (`__tests__/fitnessInsights.test.ts`).
+  `strengthTrends` (per-lift start→now top movers), `journeyTimeline`. Every output ships a human
+  message and honest empty/low-confidence states; no invented numbers. 15 unit tests
+  (`__tests__/fitnessInsights.test.ts`).
 - **User workouts:** `customExercises` (custom-exercise CRUD + `metricsFor` + `EXERCISE_COLUMNS`),
   `workoutBuilder` (drafts, templates, scheduling, duplicate, duration estimate).
 - **Origin labelling:** `workoutOrigin(source)` maps a scheduled workout's `source` to a

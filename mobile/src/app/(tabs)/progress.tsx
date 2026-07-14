@@ -33,10 +33,12 @@ import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore
 import {
   computeMomentum, readinessFromHistory, consistencyPredictor, consistencyHeatmap,
   workoutForecast, optimalWindow, successPatterns, journeyTimeline, muscleBalance,
+  frequencySeries, strengthTrends, type FreqRange,
 } from '@/lib/fitnessInsights'
 import {
   SectionLabel, TempoScoreHero, ReadinessCard, MomentumCard, PredictorCard,
   ConsistencyHeatmap, ForecastStrip, InsightsCard, JourneyTimeline,
+  FrequencyCard, MuscleBalanceCard, WeeklyReviewCard, StrengthProgressCard,
 } from '@/components/ProgressCards'
 
 
@@ -60,7 +62,8 @@ export default function ProgressScreen() {
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
-  const { stats, workouts, logTimes, muscleSets, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { stats, workouts, logTimes, muscleSets, strengthSets, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const [freqRange, setFreqRange] = useState<FreqRange>('3M')
   const { requirePro, locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
@@ -136,8 +139,15 @@ export default function ProgressScreen() {
       patterns: successPatterns(workouts, logTimes, todayStr),
       journey: journeyTimeline(workouts, todayStr),
       muscle: muscleBalance(muscleSets),
+      strength: strengthTrends(strengthSets),
     }
-  }, [workouts, logTimes, muscleSets, profile?.days_per_week, todayStr])
+  }, [workouts, logTimes, muscleSets, strengthSets, profile?.days_per_week, todayStr])
+
+  const frequency = useMemo(
+    () => (workouts.length ? frequencySeries(workouts, todayStr, freqRange) : null),
+    [workouts, todayStr, freqRange],
+  )
+  const fmtW = (lbs: number) => `${displayWeight(lbs, unit)} ${unitLabel(unit)}`
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -189,6 +199,13 @@ export default function ProgressScreen() {
 
             <SectionLabel title="Consistency" hint="Showing up, week after week." />
             {insights && <ConsistencyHeatmap heatmap={insights.heatmap} streak={stats.streak} delay={40} />}
+            <WeeklyReviewCard
+              completed={stats.thisWeek}
+              goal={profile?.days_per_week ?? 3}
+              consistencyPct={consistency_pct}
+              onOpen={() => router.push('/weekly-report' as any)}
+              delay={70}
+            />
             {/* Consistency ring — sweeps to its score every time you land here */}
             <FadeInView style={styles.ringCard} delay={40}>
               <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
@@ -358,6 +375,18 @@ export default function ProgressScreen() {
                 emptyText="Log a few weigh-ins on Profile to see your trend here."
               />
             </View>
+
+            {/* Training frequency + muscle balance + strength progress (new) */}
+            {frequency && <FrequencyCard series={frequency} range={freqRange} onRange={setFreqRange} delay={40} />}
+            {insights && <MuscleBalanceCard muscle={insights.muscle} delay={60} />}
+            {insights && (
+              <StrengthProgressCard
+                trends={insights.strength}
+                formatWeight={fmtW}
+                onOpen={(id, name) => { if (requirePro('advanced_analytics')) router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as any) }}
+                delay={80}
+              />
+            )}
 
             {/* Personal records */}
             <View style={styles.section}>

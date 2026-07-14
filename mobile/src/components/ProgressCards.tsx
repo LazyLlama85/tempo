@@ -7,6 +7,7 @@
 
 import { ReactNode } from 'react'
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native'
+import Svg, { Polygon, Line as SvgLine, Text as SvgText } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Typography, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -15,6 +16,7 @@ import { CountUp } from '@/components/celebration'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import type {
   Momentum, Readiness, Predictor, Heatmap, ForecastDay, OptimalWindow, JourneyEvent,
+  FrequencySeries, FreqRange, MuscleBalance, StrengthTrend,
 } from '@/lib/fitnessInsights'
 import type { TempoScoreBreakdown } from '@/lib/tempoScore'
 
@@ -306,6 +308,156 @@ export function JourneyTimeline({ events, delay = 0 }: { events: JourneyEvent[];
   )
 }
 
+// ── 9. Training frequency ───────────────────────────────────────────────────────
+
+const FREQ_RANGES: FreqRange[] = ['1M', '3M', '6M', '1Y']
+
+export function FrequencyCard({
+  series, range, onRange, delay = 0,
+}: { series: FrequencySeries; range: FreqRange; onRange: (r: FreqRange) => void; delay?: number }) {
+  const C = useTheme()
+  const s = useThemedStyles(makeStyles)
+  const max = Math.max(...series.points.map((p) => p.value), 1)
+  const showLabels = series.points.length <= 13
+
+  return (
+    <FadeInView style={s.card} delay={delay}>
+      <View style={s.rowBetween}>
+        <Text style={s.cardLabel}>TRAINING FREQUENCY</Text>
+        <View style={s.rangeToggle}>
+          {FREQ_RANGES.map((r) => (
+            <PressableScale key={r} style={[s.rangeBtn, r === range && { backgroundColor: C.primary }]} onPress={() => onRange(r)} scaleTo={0.9}>
+              <Text style={[s.rangeText, r === range && { color: C.onPrimary }]}>{r}</Text>
+            </PressableScale>
+          ))}
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+        <Text style={s.freqAvg}>{series.avgPerWeek}</Text>
+        <Text style={s.freqUnit}>workouts / week avg</Text>
+      </View>
+      <View style={s.freqBars}>
+        {series.points.map((p, i) => {
+          const h = p.value > 0 ? Math.max(3, Math.round((p.value / max) * 52)) : 2
+          return (
+            <View key={i} style={s.freqBarCol}>
+              <View style={[s.freqBar, { height: h, backgroundColor: p.value > 0 ? C.primary : C.surfaceContainerHigh, opacity: p.value > 0 ? 1 : 0.5 }]} />
+              {showLabels && <Text style={s.freqBarLabel} numberOfLines={1}>{p.label}</Text>}
+            </View>
+          )
+        })}
+      </View>
+      <Text style={s.freqCaption}>{series.deltaMessage}</Text>
+    </FadeInView>
+  )
+}
+
+// ── 10. Muscle balance (radar) ──────────────────────────────────────────────────
+
+const MUSCLE_SHORT: Record<string, string> = {
+  chest: 'Chest', back: 'Back', shoulders: 'Delts', arms: 'Arms', legs: 'Legs', core: 'Core',
+}
+
+export function MuscleBalanceCard({ muscle, delay = 0 }: { muscle: MuscleBalance; delay?: number }) {
+  const C = useTheme()
+  const s = useThemedStyles(makeStyles)
+  const total = muscle.slices.reduce((a, b) => a + b.sets, 0)
+  if (total === 0) return null
+
+  const size = 200
+  const cx = size / 2
+  const cy = size / 2
+  const R = 66
+  const n = muscle.slices.length
+  const maxPct = Math.max(...muscle.slices.map((sl) => sl.pct), 1)
+  const angleFor = (i: number) => (-90 + (i * 360) / n) * (Math.PI / 180)
+  const pt = (i: number, radius: number) => `${cx + radius * Math.cos(angleFor(i))},${cy + radius * Math.sin(angleFor(i))}`
+  const gridOuter = muscle.slices.map((_, i) => pt(i, R)).join(' ')
+  const gridMid = muscle.slices.map((_, i) => pt(i, R * 0.5)).join(' ')
+  const dataPoly = muscle.slices.map((sl, i) => pt(i, R * Math.max(0.04, sl.pct / maxPct))).join(' ')
+
+  return (
+    <FadeInView style={s.card} delay={delay}>
+      <Text style={s.cardLabel}>MUSCLE BALANCE</Text>
+      <View style={{ alignItems: 'center' }}>
+        <Svg width={size} height={size}>
+          <Polygon points={gridOuter} fill={C.surfaceContainerHigh} fillOpacity={0.35} stroke={C.chartGrid} strokeWidth={1} />
+          <Polygon points={gridMid} fill="none" stroke={C.chartGrid} strokeWidth={1} />
+          {muscle.slices.map((_, i) => (
+            <SvgLine key={i} x1={cx} y1={cy} x2={cx + R * Math.cos(angleFor(i))} y2={cy + R * Math.sin(angleFor(i))} stroke={C.chartGrid} strokeWidth={1} />
+          ))}
+          <Polygon points={dataPoly} fill={C.primary} fillOpacity={0.28} stroke={C.primary} strokeWidth={2} />
+          {muscle.slices.map((sl, i) => {
+            const lx = cx + (R + 16) * Math.cos(angleFor(i))
+            const ly = cy + (R + 16) * Math.sin(angleFor(i))
+            return (
+              <SvgText key={i} x={lx} y={ly + 3} fill={C.textSecondary} fontSize={10} fontWeight="700" textAnchor="middle">
+                {MUSCLE_SHORT[sl.group] ?? sl.group}
+              </SvgText>
+            )
+          })}
+        </Svg>
+      </View>
+      {muscle.insight && <Text style={s.muscleInsight}>{muscle.insight}</Text>}
+    </FadeInView>
+  )
+}
+
+// ── 11. Weekly review (links to the full recap screen) ──────────────────────────
+
+export function WeeklyReviewCard({
+  completed, goal, consistencyPct, onOpen, delay = 0,
+}: { completed: number; goal: number; consistencyPct: number; onOpen: () => void; delay?: number }) {
+  const s = useThemedStyles(makeStyles)
+  const C = useTheme()
+  return (
+    <PressableScale onPress={onOpen} scaleTo={0.98}>
+      <FadeInView style={[s.card, s.weeklyCard]} delay={delay}>
+        <View style={s.rowBetween}>
+          <Text style={s.cardLabel}>YOUR WEEK</Text>
+          <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+        </View>
+        <View style={s.weeklyStats}>
+          <View style={s.weeklyStat}>
+            <Text style={s.weeklyNum}>{completed}/{goal}</Text>
+            <Text style={s.weeklyStatLabel}>workouts</Text>
+          </View>
+          <View style={s.weeklyDivider} />
+          <View style={s.weeklyStat}>
+            <Text style={s.weeklyNum}>{consistencyPct}%</Text>
+            <Text style={s.weeklyStatLabel}>consistency</Text>
+          </View>
+        </View>
+        <Text style={s.weeklyCta}>View your full weekly recap →</Text>
+      </FadeInView>
+    </PressableScale>
+  )
+}
+
+// ── 12. Strength progress (top movers) ──────────────────────────────────────────
+
+export function StrengthProgressCard({
+  trends, formatWeight, onOpen, delay = 0,
+}: { trends: StrengthTrend[]; formatWeight: (lbs: number) => string; onOpen: (id: string, name: string) => void; delay?: number }) {
+  const C = useTheme()
+  const s = useThemedStyles(makeStyles)
+  if (!trends.length) return null
+  return (
+    <FadeInView style={s.card} delay={delay}>
+      <Text style={s.cardLabel}>STRENGTH PROGRESS</Text>
+      {trends.map((t) => (
+        <PressableScale key={t.id} style={s.strengthRow} onPress={() => onOpen(t.id, t.name)} scaleTo={0.98}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.strengthName} numberOfLines={1}>{t.name}</Text>
+            <Text style={s.strengthDelta}>{formatWeight(t.from)} → {formatWeight(t.to)}</Text>
+          </View>
+          <Text style={[s.strengthPct, { color: C.readyHigh }]}>+{t.pct}%</Text>
+        </PressableScale>
+      ))}
+    </FadeInView>
+  )
+}
+
 // ── Card wrapper (for arbitrary extra content in a consistent shell) ─────────────
 
 export function InfoCard({ children, style, delay = 0 }: { children: ReactNode; style?: StyleProp<ViewStyle>; delay?: number }) {
@@ -384,6 +536,36 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   insightText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, flex: 1, alignSelf: 'center' },
   scheduleBtn: { backgroundColor: C.primary, borderRadius: Radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
   scheduleBtnText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.onPrimary },
+
+  // Frequency
+  rangeToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainer, borderRadius: Radius.md, padding: 3, gap: 2 },
+  rangeBtn: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Radius.sm },
+  rangeText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline },
+  freqAvg: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.8 },
+  freqUnit: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
+  freqBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 68 },
+  freqBarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  freqBar: { width: '100%', borderRadius: 3, minWidth: 3 },
+  freqBarLabel: { fontFamily: 'Inter_500Medium', fontSize: 9, color: C.outline },
+  freqCaption: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+
+  // Muscle balance
+  muscleInsight: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18, textAlign: 'center' },
+
+  // Weekly review
+  weeklyCard: { backgroundColor: C.surfaceContainer, borderWidth: 1, borderColor: C.glassBorder },
+  weeklyStats: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  weeklyStat: { gap: 2 },
+  weeklyNum: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.6 },
+  weeklyStatLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  weeklyDivider: { width: 1, height: 34, backgroundColor: C.outlineVariant },
+  weeklyCta: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+
+  // Strength progress
+  strengthRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.outlineVariant },
+  strengthName: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
+  strengthDelta: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
+  strengthPct: { fontFamily: C.fontDisplay, fontSize: 17, letterSpacing: -0.3 },
 
   // Journey
   journeyRow: { flexDirection: 'row', gap: Spacing.md },

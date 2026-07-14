@@ -291,6 +291,12 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({ group: sl.muscleGroup })),
     [setLogsQ.data],
   )
+  const strengthSets = useMemo(
+    () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({
+      id: sl.exercise_id, name: sl.exerciseName, weight: sl.weight_lbs, at: sl.completed_at,
+    })),
+    [setLogsQ.data],
+  )
 
   return {
     stats,
@@ -298,9 +304,10 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     // the Profile doesn't re-query the same history.
     workouts: workoutsQ.data ?? [],
     // Engine inputs for lib/fitnessInsights (when the user actually trained + muscle
-    // buckets). Additive — only the Progress dashboard reads them.
+    // buckets + per-lift weights). Additive — only the Progress dashboard reads them.
     logTimes,
     muscleSets,
+    strengthSets,
     isLoading: workoutsQ.isLoading || setLogsQ.isLoading,
     isError: workoutsQ.isError || setLogsQ.isError,
     refetch: async () => { await Promise.all([workoutsQ.refetch(), setLogsQ.refetch()]) },
