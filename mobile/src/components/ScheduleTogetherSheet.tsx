@@ -17,6 +17,7 @@ import { minutesToTime, type SharedSlot } from '@/lib/availability'
 import * as haptics from '@/lib/haptics'
 
 const DURATIONS = [30, 45, 60, 90]
+const FOCUS_PRESETS = ['Push Day', 'Pull Day', 'Leg Day', 'Upper Body', 'Lower Body', 'Full Body', 'Cardio', 'Core']
 
 function slotDateLabel(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -75,7 +76,17 @@ export function ScheduleTogetherSheet({ visible, friendId, friendName, onClose, 
         <Text style={styles.hint}>Tempo found times you're both free. Pick one to send an invite — accepting schedules it for both of you.</Text>
 
         <Text style={styles.label}>WORKOUT</Text>
-        <TextInput style={styles.input} value={focus} onChangeText={setFocus} placeholder="e.g. Push Day" placeholderTextColor={C.outline} maxLength={40} />
+        <View style={styles.focusChips}>
+          {FOCUS_PRESETS.map((f) => {
+            const on = focus.trim().toLowerCase() === f.toLowerCase()
+            return (
+              <TouchableOpacity key={f} style={[styles.focusChip, on && styles.focusChipOn]} onPress={() => { haptics.tapLight(); setFocus(f) }} activeOpacity={0.85}>
+                <Text style={[styles.focusChipText, on && styles.focusChipTextOn]}>{f}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+        <TextInput style={styles.input} value={focus} onChangeText={setFocus} placeholder="or type your own" placeholderTextColor={C.outline} maxLength={40} />
 
         <Text style={styles.label}>DURATION</Text>
         <View style={styles.chips}>
@@ -124,6 +135,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     height: 48, backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
     paddingHorizontal: Spacing.md, fontFamily: 'Inter_500Medium', fontSize: 16, color: C.text, marginTop: 4,
   },
+  focusChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: 4 },
+  focusChip: { paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: Radius.full, borderWidth: 1.5, borderColor: C.outlineVariant, backgroundColor: C.background },
+  focusChipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  focusChipText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.textSecondary },
+  focusChipTextOn: { color: C.onPrimary },
   chips: { flexDirection: 'row', gap: Spacing.xs, marginTop: 4 },
   chip: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Radius.full, borderWidth: 1.5, borderColor: C.outlineVariant, backgroundColor: C.background },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },

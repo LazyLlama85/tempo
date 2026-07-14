@@ -79,6 +79,7 @@ declare me uuid := auth.uid(); iid uuid;
 begin
   if me is null or p_to is null or me = p_to then return null; end if;
   if not public.are_friends(me, p_to) then return null; end if;
+  if p_date < current_date then return null; end if; -- never invite for a past date
   insert into public.workout_invites (from_user, to_user, focus, proposed_date, proposed_start, duration_min)
     values (me, p_to, coalesce(nullif(trim(p_focus), ''), 'Workout'), p_date, p_start, coalesce(p_duration, 45))
     returning id into iid;

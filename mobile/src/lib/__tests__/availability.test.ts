@@ -55,6 +55,16 @@ describe('freeWindows', () => {
     const w = freeWindows({ ...av, unavailable_blocks: [{ scope: 'date', date: TUE, allDay: true }] }, [], [TUE])
     expect(w).toEqual([])
   })
+
+  it('never offers times already passed today (clamped to now)', () => {
+    const open: AvailabilityInputs = { wake_time: '06:00', bedtime: '22:00' }
+    const w = freeWindows(open, [], [TUE], { todayStr: TUE, nowMin: 15 * 60 }) // 3:00 PM
+    expect(w.length).toBeGreaterThan(0)
+    expect(w.every((x) => x.startMin >= 15 * 60)).toBe(true)
+    // A future day is unaffected by "now".
+    const wed = freeWindows(open, [], ['2026-07-15'], { todayStr: TUE, nowMin: 15 * 60 })
+    expect(wed[0].startMin).toBe(6 * 60)
+  })
 })
 
 describe('overlap + suggestions', () => {

@@ -94,8 +94,17 @@ function subtractBusy(start: number, end: number, busy: [number, number][]): [nu
   return free
 }
 
-/** Free windows across the given dates (waking hours minus work/school/blocks/busy). */
-export function freeWindows(av: AvailabilityInputs, busy: BusySlot[], dates: string[]): Window[] {
+/**
+ * Free windows across the given dates (waking hours minus work/school/blocks/busy).
+ * Pass `opts.todayStr` + `opts.nowMin` to never return times already in the past
+ * today (start is clamped forward to the next :30).
+ */
+export function freeWindows(
+  av: AvailabilityInputs,
+  busy: BusySlot[],
+  dates: string[],
+  opts?: { todayStr?: string; nowMin?: number },
+): Window[] {
   const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
   const bed = toMinutes(av.bedtime) ?? DEFAULT_BED
   const dayStart = Math.min(wake, bed)
@@ -107,6 +116,13 @@ export function freeWindows(av: AvailabilityInputs, busy: BusySlot[], dates: str
     const dow = isoWeekday(date)
     if (trainingDays.length && !trainingDays.includes(dow)) continue
 
+    // Today never offers a slot that's already passed.
+    let dStart = dayStart
+    if (opts?.todayStr === date && opts?.nowMin != null) {
+      dStart = Math.max(dayStart, Math.ceil(opts.nowMin / 30) * 30)
+    }
+    if (dStart >= dayEnd) continue
+
     const busyIv: [number, number][] = []
     const add = (s: number | null, e: number | null) => { if (s != null && e != null && e > s) busyIv.push([s, e]) }
     add(toMinutes(av.work_start), toMinutes(av.work_end))
@@ -114,7 +130,7 @@ export function freeWindows(av: AvailabilityInputs, busy: BusySlot[], dates: str
     for (const b of av.unavailable_blocks ?? []) {
       const applies = (b.scope === 'weekday' && b.weekday === dow) || (b.scope === 'date' && b.date === date)
       if (!applies) continue
-      if (b.allDay) busyIv.push([dayStart, dayEnd])
+      if (b.allDay) busyIv.push([dStart, dayEnd])
       else add(toMinutes(b.start), toMinutes(b.end))
     }
     for (const s of busy) {
@@ -123,9 +139,18 @@ export function freeWindows(av: AvailabilityInputs, busy: BusySlot[], dates: str
       if (st != null) add(st, st + s.duration_min)
     }
 
-    for (const [s, e] of subtractBusy(dayStart, dayEnd, busyIv)) out.push({ date, startMin: s, endMin: e })
+    for (const [s, e] of subtractBusy(dStart, dayEnd, busyIv)) out.push({ date, startMin: s, endMin: e })
   }
   return out
+}
+
+/** Local 'YYYY-MM-DD' and minutes-since-midnight for "now" (past-time filtering). */
+export function localNow(now: Date): { todayStr: string; nowMin: number } {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return {
+    todayStr: `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`,
+    nowMin: now.getHours() * 60 + now.getMinutes(),
+  }
 }
 
 /** Windows where both people are free for at least `minDurationMin`. */

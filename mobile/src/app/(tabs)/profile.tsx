@@ -174,6 +174,7 @@ export default function ProfileScreen() {
   // Incoming friend requests — a badge on the header Friends button, so a
   // request can't sit invisible inside the Friends screen forever.
   const [pendingRequests, setPendingRequests] = useState(0)
+  const [pendingInvites, setPendingInvites] = useState(0)
   useFocusEffect(
     useCallback(() => {
       if (!userId) return
@@ -183,8 +184,17 @@ export default function ProfileScreen() {
         .eq('addressee_id', userId)
         .eq('status', 'pending')
         .then(({ count }) => setPendingRequests(count ?? 0))
+      // Incoming workout invites count toward the same Friends badge.
+      supabase
+        .from('workout_invites')
+        .select('id', { count: 'exact', head: true })
+        .eq('to_user', userId)
+        .eq('status', 'pending')
+        .then(({ count }) => setPendingInvites(count ?? 0), () => {})
     }, [userId]),
   )
+  // One "social" indicator on the Friends button: requests + incoming invites.
+  const socialNotifs = pendingRequests + pendingInvites
 
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
@@ -674,12 +684,12 @@ export default function ProfileScreen() {
               onPress={() => router.push('/social' as any)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={pendingRequests > 0 ? `Friends — ${pendingRequests} pending requests` : 'Friends'}
+              accessibilityLabel={socialNotifs > 0 ? `Friends — ${socialNotifs} new` : 'Friends'}
             >
               <Ionicons name="people-outline" size={22} color={C.text} />
-              {pendingRequests > 0 && (
+              {socialNotifs > 0 && (
                 <View style={styles.friendBadge}>
-                  <Text style={styles.friendBadgeText}>{pendingRequests > 9 ? '9+' : pendingRequests}</Text>
+                  <Text style={styles.friendBadgeText}>{socialNotifs > 9 ? '9+' : socialNotifs}</Text>
                 </View>
               )}
             </TouchableOpacity>

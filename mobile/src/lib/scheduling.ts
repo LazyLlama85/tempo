@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  freeWindows, overlapWindows, suggestSharedSlots, upcomingDates,
+  freeWindows, overlapWindows, suggestSharedSlots, upcomingDates, localNow,
   type AvailabilityInputs, type BusySlot, type SharedSlot,
 } from './availability'
 
@@ -66,9 +66,11 @@ export async function suggestSlotsWith(
   // theirs === null means they haven't shared availability with us.
   if (!theirs) return { slots: [], availabilityShared: false }
   if (!mine) return { slots: [], availabilityShared: true }
-  const dates = upcomingDates(new Date().toISOString().slice(0, 10), days)
-  const myFree = freeWindows(mine.av, mine.busy, dates)
-  const theirFree = freeWindows(theirs.av, theirs.busy, dates)
+  const { todayStr, nowMin } = localNow(new Date())
+  const dates = upcomingDates(todayStr, days)
+  const opts = { todayStr, nowMin }
+  const myFree = freeWindows(mine.av, mine.busy, dates, opts)
+  const theirFree = freeWindows(theirs.av, theirs.busy, dates, opts)
   const overlaps = overlapWindows(myFree, theirFree, durationMin)
   const slots = suggestSharedSlots(overlaps, durationMin, { preferredTimeOfDay: mine.preferredTimeOfDay, maxTotal: 6 })
   return { slots, availabilityShared: true }
