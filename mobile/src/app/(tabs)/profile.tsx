@@ -18,7 +18,7 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { computeLevel } from '@/lib/achievements'
-import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges } from '@/lib/badges'
+import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, unviewedBadgeCount } from '@/lib/badges'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
 import {
   getSavedSwaps, getAlternatives, saveSubstitution, removeSubstitution,
@@ -159,11 +159,15 @@ export default function ProfileScreen() {
   )
   const earnedBadges = useMemo(
     () => computeEarnedBadges(
-      badgeStatsFromSessions(workouts, profile?.days_per_week ?? 3, new Date().toISOString().slice(0, 10)),
+      badgeStatsFromSessions(workouts, profile?.days_per_week ?? 3, new Date().toISOString().slice(0, 10), {
+        totalWorkouts: stats.totalWorkouts, totalVolume: stats.totalVolumeNum,
+      }),
       new Set(storedBadges),
     ),
-    [workouts, profile?.days_per_week, storedBadges],
+    [workouts, profile?.days_per_week, storedBadges, stats.totalWorkouts, stats.totalVolumeNum],
   )
+  // The header count is UNVIEWED badges (new since you last opened the trophy case).
+  const newBadges = unviewedBadgeCount(earnedBadges, userId)
   const [calendarStatus, setCalendarStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
 
@@ -657,12 +661,12 @@ export default function ProfileScreen() {
               onPress={() => router.push('/badges' as any)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={earnedBadges.size > 0 ? `Badges — ${earnedBadges.size} earned` : 'Badges'}
+              accessibilityLabel={newBadges > 0 ? `Badges — ${newBadges} new` : 'Badges'}
             >
               <Ionicons name="ribbon-outline" size={22} color={C.text} />
-              {earnedBadges.size > 0 && (
+              {newBadges > 0 && (
                 <View style={styles.badgeCount}>
-                  <Text style={styles.friendBadgeText}>{earnedBadges.size > 9 ? '9+' : earnedBadges.size}</Text>
+                  <Text style={styles.friendBadgeText}>{newBadges > 9 ? '9+' : newBadges}</Text>
                 </View>
               )}
             </TouchableOpacity>

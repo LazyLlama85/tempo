@@ -52,6 +52,17 @@ describe('badges — derived consistency', () => {
   it('a fresh account earns nothing', () => {
     expect(earnedKeys([]).size).toBe(0)
   })
+
+  it('milestone badges use the passed-in all-time totals (workouts + volume)', () => {
+    const stats = badgeStatsFromSessions([mk('2026-07-13', 'completed')], 3, today, {
+      totalWorkouts: 100,
+      totalVolume: 100000,
+    })
+    const earned = computeEarnedBadges(stats, new Set())
+    for (const k of ['first_workout', 'thirty_sessions', 'century', 'ton_club', 'iron_tonne']) {
+      expect(earned.has(k)).toBe(true)
+    }
+  })
 })
 
 describe('badges — competitive (stored)', () => {

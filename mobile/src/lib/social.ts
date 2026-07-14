@@ -332,7 +332,12 @@ export async function fetchFriendOverview(client: SupabaseClient, targetUserId: 
     // Derived consistency badges (from their session history) + stored competitive/
     // social badges — computed here so friend-profile just renders them.
     earned_badges: raw.sessions
-      ? [...computeEarnedBadges(badgeStatsFromSessions(sessions, raw.days_per_week ?? 3, todayStr), new Set(raw.stored_badges ?? []))]
+      ? [...computeEarnedBadges(
+          badgeStatsFromSessions(sessions, raw.days_per_week ?? 3, todayStr, {
+            totalWorkouts: raw.total_workouts, totalVolume: raw.total_volume_lbs,
+          }),
+          new Set(raw.stored_badges ?? []),
+        )]
       : (raw.stored_badges ?? []),
   }
 }

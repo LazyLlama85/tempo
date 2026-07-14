@@ -16,10 +16,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
 import { clampGoal } from './tempoScore'
 
-export type BadgeCategory = 'consistency' | 'competitive' | 'social'
+export type BadgeCategory = 'consistency' | 'milestone' | 'competitive' | 'social'
 export type BadgeTier = 'bronze' | 'silver' | 'gold'
 
-/** Everything the derived badges need, computed from a session history. */
+/** Everything the derived badges need. Consistency fields come from a session
+ *  history; the milestone totals are passed in (all-time). */
 export interface BadgeStats {
   currentStreak: number
   longestStreak: number
@@ -27,6 +28,10 @@ export interface BadgeStats {
   perfectWeeks: number
   /** Consecutive recent weeks hitting the weekly goal (current week gets grace). */
   weeksMetGoalRun: number
+  /** All-time completed sessions. */
+  totalWorkouts: number
+  /** All-time volume lifted (lbs). */
+  totalVolume: number
 }
 
 export interface BadgeDef {
@@ -45,6 +50,16 @@ const clamp = (current: number, target: number) => ({ current: Math.min(current,
 
 export const BADGES: BadgeDef[] = [
   {
+    key: 'first_workout',
+    label: 'First Workout',
+    icon: 'footsteps',
+    tier: 'bronze',
+    description: 'Complete your very first session',
+    category: 'milestone',
+    earned: (s) => s.totalWorkouts >= 1,
+    progress: (s) => clamp(s.totalWorkouts, 1),
+  },
+  {
     key: 'perfect_week',
     label: 'Perfect Week',
     icon: 'checkmark-done-circle',
@@ -53,6 +68,26 @@ export const BADGES: BadgeDef[] = [
     category: 'consistency',
     earned: (s) => s.perfectWeeks >= 1,
     progress: (s) => clamp(s.perfectWeeks, 1),
+  },
+  {
+    key: 'streak_7',
+    label: '7-Session Streak',
+    icon: 'flame-outline',
+    tier: 'bronze',
+    description: 'Complete 7 sessions in a row',
+    category: 'milestone',
+    earned: (s) => s.longestStreak >= 7,
+    progress: (s) => clamp(s.longestStreak, 7),
+  },
+  {
+    key: 'thirty_sessions',
+    label: '30 Sessions',
+    icon: 'barbell',
+    tier: 'silver',
+    description: 'Complete 30 workouts',
+    category: 'milestone',
+    earned: (s) => s.totalWorkouts >= 30,
+    progress: (s) => clamp(s.totalWorkouts, 30),
   },
   {
     key: 'consistency_champion',
@@ -75,6 +110,36 @@ export const BADGES: BadgeDef[] = [
     progress: (s) => clamp(s.longestStreak, 30),
   },
   {
+    key: 'ton_club',
+    label: 'Ton Club',
+    icon: 'barbell-outline',
+    tier: 'silver',
+    description: 'Lift 10,000 lbs total',
+    category: 'milestone',
+    earned: (s) => s.totalVolume >= 10000,
+    progress: (s) => clamp(s.totalVolume, 10000),
+  },
+  {
+    key: 'century',
+    label: '100 Sessions',
+    icon: 'ribbon',
+    tier: 'gold',
+    description: 'Complete 100 workouts',
+    category: 'milestone',
+    earned: (s) => s.totalWorkouts >= 100,
+    progress: (s) => clamp(s.totalWorkouts, 100),
+  },
+  {
+    key: 'iron_tonne',
+    label: '100K Club',
+    icon: 'medal',
+    tier: 'gold',
+    description: 'Lift 100,000 lbs total',
+    category: 'milestone',
+    earned: (s) => s.totalVolume >= 100000,
+    progress: (s) => clamp(s.totalVolume, 100000),
+  },
+  {
     key: 'weekly_winner',
     label: 'Weekly Winner',
     icon: 'trophy',
@@ -85,7 +150,7 @@ export const BADGES: BadgeDef[] = [
   {
     key: 'top3_monthly',
     label: 'Top 3 Monthly',
-    icon: 'medal',
+    icon: 'star',
     tier: 'silver',
     description: 'Finish top 3 among your friends for a month',
     category: 'competitive',
@@ -129,7 +194,12 @@ function isoMonday(todayStr: string): string {
 
 const isSettled = (s: StreakRow) => s.status === 'completed' || s.status === 'missed' || s.status === 'skipped'
 
-export function badgeStatsFromSessions(sessions: StreakRow[], goalPerWeek: number, todayStr: string): BadgeStats {
+export function badgeStatsFromSessions(
+  sessions: StreakRow[],
+  goalPerWeek: number,
+  todayStr: string,
+  totals?: { totalWorkouts?: number; totalVolume?: number },
+): BadgeStats {
   const goal = clampGoal(goalPerWeek)
   const monday = isoMonday(todayStr)
 
@@ -160,6 +230,10 @@ export function badgeStatsFromSessions(sessions: StreakRow[], goalPerWeek: numbe
     longestStreak: longestSessionStreak(sessions, todayStr),
     perfectWeeks,
     weeksMetGoalRun,
+    // All-time totals come from the caller (progress stats / friend_overview); fall
+    // back to the completed count in the given window when not provided.
+    totalWorkouts: totals?.totalWorkouts ?? sessions.filter((s) => s.status === 'completed').length,
+    totalVolume: totals?.totalVolume ?? 0,
   }
 }
 
@@ -167,4 +241,35 @@ export function badgeStatsFromSessions(sessions: StreakRow[], goalPerWeek: numbe
 export async function fetchStoredBadges(client: SupabaseClient, userId: string): Promise<string[]> {
   const { data } = await client.from('user_badges').select('badge_key').eq('user_id', userId)
   return [...new Set(((data ?? []) as { badge_key: string }[]).map((r) => r.badge_key))]
+}
+
+// ── "New badge" indicator (device-local) ────────────────────────────────────────
+// The count on the Profile badges button is UNVIEWED badges: earned but not yet
+// opened in the trophy case. Opening /badges marks them seen and clears the number.
+
+const seenKey = (userId: string) => `tempo.badges.seen.${userId}`
+
+export function getSeenBadges(userId: string): Set<string> {
+  try {
+    const raw = (globalThis as { localStorage?: Storage }).localStorage?.getItem(seenKey(userId))
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch { return new Set() }
+}
+
+export function markBadgesSeen(userId: string, keys: Iterable<string>): void {
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (!ls) return
+    const merged = getSeenBadges(userId)
+    for (const k of keys) merged.add(k)
+    ls.setItem(seenKey(userId), JSON.stringify([...merged]))
+  } catch { /* best-effort */ }
+}
+
+/** How many earned badges the user hasn't opened the trophy case for yet. */
+export function unviewedBadgeCount(earned: Set<string> | string[], userId: string): number {
+  const seen = getSeenBadges(userId)
+  let n = 0
+  for (const k of earned) if (!seen.has(k)) n++
+  return n
 }

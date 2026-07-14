@@ -1,6 +1,7 @@
-// Tempo — Badges collection (modal). The trophy case: all consistency badges,
-// earned lit and locked dimmed with progress, in the Achievements tile language.
-// Opened from the badges button on the Profile header.
+// Tempo — Badges collection (modal). The trophy case: every badge (milestones,
+// consistency, competitive, social), earned lit and locked dimmed with progress,
+// in the Achievements tile language. Opened from the badges button on the Profile
+// header; opening it marks earned badges "seen" so the header count clears.
 
 import { useEffect, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet } from 'react-native'
@@ -11,39 +12,40 @@ import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
 import { useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useProgressStats } from '@/hooks/useProgressStats'
 import { BadgeShelf } from '@/components/BadgeShelf'
-import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, BADGES } from '@/lib/badges'
-import type { StreakRow } from '@/lib/streak'
+import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, markBadgesSeen, BADGES } from '@/lib/badges'
 
 export default function BadgesScreen() {
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const { stats, workouts, isLoading } = useProgressStats(userId)
 
-  const [sessions, setSessions] = useState<StreakRow[] | null>(null)
   const [stored, setStored] = useState<string[]>([])
-
   useEffect(() => {
-    if (!userId) return
-    const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10)
-    supabase
-      .from('scheduled_workouts')
-      .select('planned_date, status')
-      .eq('user_id', userId)
-      .gte('planned_date', since)
-      .then(({ data }) => setSessions((data ?? []) as StreakRow[]))
-    fetchStoredBadges(supabase, userId).then(setStored).catch(() => {})
+    if (userId) fetchStoredBadges(supabase, userId).then(setStored).catch(() => {})
   }, [userId])
 
   const today = new Date().toISOString().slice(0, 10)
-  const stats = sessions ? badgeStatsFromSessions(sessions, profile?.days_per_week ?? 3, today) : null
-  const earned = stats ? computeEarnedBadges(stats, new Set(stored)) : new Set<string>()
+  const badgeStats = badgeStatsFromSessions(workouts, profile?.days_per_week ?? 3, today, {
+    totalWorkouts: stats.totalWorkouts,
+    totalVolume: stats.totalVolumeNum,
+  })
+  const earned = computeEarnedBadges(badgeStats, new Set(stored))
+
+  // Opening the trophy case clears the "new badges" count on the Profile.
+  const earnedKey = [...earned].sort().join(',')
+  useEffect(() => {
+    if (!isLoading && userId && earned.size) markBadgesSeen(userId, earned)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, userId, earnedKey])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader title="Badges" size="sm" leading={<DismissButton onPress={() => router.back()} label="Close" />} />
-      {sessions === null ? (
+      {isLoading ? (
         <View style={styles.center}><PulseLoader caption="Loading your badges…" /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -52,7 +54,7 @@ export default function BadgesScreen() {
             Badges reward consistency, not strength — showing up, finishing what you plan, and keeping streaks going.
           </Text>
           <View style={styles.card}>
-            <BadgeShelf earned={earned} stats={stats ?? undefined} showLocked />
+            <BadgeShelf earned={earned} stats={badgeStats} showLocked />
           </View>
         </ScrollView>
       )}

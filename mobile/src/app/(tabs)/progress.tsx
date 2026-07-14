@@ -9,15 +9,15 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'expo-router'
 import { useProgressStats, type ChartPeriod } from '@/hooks/useProgressStats'
-import { ACHIEVEMENTS, type AchievementStats } from '@/lib/achievements'
+import { BADGES, badgeStatsFromSessions, type BadgeStats } from '@/lib/badges'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { ErrorBanner } from '@/components/ErrorBanner'
-import { FadeInView, PopIn, PressableScale, ScreenTransition } from '@/components/motion'
+import { FadeInView, PressableScale, ScreenTransition } from '@/components/motion'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { SvgLineChart } from '@/components/SvgLineChart'
 import { SvgGrowBar } from '@/components/SvgGrowBar'
-import { CountUp, ConfettiBurst } from '@/components/celebration'
+import { CountUp } from '@/components/celebration'
 import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
@@ -28,11 +28,6 @@ import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import type { BodyMeasurement } from '@/types'
 
 
-const TIER_COLOR: Record<string, string> = {
-  bronze: '#B45309',
-  silver: '#64748B',
-  gold: '#B8860B',
-}
 
 function fmtDate(iso: string): string {
   if (!iso) return '—'
@@ -49,11 +44,11 @@ export default function ProgressScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { session } = useAuthStore()
+  const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
-  const { stats, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { stats, workouts, isLoading, isError, refetch } = useProgressStats(userId, period)
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
 
@@ -87,50 +82,21 @@ export default function ProgressScreen() {
   const chartLabels = stats?.chartLabels ?? []
   const deltaStr = stats?.deltaStr ?? '— vs last mo'
 
-  const achStats: AchievementStats = {
-    totalWorkouts: stats?.totalWorkouts ?? 0,
-    streak: stats?.streak ?? 0,
-    totalVolumeNum: stats?.totalVolumeNum ?? 0,
-    benchMax: stats?.benchMax ?? 0,
-  }
-
-  // One-time celebration when an achievement newly unlocks — compare against
-  // what this device has already seen. The first-ever visit only records the
-  // baseline, so nobody gets confetti for ancient history.
-  const [unlockedCelebration, setUnlockedCelebration] = useState<string | null>(null)
-  useEffect(() => {
-    if (isLoading || achStats.totalWorkouts === 0) return
-    const unlocked = ACHIEVEMENTS.filter(a => a.isUnlocked(achStats)).map(a => a.key)
-    try {
-      const store = (globalThis as { localStorage?: Storage }).localStorage
-      const raw = store?.getItem('tempo.seenAchievements') ?? null
-      if (raw !== null) {
-        const seen = new Set<string>(JSON.parse(raw) as string[])
-        const fresh = unlocked.find(k => !seen.has(k))
-        if (fresh) {
-          const def = ACHIEVEMENTS.find(a => a.key === fresh)
-          setUnlockedCelebration(def?.label ?? fresh)
-        }
-      }
-      store?.setItem('tempo.seenAchievements', JSON.stringify(unlocked))
-    } catch { /* celebration is best-effort */ }
-    // achStats is rebuilt per render; its primitive fields are the real inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, achStats.totalWorkouts, achStats.streak, achStats.totalVolumeNum, achStats.benchMax])
-
-  useEffect(() => {
-    if (!unlockedCelebration) return
-    const t = setTimeout(() => setUnlockedCelebration(null), 6000)
-    return () => clearTimeout(t)
-  }, [unlockedCelebration])
-
-  // Roadmap: the milestone you're closest to unlocking — "where you're headed".
+  // Badges (unified with the trophy case). The "NEXT MILESTONE" roadmap card is the
+  // closest locked derived badge; the full collection + earn-notifications live on
+  // the Profile badges button → /badges.
+  const badgeStats: BadgeStats = badgeStatsFromSessions(
+    workouts,
+    profile?.days_per_week ?? 3,
+    new Date().toISOString().slice(0, 10),
+    { totalWorkouts: stats?.totalWorkouts ?? 0, totalVolume: stats?.totalVolumeNum ?? 0 },
+  )
   const nextMilestone = (() => {
-    const locked = ACHIEVEMENTS.filter(a => !a.isUnlocked(achStats))
+    const locked = BADGES.filter((b) => b.earned && b.progress && !b.earned!(badgeStats))
     if (!locked.length) return null
-    const scored = locked.map(a => {
-      const p = a.progress(achStats)
-      return { def: a, current: p.current, target: p.target, ratio: p.target > 0 ? p.current / p.target : 0 }
+    const scored = locked.map((b) => {
+      const p = b.progress!(badgeStats)
+      return { def: b, current: p.current, target: p.target, ratio: p.target > 0 ? p.current / p.target : 0 }
     })
     scored.sort((x, y) => y.ratio - x.ratio)
     return scored[0]
@@ -367,67 +333,9 @@ export default function ProgressScreen() {
               )}
             </View>
 
-            {/* Achievements */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Achievements</Text>
-                <Text style={styles.achMeta}>
-                  {ACHIEVEMENTS.filter(a => a.isUnlocked(achStats)).length} of {ACHIEVEMENTS.length}
-                </Text>
-              </View>
-              <View style={styles.achievementsRow}>
-                {ACHIEVEMENTS.map((a) => {
-                  const isUnlocked = a.isUnlocked(achStats)
-                  const prog = a.progress(achStats)
-                  const tint = isUnlocked ? TIER_COLOR[a.tier] : C.outline
-                  return (
-                    <View
-                      key={a.key}
-                      style={[styles.achievementBadge, !isUnlocked && styles.achievementBadgeLocked]}
-                    >
-                      <View style={[styles.achBadgeIcon, { backgroundColor: isUnlocked ? tint + '22' : C.surfaceContainerHigh }]}>
-                        <Ionicons name={a.icon as any} size={24} color={tint} />
-                        {!isUnlocked && (
-                          <View style={styles.achLockDot}><Ionicons name="lock-closed" size={9} color={C.outline} /></View>
-                        )}
-                      </View>
-                      <Text style={[styles.achievementLabel, !isUnlocked && styles.achievementLabelLocked]} numberOfLines={1}>
-                        {a.label}
-                      </Text>
-                      {isUnlocked ? (
-                        <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
-                      ) : prog.target > 1 ? (
-                        <Text style={styles.achProg}>{Math.round(prog.current).toLocaleString()}/{prog.target.toLocaleString()}</Text>
-                      ) : (
-                        <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
-                      )}
-                    </View>
-                  )
-                })}
-              </View>
-            </View>
           </>
         )}
       </ScrollView>
-
-      {/* Achievement unlocked — confetti + a gold toast, once per unlock */}
-      {unlockedCelebration && (
-        <>
-          <ConfettiBurst />
-          <PopIn style={styles.unlockToast}>
-            <View style={styles.unlockIcon}>
-              <Ionicons name="trophy" size={18} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.unlockLabel}>ACHIEVEMENT UNLOCKED</Text>
-              <Text style={styles.unlockTitle} numberOfLines={1}>{unlockedCelebration}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setUnlockedCelebration(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
-              <Ionicons name="close" size={18} color="rgba(255,255,255,0.85)" />
-            </TouchableOpacity>
-          </PopIn>
-        </>
-      )}
 
       <ShareCardSheet visible={shareOpen} cards={cards} onClose={() => setShareOpen(false)} />
     </ScreenTransition>

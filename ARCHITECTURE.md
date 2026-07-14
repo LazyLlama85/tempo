@@ -442,9 +442,9 @@ eases forward per logged set (`AnimatedFill`), set checks `PopIn`, per-exercise 
 pill pops in with a draining time bar, Complete button flips success-green when every set is banked.
 **workout-complete:** confetti burst (bigger with PRs), badge pop, `CountUp` streak/consistency/
 duration, weekly-target `AnimatedRing`. **Progress:** ring sweep + count-ups, chart bars grow in
-staggered, and a one-time gold "Achievement unlocked" toast + confetti when a new achievement
-unlocks (seen-set tracked in localStorage `tempo.seenAchievements`; first visit only records the
-baseline). **Onboarding plan-preview:** staggered reveal + a narrated `TempoPulse` build sequence.
+staggered. (The old "Achievement unlocked" confetti toast was removed when achievements merged into
+badges — the "new badge" signal is now the unviewed-count on the Profile badges button.)
+**Onboarding plan-preview:** staggered reveal + a narrated `TempoPulse` build sequence.
 **Branded loading, everywhere:** full-screen and section loads render Tempo's `PulseLoader`/`TempoPulse`
 metronome mark (with a contextual caption — "Loading your splits…", "Building your session…") instead
 of a generic OS `ActivityIndicator` — Home/feed loads use `LoadingCard` shimmer skeletons, and the
@@ -836,10 +836,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `social.tsx` renders the trio as a 3-tab board (Weekly Consistency / Streak / Tempo Score) with
   client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design: `SOCIAL_UPGRADE_PLAN.md`.
   **Social upgrade Stage 2 — badges + richer feed** (`add_social_badges.sql`, **applied**;
-  `lib/badges.ts`): 6 consistency-first badges (Ionicons + bronze/silver/gold tiers, rendered in the
-  Achievements tile language by **`BadgeShelf`**). Reached via a **badges button on the Profile header**
-  (next to Friends, with an earned-count) → the **`badges` modal screen** (trophy case: all badges,
-  earned lit / locked dimmed with progress); friend profiles show their earned badges inline.
+  `lib/badges.ts`): the **single** achievement system (the old `lib/achievements.ts` grid was merged
+  in and removed from Progress; `computeLevel` stays for the player level). 12 badges — consistency,
+  milestone (First Workout / 30 · 100 Sessions / Ton · 100K Club, from all-time totals), competitive,
+  social — Ionicons + bronze/silver/gold tiers, rendered in the Achievements tile language by
+  **`BadgeShelf`**. Progress's "Next Milestone" card now points at the closest locked badge. Reached
+  via a **badges button on the Profile header** (next to Friends, with an **unviewed** count that
+  clears when you open the **`badges` modal screen** — the trophy case: all badges, earned lit /
+  locked dimmed with progress). Friend profiles show their earned badges inline.
   Derived ones (Perfect Week, Consistency Champion, 30-Day Streak) light up from
   session history; competitive (Weekly Winner, Top 3 Monthly) live in **`user_badges`**, awarded by
   the idempotent **`claim_competitive_badges()`** RPC run on app open (`syncSocialOnOpen` in the auth
