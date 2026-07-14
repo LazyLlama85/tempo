@@ -1,98 +1,138 @@
-// Tempo — shared swipeable bottom sheet.
+// Tempo — shared bottom sheet.
 //
-// Every sheet in the app used to be a plain RN <Modal> with a decorative "handle" pill
-// that had no gesture attached to it — users could see what looked like a drag handle
-// but swiping down did nothing (tap-outside-to-close was the only way out). This wraps
-// @gorhom/bottom-sheet so the handle is real: pan-to-dismiss, keyboard-aware (fixes the
-// body-measurement modal's keyboard-covers-save-button bug), and content scrolling is
-// arbitrated against the dismiss gesture instead of fighting it.
+// HISTORY: this briefly wrapped @gorhom/bottom-sheet (for a real pan-to-dismiss
+// gesture), but on the current bleeding-edge stack (RN 0.85 / React 19 / new
+// architecture) gorhom's imperative `present()` silently rendered NOTHING in
+// release builds — no sheet, no backdrop — so every button whose only job was to
+// open a sheet (Edit Profile, Log Weight, Sign Out, every OptionSheet, the
+// pickers…) appeared dead. Reverted to React Native's own <Modal>, which is what
+// these sheets used before the redesign and which is bulletproof: it presents in
+// its own native window (so it also shows correctly above `presentation:'modal'`
+// screens), needs no provider / reanimated / gesture-handler, and can't silently
+// no-op. We trade gorhom's swipe-to-dismiss for reliability — tap-outside and the
+// handle still dismiss.
 //
-// Callers keep the same `visible`/`onClose` shape the old <Modal> API used, so migration
-// is a near drop-in swap. Pass `scroll` when the sheet's content needs to scroll.
+// The public API (`visible` / `onClose` / `scroll` / `snapPoints` / `style`) is
+// unchanged, so callers didn't move. `snapPoints` is honoured as a fixed sheet
+// HEIGHT (e.g. ['92%'] → 92% tall, giving inner FlatList/ScrollView a bounded
+// viewport); omit it and the sheet sizes to its content up to 90%.
 
-import { useEffect, useRef, type ElementRef } from 'react'
-import { StyleSheet } from 'react-native'
+import { useEffect, useState } from 'react'
 import {
-  BottomSheetModal,
-  BottomSheetBackdrop,
-  BottomSheetScrollView,
-  BottomSheetView,
-  type BottomSheetBackdropProps,
-} from '@gorhom/bottom-sheet'
-import { Radius } from '@/constants/theme'
+  Modal, View, ScrollView, StyleSheet, Pressable,
+  KeyboardAvoidingView, Platform, type ViewStyle,
+} from 'react-native'
+import { Radius, Spacing } from '@/constants/theme'
 import { useTheme } from '@/theme'
 
 interface TempoSheetProps {
   visible: boolean
   onClose: () => void
   children: React.ReactNode
-  /** Content scrolls internally (long forms/lists). Uses BottomSheetScrollView. */
+  /** Content scrolls internally (long forms/lists). Wraps children in a ScrollView. */
   scroll?: boolean
   /**
-   * Fixed snap points (e.g. ['85%']). Omit for the default `['90%']`.
-   *
-   * ⚠️ Do NOT switch this back to @gorhom's `enableDynamicSizing` (content-height sizing).
-   * On the `scroll` path the content is a `BottomSheetScrollView`, which has no intrinsic
-   * height — dynamic sizing measured it as ~0px and the sheet presented invisibly. That was
-   * the "tap does nothing" bug: Edit Profile / Log Weight / Sign Out (and every OptionSheet)
-   * all open sheets with no snapPoints + scroll, so they never appeared. A fixed snap point
-   * always presents. Pass a smaller value (e.g. ['60%']) for shorter sheets if 90% feels tall.
+   * Fixed snap point (e.g. ['85%']). The first entry sets the sheet's HEIGHT.
+   * Omit for the default: the sheet sizes to its content, capped at 90% — right
+   * for short sheets (option pickers, single-field forms). Give an explicit value
+   * for sheets that hold their own scrollable list, so that list gets a bounded
+   * height to scroll within.
    */
   snapPoints?: (string | number)[]
   style?: object
 }
 
+// First snap point → height fraction (0–0.95). Percentage strings ('92%') and
+// bare numbers ≤1 are fractions; larger numbers are treated as a fraction of the
+// screen via a soft cap. Returns null when no snap point is given (content-sized).
+function snapFraction(snapPoints?: (string | number)[]): number | null {
+  if (!snapPoints || snapPoints.length === 0) return null
+  const v = snapPoints[0]
+  if (typeof v === 'number') return v <= 1 ? v : Math.min(0.95, v / 100)
+  const m = /^(\d+(?:\.\d+)?)\s*%$/.exec(v.trim())
+  return m ? Math.min(0.95, parseFloat(m[1]) / 100) : null
+}
+
 export function TempoSheet({ visible, onClose, children, scroll, snapPoints, style }: TempoSheetProps) {
   const C = useTheme()
-  const ref = useRef<ElementRef<typeof BottomSheetModal>>(null)
 
-  // Defer present()/dismiss() by one frame: on first mount the imperative modal
-  // isn't registered with BottomSheetModalProvider yet, so calling present()
-  // synchronously can no-op (another "sheet never opens" failure mode). The rAF
-  // lets registration finish first.
+  // Keep the Modal mounted through its close animation: flip to visible immediately
+  // on open; on close, let RN play the slide-out before unmounting.
+  const [mounted, setMounted] = useState(visible)
   useEffect(() => {
-    if (!ref.current) return
-    const id = requestAnimationFrame(() => {
-      if (visible) ref.current?.present()
-      else ref.current?.dismiss()
-    })
-    return () => cancelAnimationFrame(id)
+    if (visible) { setMounted(true); return }
+    const id = setTimeout(() => setMounted(false), 220)
+    return () => clearTimeout(id)
   }, [visible])
+  if (!mounted && !visible) return null
 
-  const Content = scroll ? BottomSheetScrollView : BottomSheetView
-  const resolvedSnapPoints = snapPoints ?? ['90%']
+  const frac = snapFraction(snapPoints)
+  const fixed = frac != null
+  const sheetSize: ViewStyle = fixed
+    ? { height: `${Math.round(frac * 100)}%` as `${number}%` }
+    : { maxHeight: '90%' }
+
+  const body = scroll ? (
+    // fixed height → fill it (flex:1); content-sized → shrink so it caps at the
+    // sheet's maxHeight and scrolls, yet still hugs short content.
+    <ScrollView
+      style={[fixed ? styles.fill : styles.shrink, style]}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </ScrollView>
+  ) : (
+    <View style={[fixed ? styles.fill : undefined, style]}>{children}</View>
+  )
 
   return (
-    <BottomSheetModal
-      ref={ref}
-      onDismiss={onClose}
-      snapPoints={resolvedSnapPoints}
-      enableDynamicSizing={false} // see snapPoints doc above — dynamic sizing = 0-height invisible sheets
-
-      enablePanDownToClose
-      enableDismissOnClose
-      maxDynamicContentSize={undefined}
-      backdropComponent={(props: BottomSheetBackdropProps) => (
-        <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.45} pressBehavior="close" />
-      )}
-      backgroundStyle={{ backgroundColor: C.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl }}
-      handleIndicatorStyle={{ backgroundColor: C.outlineVariant, width: 40, height: 4 }}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <Content
-        style={[scroll ? styles.scrollFill : undefined, style]}
-        contentContainerStyle={scroll ? styles.scrollContent : undefined}
-        keyboardShouldPersistTaps={scroll ? 'handled' : undefined}
-      >
-        {children}
-      </Content>
-    </BottomSheetModal>
+      <View style={styles.root}>
+        {/* Backdrop — tap to dismiss. */}
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.kav}
+          pointerEvents="box-none"
+        >
+          <View style={[styles.sheet, sheetSize, { backgroundColor: C.surface }]}>
+            {/* Handle also dismisses (the affordance looks draggable). */}
+            <Pressable onPress={onClose} hitSlop={12} style={styles.handleTap}>
+              <View style={[styles.handle, { backgroundColor: C.outlineVariant }]} />
+            </Pressable>
+            {body}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-  scrollFill: { flex: 1 },
+  root: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+  kav: { justifyContent: 'flex-end' },
+  sheet: {
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    overflow: 'hidden',
+  },
+  handleTap: { alignItems: 'center', paddingTop: Spacing.sm, paddingBottom: Spacing.xs },
+  handle: { width: 40, height: 4, borderRadius: Radius.full },
+  fill: { flex: 1 },
+  shrink: { flexShrink: 1 },
   scrollContent: { paddingBottom: 32 },
 })

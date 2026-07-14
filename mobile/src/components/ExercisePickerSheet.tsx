@@ -11,9 +11,8 @@
 
 import { useMemo, useState } from 'react'
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, FlatList,
 } from 'react-native'
-import { BottomSheetFlatList } from '@gorhom/bottom-sheet'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
@@ -179,7 +178,7 @@ export function ExercisePickerSheet({ visible, userId, client, existingIds, onCl
         {isLoading ? (
           <View style={styles.center}><PulseLoader caption="Loading exercises…" /></View>
         ) : (
-          <BottomSheetFlatList
+          <FlatList
             data={rows}
             keyExtractor={(r) => r.type === 'rep' ? r.family.key : `v:${r.ex.id}`}
             keyboardShouldPersistTaps="handled"

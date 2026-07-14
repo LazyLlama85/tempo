@@ -6,8 +6,7 @@
 // the rest of Tempo's dark sheets. Values are 'HH:MM:SS' (24h) for storage.
 
 import { useEffect, useRef } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native'
-import { BottomSheetScrollView } from '@gorhom/bottom-sheet'
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, ScrollView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
@@ -101,7 +100,7 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
             </TouchableOpacity>
           )}
         </View>
-        <BottomSheetScrollView ref={scrollRef} style={[styles.list, { height: listHeight }]} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={[styles.list, { height: listHeight }]} showsVerticalScrollIndicator={false}>
           {OPTIONS.map(o => {
             const sel = o.value === selectedKey
             return (
@@ -117,7 +116,7 @@ export function TimePickerSheet({ visible, value, title, onSelect, onClose, onCl
             )
           })}
           <View style={{ height: Spacing.lg }} />
-        </BottomSheetScrollView>
+        </ScrollView>
       </View>
     </TempoSheet>
   )

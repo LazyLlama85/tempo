@@ -1,5 +1,4 @@
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, TextInput, ActivityIndicator, Switch } from 'react-native'
-import { BottomSheetScrollView } from '@gorhom/bottom-sheet'
 import { TempoSheet } from '@/components/TempoSheet'
 import { useState, useCallback, useEffect } from 'react'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -1092,7 +1091,7 @@ export default function ProfileScreen() {
             contentFit="contain"
             accessibilityLabel="Tempo"
           />
-          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'} · FIX✓</Text>
+          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'} · FIX2</Text>
         </View>
       </ScrollView>
 
@@ -1301,7 +1300,7 @@ export default function ProfileScreen() {
             {altsLoading ? (
               <View style={{ paddingVertical: Spacing.xl }}><PulseLoader caption="Loading…" /></View>
             ) : (
-              <BottomSheetScrollView style={{ maxHeight: 300, marginTop: Spacing.sm }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 300, marginTop: Spacing.sm }} showsVerticalScrollIndicator={false}>
                 <View style={{ gap: Spacing.xs }}>
                   {alts.map((a) => {
                     const current = a.id === swapModal?.substituteId
@@ -1320,7 +1319,7 @@ export default function ProfileScreen() {
                     )
                   })}
                 </View>
-              </BottomSheetScrollView>
+              </ScrollView>
             )}
 
             <TouchableOpacity style={[styles.resetBtn, swapBusy && { opacity: 0.6 }]} onPress={resetSwap} disabled={swapBusy} activeOpacity={0.85}>
