@@ -836,8 +836,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `social.tsx` renders the trio as a 3-tab board (Weekly Consistency / Streak / Tempo Score) with
   client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design: `SOCIAL_UPGRADE_PLAN.md`.
   **Social upgrade Stage 2 — badges + richer feed** (`add_social_badges.sql`, **applied**;
-  `lib/badges.ts`): 6 consistency-first badges shown on profiles (own Profile + friend-profile via
-  `BadgeShelf`). Derived ones (Perfect Week, Consistency Champion, 30-Day Streak) light up from
+  `lib/badges.ts`): 6 consistency-first badges (Ionicons + bronze/silver/gold tiers, rendered in the
+  Achievements tile language by **`BadgeShelf`**). Reached via a **badges button on the Profile header**
+  (next to Friends, with an earned-count) → the **`badges` modal screen** (trophy case: all badges,
+  earned lit / locked dimmed with progress); friend profiles show their earned badges inline.
+  Derived ones (Perfect Week, Consistency Champion, 30-Day Streak) light up from
   session history; competitive (Weekly Winner, Top 3 Monthly) live in **`user_badges`**, awarded by
   the idempotent **`claim_competitive_badges()`** RPC run on app open (`syncSocialOnOpen` in the auth
   store, which also publishes the user's streak-milestone rows). **`activity_events`** (streak/

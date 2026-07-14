@@ -17,6 +17,7 @@ import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
 import { clampGoal } from './tempoScore'
 
 export type BadgeCategory = 'consistency' | 'competitive' | 'social'
+export type BadgeTier = 'bronze' | 'silver' | 'gold'
 
 /** Everything the derived badges need, computed from a session history. */
 export interface BadgeStats {
@@ -31,7 +32,8 @@ export interface BadgeStats {
 export interface BadgeDef {
   key: string
   label: string
-  emoji: string
+  icon: string // Ionicons name (matches the Achievements section)
+  tier: BadgeTier
   description: string
   category: BadgeCategory
   /** Derived badges compute earned/progress from stats; competitive/social omit these. */
@@ -45,7 +47,8 @@ export const BADGES: BadgeDef[] = [
   {
     key: 'perfect_week',
     label: 'Perfect Week',
-    emoji: '🎯',
+    icon: 'checkmark-done-circle',
+    tier: 'silver',
     description: 'Complete every workout you scheduled in a week',
     category: 'consistency',
     earned: (s) => s.perfectWeeks >= 1,
@@ -54,7 +57,8 @@ export const BADGES: BadgeDef[] = [
   {
     key: 'consistency_champion',
     label: 'Consistency Champion',
-    emoji: '📅',
+    icon: 'calendar',
+    tier: 'gold',
     description: 'Hit your weekly goal 4 weeks in a row',
     category: 'consistency',
     earned: (s) => s.weeksMetGoalRun >= 4,
@@ -63,7 +67,8 @@ export const BADGES: BadgeDef[] = [
   {
     key: 'streak_30',
     label: '30-Day Streak',
-    emoji: '🔥',
+    icon: 'flame',
+    tier: 'gold',
     description: '30 completed sessions in a row — no misses',
     category: 'consistency',
     earned: (s) => s.longestStreak >= 30,
@@ -72,21 +77,24 @@ export const BADGES: BadgeDef[] = [
   {
     key: 'weekly_winner',
     label: 'Weekly Winner',
-    emoji: '🏆',
+    icon: 'trophy',
+    tier: 'silver',
     description: 'Finish #1 on your weekly leaderboard',
     category: 'competitive',
   },
   {
     key: 'top3_monthly',
     label: 'Top 3 Monthly',
-    emoji: '⭐',
+    icon: 'medal',
+    tier: 'silver',
     description: 'Finish top 3 among your friends for a month',
     category: 'competitive',
   },
   {
     key: 'workout_partner',
     label: 'Workout Partner',
-    emoji: '🤝',
+    icon: 'people',
+    tier: 'bronze',
     description: 'Complete a workout you scheduled with a friend',
     category: 'social',
   },

@@ -19,7 +19,6 @@ import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTe
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { computeLevel } from '@/lib/achievements'
 import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges } from '@/lib/badges'
-import { BadgeShelf } from '@/components/BadgeShelf'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
 import {
   getSavedSwaps, getAlternatives, saveSubstitution, removeSubstitution,
@@ -655,6 +654,19 @@ export default function ProfileScreen() {
         right={
           <HeaderActions>
             <TouchableOpacity
+              onPress={() => router.push('/badges' as any)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={earnedBadges.size > 0 ? `Badges — ${earnedBadges.size} earned` : 'Badges'}
+            >
+              <Ionicons name="ribbon-outline" size={22} color={C.text} />
+              {earnedBadges.size > 0 && (
+                <View style={styles.badgeCount}>
+                  <Text style={styles.friendBadgeText}>{earnedBadges.size > 9 ? '9+' : earnedBadges.size}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => router.push('/social' as any)}
               hitSlop={8}
               accessibilityRole="button"
@@ -729,17 +741,6 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={C.primary} />
           </TouchableOpacity>
         )}
-
-        {/* ── Badges (consistency achievements) ───────────────────────────── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Badges</Text>
-            {earnedBadges.size > 0 && <Text style={styles.sectionMeta}>{earnedBadges.size} earned</Text>}
-          </View>
-          <View style={[styles.card, { padding: Spacing.md }]}>
-            <BadgeShelf earned={earnedBadges} />
-          </View>
-        </View>
 
         {/* ── Body stats (weight trend over time) ─────────────────────────── */}
         <View style={styles.section}>
@@ -1422,6 +1423,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     backgroundColor: C.error, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
   friendBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: '#fff' },
+  badgeCount: {
+    position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, borderRadius: Radius.full,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   scroll: { paddingBottom: 120, gap: Spacing.lg },
 
