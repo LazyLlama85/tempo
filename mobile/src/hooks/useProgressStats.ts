@@ -14,6 +14,7 @@ type EnrichedSetLog = {
   reps_completed: number
   completed_at: string | null
   exerciseName: string
+  muscleGroup: string | null
 }
 
 type SetLogsResult = {
@@ -83,11 +84,16 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       const exIds = [...new Set((sets as any[]).map(s => s.exercise_id as string))]
       const { data: exRows } = await supabase
         .from('exercises')
-        .select('id, name')
+        .select('id, name, muscle_group')
         .in('id', exIds)
 
       const exNameMap = new Map<string, string>(
         (exRows ?? []).map(e => [e.id as string, e.name as string])
+      )
+      // Coarse muscle bucket (chest/back/shoulders/arms/legs/core) — powers the
+      // Muscle Balance card. Null on user customs; the card just skips those.
+      const exMuscleMap = new Map<string, string | null>(
+        (exRows ?? []).map(e => [e.id as string, (e.muscle_group as string | null) ?? null])
       )
 
       const setLogs: EnrichedSetLog[] = (sets as any[]).map(s => ({
@@ -97,6 +103,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
         reps_completed: s.reps_completed as number,
         completed_at: s.completed_at as string | null,
         exerciseName: exNameMap.get(s.exercise_id as string) ?? 'Unknown',
+        muscleGroup: exMuscleMap.get(s.exercise_id as string) ?? null,
       }))
 
       return { setLogs, logDates }
@@ -274,11 +281,26 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     }
   }, [workoutsQ.data, setLogsQ.data, period])
 
+  // Raw engine inputs (additive — existing consumers ignore these). Derived from
+  // the same set-log query above so the Fitness Intelligence layer adds no fetches.
+  const logTimes = useMemo(
+    () => [...(setLogsQ.data?.logDates.values() ?? [])].filter(Boolean) as string[],
+    [setLogsQ.data],
+  )
+  const muscleSets = useMemo(
+    () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({ group: sl.muscleGroup })),
+    [setLogsQ.data],
+  )
+
   return {
     stats,
     // Raw scheduled_workouts rows (planned_date/status) — reused for badge stats so
     // the Profile doesn't re-query the same history.
     workouts: workoutsQ.data ?? [],
+    // Engine inputs for lib/fitnessInsights (when the user actually trained + muscle
+    // buckets). Additive — only the Progress dashboard reads them.
+    logTimes,
+    muscleSets,
     isLoading: workoutsQ.isLoading || setLogsQ.isLoading,
     isError: workoutsQ.isError || setLogsQ.isError,
     refetch: async () => { await Promise.all([workoutsQ.refetch(), setLogsQ.refetch()]) },

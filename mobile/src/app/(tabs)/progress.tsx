@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
@@ -28,6 +28,16 @@ import { Avatar } from '@/components/Avatar'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import type { BodyMeasurement } from '@/types'
+// Fitness Intelligence — new dashboard layer (composes existing engines; adds no fetches).
+import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore'
+import {
+  computeMomentum, readinessFromHistory, consistencyPredictor, consistencyHeatmap,
+  workoutForecast, optimalWindow, successPatterns, journeyTimeline, muscleBalance,
+} from '@/lib/fitnessInsights'
+import {
+  SectionLabel, TempoScoreHero, ReadinessCard, MomentumCard, PredictorCard,
+  ConsistencyHeatmap, ForecastStrip, InsightsCard, JourneyTimeline,
+} from '@/components/ProgressCards'
 
 
 
@@ -50,7 +60,7 @@ export default function ProgressScreen() {
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
-  const { stats, workouts, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { stats, workouts, logTimes, muscleSets, isLoading, isError, refetch } = useProgressStats(userId, period)
   const { requirePro, locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
@@ -107,6 +117,28 @@ export default function ProgressScreen() {
 
   const maxChartVol = Math.max(...chartVolumes, 1)
 
+  // ── Fitness Intelligence — derived once from data already loaded above ────────
+  const todayStr = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, [])
+  const insights = useMemo(() => {
+    if (!workouts.length) return null
+    const goal = profile?.days_per_week ?? 3
+    return {
+      score: computeTempoScore(tempoScoreInputFromSessions(workouts, goal, todayStr)),
+      momentum: computeMomentum(workouts, goal, todayStr),
+      readiness: readinessFromHistory(workouts, logTimes, new Date()),
+      predictor: consistencyPredictor(workouts, goal, todayStr),
+      heatmap: consistencyHeatmap(workouts, todayStr, 17),
+      forecast: workoutForecast(workouts, todayStr, 3),
+      optimal: optimalWindow(logTimes),
+      patterns: successPatterns(workouts, logTimes, todayStr),
+      journey: journeyTimeline(workouts, todayStr),
+      muscle: muscleBalance(muscleSets),
+    }
+  }, [workouts, logTimes, muscleSets, profile?.days_per_week, todayStr])
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
@@ -147,6 +179,16 @@ export default function ProgressScreen() {
           />
         ) : (
           <>
+            {/* ── Fitness Intelligence (new) — sits on top of every existing card ── */}
+            {insights && <TempoScoreHero breakdown={insights.score} delay={20} />}
+            {insights && <ReadinessCard readiness={insights.readiness} delay={80} />}
+
+            <SectionLabel title="Momentum" hint="Are you building the habit?" />
+            {insights && <MomentumCard momentum={insights.momentum} delay={40} />}
+            {insights && <PredictorCard predictor={insights.predictor} delay={90} />}
+
+            <SectionLabel title="Consistency" hint="Showing up, week after week." />
+            {insights && <ConsistencyHeatmap heatmap={insights.heatmap} streak={stats.streak} delay={40} />}
             {/* Consistency ring — sweeps to its score every time you land here */}
             <FadeInView style={styles.ringCard} delay={40}>
               <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
@@ -217,6 +259,19 @@ export default function ProgressScreen() {
               </View>
             </View>
 
+            {/* ── Coaching (new): forecast + behavioural insights ── */}
+            <SectionLabel title="Coaching" hint="What Tempo notices about you." />
+            {insights && insights.forecast.length > 0 && <ForecastStrip days={insights.forecast} delay={40} />}
+            {insights && (
+              <InsightsCard
+                patterns={[...insights.patterns, insights.muscle.insight].filter((x): x is string => !!x)}
+                optimal={insights.optimal}
+                onSchedule={() => router.push('/(tabs)' as any)}
+                delay={90}
+              />
+            )}
+
+            <SectionLabel title="Trends" hint="Volume, load and bodyweight." />
             {/* Volume + period chart — Pro (advanced analytics). Dormant-safe:
                 ProGate renders the card unchanged while Pro is off. */}
             <ProGate feature="advanced_analytics">
@@ -340,6 +395,7 @@ export default function ProgressScreen() {
               )}
             </View>
 
+            {insights && <JourneyTimeline events={insights.journey} delay={40} />}
           </>
         )}
       </ScrollView>

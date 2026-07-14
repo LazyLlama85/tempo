@@ -278,9 +278,17 @@ you moving."*
   (travel mode's label field, availability, profile-setup, workout builder) use keyboard insets
   so the keyboard never covers a field or its Save button. Long option lists inside sheets
   (equipment, injuries) scroll within a capped height so Save stays reachable on small phones.
-- **Progress** (`(tabs)/progress.tsx`): the single stats home — consistency ring, streak, next
-  milestone, completion rate, volume chart, weight trend, PRs, and the achievements grid. Profile no
-  longer duplicates any of these (see below).
+- **Progress** (`(tabs)/progress.tsx`): the **Fitness Intelligence dashboard** — restructured into
+  labelled sections (Hero → Momentum → Consistency → Coaching → Trends → Records → Journey) that lead
+  with a *decision*, not a raw number. **All prior cards are kept** (consistency ring, streak, next
+  milestone, completion rate, Pro-gated volume chart, weight trend, PRs, share cards, empty/error/
+  loading). Added on top (from `lib/fitnessInsights` + `components/ProgressCards`): a **Tempo Score
+  hero** with "why" bars, **Readiness** (history-based, works with no health hardware), **Momentum**,
+  a weekly **consistency predictor**, a GitHub-style **consistency heatmap**, a 3-day **workout
+  forecast**, **Tempo Insights** (optimal-window + behavioural patterns + muscle-balance nudge), and a
+  **journey timeline**. Data comes from `useProgressStats` (extended additively to also expose
+  `logTimes` + `muscleSets` from its existing set-log query — no new fetches). Profile no longer
+  duplicates any of the performance cards (see below).
 - **Profile** (`(tabs)/profile.tsx`): identity + config surface. A single glanceable stat — the
   gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1"). The
   stat grid, achievements grid, and Personal Records card were **removed** so Progress owns all
@@ -426,6 +434,11 @@ aware):**
   the Progress tab instead of using a one-off flat-color bar.
 - **`celebration`** — `ConfettiBurst` (one-shot, tasteful, auto-unmounts) + `CountUp` (stats tick
   up to their value; lands on the final number even if interrupted).
+- **`ProgressCards`** — the Fitness Intelligence dashboard cards (`TempoScoreHero`, `ReadinessCard`,
+  `MomentumCard`, `PredictorCard`, `ConsistencyHeatmap`, `ForecastStrip`, `InsightsCard`,
+  `JourneyTimeline`, `SectionLabel`). Pure presentational — fed pre-computed `lib/fitnessInsights`
+  outputs by the Progress screen; reuse `SvgProgressRing`/`CountUp`/`FadeInView`/`PressableScale` and
+  the new `glass`/`Elevation`/`metricHero` tokens so they match the rest of the app.
 - **`EmptyState`** — illustrated empty states (geometric View-built art: calendar/barbell/chart/
   moon/flash + floating brand sparks) with title/body/CTA. Used app-wide — the three tabs **plus**
   Workout History, Weekly Report, Plan Explainer, Exercise Progress, and My Splits — so every
