@@ -1,0 +1,552 @@
+// Tempo — Fitness Intelligence engine.
+//
+// The Progress "coach that explains behaviour" runs on this. Every function is a
+// PURE derivation over data Tempo already stores — scheduled_workouts (plan +
+// status), workout_logs.started_at (when you actually train), and set_logs
+// (volume / muscle group). Nothing here talks to the network; callers pass the
+// rows in (the same ones useProgressStats already fetches), so this stays unit-
+// testable and cheap to re-run on focus.
+//
+// It COMPOSES the existing engines rather than re-implementing them:
+//   • tempoScore.ts       — the 0–1000 commitment score + components
+//   • streak.ts           — session streak + longest run
+//   • trainingLoad.ts     — consecutive-training-day fatigue signal + regions
+//   • recovery.ts         — the daily check-in readiness (used when present)
+//
+// Design rule (from the brief): every number must drive a decision. Each output
+// carries a human message, and functions return low-confidence/empty states
+// honestly instead of inventing claims when there isn't enough data yet.
+
+import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
+import { tempoScoreInputFromSessions, clampGoal } from './tempoScore'
+import { consecutiveTrainingDays } from './trainingLoad'
+
+// ── Date helpers (local, dependency-free) ───────────────────────────────────────
+
+const DAY_MS = 86_400_000
+const clamp01 = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0)
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function parseYmd(s: string): Date {
+  return new Date(`${s}T00:00:00`)
+}
+function addDays(s: string, n: number): string {
+  return ymd(new Date(parseYmd(s).getTime() + n * DAY_MS))
+}
+function mondayOf(s: string): string {
+  const d = parseYmd(s)
+  const monBased = (d.getDay() + 6) % 7
+  return ymd(new Date(d.getTime() - monBased * DAY_MS))
+}
+function hourLabel(h: number): string {
+  const period = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:00 ${period}`
+}
+function completedDateSet(sessions: StreakRow[], todayStr: string): Set<string> {
+  return new Set(sessions.filter((s) => s.status === 'completed' && s.planned_date <= todayStr).map((s) => s.planned_date))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1. MOMENTUM — is the user building a sustainable habit?
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface Momentum {
+  score: number            // 0–100
+  label: string
+  trendUp: boolean
+  message: string
+  currentStreak: number
+  bestStreak: number
+  isBest: boolean
+}
+
+export function computeMomentum(sessions: StreakRow[], goalPerWeek: number, todayStr: string): Momentum {
+  const goal = clampGoal(goalPerWeek)
+  const input = tempoScoreInputFromSessions(sessions, goal, todayStr)
+  const currentStreak = input.currentStreak
+  const bestStreak = longestSessionStreak(sessions, todayStr)
+
+  // last-14-day completion of settled sessions
+  const from14 = addDays(todayStr, -13)
+  const settled = sessions.filter(
+    (s) => s.planned_date >= from14 && s.planned_date <= todayStr &&
+      (s.status === 'completed' || s.status === 'missed' || s.status === 'skipped'),
+  )
+  const recentRate = settled.length ? settled.filter((s) => s.status === 'completed').length / settled.length : 0
+
+  // week-over-week trend (completed this 7d vs prior 7d)
+  const thisWeek = sessions.filter((s) => s.status === 'completed' && s.planned_date >= addDays(todayStr, -6) && s.planned_date <= todayStr).length
+  const priorWeek = sessions.filter((s) => s.status === 'completed' && s.planned_date >= addDays(todayStr, -13) && s.planned_date <= addDays(todayStr, -7)).length
+  const trendUp = thisWeek >= priorWeek && (thisWeek > 0 || currentStreak > 0)
+
+  const streakTerm = clamp01(currentStreak / 14)      // ~2 perfect weeks maxes it
+  const consistencyTerm = clamp01(input.weeksMetGoal / 4)
+  const recentTerm = clamp01(recentRate)
+  const score = Math.round(100 * (0.45 * streakTerm + 0.35 * consistencyTerm + 0.20 * recentTerm))
+
+  const isBest = currentStreak > 0 && currentStreak >= bestStreak
+  const label = score >= 80 ? 'Soaring' : score >= 60 ? 'Building' : score >= 40 ? 'Warming up' : 'Restarting'
+
+  let message: string
+  if (isBest && currentStreak >= 3) message = `You're on your longest streak yet — ${currentStreak} sessions in a row.`
+  else if (currentStreak >= 3) message = `${currentStreak} sessions in a row. Keep the chain alive.`
+  else if (trendUp && thisWeek > 0) message = `You trained ${thisWeek}× this week — momentum is picking up.`
+  else if (score >= 40) message = `Steady work. One more session tightens the habit.`
+  else message = `A single workout restarts your momentum. Today's a good day.`
+
+  return { score, label, trendUp, message, currentStreak, bestStreak, isBest }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2. READINESS (history-based) — is today a good day to train hard?
+//    Used when there's no daily recovery check-in (recovery.ts covers that case).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface ReadinessComponent { label: string; detail: string; tone: 'good' | 'ok' | 'low' }
+export interface Readiness {
+  score: number            // 0–100
+  label: string
+  headline: string
+  recovery: ReadinessComponent
+  load: ReadinessComponent
+  source: 'history'
+}
+
+function readinessWord(score: number): string {
+  if (score >= 80) return 'Primed'
+  if (score >= 60) return 'Ready'
+  if (score >= 45) return 'Moderate'
+  return 'Take it easy'
+}
+
+/** `logTimes` are ISO started_at strings from workout_logs; `now` defaults to real now. */
+export function readinessFromHistory(sessions: StreakRow[], logTimes: string[], now: Date = new Date()): Readiness {
+  const todayStr = ymd(now)
+
+  // Recovery: hours since the most recent logged session.
+  const lastMs = logTimes
+    .map((t) => new Date(t).getTime())
+    .filter((ms) => Number.isFinite(ms) && ms <= now.getTime())
+    .sort((a, b) => b - a)[0]
+  const hoursSince = lastMs != null ? Math.round((now.getTime() - lastMs) / 3_600_000) : null
+
+  let recoveryTerm: number
+  let recovery: ReadinessComponent
+  if (hoursSince == null) {
+    recoveryTerm = 0.8
+    recovery = { label: 'Fresh', detail: 'No recent sessions logged — ease back in.', tone: 'ok' }
+  } else if (hoursSince < 12) {
+    recoveryTerm = 0.45
+    recovery = { label: 'Short rest', detail: `Only ${hoursSince}h since your last session.`, tone: 'low' }
+  } else if (hoursSince < 20) {
+    recoveryTerm = 0.72
+    recovery = { label: 'Building', detail: `${hoursSince}h since your last session.`, tone: 'ok' }
+  } else if (hoursSince <= 72) {
+    recoveryTerm = 1.0
+    recovery = { label: 'Recovered', detail: `You rested ${hoursSince}h after your last session.`, tone: 'good' }
+  } else if (hoursSince <= 168) {
+    const days = Math.round(hoursSince / 24)
+    recoveryTerm = 0.85
+    recovery = { label: 'Well rested', detail: `${days} days since your last session.`, tone: 'good' }
+  } else {
+    recoveryTerm = 0.78
+    recovery = { label: 'Refreshed', detail: `It's been a while — start moderate.`, tone: 'ok' }
+  }
+
+  // Load: consecutive training days (fatigue) + recent 7-day cadence.
+  const trained = completedDateSet(sessions, todayStr)
+  const consecutive = consecutiveTrainingDays(trained, now) + (trained.has(todayStr) ? 1 : 0)
+  const recent7 = sessions.filter((s) => s.status === 'completed' && s.planned_date >= addDays(todayStr, -6) && s.planned_date <= todayStr).length
+
+  let loadTerm: number
+  let load: ReadinessComponent
+  if (consecutive >= 4) {
+    loadTerm = 0.5
+    load = { label: 'High', detail: `${consecutive} days in a row — a lighter or recovery session is smart.`, tone: 'low' }
+  } else if (consecutive === 3) {
+    loadTerm = 0.72
+    load = { label: 'Elevated', detail: `3 straight training days — watch fatigue.`, tone: 'ok' }
+  } else if (recent7 === 0) {
+    loadTerm = 0.9
+    load = { label: 'Light', detail: `Fresh week — plenty in the tank.`, tone: 'good' }
+  } else {
+    loadTerm = 1.0
+    load = { label: 'Balanced', detail: `Your recent training matches your usual pattern.`, tone: 'good' }
+  }
+
+  const score = Math.round(100 * (0.55 * recoveryTerm + 0.45 * loadTerm))
+  const headline =
+    score >= 80 ? 'You are in an optimal state for a challenging workout.' :
+    score >= 60 ? 'Good to train — push if you feel it, ease off if not.' :
+    score >= 45 ? 'Consider a lighter workout or a recovery session.' :
+    'Prioritise recovery today. A short, easy session at most.'
+
+  return { score, label: readinessWord(score), headline, recovery, load, source: 'history' }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. OPTIMAL WORKOUT WINDOW — when does this user actually train successfully?
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface OptimalWindow {
+  hasData: boolean
+  windowLabel: string      // e.g. "5:00 PM – 7:00 PM"
+  reason: string
+  weekdayInsight: string | null
+}
+
+export function optimalWindow(logTimes: string[]): OptimalWindow {
+  const dates = logTimes.map((t) => new Date(t)).filter((d) => !isNaN(d.getTime()))
+  if (dates.length < 5) {
+    return {
+      hasData: false,
+      windowLabel: '',
+      reason: 'Complete a few more workouts and Tempo will learn your best training window.',
+      weekdayInsight: null,
+    }
+  }
+
+  const byHour = Array<number>(24).fill(0)
+  let weekday = 0
+  let weekend = 0
+  for (const d of dates) {
+    byHour[d.getHours()]++
+    const wd = d.getDay()
+    if (wd === 0 || wd === 6) weekend++
+    else weekday++
+  }
+
+  // Best 2-hour window by summed count.
+  let bestStart = 0
+  let bestSum = -1
+  for (let h = 0; h < 23; h++) {
+    const sum = byHour[h] + byHour[h + 1]
+    if (sum > bestSum) { bestSum = sum; bestStart = h }
+  }
+  const windowLabel = `${hourLabel(bestStart)} – ${hourLabel(bestStart + 2)}`
+
+  const total = weekday + weekend
+  const weekdayShare = total ? Math.round((weekday / total) * 100) : 0
+  const weekdayInsight =
+    weekdayShare >= 70 ? `Most of your workouts (${weekdayShare}%) happen on weekdays.` :
+    weekdayShare <= 30 ? `You train mostly on weekends (${100 - weekdayShare}%).` :
+    null
+
+  return {
+    hasData: true,
+    windowLabel,
+    reason: `Your most successful workouts happen around ${hourLabel(bestStart)}.`,
+    weekdayInsight,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. WORKOUT FORECAST — fatigue outlook for the next few days.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface ForecastDay {
+  date: string
+  dayLabel: string         // "Tomorrow", "Fri"
+  level: 'good' | 'moderate' | 'risk'
+  reason: string
+}
+
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+export function workoutForecast(sessions: StreakRow[], todayStr: string, days = 3): ForecastDay[] {
+  // A date "trains" if it's completed (past) or still scheduled (future).
+  const trains = new Set(
+    sessions
+      .filter((s) => s.status === 'completed' || s.status === 'scheduled')
+      .map((s) => s.planned_date),
+  )
+  const out: ForecastDay[] = []
+  for (let i = 1; i <= days; i++) {
+    const date = addDays(todayStr, i)
+    // Consecutive run of training days ending on `date` (inclusive), walking back.
+    let run = 0
+    let cur = date
+    while (trains.has(cur)) { run++; cur = addDays(cur, -1) }
+    const d = parseYmd(date)
+    const dayLabel = i === 1 ? 'Tomorrow' : WD[d.getDay()]
+
+    let level: ForecastDay['level']
+    let reason: string
+    if (!trains.has(date)) {
+      level = 'good'
+      reason = 'Rest / open day — great for a fresh session if you add one.'
+    } else if (run >= 3) {
+      level = 'risk'
+      reason = `${run} training days in a row — higher fatigue risk.`
+    } else if (run === 2) {
+      level = 'moderate'
+      reason = 'Back-to-back day — moderate fatigue expected.'
+    } else {
+      level = 'good'
+      reason = 'Well-rested — a strong day to train.'
+    }
+    out.push({ date, dayLabel, level, reason })
+  }
+  return out
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. CONSISTENCY PREDICTOR — will they hit this week's goal?
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface Predictor {
+  completed: number
+  goal: number
+  remainingScheduled: number
+  projected: number
+  onTrack: boolean
+  message: string
+}
+
+export function consistencyPredictor(sessions: StreakRow[], goalPerWeek: number, todayStr: string): Predictor {
+  const goal = clampGoal(goalPerWeek)
+  const weekStart = mondayOf(todayStr)
+  const weekEnd = addDays(weekStart, 6)
+
+  const completed = sessions.filter((s) => s.status === 'completed' && s.planned_date >= weekStart && s.planned_date <= weekEnd).length
+  const remainingScheduled = sessions.filter(
+    (s) => s.status === 'scheduled' && s.planned_date >= todayStr && s.planned_date <= weekEnd,
+  ).length
+  const projected = Math.min(goal + 2, completed + remainingScheduled)
+  const onTrack = projected >= goal
+
+  let message: string
+  if (completed >= goal) message = `Goal hit — ${completed}/${goal} done this week. 🔥`
+  else if (onTrack) message = `You're on track for ${projected}/${goal} workouts this week.`
+  else {
+    const short = goal - projected
+    message = `Schedule ${short} more session${short > 1 ? 's' : ''} to reach ${goal}/${goal} this week.`
+  }
+  return { completed, goal, remainingScheduled, projected, onTrack, message }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. SUCCESS PATTERNS — real, data-backed observations (never invented).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function successPatterns(sessions: StreakRow[], logTimes: string[], todayStr: string): string[] {
+  const out: string[] = []
+  const times = logTimes.map((t) => new Date(t)).filter((d) => !isNaN(d.getTime()))
+
+  // a) time-of-day concentration
+  if (times.length >= 8) {
+    const before7 = times.filter((d) => d.getHours() < 19).length
+    const share = Math.round((before7 / times.length) * 100)
+    if (share >= 65) out.push(`${share}% of your workouts happen before 7 PM.`)
+    else if (share <= 35) out.push(`${100 - share}% of your workouts happen in the evening.`)
+  }
+
+  // b) weekday vs weekend completion rate
+  const settled = sessions.filter((s) => s.planned_date <= todayStr && (s.status === 'completed' || s.status === 'missed' || s.status === 'skipped'))
+  const bucket = (weekendWanted: boolean) => {
+    const rows = settled.filter((s) => {
+      const wd = parseYmd(s.planned_date).getDay()
+      const isWeekend = wd === 0 || wd === 6
+      return isWeekend === weekendWanted
+    })
+    return rows.length ? { rate: Math.round((rows.filter((r) => r.status === 'completed').length / rows.length) * 100), n: rows.length } : null
+  }
+  const wkday = bucket(false)
+  const wkend = bucket(true)
+  if (wkday && wkend && wkday.n >= 4 && wkend.n >= 3 && Math.abs(wkday.rate - wkend.rate) >= 15) {
+    out.push(wkday.rate > wkend.rate
+      ? `You complete ${wkday.rate}% of weekday workouts vs ${wkend.rate}% on weekends.`
+      : `Weekends are your strength — ${wkend.rate}% completed vs ${wkday.rate}% on weekdays.`)
+  }
+
+  // c) best day of week
+  if (settled.length >= 10) {
+    const perDayDone = Array<number>(7).fill(0)
+    const perDayTot = Array<number>(7).fill(0)
+    for (const s of settled) {
+      const wd = parseYmd(s.planned_date).getDay()
+      perDayTot[wd]++
+      if (s.status === 'completed') perDayDone[wd]++
+    }
+    let bestWd = -1
+    let bestRate = -1
+    for (let d = 0; d < 7; d++) {
+      if (perDayTot[d] >= 2) {
+        const r = perDayDone[d] / perDayTot[d]
+        if (r > bestRate) { bestRate = r; bestWd = d }
+      }
+    }
+    if (bestWd >= 0 && bestRate >= 0.8) out.push(`${['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'][bestWd]} are your most reliable training day.`)
+  }
+
+  return out.slice(0, 3)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. CONSISTENCY HEATMAP — GitHub-style plan adherence grid.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type HeatKind = 'none' | 'completed' | 'missed'
+export interface HeatCell { date: string; kind: HeatKind }
+export interface Heatmap { weeks: HeatCell[][]; totalCompleted: number; bestWeekCount: number; activeWeeks: number }
+
+export function consistencyHeatmap(sessions: StreakRow[], todayStr: string, weeks = 17): Heatmap {
+  const byDate = new Map<string, HeatKind>()
+  for (const s of sessions) {
+    if (s.planned_date > todayStr) continue
+    const prev = byDate.get(s.planned_date)
+    if (s.status === 'completed') byDate.set(s.planned_date, 'completed')
+    else if ((s.status === 'missed' || s.status === 'skipped') && prev !== 'completed') byDate.set(s.planned_date, 'missed')
+  }
+
+  const end = mondayOf(todayStr)
+  const start = addDays(end, -(weeks - 1) * 7)
+  const cols: HeatCell[][] = []
+  let totalCompleted = 0
+  let bestWeekCount = 0
+  let activeWeeks = 0
+
+  for (let w = 0; w < weeks; w++) {
+    const col: HeatCell[] = []
+    let weekCompleted = 0
+    let weekActive = false
+    for (let d = 0; d < 7; d++) {
+      const date = addDays(start, w * 7 + d)
+      const kind = date <= todayStr ? (byDate.get(date) ?? 'none') : 'none'
+      if (kind === 'completed') { weekCompleted++; totalCompleted++; weekActive = true }
+      if (kind === 'missed') weekActive = true
+      col.push({ date, kind })
+    }
+    if (weekActive) activeWeeks++
+    bestWeekCount = Math.max(bestWeekCount, weekCompleted)
+    cols.push(col)
+  }
+  return { weeks: cols, totalCompleted, bestWeekCount, activeWeeks }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. TRAINING FREQUENCY — completed workouts/week over a range.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type FreqRange = '1M' | '3M' | '6M' | '1Y'
+const RANGE_WEEKS: Record<FreqRange, number> = { '1M': 4, '3M': 13, '6M': 26, '1Y': 52 }
+
+export interface FrequencySeries {
+  points: { label: string; value: number }[]
+  avgPerWeek: number
+  prevAvgPerWeek: number | null
+  deltaMessage: string
+}
+
+export function frequencySeries(sessions: StreakRow[], todayStr: string, range: FreqRange): FrequencySeries {
+  const nWeeks = RANGE_WEEKS[range]
+  const end = mondayOf(todayStr)
+  const start = addDays(end, -(nWeeks - 1) * 7)
+  const completed = sessions.filter((s) => s.status === 'completed')
+
+  const perWeek = Array<number>(nWeeks).fill(0)
+  let prevTotal = 0
+  const prevStart = addDays(start, -nWeeks * 7)
+  for (const s of completed) {
+    if (s.planned_date >= start && s.planned_date <= addDays(end, 6)) {
+      const wi = Math.floor((parseYmd(s.planned_date).getTime() - parseYmd(start).getTime()) / (7 * DAY_MS))
+      if (wi >= 0 && wi < nWeeks) perWeek[wi]++
+    } else if (s.planned_date >= prevStart && s.planned_date < start) {
+      prevTotal++
+    }
+  }
+
+  // Bucket labels: weekly for short ranges, monthly-ish tick for long ones.
+  const points = perWeek.map((value, i) => {
+    const wkStart = parseYmd(addDays(start, i * 7))
+    const label = nWeeks <= 13 ? `${wkStart.getMonth() + 1}/${wkStart.getDate()}` : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][wkStart.getMonth()]
+    return { label, value }
+  })
+
+  const avgPerWeek = Math.round((perWeek.reduce((a, b) => a + b, 0) / nWeeks) * 10) / 10
+  const prevAvgPerWeek = prevTotal > 0 ? Math.round((prevTotal / nWeeks) * 10) / 10 : null
+
+  let deltaMessage: string
+  if (prevAvgPerWeek == null) deltaMessage = `You're averaging ${avgPerWeek} workouts/week.`
+  else if (avgPerWeek > prevAvgPerWeek) deltaMessage = `You're averaging ${avgPerWeek} workouts/week, up from ${prevAvgPerWeek}.`
+  else if (avgPerWeek < prevAvgPerWeek) deltaMessage = `You're averaging ${avgPerWeek} workouts/week, down from ${prevAvgPerWeek}.`
+  else deltaMessage = `Holding steady at ${avgPerWeek} workouts/week.`
+
+  return { points, avgPerWeek, prevAvgPerWeek, deltaMessage }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 9. MUSCLE BALANCE — are all regions getting worked?
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface MuscleSlice { group: string; sets: number; pct: number }
+export interface MuscleBalance { slices: MuscleSlice[]; insight: string | null }
+
+const CANONICAL_GROUPS = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core']
+
+/** `sets` = one entry per working set with its exercise's coarse muscle_group. */
+export function muscleBalance(sets: { group: string | null }[]): MuscleBalance {
+  const counts = new Map<string, number>()
+  for (const g of CANONICAL_GROUPS) counts.set(g, 0)
+  let total = 0
+  for (const s of sets) {
+    const g = (s.group ?? '').toLowerCase()
+    if (counts.has(g)) { counts.set(g, (counts.get(g) ?? 0) + 1); total++ }
+  }
+  const slices: MuscleSlice[] = CANONICAL_GROUPS.map((group) => {
+    const n = counts.get(group) ?? 0
+    return { group, sets: n, pct: total ? Math.round((n / total) * 100) : 0 }
+  })
+
+  let insight: string | null = null
+  if (total >= 12) {
+    const worked = slices.filter((s) => s.sets > 0)
+    const min = slices.reduce((a, b) => (b.pct < a.pct ? b : a))
+    const untouched = slices.filter((s) => s.sets === 0)
+    if (untouched.length && untouched.length <= 3) {
+      insight = `No ${untouched.map((u) => u.group).join(' or ')} sets logged lately — consider adding one.`
+    } else if (worked.length >= 4 && min.pct > 0 && min.pct < 10) {
+      insight = `Your ${min.group} is getting less work than the rest — a dedicated session would even it out.`
+    } else {
+      insight = `Well balanced across all muscle groups — nice.`
+    }
+  }
+  return { slices, insight }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 10. JOURNEY TIMELINE — the emotional "how far you've come" story.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface JourneyEvent { date: string; title: string; detail: string; icon: string }
+
+export function journeyTimeline(sessions: StreakRow[], todayStr: string): JourneyEvent[] {
+  const completed = sessions
+    .filter((s) => s.status === 'completed' && s.planned_date <= todayStr)
+    .sort((a, b) => a.planned_date.localeCompare(b.planned_date))
+  if (!completed.length) return []
+
+  const events: JourneyEvent[] = []
+  const fmt = (d: string) => parseYmd(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+
+  events.push({ date: completed[0].planned_date, title: 'Started your Tempo journey', detail: `First workout on ${fmt(completed[0].planned_date)}.`, icon: 'flag' })
+
+  for (const milestone of [10, 25, 50, 100, 200]) {
+    if (completed.length >= milestone) {
+      const d = completed[milestone - 1].planned_date
+      events.push({ date: d, title: `${milestone} workouts completed`, detail: `Hit ${milestone} sessions on ${fmt(d)}.`, icon: 'barbell' })
+    }
+  }
+
+  const best = longestSessionStreak(sessions, todayStr)
+  if (best >= 5) events.push({ date: todayStr, title: `${best}-session streak`, detail: `Your longest run of consecutive sessions.`, icon: 'flame' })
+
+  // De-dupe by title, keep chronological.
+  const seen = new Set<string>()
+  return events
+    .filter((e) => (seen.has(e.title) ? false : (seen.add(e.title), true)))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}

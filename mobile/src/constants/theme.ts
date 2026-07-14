@@ -55,6 +55,22 @@ const inkDark = {
   eventWork: '#EA4335',
   eventPersonal: '#A855F7',
   eventSchool: '#F59E0B',
+  // ── Redesign foundation (additive — nothing above changed) ──────────────────
+  // Glass / depth. Sparing use on hero cards + sheets; never wall-to-wall.
+  glass: 'rgba(255,255,255,0.045)',
+  glassBorder: 'rgba(255,255,255,0.09)',
+  glassHighlight: 'rgba(255,255,255,0.14)',
+  scrim: 'rgba(0,0,0,0.55)',
+  // Chart system — axes/grid/labels for the Progress dashboards.
+  chartGrid: 'rgba(255,255,255,0.06)',
+  chartAxis: '#333A45',
+  chartLabel: '#AFB5C1',
+  // Semantic states for forecast / readiness / insights: good · caution · risk.
+  warning: '#F2B84B',
+  warningSoft: 'rgba(242,184,75,0.16)',
+  readyHigh: '#22C55E',
+  readyMed: '#F2B84B',
+  readyLow: '#FF6A45',
   // Legacy aliases used in existing components
   backgroundElement: '#1F232B',
   backgroundSelected: '#232830',
@@ -100,6 +116,19 @@ const paperLight: Palette = {
   eventWork: '#EA4335',
   eventPersonal: '#A855F7',
   eventSchool: '#F59E0B',
+  // Redesign foundation (additive) — light "Paper" equivalents.
+  glass: 'rgba(255,255,255,0.62)',
+  glassBorder: 'rgba(20,28,48,0.08)',
+  glassHighlight: 'rgba(255,255,255,0.92)',
+  scrim: 'rgba(18,22,30,0.34)',
+  chartGrid: 'rgba(20,28,48,0.08)',
+  chartAxis: '#C7CBD4',
+  chartLabel: '#525A68',
+  warning: '#B7791F',
+  warningSoft: 'rgba(183,121,31,0.14)',
+  readyHigh: '#178A44',
+  readyMed: '#B7791F',
+  readyLow: '#E0451F',
   backgroundElement: '#F6F3F4',
   backgroundSelected: '#EFF4FF',
 };
@@ -127,6 +156,8 @@ export const Typography = {
   bodySm: { fontSize: 14, fontWeight: '500' as const, lineHeight: 20 },
   labelCaps: { fontSize: 12, fontWeight: '700' as const, lineHeight: 16, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   metricXl: { fontSize: 48, fontWeight: '800' as const, lineHeight: 48, letterSpacing: -1.92 },
+  // The single biggest number on a screen (Tempo Score / Readiness hero).
+  metricHero: { fontSize: 64, fontWeight: '800' as const, lineHeight: 62, letterSpacing: -2.6 },
 } as const;
 
 // Three type roles (loaded in the root layout):
@@ -149,6 +180,10 @@ export const Motion = {
   base: 240,        // card entrances, expansion
   slow: 360,        // celebrations, rings, hero reveals
   spring: { friction: 6, tension: 120 },   // pop-in spring
+  // Additive semantic durations for the redesign motion system.
+  micro: 120,       // taps, toggles, chips
+  celebrate: 600,   // completion / streak / PR moments
+  stagger: 45,      // per-item cascade delay for card/list entrances
 } as const;
 
 // 4px base grid
@@ -178,6 +213,12 @@ export const Radius = {
   lg: 16,
   xl: 24,
   full: 9999,
+  // Semantic roundness system (additive — existing keys unchanged). New
+  // components use these so corner radii stay consistent app-wide.
+  chip: 10,
+  card: 20,
+  sheet: 28,
+  pill: 9999,
 } as const;
 
 // Card shadow (Level 2 elevation)
@@ -188,6 +229,16 @@ export const CardShadow = {
   shadowRadius: 20,
   elevation: 2,
 };
+
+// Elevation ramp (additive; CardShadow above is kept for existing callers).
+// Depth hierarchy for the redesign: e0 flat · e1 resting card · e2 hero/sheet ·
+// e3 popover/celebration. Pair e2/e3 with the `glass*` tokens for premium depth.
+export const Elevation = {
+  e0: {},
+  e1: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 8, elevation: 2 },
+  e2: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 20, elevation: 6 },
+  e3: { shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.28, shadowRadius: 34, elevation: 12 },
+} as const;
 
 // Room screens must leave for the floating tab dock (height + float gap).
 export const BottomTabInset = Platform.select({ ios: 96, android: 96 }) ?? 96;

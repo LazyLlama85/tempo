@@ -529,6 +529,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   celebration) uses the Bricolage display face, so numbers read as one consistent, premium voice
   rather than a "code-y" mono. A shared **`Motion`** export (fast/base/slow durations + spring)
   keeps the whole app on one clock. `BottomTabInset` reflects the floating dock (96).
+  **Redesign foundation (additive — no existing token changed):** every palette also carries
+  `glass`/`glassBorder`/`glassHighlight`/`scrim` (premium depth), `chartGrid`/`chartAxis`/`chartLabel`
+  (Progress charts), and `warning`/`readyHigh`/`readyMed`/`readyLow` (forecast/readiness good·caution·
+  risk). `Typography.metricHero` (64px) for the single biggest number; `Radius` gains semantic
+  `chip`/`card`/`sheet`/`pill`; `Motion` gains `micro`/`celebrate`/`stagger`; a new `Elevation` ramp
+  (e0–e3) sits alongside the kept `CardShadow`. The design strategy + direction review live in
+  `DESIGN_STRATEGY.md`.
 - **Theme engine:** `src/theme/` — a Zustand store (`useThemeStore`, persisted to the SQLite-backed
   `localStorage`, **default dark**) drives live dark/light switching. Screens read colors via
   `useTheme()` and build styles with `useThemedStyles(makeStyles)` so a mode change re-renders the
@@ -679,6 +686,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   streak definition, shared by stats/wrapped/achievements: **consecutive completed sessions**;
   rest days never break it, a missed/skipped commitment does — so a Mon/Wed/Fri user can actually
   build one; the server `streak_at_risk` push follows the same philosophy).
+- **Fitness Intelligence (`fitnessInsights.ts`, new — powers the Progress-dashboard redesign):**
+  pure derivations over the data Tempo already has (scheduled_workouts status, workout_logs
+  `started_at`, set_logs) that turn Progress from a stats page into a coach that explains behaviour.
+  **Composes** the existing engines rather than duplicating them — `computeMomentum` (habit-
+  sustainability score off `tempoScore`+`streak`), `readinessFromHistory` (a check-in-free readiness
+  from recovery gap + `trainingLoad.consecutiveTrainingDays`, complementing `recovery.ts`),
+  `optimalWindow` / `successPatterns` (real time-of-day + weekday patterns from log timestamps),
+  `workoutForecast` (3-day fatigue outlook), `consistencyPredictor` (weekly-goal projection),
+  `consistencyHeatmap` (GitHub-style adherence grid), `frequencySeries`, `muscleBalance`,
+  `journeyTimeline`. Every output ships a human message and honest empty/low-confidence states; no
+  invented numbers. 14 unit tests (`__tests__/fitnessInsights.test.ts`).
 - **User workouts:** `customExercises` (custom-exercise CRUD + `metricsFor` + `EXERCISE_COLUMNS`),
   `workoutBuilder` (drafts, templates, scheduling, duplicate, duration estimate).
 - **Origin labelling:** `workoutOrigin(source)` maps a scheduled workout's `source` to a
