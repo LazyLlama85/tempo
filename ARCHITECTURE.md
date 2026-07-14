@@ -346,6 +346,17 @@ per-modal fix. Takes the same `visible`/`onClose` props the old `<Modal>` API us
 barely changed. New deps: `@gorhom/bottom-sheet` + `react-native-svg` (the latter for upcoming
 Progress chart work) — both need one `expo run:ios`/`run:android` rebuild, and the root layout now
 wraps the app in `GestureHandlerRootView` + `BottomSheetModalProvider`.
+  - **Presentation (fixed, do not regress):** `TempoSheet` always presents at a fixed snap point
+    (default `['90%']`), never `enableDynamicSizing`. Dynamic (content-height) sizing measures a
+    `BottomSheetScrollView` as ~0px and the sheet opens **invisibly** — this was the "Edit Profile /
+    Log Weight / Sign Out do nothing" bug (every sheet without explicit `snapPoints` + `scroll`).
+    `present()`/`dismiss()` are also deferred one frame (rAF) so the modal is registered with the
+    provider first. Pure-JS change (gorhom has no native code) → ships via `eas update`, no rebuild.
+  - **Known caveat — sheets inside native modal screens:** the only `BottomSheetModalProvider` is at
+    the app root, so a sheet opened from a `presentation:'modal'` screen (workout-builder, edit-session,
+    split-editor, my-workouts, exercise-library, …) portals *behind* the iOS native modal and is
+    invisible. Fix when confirmed: a nested `BottomSheetModalProvider` inside those screens (or an
+    iOS `FullWindowOverlay` container).
 `EditWorkoutSheet`, `ExerciseFormSheet`, `ExerciseMedia`, `RecoveryCheckIn`, `ShareCardSheet`,
 **`SaveProgressSheet`** (the single guest → permanent-account upgrade surface, §1.1 — Apple/Google
 buttons over `lib/accountLinking`, shared by the Profile card and the post-3rd-workout modal;

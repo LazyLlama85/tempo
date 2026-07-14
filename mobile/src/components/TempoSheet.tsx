@@ -29,9 +29,14 @@ interface TempoSheetProps {
   /** Content scrolls internally (long forms/lists). Uses BottomSheetScrollView. */
   scroll?: boolean
   /**
-   * Fixed snap points (e.g. ['90%']). Omit for the default: the sheet sizes itself to
-   * its content, up to ~90% of the screen — right for short sheets (option pickers,
-   * single-field forms) so they don't show a mostly-empty tall sheet.
+   * Fixed snap points (e.g. ['85%']). Omit for the default `['90%']`.
+   *
+   * ⚠️ Do NOT switch this back to @gorhom's `enableDynamicSizing` (content-height sizing).
+   * On the `scroll` path the content is a `BottomSheetScrollView`, which has no intrinsic
+   * height — dynamic sizing measured it as ~0px and the sheet presented invisibly. That was
+   * the "tap does nothing" bug: Edit Profile / Log Weight / Sign Out (and every OptionSheet)
+   * all open sheets with no snapPoints + scroll, so they never appeared. A fixed snap point
+   * always presents. Pass a smaller value (e.g. ['60%']) for shorter sheets if 90% feels tall.
    */
   snapPoints?: (string | number)[]
   style?: object
@@ -41,19 +46,31 @@ export function TempoSheet({ visible, onClose, children, scroll, snapPoints, sty
   const C = useTheme()
   const ref = useRef<ElementRef<typeof BottomSheetModal>>(null)
 
+  // Defer present()/dismiss() by one frame: on first mount the imperative modal
+  // isn't registered with BottomSheetModalProvider yet, so calling present()
+  // synchronously can no-op (another "sheet never opens" failure mode). The rAF
+  // lets registration finish first.
   useEffect(() => {
-    if (visible) ref.current?.present()
-    else ref.current?.dismiss()
+    if (!ref.current) return
+    const id = requestAnimationFrame(() => {
+      if (visible) ref.current?.present()
+      else ref.current?.dismiss()
+    })
+    return () => cancelAnimationFrame(id)
   }, [visible])
 
   const Content = scroll ? BottomSheetScrollView : BottomSheetView
+  const resolvedSnapPoints = snapPoints ?? ['90%']
 
   return (
     <BottomSheetModal
       ref={ref}
       onDismiss={onClose}
-      snapPoints={snapPoints}
-      enableDynamicSizing={!snapPoints}
+      snapPoints={resolvedSnapPoints}
+      enableDynamicSizing={false} // see snapPoints doc above — dynamic sizing = 0-height invisible sheets
+
+      enablePanDownToClose
+      enableDismissOnClose
       maxDynamicContentSize={undefined}
       backdropComponent={(props: BottomSheetBackdropProps) => (
         <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.45} pressBehavior="close" />
