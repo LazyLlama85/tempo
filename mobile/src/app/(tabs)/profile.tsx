@@ -1091,7 +1091,7 @@ export default function ProfileScreen() {
             contentFit="contain"
             accessibilityLabel="Tempo"
           />
-          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'} · FIX2</Text>
+          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'}</Text>
         </View>
       </ScrollView>
 
