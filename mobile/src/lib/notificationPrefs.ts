@@ -19,7 +19,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Rules the user can toggle from Profile. `pre_workout` is device-local; the rest
 // are account-level and map 1:1 to the Edge Function's NotificationType names.
-export type ServerRule = 'missed_workout' | 'streak_at_risk' | 'weekly_report' | 'free_time_gap'
+export type ServerRule =
+  | 'missed_workout' | 'streak_at_risk' | 'weekly_report' | 'free_time_gap'
+  | 'partner_reminder' | 'friend_competition'
 export type NotificationRule = 'pre_workout' | ServerRule
 
 export interface NotificationPrefs {
@@ -28,6 +30,8 @@ export interface NotificationPrefs {
   streak_at_risk: boolean
   weekly_report: boolean
   free_time_gap: boolean
+  partner_reminder: boolean
+  friend_competition: boolean
 }
 
 // Defaults: everything ON — this preserves the exact behavior that shipped before
@@ -41,10 +45,13 @@ export const DEFAULT_PREFS: NotificationPrefs = {
   streak_at_risk: true,
   weekly_report: true,
   free_time_gap: true,
+  partner_reminder: true,
+  friend_competition: true,
 }
 
 export const SERVER_RULES: ServerRule[] = [
   'missed_workout', 'streak_at_risk', 'weekly_report', 'free_time_gap',
+  'partner_reminder', 'friend_competition',
 ]
 
 // ── Pre-workout reminder: device-local (SQLite-backed localStorage, like units) ──

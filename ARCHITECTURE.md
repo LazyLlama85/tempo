@@ -871,8 +871,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `respond_workout_invite('accept')` schedules the session for **both** users (`partner_id` links the
   pair) — surfaced in a **WORKOUT INVITES** section on the Friends screen (accept/decline). Completing
   a `partner_id` workout earns the **Workout Partner** badge (via `claim_competitive_badges`).
-  End-to-end verified on the live DB (send → accept → both scheduled). *Not yet built: push
-  accountability nudges + automatic social reschedule (noted in SOCIAL_UPGRADE_PLAN.md).*
+  End-to-end verified on the live DB (send → accept → both scheduled). **Accountability push nudges**
+  extend the `retention-push` edge function (no schema change — `notification_log.type` is free text,
+  prefs are generic jsonb): **partner_reminder** (a workout with a friend is tomorrow → "don't leave
+  them hanging", evening) and **friend_competition** (Thursday evening, one workout from passing a
+  friend). Both respect the per-rule opt-out (new toggles in `notificationPrefs.ts` + Profile) and the
+  one-push-per-run cap; taps deep-link via `data.screen` (`social` route added). *Still deferred:
+  automatic social reschedule when a slot breaks.*
   **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
   `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
   toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates

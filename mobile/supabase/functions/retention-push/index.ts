@@ -7,14 +7,20 @@
 // so it scales to every user with no manual sending.
 //
 // Rules implemented (each de-duplicated to at most once per user per day):
-//   1. missed_workout   — today's session still isn't done; the daytime nudge.
-//   2. streak_at_risk   — today's SCHEDULED session is still open in the evening;
-//                         the last call before the session (and streak) is lost.
-//                         NEVER fires on a planned rest day — streaks count
-//                         completed sessions, so rest days can't break them.
-//   3. free_time_gap    — user has free time today (no workout scheduled / completed)
-//                         during the daytime → "you've got 20 min, get a quick one in".
-//   4. reactivation     — no activity for INACTIVE_DAYS+ days → win them back.
+//   1. missed_workout      — today's session still isn't done; the daytime nudge.
+//   2. streak_at_risk      — today's SCHEDULED session is still open in the evening;
+//                            the last call before the session (and streak) is lost.
+//                            NEVER fires on a planned rest day — streaks count
+//                            completed sessions, so rest days can't break them.
+//   2b. partner_reminder   — a workout scheduled WITH a friend is TOMORROW (evening,
+//                            day before) → "don't leave your partner hanging".
+//   2c. friend_competition — Thursday evening, you're exactly one workout from passing
+//                            a friend on this week's leaderboard → "get one in".
+//   3. free_time_gap       — user has free time today (no workout scheduled / completed)
+//                            during the daytime → "you've got 20 min, get a quick one in".
+//   4. reactivation        — no activity for INACTIVE_DAYS+ days → win them back.
+//
+// Social rules respect the same per-rule opt-out (§6.1) and the one-push-per-run cap.
 //
 // Every attempt is written to notification_log (status sent|failed), and tokens
 // Expo reports as dead are disabled so we stop wasting sends on them.
@@ -28,7 +34,9 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const INACTIVE_DAYS = 5            // reactivation threshold
 const EVENING_HOUR_UTC_FALLBACK = 18 // used only if we can't infer local hour
 
-type NotificationType = 'weekly_report' | 'missed_workout' | 'streak_at_risk' | 'free_time_gap' | 'reactivation'
+type NotificationType =
+  | 'weekly_report' | 'missed_workout' | 'streak_at_risk' | 'free_time_gap' | 'reactivation'
+  | 'partner_reminder' | 'friend_competition'
 
 interface Candidate {
   userId: string
@@ -103,7 +111,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
   const [{ data: scheduled }, { data: logs }, { data: alreadySent }, { data: profiles }] = await Promise.all([
     admin
       .from('scheduled_workouts')
-      .select('user_id, planned_date, planned_start_time, status, focus')
+      .select('user_id, planned_date, planned_start_time, status, focus, partner_id')
       .gte('planned_date', addDays(today, -INACTIVE_DAYS))
       .in('user_id', userIds),
     admin
@@ -135,6 +143,52 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
   const nowHourUtc = nowDate.getUTCHours()
   const nowDayUtc = nowDate.getUTCDay() // 0 = Sunday
   const weekStartStr = addDays(today, -((nowDate.getUTCDay() + 6) % 7)) // Monday of this week
+  const tomorrow = addDays(today, 1)
+
+  // ── Social accountability inputs (partner reminders + friend competition) ──────
+  const userIdSet = new Set(userIds)
+  const { data: friendships } = await admin
+    .from('friendships')
+    .select('requester_id, addressee_id')
+    .eq('status', 'accepted')
+    .or(`requester_id.in.(${userIds.join(',')}),addressee_id.in.(${userIds.join(',')})`)
+  const friendsByUser = new Map<string, Set<string>>()
+  const addFriend = (a: string, b: string) => {
+    if (!userIdSet.has(a)) return
+    const s = friendsByUser.get(a) ?? new Set<string>()
+    s.add(b); friendsByUser.set(a, s)
+  }
+  for (const f of friendships ?? []) {
+    addFriend(f.requester_id as string, f.addressee_id as string)
+    addFriend(f.addressee_id as string, f.requester_id as string)
+  }
+  const friendIds = new Set<string>()
+  for (const s of friendsByUser.values()) for (const id of s) friendIds.add(id)
+  const partnerIds = new Set<string>()
+  for (const w of scheduled ?? []) if (w.partner_id) partnerIds.add(w.partner_id as string)
+
+  // Names for partners + friends (who may not have tokens themselves).
+  const nameIds = [...new Set([...userIds, ...friendIds, ...partnerIds])]
+  const { data: nameRows } = nameIds.length
+    ? await admin.from('user_profiles').select('user_id, display_name').in('user_id', nameIds)
+    : { data: [] as { user_id: string; display_name: string | null }[] }
+  const nameById = new Map<string, string>(
+    (nameRows ?? []).map((r) => [r.user_id as string, (r.display_name as string | null) ?? 'a friend']),
+  )
+
+  // This week's completed count for everyone we might compare (users + their friends).
+  const countIds = [...new Set([...userIds, ...friendIds])]
+  const { data: weekRows } = await admin
+    .from('scheduled_workouts')
+    .select('user_id')
+    .eq('status', 'completed')
+    .gte('planned_date', weekStartStr)
+    .in('user_id', countIds)
+  const weekCountByUser = new Map<string, number>()
+  for (const r of weekRows ?? []) {
+    const u = r.user_id as string
+    weekCountByUser.set(u, (weekCountByUser.get(u) ?? 0) + 1)
+  }
 
   for (const userId of userIds) {
     const completed = completedDates.get(userId) ?? new Set<string>()
@@ -193,6 +247,41 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
         data: { screen: 'plan' },
       })
       continue
+    }
+
+    // 2b. Partner reminder — a workout scheduled WITH a friend is tomorrow. The
+    //     "don't leave your partner hanging" accountability nudge; evening, day before.
+    const partnerW = mine.find(
+      (w) => w.planned_date === tomorrow && w.partner_id && w.status === 'scheduled',
+    )
+    if (partnerW && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+      const pname = firstName(nameById.get(partnerW.partner_id as string) ?? 'your friend')
+      add({
+        type: 'partner_reminder',
+        title: 'Training with a friend tomorrow 🤝',
+        body: `You and ${pname} have ${partnerW.focus} tomorrow — don't leave them hanging.`,
+        data: { screen: 'plan' },
+      })
+      continue
+    }
+
+    // 2c. Friend competition — you're one workout from passing a friend this week.
+    //     Thursday evening only, so it's a weekly end-of-week push, not a daily nag.
+    if (nowDayUtc === 4 && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+      const myWeek = weekCountByUser.get(userId) ?? 0
+      let passName: string | null = null
+      for (const fid of friendsByUser.get(userId) ?? []) {
+        if ((weekCountByUser.get(fid) ?? 0) === myWeek + 1) { passName = firstName(nameById.get(fid) ?? 'a friend'); break }
+      }
+      if (passName) {
+        add({
+          type: 'friend_competition',
+          title: 'One workout from the lead 🏁',
+          body: `You're 1 workout from passing ${passName} on this week's leaderboard. Get one in.`,
+          data: { screen: 'social' },
+        })
+        continue
+      }
     }
 
     // 3. Free-time gap — nothing scheduled or done today, during the active part of
@@ -351,6 +440,9 @@ function mostRecent(dates: Set<string>): string | null {
   let max: string | null = null
   for (const d of dates) if (!max || d > max) max = d
   return max
+}
+function firstName(name: string): string {
+  return (name || '').trim().split(/\s+/)[0] || 'a friend'
 }
 function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
   const m = new Map<string, T[]>()

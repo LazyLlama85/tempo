@@ -1025,6 +1025,8 @@ export default function ProfileScreen() {
               { key: 'streak_at_risk', label: 'Streak at risk', sub: "Evening reminder when today's is still open", server: true },
               { key: 'weekly_report', label: 'Weekly report', sub: 'Your Sunday progress recap', server: true },
               { key: 'free_time_gap', label: 'Free time suggestions', sub: 'A quick workout when you have a gap', server: true },
+              { key: 'partner_reminder', label: 'Workout partner', sub: 'When a workout you planned with a friend is coming up', server: true },
+              { key: 'friend_competition', label: 'Friend competition', sub: "When you're close on the weekly leaderboard", server: true },
             ] as const).map((r) => {
               const disabled = r.server && !pushEnabled
               return (

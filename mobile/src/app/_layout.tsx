@@ -187,6 +187,7 @@ function RootLayout() {
         case 'plan': router.push('/(tabs)/plan'); break
         case 'home': router.push('/(tabs)'); break
         case 'weekly-report': router.push('/weekly-report' as any); break
+        case 'social': router.push('/social' as any); break
       }
     })
     return () => sub.remove()
