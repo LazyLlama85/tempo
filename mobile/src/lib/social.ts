@@ -395,18 +395,20 @@ export interface PrivacyPrefs {
   privacy_workouts: PrivacyLevel
   privacy_stats: PrivacyLevel
   privacy_activity: PrivacyLevel
+  privacy_availability: PrivacyLevel
 }
 
 export async function fetchPrivacy(client: SupabaseClient, userId: string): Promise<PrivacyPrefs> {
   const { data } = await client
     .from('user_profiles')
-    .select('privacy_workouts, privacy_stats, privacy_activity')
+    .select('privacy_workouts, privacy_stats, privacy_activity, privacy_availability')
     .eq('user_id', userId)
     .maybeSingle()
   return {
     privacy_workouts: (data?.privacy_workouts as PrivacyLevel) ?? 'friends',
     privacy_stats: (data?.privacy_stats as PrivacyLevel) ?? 'friends',
     privacy_activity: (data?.privacy_activity as PrivacyLevel) ?? 'friends',
+    privacy_availability: (data?.privacy_availability as PrivacyLevel) ?? 'friends',
   }
 }
 

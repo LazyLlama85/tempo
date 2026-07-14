@@ -29,6 +29,7 @@ import {
 } from '@/lib/social'
 import { LeaderboardBoard } from '@/components/LeaderboardBoard'
 import { listMyGroups, createGroup, joinGroup, type GroupSummary } from '@/lib/groups'
+import { listWorkoutInvites, respondWorkoutInvite, type WorkoutInvite } from '@/lib/scheduling'
 
 // "2h ago" / "3d ago" for feed rows.
 function timeAgo(iso: string): string {
@@ -39,6 +40,16 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   return d === 1 ? 'yesterday' : `${d}d ago`
+}
+
+function fmtTime12(t: string): string {
+  const [h, m] = t.split(':')
+  const hh = parseInt(h, 10)
+  return `${hh % 12 || 12}:${m ?? '00'} ${hh >= 12 ? 'PM' : 'AM'}`
+}
+function inviteWhen(dateStr: string, startTime: string): string {
+  const d = new Date(`${dateStr}T00:00:00`)
+  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}, ${fmtTime12(startTime)}`
 }
 
 const PRIVACY_ORDER: PrivacyLevel[] = ['public', 'friends', 'private']
@@ -73,6 +84,7 @@ export default function SocialScreen() {
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [groupName, setGroupName] = useState('')
   const [groupCode, setGroupCode] = useState('')
+  const [invites, setInvites] = useState<WorkoutInvite[]>([])
   const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -85,6 +97,7 @@ export default function SocialScreen() {
     fetchFriendEvents(supabase).then(setEvents).catch(() => {})
     fetchLeaderboardV2(supabase).then(setBoard).catch(() => {})
     listMyGroups(supabase).then(setGroups).catch(() => {})
+    listWorkoutInvites(supabase).then(setInvites).catch(() => {})
   }, [userId])
   useFocusEffect(load)
 
@@ -192,6 +205,17 @@ export default function SocialScreen() {
     const gid = await joinGroup(supabase, c)
     if (gid) { load(); router.push(`/group-detail?id=${gid}` as any) }
     else Alert.alert('Group not found', 'Double-check the code and try again.')
+  }
+
+  const onRespondInvite = async (inv: WorkoutInvite, action: 'accept' | 'decline') => {
+    haptics.tapMedium()
+    const ok = await respondWorkoutInvite(supabase, inv.id, action)
+    if (ok) {
+      load()
+      if (action === 'accept') {
+        Alert.alert('Scheduled!', `Your ${inv.focus} with ${inv.display_name ?? 'your friend'} is on both your calendars.`)
+      }
+    } else Alert.alert('Couldn’t respond', 'Please try again.')
   }
 
   const cyclePrivacy = async (key: keyof PrivacyPrefs) => {
@@ -311,6 +335,45 @@ export default function SocialScreen() {
                       <Ionicons name="close-circle" size={22} color={C.outline} />
                     </TouchableOpacity>
                   </View>,
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Workout invites — train-together requests (accept schedules it for both) */}
+          {invites.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>WORKOUT INVITES</Text>
+              <View style={styles.card}>
+                {invites.map((inv, i) => (
+                  <View key={inv.id}>
+                    {i > 0 && <View style={styles.divider} />}
+                    <View style={styles.personRow}>
+                      <FriendAvatar avatarUrl={inv.avatar_url} size={38} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.personName} numberOfLines={1}>
+                          {inv.direction === 'incoming'
+                            ? `${inv.display_name ?? 'A friend'} invited you`
+                            : `You invited ${inv.display_name ?? 'a friend'}`}
+                        </Text>
+                        <Text style={styles.personHandle} numberOfLines={1}>
+                          {inv.focus} · {inviteWhen(inv.proposed_date, inv.proposed_start)}
+                        </Text>
+                      </View>
+                      {inv.direction === 'incoming' && inv.status === 'pending' ? (
+                        <View style={styles.reqActions}>
+                          <PressableScale style={styles.addBtn} onPress={() => onRespondInvite(inv, 'accept')} scaleTo={0.9}>
+                            <Text style={styles.addBtnText}>Accept</Text>
+                          </PressableScale>
+                          <TouchableOpacity onPress={() => onRespondInvite(inv, 'decline')} hitSlop={6} accessibilityRole="button" accessibilityLabel="Decline invite">
+                            <Ionicons name="close-circle" size={22} color={C.outline} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <Text style={styles.mutedTag}>{inv.status === 'countered' ? 'Countered' : 'Pending'}</Text>
+                      )}
+                    </View>
+                  </View>
                 ))}
               </View>
             </>
@@ -511,6 +574,7 @@ export default function SocialScreen() {
                 ['privacy_workouts', 'Workouts', 'Who can browse and save your saved workouts'],
                 ['privacy_stats', 'Stats', 'Streak, totals and session history'],
                 ['privacy_activity', 'Activity', 'Your recent completed sessions'],
+                ['privacy_availability', 'Availability', 'Free times, so friends can plan workouts with you'],
               ] as [keyof PrivacyPrefs, string, string][]).map(([key, label, sub], i) => (
                 <View key={key}>
                   {i > 0 && <View style={styles.divider} />}

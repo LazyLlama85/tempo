@@ -18,6 +18,7 @@ import { PressableScale, FadeInView } from '@/components/motion'
 import { FriendAvatar } from '@/components/FriendAvatar'
 import { BadgeShelf } from '@/components/BadgeShelf'
 import { OptionSheet } from '@/components/OptionSheet'
+import { ScheduleTogetherSheet } from '@/components/ScheduleTogetherSheet'
 import * as haptics from '@/lib/haptics'
 import {
   fetchFriendOverview, fetchFriendTemplates, copyTemplateToLibrary,
@@ -51,6 +52,7 @@ export default function FriendProfileScreen() {
   const [loading, setLoading] = useState(true)
   const [sheetTemplate, setSheetTemplate] = useState<WorkoutTemplate | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const unit = useWeightUnit()
 
   useEffect(() => {
@@ -99,6 +101,13 @@ export default function FriendProfileScreen() {
               <Text style={styles.memberSince}>Training with Tempo since {memberSince(overview.member_since)}</Text>
             )}
           </FadeInView>
+
+          {targetId !== myId && (
+            <PressableScale style={styles.scheduleBtn} onPress={() => setScheduleOpen(true)} scaleTo={0.97}>
+              <Ionicons name="calendar" size={16} color={C.onPrimary} />
+              <Text style={styles.scheduleBtnText}>Schedule together</Text>
+            </PressableScale>
+          )}
 
           {/* Stats */}
           {overview.stats_visible ? (
@@ -223,6 +232,13 @@ export default function FriendProfileScreen() {
         onSelect={(key) => { if (key === 'save' && sheetTemplate) saveCopy(sheetTemplate) }}
         onClose={() => setSheetTemplate(null)}
       />
+
+      <ScheduleTogetherSheet
+        visible={scheduleOpen}
+        friendId={targetId ?? ''}
+        friendName={name}
+        onClose={() => setScheduleOpen(false)}
+      />
     </SafeAreaView>
   )
 }
@@ -262,4 +278,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   privateNoteText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
   emptyInline: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, paddingVertical: Spacing.xs },
   emptyText: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.textSecondary },
+  scheduleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, backgroundColor: C.primary, borderRadius: Radius.lg, marginTop: Spacing.md },
+  scheduleBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
 })

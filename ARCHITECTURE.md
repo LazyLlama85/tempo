@@ -859,6 +859,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   by code) + a **`group-detail`** modal (shareable code, member-scoped board, leave/delete). The
   three-tab board is now the shared **`LeaderboardBoard`** component used by both friends and groups
   (`mapLeaderboardV2Rows` maps either RPC's rows). End-to-end verified on the live DB.
+  **Social upgrade Stage 4 — social scheduling** (`add_social_scheduling.sql`, **applied**;
+  `lib/availability.ts` + `lib/scheduling.ts`): the differentiator — coordinate workouts around real
+  schedules. `privacy_availability` knob (default friends); `friend_availability(target)` returns a
+  mutual friend's coarse availability (sleep/work/school/training-days/blocks + busy workout slots,
+  no titles), privacy-gated. The pure `availability` engine (`freeWindows` → `overlapWindows` →
+  `suggestSharedSlots`, 9 tests) turns two people's schedules into shared free times. Friend profile →
+  **"Schedule together"** (`ScheduleTogetherSheet`) suggests slots and sends a `workout_invite`;
+  `respond_workout_invite('accept')` schedules the session for **both** users (`partner_id` links the
+  pair) — surfaced in a **WORKOUT INVITES** section on the Friends screen (accept/decline). Completing
+  a `partner_id` workout earns the **Workout Partner** badge (via `claim_competitive_badges`).
+  End-to-end verified on the live DB (send → accept → both scheduled). *Not yet built: push
+  accountability nudges + automatic social reschedule (noted in SOCIAL_UPGRADE_PLAN.md).*
   **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
   `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
   toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates
