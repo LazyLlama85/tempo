@@ -145,9 +145,9 @@ export interface LeaderboardV2Row extends SocialProfile {
   tempo_score: number // 0–1000
 }
 
-export async function fetchLeaderboardV2(client: SupabaseClient): Promise<LeaderboardV2Row[]> {
-  const { data } = await client.rpc('friends_leaderboard_v2')
-  const rows = (data ?? []) as Record<string, unknown>[]
+/** Map raw leaderboard rows (friends OR group RPC — same shape) to display rows,
+ *  computing the Tempo Score client-side. Shared by friends + group boards. */
+export function mapLeaderboardV2Rows(rows: Record<string, unknown>[]): LeaderboardV2Row[] {
   return rows.map((r) => {
     const scheduled = Number(r.scheduled_this_week) || 0
     const completed = Number(r.completed_this_week) || 0
@@ -171,6 +171,11 @@ export async function fetchLeaderboardV2(client: SupabaseClient): Promise<Leader
       tempo_score,
     }
   })
+}
+
+export async function fetchLeaderboardV2(client: SupabaseClient): Promise<LeaderboardV2Row[]> {
+  const { data } = await client.rpc('friends_leaderboard_v2')
+  return mapLeaderboardV2Rows((data ?? []) as Record<string, unknown>[])
 }
 
 /** Sort (a copy of) the rows for a given board. Ties break toward more real work done. */
