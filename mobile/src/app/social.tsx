@@ -22,10 +22,10 @@ import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
-  fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchFriendsLeaderboard,
+  fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchLeaderboardV2, sortLeaderboard,
   toggleActivityReaction,
   type FriendEntry, type SocialProfile, type PrivacyPrefs, type PrivacyLevel,
-  type MyIdentity, type FeedItem, type LeaderboardRow,
+  type MyIdentity, type FeedItem, type LeaderboardV2Row, type LeaderboardMetric,
 } from '@/lib/social'
 
 // "2h ago" / "3d ago" for feed rows.
@@ -60,7 +60,8 @@ export default function SocialScreen() {
   const [privacy, setPrivacy] = useState<PrivacyPrefs | null>(null)
   const [identity, setIdentity] = useState<MyIdentity | null>(null)
   const [feed, setFeed] = useState<FeedItem[]>([])
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
+  const [board, setBoard] = useState<LeaderboardV2Row[]>([])
+  const [boardTab, setBoardTab] = useState<LeaderboardMetric>('weekly')
   const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -70,7 +71,7 @@ export default function SocialScreen() {
     fetchPrivacy(supabase, userId).then(setPrivacy).catch(() => {})
     fetchMyIdentity(supabase, userId).then(setIdentity).catch(() => {})
     fetchFriendFeed(supabase).then(setFeed).catch(() => {})
-    fetchFriendsLeaderboard(supabase).then(setLeaderboard).catch(() => {})
+    fetchLeaderboardV2(supabase).then(setBoard).catch(() => {})
   }, [userId])
   useFocusEffect(load)
 
@@ -176,6 +177,7 @@ export default function SocialScreen() {
   const incoming = friends.filter((f) => f.state === 'incoming')
   const outgoing = friends.filter((f) => f.state === 'outgoing')
   const accepted = friends.filter((f) => f.state === 'friend')
+  const sortedBoard = sortLeaderboard(board, boardTab)
 
   // Name + @username: the handle is what disambiguates two people with the
   // same display name.
@@ -329,34 +331,73 @@ export default function SocialScreen() {
             </>
           )}
 
-          {/* Friends-only weekly leaderboard */}
-          {leaderboard.length > 1 && (
+          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score.
+              Consistency-first: a steady beginner can top a flaky advanced lifter. */}
+          {board.length > 1 && (
             <>
-              <Text style={styles.sectionLabel}>THIS WEEK</Text>
-              <View style={styles.card}>
-                {leaderboard.slice(0, 8).map((row, i) => (
-                  <View key={row.user_id}>
-                    {i > 0 && <View style={styles.divider} />}
+              <Text style={styles.sectionLabel}>LEADERBOARD</Text>
+              <View style={styles.boardTabs}>
+                {([['weekly', 'This Week'], ['streak', 'Streak'], ['tempo', 'Tempo Score']] as [LeaderboardMetric, string][]).map(([key, label]) => {
+                  const on = boardTab === key
+                  return (
                     <TouchableOpacity
-                      style={styles.leaderRow}
-                      activeOpacity={row.user_id === userId ? 1 : 0.7}
-                      disabled={row.user_id === userId}
-                      onPress={() => router.push(`/friend-profile?userId=${row.user_id}` as any)}
+                      key={key}
+                      style={[styles.boardTab, on && styles.boardTabOn]}
+                      onPress={() => { haptics.tapLight(); setBoardTab(key) }}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
                     >
-                      <Text style={[styles.leaderRank, i === 0 && row.workouts_this_week > 0 && { color: C.gold ?? C.primary }]}>
-                        {i + 1}
-                      </Text>
-                      <FriendAvatar avatarUrl={row.avatar_url} size={30} />
-                      <Text style={styles.leaderName} numberOfLines={1}>
-                        {row.user_id === userId ? 'You' : (row.display_name ?? `@${row.username}`)}
-                      </Text>
-                      <Text style={styles.leaderCount}>
-                        {row.workouts_this_week} workout{row.workouts_this_week === 1 ? '' : 's'}
-                      </Text>
+                      <Text style={[styles.boardTabText, on && styles.boardTabTextOn]}>{label}</Text>
                     </TouchableOpacity>
-                  </View>
-                ))}
+                  )
+                })}
               </View>
+              <View style={styles.card}>
+                {sortedBoard.slice(0, 8).map((row, i) => {
+                  const isMe = row.user_id === userId
+                  const hasValue = boardTab === 'streak' ? row.current_streak > 0
+                    : boardTab === 'tempo' ? row.tempo_score > 0
+                      : row.completed_this_week > 0
+                  const medal = i < 3 && hasValue ? ['🥇', '🥈', '🥉'][i] : null
+                  return (
+                    <View key={row.user_id}>
+                      {i > 0 && <View style={styles.divider} />}
+                      <TouchableOpacity
+                        style={[styles.leaderRow, isMe && styles.leaderRowMe]}
+                        activeOpacity={isMe ? 1 : 0.7}
+                        disabled={isMe}
+                        onPress={() => router.push(`/friend-profile?userId=${row.user_id}` as any)}
+                      >
+                        {medal
+                          ? <Text style={styles.medal}>{medal}</Text>
+                          : <Text style={styles.leaderRank}>{i + 1}</Text>}
+                        <FriendAvatar avatarUrl={row.avatar_url} size={30} />
+                        <Text style={styles.leaderName} numberOfLines={1}>
+                          {isMe ? 'You' : (row.display_name ?? `@${row.username}`)}
+                        </Text>
+                        <View style={styles.leaderMetricWrap}>
+                          {boardTab === 'weekly' && <>
+                            <Text style={styles.leaderMetric}>{row.completed_this_week}/{row.scheduled_this_week}</Text>
+                            <Text style={styles.leaderMetricSub}>{row.completion_pct}%</Text>
+                          </>}
+                          {boardTab === 'streak' && <>
+                            <Text style={styles.leaderMetric}>🔥 {row.current_streak}</Text>
+                            <Text style={styles.leaderMetricSub}>day{row.current_streak === 1 ? '' : 's'}</Text>
+                          </>}
+                          {boardTab === 'tempo' && <>
+                            <Text style={styles.leaderMetric}>{row.tempo_score}</Text>
+                            <Text style={styles.leaderMetricSub}>pts</Text>
+                          </>}
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  )
+                })}
+              </View>
+              {boardTab === 'tempo' && (
+                <Text style={styles.hint}>Tempo Score rewards consistency over strength — finishing what you plan, hitting your weekly goal, and keeping a streak. A steady beginner can outscore a flaky pro.</Text>
+              )}
             </>
           )}
 
@@ -501,10 +542,20 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   reactBtnOn: { backgroundColor: C.emberSoft },
   reactCount: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  boardTabs: { flexDirection: 'row', gap: 4, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, padding: 3, marginTop: Spacing.sm },
+  boardTab: { flex: 1, paddingVertical: 8, borderRadius: Radius.full, alignItems: 'center' },
+  boardTabOn: { backgroundColor: C.primary },
+  boardTabText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.textSecondary },
+  boardTabTextOn: { color: C.onPrimary },
   leaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
-  leaderRank: { width: 20, fontFamily: C.fontDisplay, fontSize: 15, color: C.outline, textAlign: 'center' },
+  leaderRowMe: { backgroundColor: C.primarySoft },
+  leaderRank: { width: 22, fontFamily: C.fontDisplay, fontSize: 15, color: C.outline, textAlign: 'center' },
+  medal: { width: 22, fontSize: 16, textAlign: 'center' },
   leaderName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
   leaderCount: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
+  leaderMetricWrap: { alignItems: 'flex-end', minWidth: 48 },
+  leaderMetric: { fontFamily: C.fontNumeric, fontSize: 15, color: C.text },
+  leaderMetricSub: { fontFamily: 'Inter_500Medium', fontSize: 10.5, color: C.textSecondary, marginTop: -1 },
   mutedTag: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

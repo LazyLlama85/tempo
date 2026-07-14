@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Split, SplitDay, WorkoutExerciseConfig, WorkoutTemplate } from '@/types'
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
+import { computeTempoScore } from './tempoScore'
 
 export type PrivacyLevel = 'public' | 'friends' | 'private'
 
@@ -120,6 +121,68 @@ export async function fetchFriendsLeaderboard(client: SupabaseClient): Promise<L
   const { data } = await client.rpc('friends_leaderboard')
   return ((data ?? []) as (LeaderboardRow & { workouts_this_week: number | string })[])
     .map((r) => ({ ...r, workouts_this_week: Number(r.workouts_this_week) || 0 }))
+}
+
+// ── Leaderboard v2: the three ranked boards (Weekly Consistency / Streak / Tempo) ─
+// One RPC returns every rank input per member; the Tempo Score is computed here so
+// the formula stays OTA-tunable (see lib/tempoScore.ts). Sorting is client-side so
+// all three tabs share one fetch.
+
+export type LeaderboardMetric = 'weekly' | 'streak' | 'tempo'
+
+export interface LeaderboardV2Row extends SocialProfile {
+  scheduled_this_week: number
+  completed_this_week: number
+  active_days_this_week: number
+  current_streak: number
+  completion_pct: number // 0–100 (0 when nothing was scheduled)
+  tempo_score: number // 0–1000
+}
+
+export async function fetchLeaderboardV2(client: SupabaseClient): Promise<LeaderboardV2Row[]> {
+  const { data } = await client.rpc('friends_leaderboard_v2')
+  const rows = (data ?? []) as Record<string, unknown>[]
+  return rows.map((r) => {
+    const scheduled = Number(r.scheduled_this_week) || 0
+    const completed = Number(r.completed_this_week) || 0
+    const tempo_score = computeTempoScore({
+      dueSessions: Number(r.due_28) || 0,
+      completedSessions: Number(r.completed_28) || 0,
+      weeksMetGoal: Number(r.weeks_met_goal) || 0,
+      currentStreak: Number(r.current_streak) || 0,
+      goalPerWeek: Number(r.goal_per_week) || 3,
+    }).score
+    return {
+      user_id: String(r.user_id),
+      display_name: (r.display_name as string | null) ?? null,
+      avatar_url: (r.avatar_url as string | null) ?? null,
+      username: (r.username as string | null) ?? null,
+      scheduled_this_week: scheduled,
+      completed_this_week: completed,
+      active_days_this_week: Number(r.active_days_this_week) || 0,
+      current_streak: Number(r.current_streak) || 0,
+      completion_pct: scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0,
+      tempo_score,
+    }
+  })
+}
+
+/** Sort (a copy of) the rows for a given board. Ties break toward more real work done. */
+export function sortLeaderboard(rows: LeaderboardV2Row[], metric: LeaderboardMetric): LeaderboardV2Row[] {
+  const by = [...rows]
+  if (metric === 'streak') {
+    by.sort((a, b) => b.current_streak - a.current_streak || b.completed_this_week - a.completed_this_week)
+  } else if (metric === 'tempo') {
+    by.sort((a, b) => b.tempo_score - a.tempo_score || b.completed_this_week - a.completed_this_week)
+  } else {
+    by.sort(
+      (a, b) =>
+        b.completed_this_week - a.completed_this_week ||
+        b.completion_pct - a.completion_pct ||
+        b.current_streak - a.current_streak,
+    )
+  }
+  return by
 }
 
 // ── Discovery ─────────────────────────────────────────────────────────────────

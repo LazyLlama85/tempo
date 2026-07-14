@@ -825,7 +825,16 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   goal / member-since — + settled sessions for client-side streak math + recent activity),
   **`friend_feed()`** (accepted friends' completed sessions, last 14 days, activity-privacy-gated;
   each row now also carries `workout_id` + a `reaction_count` / `i_reacted` summary),
-  and **`friends_leaderboard()`** (workouts-this-week for you + accepted friends, stats-privacy-gated).
+  **`friends_leaderboard()`** (workouts-this-week for you + accepted friends, stats-privacy-gated),
+  and — social upgrade Stage 1 — **`friends_leaderboard_v2()`** + **`current_session_streak(uid)`**
+  (`add_social_leaderboards.sql`, **applied**). v2 returns every rank input per member in one call
+  (this-week scheduled/completed/active-days, current streak, and 28-day Tempo Score components:
+  due/completed/weeks-met-goal/goal-per-week); `current_session_streak` mirrors `lib/streak.ts` in SQL.
+  The **Tempo Score itself is computed client-side** in `lib/tempoScore.ts` (0–1000, consistency-only,
+  no strength inputs; frequency counts only *completed* sessions so it can't be gamed — 8 unit tests
+  assert a consistent beginner out-scores a flaky advanced lifter) so the formula is OTA-tunable.
+  `social.tsx` renders the trio as a 3-tab board (Weekly Consistency / Streak / Tempo Score) with
+  client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design: `SOCIAL_UPGRADE_PLAN.md`.
   **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
   `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
   toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates
