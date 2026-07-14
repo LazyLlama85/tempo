@@ -276,6 +276,9 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
 
   return {
     stats,
+    // Raw scheduled_workouts rows (planned_date/status) — reused for badge stats so
+    // the Profile doesn't re-query the same history.
+    workouts: workoutsQ.data ?? [],
     isLoading: workoutsQ.isLoading || setLogsQ.isLoading,
     isError: workoutsQ.isError || setLogsQ.isError,
     refetch: async () => { await Promise.all([workoutsQ.refetch(), setLogsQ.refetch()]) },

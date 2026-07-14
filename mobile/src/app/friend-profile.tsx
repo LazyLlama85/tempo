@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView } from '@/components/motion'
 import { FriendAvatar } from '@/components/FriendAvatar'
+import { BadgeShelf } from '@/components/BadgeShelf'
 import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import {
@@ -139,6 +140,14 @@ export default function FriendProfileScreen() {
                   </View>
                 ))}
               </FadeInView>
+              {(overview.earned_badges?.length ?? 0) > 0 && (
+                <FadeInView delay={130}>
+                  <Text style={styles.sectionLabel}>BADGES</Text>
+                  <View style={[styles.card, { padding: Spacing.md }]}>
+                    <BadgeShelf earned={overview.earned_badges ?? []} showLocked={false} />
+                  </View>
+                </FadeInView>
+              )}
             </>
           ) : (
             <View style={styles.privateNote}>

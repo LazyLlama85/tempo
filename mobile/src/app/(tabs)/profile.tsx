@@ -1,6 +1,6 @@
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, TextInput, ActivityIndicator, Switch } from 'react-native'
 import { TempoSheet } from '@/components/TempoSheet'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,6 +18,8 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { computeLevel } from '@/lib/achievements'
+import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges } from '@/lib/badges'
+import { BadgeShelf } from '@/components/BadgeShelf'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
 import {
   getSavedSwaps, getAlternatives, saveSubstitution, removeSubstitution,
@@ -145,7 +147,24 @@ export default function ProfileScreen() {
   const { mode, setMode } = useThemeMode()
   const { profile, session, signOut, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
-  const { stats } = useProgressStats(userId)
+  const { stats, workouts } = useProgressStats(userId)
+
+  // Consistency badges (lib/badges): derived from my session history + any stored
+  // competitive/social badges. Stored keys refresh on focus so a just-awarded
+  // Weekly Winner shows up.
+  const [storedBadges, setStoredBadges] = useState<string[]>([])
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) fetchStoredBadges(supabase, userId).then(setStoredBadges).catch(() => {})
+    }, [userId]),
+  )
+  const earnedBadges = useMemo(
+    () => computeEarnedBadges(
+      badgeStatsFromSessions(workouts, profile?.days_per_week ?? 3, new Date().toISOString().slice(0, 10)),
+      new Set(storedBadges),
+    ),
+    [workouts, profile?.days_per_week, storedBadges],
+  )
   const [calendarStatus, setCalendarStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
 
@@ -710,6 +729,17 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={C.primary} />
           </TouchableOpacity>
         )}
+
+        {/* ── Badges (consistency achievements) ───────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Badges</Text>
+            {earnedBadges.size > 0 && <Text style={styles.sectionMeta}>{earnedBadges.size} earned</Text>}
+          </View>
+          <View style={[styles.card, { padding: Spacing.md }]}>
+            <BadgeShelf earned={earnedBadges} />
+          </View>
+        </View>
 
         {/* ── Body stats (weight trend over time) ─────────────────────────── */}
         <View style={styles.section}>

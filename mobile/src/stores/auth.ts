@@ -7,6 +7,7 @@ import { refreshAdaptation } from '@/lib/adaptation'
 import { identifyUser, resetUser, track } from '@/lib/analytics'
 import { setCrashUser } from '@/lib/crashReporting'
 import { registerPushToken, unregisterPushToken } from '@/lib/pushTokens'
+import { syncSocialOnOpen } from '@/lib/social'
 
 interface AuthState {
   session: Session | null
@@ -36,6 +37,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         setCrashUser(session.user.id)
         // Register this device for server-driven retention pushes.
         registerPushToken(supabase, session.user.id).catch(() => {})
+        // Social: award competitive badges for the closed week/month + publish streak milestones.
+        syncSocialOnOpen(supabase, session.user.id, profile?.days_per_week).catch(() => {})
         // Mark past-due workouts missed, then let those misses feed the mesocycle
         // (enough missed sessions shifts the coming weeks into recovery/deload).
         checkMissedWorkouts(supabase, session.user.id)
@@ -73,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           method: methodFromSession(session),
         })
         registerPushToken(supabase, session.user.id).catch(() => {})
+        syncSocialOnOpen(supabase, session.user.id, profile?.days_per_week).catch(() => {})
         checkMissedWorkouts(supabase, session.user.id)
           .then(() => refreshAdaptation(supabase, session.user.id))
           .catch(() => {})

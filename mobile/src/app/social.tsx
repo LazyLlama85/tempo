@@ -23,9 +23,9 @@ import * as haptics from '@/lib/haptics'
 import {
   searchProfiles, fetchFriends, sendFriendRequest, acceptFriendRequest, removeFriendship,
   fetchPrivacy, updatePrivacy, fetchMyIdentity, fetchFriendFeed, fetchLeaderboardV2, sortLeaderboard,
-  toggleActivityReaction,
+  toggleActivityReaction, fetchFriendEvents, describeFriendEvent,
   type FriendEntry, type SocialProfile, type PrivacyPrefs, type PrivacyLevel,
-  type MyIdentity, type FeedItem, type LeaderboardV2Row, type LeaderboardMetric,
+  type MyIdentity, type FeedItem, type LeaderboardV2Row, type LeaderboardMetric, type FriendEventItem,
 } from '@/lib/social'
 
 // "2h ago" / "3d ago" for feed rows.
@@ -42,6 +42,12 @@ function timeAgo(iso: string): string {
 const PRIVACY_ORDER: PrivacyLevel[] = ['public', 'friends', 'private']
 const PRIVACY_LABEL: Record<PrivacyLevel, string> = { public: 'Public', friends: 'Friends only', private: 'Private' }
 const PRIVACY_ICON: Record<PrivacyLevel, string> = { public: 'globe-outline', friends: 'people-outline', private: 'lock-closed-outline' }
+
+// The activity feed merges friends' completed sessions (reactable) with lighter
+// milestone events (streaks, badges), newest first.
+type ActivityItem =
+  | { kind: 'completed'; at: string; c: FeedItem }
+  | { kind: 'event'; at: string; e: FriendEventItem }
 
 export default function SocialScreen() {
   const C = useTheme()
@@ -60,6 +66,7 @@ export default function SocialScreen() {
   const [privacy, setPrivacy] = useState<PrivacyPrefs | null>(null)
   const [identity, setIdentity] = useState<MyIdentity | null>(null)
   const [feed, setFeed] = useState<FeedItem[]>([])
+  const [events, setEvents] = useState<FriendEventItem[]>([])
   const [board, setBoard] = useState<LeaderboardV2Row[]>([])
   const [boardTab, setBoardTab] = useState<LeaderboardMetric>('weekly')
   const [removeConfirm, setRemoveConfirm] = useState<FriendEntry | null>(null)
@@ -71,6 +78,7 @@ export default function SocialScreen() {
     fetchPrivacy(supabase, userId).then(setPrivacy).catch(() => {})
     fetchMyIdentity(supabase, userId).then(setIdentity).catch(() => {})
     fetchFriendFeed(supabase).then(setFeed).catch(() => {})
+    fetchFriendEvents(supabase).then(setEvents).catch(() => {})
     fetchLeaderboardV2(supabase).then(setBoard).catch(() => {})
   }, [userId])
   useFocusEffect(load)
@@ -178,6 +186,12 @@ export default function SocialScreen() {
   const outgoing = friends.filter((f) => f.state === 'outgoing')
   const accepted = friends.filter((f) => f.state === 'friend')
   const sortedBoard = sortLeaderboard(board, boardTab)
+  const activity: ActivityItem[] = [
+    ...feed.map((c) => ({ kind: 'completed' as const, at: c.completed_at, c })),
+    ...events.map((e) => ({ kind: 'event' as const, at: e.created_at, e })),
+  ]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 12)
 
   // Name + @username: the handle is what disambiguates two people with the
   // same display name.
@@ -279,52 +293,69 @@ export default function SocialScreen() {
             </>
           )}
 
-          {/* Activity feed — friends' recent sessions */}
-          {feed.length > 0 && (
+          {/* Activity feed — friends' completions (reactable) + milestones (streaks, badges) */}
+          {activity.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>FRIEND ACTIVITY</Text>
               <View style={styles.card}>
-                {feed.slice(0, 10).map((item, i) => (
-                  <View key={`${item.user_id}-${item.completed_at}`}>
+                {activity.map((a, i) => (
+                  <View key={a.kind === 'completed' ? `c-${a.c.user_id}-${a.c.completed_at}` : `e-${a.e.user_id}-${a.e.kind}-${a.e.created_at}`}>
                     {i > 0 && <View style={styles.divider} />}
-                    <View style={styles.feedRow}>
-                      <TouchableOpacity
-                        style={styles.feedMain}
-                        activeOpacity={0.7}
-                        onPress={() => router.push(`/friend-profile?userId=${item.user_id}` as any)}
-                      >
-                        <FriendAvatar avatarUrl={item.avatar_url} size={34} />
-                        <Text style={styles.feedText} numberOfLines={2}>
-                          <Text style={styles.feedName}>{item.display_name ?? `@${item.username}`}</Text>
-                          {' completed '}
-                          <Text style={styles.feedName}>{item.focus}</Text>
-                        </Text>
-                      </TouchableOpacity>
-                      <View style={styles.feedRight}>
-                        <Text style={styles.feedTime}>{timeAgo(item.completed_at)}</Text>
-                        {!!item.workout_id && (
-                          <TouchableOpacity
-                            style={[styles.reactBtn, item.i_reacted && styles.reactBtnOn]}
-                            onPress={() => onReact(item)}
-                            activeOpacity={0.7}
-                            hitSlop={8}
-                            accessibilityRole="button"
-                            accessibilityLabel={item.i_reacted ? 'Remove your reaction' : 'React: nice work'}
-                          >
-                            <Ionicons
-                              name={item.i_reacted ? 'flame' : 'flame-outline'}
-                              size={15}
-                              color={item.i_reacted ? C.ember : C.textSecondary}
-                            />
-                            {(item.reaction_count ?? 0) > 0 && (
-                              <Text style={[styles.reactCount, item.i_reacted && { color: C.ember }]}>
-                                {item.reaction_count}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        )}
+                    {a.kind === 'completed' ? (
+                      <View style={styles.feedRow}>
+                        <TouchableOpacity
+                          style={styles.feedMain}
+                          activeOpacity={0.7}
+                          onPress={() => router.push(`/friend-profile?userId=${a.c.user_id}` as any)}
+                        >
+                          <FriendAvatar avatarUrl={a.c.avatar_url} size={34} />
+                          <Text style={styles.feedText} numberOfLines={2}>
+                            <Text style={styles.feedName}>{a.c.display_name ?? `@${a.c.username}`}</Text>
+                            {' completed '}
+                            <Text style={styles.feedName}>{a.c.focus}</Text>
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={styles.feedRight}>
+                          <Text style={styles.feedTime}>{timeAgo(a.c.completed_at)}</Text>
+                          {!!a.c.workout_id && (
+                            <TouchableOpacity
+                              style={[styles.reactBtn, a.c.i_reacted && styles.reactBtnOn]}
+                              onPress={() => onReact(a.c)}
+                              activeOpacity={0.7}
+                              hitSlop={8}
+                              accessibilityRole="button"
+                              accessibilityLabel={a.c.i_reacted ? 'Remove your reaction' : 'React: nice work'}
+                            >
+                              <Ionicons
+                                name={a.c.i_reacted ? 'flame' : 'flame-outline'}
+                                size={15}
+                                color={a.c.i_reacted ? C.ember : C.textSecondary}
+                              />
+                              {(a.c.reaction_count ?? 0) > 0 && (
+                                <Text style={[styles.reactCount, a.c.i_reacted && { color: C.ember }]}>
+                                  {a.c.reaction_count}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
-                    </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.feedRow}
+                        activeOpacity={0.7}
+                        onPress={() => router.push(`/friend-profile?userId=${a.e.user_id}` as any)}
+                      >
+                        <View style={styles.feedMain}>
+                          <FriendAvatar avatarUrl={a.e.avatar_url} size={34} />
+                          <Text style={styles.feedText} numberOfLines={2}>
+                            <Text style={styles.feedName}>{a.e.display_name ?? `@${a.e.username}`}</Text>
+                            {' '}{describeFriendEvent(a.e)}
+                          </Text>
+                        </View>
+                        <Text style={styles.feedTime}>{timeAgo(a.e.created_at)}</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>

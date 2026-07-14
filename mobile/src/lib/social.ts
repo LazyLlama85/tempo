@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Split, SplitDay, WorkoutExerciseConfig, WorkoutTemplate } from '@/types'
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
 import { computeTempoScore } from './tempoScore'
+import { BADGE_BY_KEY, badgeStatsFromSessions, computeEarnedBadges } from './badges'
 
 export type PrivacyLevel = 'public' | 'friends' | 'private'
 
@@ -34,15 +35,20 @@ export interface FriendOverview {
   stats_visible: boolean
   activity_visible: boolean
   goal?: Goal | null
+  days_per_week?: number
   total_workouts?: number
   total_sets?: number
   total_volume_lbs?: number
   favorite_muscle?: string | null
+  /** Awarded competitive/social badge keys (see lib/badges). */
+  stored_badges?: string[]
   streak?: number
   longest_streak?: number
   workouts_this_week?: number
   workouts_this_month?: number
   recent?: { focus: string; date: string }[]
+  /** Earned badge keys (derived consistency badges + stored competitive/social). */
+  earned_badges?: string[]
 }
 
 // ── Own identity (handle + friend code) ───────────────────────────────────────
@@ -185,6 +191,64 @@ export function sortLeaderboard(rows: LeaderboardV2Row[], metric: LeaderboardMet
   return by
 }
 
+// ── Activity events (richer feed) ─────────────────────────────────────────────
+// Non-completion feed items (streak milestones, badges…). Completions still come
+// from friend_feed(); the Friends screen merges the two streams chronologically.
+
+export interface FriendEventItem extends SocialProfile {
+  kind: 'streak_milestone' | 'perfect_week' | 'badge'
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+export async function fetchFriendEvents(client: SupabaseClient): Promise<FriendEventItem[]> {
+  const { data } = await client.rpc('friend_events')
+  return ((data ?? []) as (FriendEventItem & { payload?: Record<string, unknown> })[]).map((r) => ({
+    user_id: r.user_id,
+    display_name: r.display_name,
+    avatar_url: r.avatar_url,
+    username: r.username,
+    kind: r.kind,
+    payload: r.payload ?? {},
+    created_at: r.created_at,
+  }))
+}
+
+/** Feed copy for a non-completion event, e.g. "reached a 30-day streak". */
+export function describeFriendEvent(e: FriendEventItem): string {
+  if (e.kind === 'streak_milestone') return `reached a ${Number(e.payload?.n) || ''}-day streak`
+  if (e.kind === 'perfect_week') return 'completed every scheduled workout this week'
+  if (e.kind === 'badge') return `earned the ${BADGE_BY_KEY[String(e.payload?.key ?? '')]?.label ?? ''} badge`.replace('  ', ' ')
+  return 'hit a milestone'
+}
+
+/**
+ * App-open social sweep (best-effort, non-blocking): award competitive badges for
+ * the closed week/month, then publish this user's streak-milestone feed events
+ * (deduped server-side) so friends' feeds stay fresh. Safe if the migrations aren't
+ * applied yet — every step is caught.
+ */
+export async function syncSocialOnOpen(client: SupabaseClient, userId: string, daysPerWeek?: number | null): Promise<void> {
+  if (!userId) return
+  try { await client.rpc('claim_competitive_badges') } catch { /* pre-migration / offline */ }
+  try {
+    const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10)
+    const { data } = await client
+      .from('scheduled_workouts')
+      .select('planned_date, status')
+      .eq('user_id', userId)
+      .gte('planned_date', since)
+    const today = new Date().toISOString().slice(0, 10)
+    const streak = sessionStreak((data ?? []) as StreakRow[], today)
+    const events = [7, 14, 30, 50, 100]
+      .filter((n) => streak >= n)
+      .map((n) => ({ user_id: userId, kind: 'streak_milestone', dedupe: `streak:${n}`, payload: { n } }))
+    if (events.length) {
+      await client.from('activity_events').upsert(events, { onConflict: 'user_id,kind,dedupe', ignoreDuplicates: true })
+    }
+  } catch { /* best-effort */ }
+}
+
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
 export async function searchProfiles(client: SupabaseClient, query: string): Promise<SocialProfile[]> {
@@ -265,6 +329,11 @@ export async function fetchFriendOverview(client: SupabaseClient, targetUserId: 
     workouts_this_month: raw.sessions
       ? sessions.filter((s) => s.status === 'completed' && s.planned_date >= monthStr).length
       : undefined,
+    // Derived consistency badges (from their session history) + stored competitive/
+    // social badges — computed here so friend-profile just renders them.
+    earned_badges: raw.sessions
+      ? [...computeEarnedBadges(badgeStatsFromSessions(sessions, raw.days_per_week ?? 3, todayStr), new Set(raw.stored_badges ?? []))]
+      : (raw.stored_badges ?? []),
   }
 }
 

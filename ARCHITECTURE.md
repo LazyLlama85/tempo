@@ -835,6 +835,15 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   assert a consistent beginner out-scores a flaky advanced lifter) so the formula is OTA-tunable.
   `social.tsx` renders the trio as a 3-tab board (Weekly Consistency / Streak / Tempo Score) with
   client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design: `SOCIAL_UPGRADE_PLAN.md`.
+  **Social upgrade Stage 2 — badges + richer feed** (`add_social_badges.sql`, **applied**;
+  `lib/badges.ts`): 6 consistency-first badges shown on profiles (own Profile + friend-profile via
+  `BadgeShelf`). Derived ones (Perfect Week, Consistency Champion, 30-Day Streak) light up from
+  session history; competitive (Weekly Winner, Top 3 Monthly) live in **`user_badges`**, awarded by
+  the idempotent **`claim_competitive_badges()`** RPC run on app open (`syncSocialOnOpen` in the auth
+  store, which also publishes the user's streak-milestone rows). **`activity_events`** (streak/
+  perfect-week/badge, RLS + dedupe) feeds **`friend_events()`**; the Friends screen merges it with
+  completions chronologically. `friend_overview()` now also returns `stored_badges` + `days_per_week`
+  and computes a friend's `earned_badges` in `fetchFriendOverview`. 15 unit tests (tempoScore+badges).
   **Activity reactions** — a single "nice work" (🔥) on a friend's feed row: table
   `activity_reactions` (reactor_id, workout_id → scheduled_workouts, unique per pair; RLS owner-only)
   toggled through the SECURITY DEFINER `toggle_activity_reaction(target_workout)` RPC, which validates
