@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -55,11 +55,16 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
   const [time, setTime] = useState('07:00:00')
   const [showTime, setShowTime] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  // Re-seed local state whenever a different workout is opened.
+  // Re-seed local state whenever a different workout is opened OR the sheet re-opens.
+  // The reset also guarantees the sheet never opens mid-confirm or showing a stale error.
   useEffect(() => {
     if (workout) { setDate(workout.planned_date); setTime(workout.planned_start_time) }
-  }, [workout?.id])
+    setConfirmRemove(false)
+    setActionError(null)
+  }, [workout?.id, visible])
 
   if (!workout) return null
 
@@ -67,6 +72,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
 
   const handleSave = async () => {
     if (saving) return
+    setActionError(null)
     setSaving(true)
     try {
       const { error } = await client
@@ -101,39 +107,37 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
       onSaved()
       onClose()
     } catch {
-      Alert.alert('Could not save', 'Please try again.')
+      // A system Alert can't present over this sheet's <Modal> on iOS (it silently
+      // no-ops), so surface the failure inline instead of losing it.
+      setActionError('Could not save your changes. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleRemove = () => {
-    Alert.alert('Remove workout?', `"${workout.focus}" will be taken off your schedule. You can always add a new one.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          if (saving) return
-          setSaving(true)
-          try {
-            if (workout.calendar_event_id) await removeWorkoutFromCalendar(client, workout, userId).catch(() => {})
-            cancelWorkoutReminder(workout.id).catch(() => {})
-            await client
-              .from('scheduled_workouts')
-              .update({ status: 'skipped' })
-              .eq('id', workout.id)
-              .eq('user_id', userId)
-            onSaved()
-            onClose()
-          } catch {
-            Alert.alert('Could not remove', 'Please try again.')
-          } finally {
-            setSaving(false)
-          }
-        },
-      },
-    ])
+  // The actual removal. Confirmation is handled in-sheet (see the render) rather than
+  // via Alert.alert, which does NOT appear over this Modal on iOS — that silent
+  // no-op is exactly why tapping Remove used to "do nothing".
+  const doRemove = async () => {
+    if (saving) return
+    setActionError(null)
+    setSaving(true)
+    try {
+      if (workout.calendar_event_id) await removeWorkoutFromCalendar(client, workout, userId).catch(() => {})
+      cancelWorkoutReminder(workout.id).catch(() => {})
+      const { error } = await client
+        .from('scheduled_workouts')
+        .update({ status: 'skipped' })
+        .eq('id', workout.id)
+        .eq('user_id', userId)
+      if (error) throw error
+      onSaved()
+      onClose()
+    } catch {
+      setActionError('Could not remove this workout. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -172,10 +176,43 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
           {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.saveBtnText}>Save changes</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={saving} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={16} color={C.error} />
-          <Text style={styles.removeBtnText}>Remove from schedule</Text>
-        </TouchableOpacity>
+        {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
+
+        {confirmRemove ? (
+          // In-sheet confirmation. NOT Alert.alert — that never presents over this
+          // Modal on iOS, so the old confirm dialog appeared to "do nothing".
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmText}>Remove "{workout.focus}" from your schedule? You can always add a new one.</Text>
+            <View style={styles.confirmRow}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmCancel]}
+                onPress={() => setConfirmRemove(false)}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.confirmCancelText}>Keep it</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmRemoveBtn]}
+                onPress={doRemove}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                {saving ? <ActivityIndicator color={C.error} /> : <Text style={styles.confirmRemoveText}>Remove</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={() => { setActionError(null); setConfirmRemove(true) }}
+            disabled={saving}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={16} color={C.error} />
+            <Text style={styles.removeBtnText}>Remove from schedule</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <TimePickerSheet
@@ -212,4 +249,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   saveBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
   removeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: Spacing.md },
   removeBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.error },
+  errorText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.error, textAlign: 'center', marginTop: Spacing.sm },
+  confirmBox: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, backgroundColor: C.dangerSoft, gap: Spacing.sm },
+  confirmText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.text, textAlign: 'center', lineHeight: 20 },
+  confirmRow: { flexDirection: 'row', gap: Spacing.sm },
+  confirmBtn: { flex: 1, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  confirmCancel: { borderWidth: 1.5, borderColor: C.outlineVariant, backgroundColor: C.surface },
+  confirmCancelText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  confirmRemoveBtn: { backgroundColor: C.errorContainer },
+  confirmRemoveText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.error },
 })

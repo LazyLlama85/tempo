@@ -392,6 +392,15 @@ bug).
     `presentation:'modal'` screens (so sheets opened from workout-builder/edit-session/etc. work too).
     Pure-JS → ships via `eas update`, no native rebuild. The only gorhom left is an unused
     `BottomSheetModalProvider` at the app root (harmless; can be removed later).
+  - **No `Alert.alert` confirmations from inside a sheet (do not regress):** a system `Alert`
+    (`UIAlertController`) cannot present over an open `TempoSheet` `<Modal>` on iOS — it silently
+    no-ops, so a confirm dialog fired from within a sheet appears to "do nothing". `EditWorkoutSheet`'s
+    "Remove from schedule" hit exactly this (tap Remove → nothing happened); it now uses an **in-sheet
+    inline confirm** (Keep it / Remove) plus **inline error text** for the save/remove failure paths
+    (those `Alert`s were silent for the same reason). Rule: confirmations and error feedback that live
+    inside a sheet must render as in-sheet UI (an inline row, or a nested `TempoSheet`/`OptionSheet` —
+    nested Modals DO present), never `Alert.alert`. Single-button post-action toasts elsewhere share
+    the flaw but fire after the action and rarely need to be seen, so they're low-priority.
 `EditWorkoutSheet`, `ExerciseFormSheet`, `ExerciseMedia`, `RecoveryCheckIn`, `ShareCardSheet`,
 **`SaveProgressSheet`** (the single guest → permanent-account upgrade surface, §1.1 — Apple/Google
 buttons over `lib/accountLinking`, shared by the Profile card and the post-3rd-workout modal;
