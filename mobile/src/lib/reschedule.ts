@@ -11,6 +11,9 @@ import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSch
 import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { musclesToRegions, scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
+import { resyncMovedWorkout } from '@/lib/moveWorkout'
+import { planWeekReschedule, RESCHEDULE_HORIZON_DAYS, type WeekWorkout } from '@/lib/weekReschedule'
+import type { CalendarProvider } from '@/types'
 
 export interface SlotSuggestion {
   date: string         // 'YYYY-MM-DD'
@@ -272,4 +275,157 @@ export async function rescheduleWorkout(
   } catch {
     // Audit log is best-effort — never block a reschedule on it
   }
+}
+
+// ── B1.3a — "Reschedule my whole week" ──────────────────────────────────────
+// The payable magic: when real life upends the week (a trip, a new shift, a busy
+// stretch), re-lay EVERY upcoming session at once — best DAY (recovery-aware, on
+// allowed training days, around the real calendar) AND calendar-aware TIME for each,
+// in a single action. Unlike `autoScheduleUpcoming` (day-preserving, time-only),
+// this reassigns the DAY too. The pure day/time planner lives in `weekReschedule.ts`
+// (unit-tested in isolation); `rescheduleWholeWeek` below wraps it with DB + calendar
+// I/O. A reschedule never *drops* a session — an unplaceable workout keeps its slot.
+
+interface WeekRow {
+  id: string
+  focus: string
+  planned_date: string
+  planned_start_time: string
+  planned_duration_min: number
+  status: string
+  exercise_ids: string[] | null
+  calendar_event_id: string | null
+  calendar_provider: CalendarProvider | null
+}
+
+// One call re-slots the whole upcoming week. Runs on the user's explicit request,
+// so — unlike the automatic re-slotters — it works even in `manual` scheduling mode.
+// Returns how many sessions actually moved out of how many were eligible.
+export async function rescheduleWholeWeek(
+  client: SupabaseClient,
+  userId: string,
+): Promise<{ moved: number; total: number }> {
+  const now = new Date()
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const horizon = RESCHEDULE_HORIZON_DAYS
+  const lookback = new Date(today); lookback.setDate(today.getDate() - 2)
+  const contextEnd = new Date(today); contextEnd.setDate(today.getDate() + 14)
+  const windowEnd = new Date(today); windowEnd.setDate(today.getDate() + horizon - 1)
+
+  const { data: p } = await client
+    .from('user_profiles')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const availability: Availability = {
+    wakeTime: p?.wake_time ?? null,
+    bedtime: p?.bedtime ?? null,
+    workStart: p?.work_start ?? null,
+    workEnd: p?.work_end ?? null,
+    schoolStart: p?.school_start ?? null,
+    schoolEnd: p?.school_end ?? null,
+    preferredTimeOfDay: (p?.preferred_time_of_day as Availability['preferredTimeOfDay']) ?? null,
+    // The planner picks the DAY itself (recovery-aware), so keep findVariedSlot's own
+    // day filter open — it only places the TIME on the day we hand it.
+    trainingDays: [],
+    unavailable: await getUnavailableBlocks(client, userId),
+  }
+  const allowDays = new Set((p?.training_days as number[]) ?? [])
+
+  const { data: rows } = await client
+    .from('scheduled_workouts')
+    .select('id, focus, planned_date, planned_start_time, planned_duration_min, status, exercise_ids, calendar_event_id, calendar_provider')
+    .eq('user_id', userId)
+    .gte('planned_date', toDateStr(lookback))
+    .lte('planned_date', toDateStr(contextEnd))
+    .order('planned_date')
+    .order('planned_start_time')
+
+  const all = (rows ?? []) as WeekRow[]
+
+  // Resolve every involved exercise's muscle regions in one query.
+  const allExIds = [...new Set(all.flatMap(r => r.exercise_ids ?? []))]
+  const exRegion = new Map<string, Region[]>()
+  if (allExIds.length) {
+    const { data: exRows } = await client
+      .from('exercises')
+      .select('id, primary_muscles, secondary_muscles, movement_pattern')
+      .in('id', allExIds)
+    for (const e of (exRows ?? []) as any[]) {
+      const regions = musclesToRegions([...(e.primary_muscles ?? []), ...(e.secondary_muscles ?? [])])
+      const pr = PATTERN_REGION[e.movement_pattern as string]
+      if (pr) regions.add(pr)
+      exRegion.set(e.id as string, [...regions])
+    }
+  }
+  const regionsOf = (ids: string[] | null | undefined): Set<Region> => {
+    const s = new Set<Region>()
+    for (const id of ids ?? []) for (const r of exRegion.get(id) ?? []) s.add(r)
+    return s
+  }
+
+  const todayStr = toDateStr(today)
+  const windowEndStr = toDateStr(windowEnd)
+  const movableRows = all.filter(r => r.status === 'scheduled' && r.planned_date >= todayStr && r.planned_date <= windowEndStr)
+  if (!movableRows.length) return { moved: 0, total: 0 }
+
+  const movable: WeekWorkout[] = movableRows.map(r => ({
+    id: r.id,
+    regions: regionsOf(r.exercise_ids),
+    durationMin: r.planned_duration_min,
+    date: r.planned_date,
+    startTime: r.planned_start_time,
+  }))
+
+  // Fixed sessions that must stay put but still shape recovery: recent completed
+  // sessions + any scheduled workout beyond this week's window (next week's plan).
+  const movableIds = new Set(movableRows.map(r => r.id))
+  const priorLoads: DayLoad[] = all
+    .filter(r => !movableIds.has(r.id) && (r.status === 'completed' || r.status === 'scheduled'))
+    .map(r => ({ date: r.planned_date, regions: regionsOf(r.exercise_ids) }))
+
+  const { busy: rawBusy } = await gatherBusy(horizon, today)
+  const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
+
+  const assignments = planWeekReschedule(movable, busy, availability, priorLoads, { now, horizonDays: horizon, allowDays })
+
+  const rowById = new Map(movableRows.map(r => [r.id, r]))
+  let moved = 0
+  for (const a of assignments) {
+    if (!a.changed) continue
+    const r = rowById.get(a.id)
+    if (!r) continue
+    await client
+      .from('scheduled_workouts')
+      .update({ planned_date: a.date, planned_start_time: a.start_time, status: 'scheduled' })
+      .eq('id', a.id)
+      .eq('user_id', userId)
+    // Keep the synced calendar event + local reminder pointed at the new day/time.
+    await resyncMovedWorkout(client, userId, {
+      id: r.id,
+      focus: r.focus,
+      planned_date: a.date,
+      planned_start_time: a.start_time,
+      planned_duration_min: r.planned_duration_min,
+      calendar_event_id: r.calendar_event_id,
+      calendar_provider: r.calendar_provider,
+    })
+    moved++
+  }
+
+  if (moved > 0) {
+    try {
+      await client.from('adaptation_events').insert({
+        user_id: userId,
+        trigger: 'reschedule_week',
+        trigger_details: { moved, total: movable.length },
+        action_taken: 'rescheduled',
+      })
+    } catch {
+      // Audit log is best-effort — never block the reschedule on it
+    }
+  }
+
+  return { moved, total: movable.length }
 }
