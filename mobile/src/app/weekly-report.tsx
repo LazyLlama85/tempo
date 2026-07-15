@@ -17,6 +17,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { computeWeeklyReport, reportHasContent, type WeeklyReport } from '@/lib/weeklyReport'
+import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
@@ -33,12 +34,14 @@ export default function WeeklyReportScreen() {
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [cards, setCards] = useState<WrappedCard[]>([])
+  const [impact, setImpact] = useState<SchedulingImpact | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
 
   useEffect(() => {
     if (!userId) return
     computeWeeklyReport(supabase, userId).then((r) => { setReport(r); setLoading(false) })
     buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
+    fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})
   }, [userId])
 
   if (!session) return <Redirect href="/sign-in" />
@@ -83,6 +86,20 @@ export default function WeeklyReportScreen() {
               <Text style={styles.tileSub}>of planned sessions</Text>
             </View>
           </View>
+
+          {/* The wedge, made visible: how much of this week Tempo actually planned +
+              scheduled for you. Hidden when zero (honest empty state). */}
+          {impact && impact.thisWeek > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>PLANNED & SCHEDULED BY TEMPO</Text>
+              <Text style={styles.cardValue}>{impact.thisWeek} this week</Text>
+              <Text style={styles.cardSub}>
+                {impact.scheduledByTempo > impact.thisWeek
+                  ? `Tempo has fit ${impact.scheduledByTempo} workouts into your week so far — the what and the when, handled, so you just show up.`
+                  : 'Tempo picked the exercises and slotted the time around your real schedule — you just showed up.'}
+              </Text>
+            </View>
+          )}
 
           {/* Volume */}
           <View style={styles.card}>

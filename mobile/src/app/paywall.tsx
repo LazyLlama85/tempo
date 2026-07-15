@@ -24,6 +24,9 @@ import {
 } from '@/lib/purchases'
 import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
+import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/lib/supabase'
+import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
 
 type PlanKey = 'annual' | 'monthly'
 
@@ -63,11 +66,21 @@ export default function PaywallScreen() {
   const params = useLocalSearchParams<{ context?: string }>()
   const context = params.context ?? 'unknown'
   const setIsPro = useEntitlementStore((s) => s.setIsPro)
+  const userId = useAuthStore((s) => s.session?.user.id) ?? ''
 
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<PlanKey>('annual')
   const [busy, setBusy] = useState(false)
+  const [impact, setImpact] = useState<SchedulingImpact | null>(null)
+
+  // Personalized proof: how many workouts Tempo has already planned + scheduled for
+  // this user. Turns the pitch from "here's what Pro does" into "here's what Tempo has
+  // already done for you — keep it." Best-effort; the line hides itself when thin.
+  useEffect(() => {
+    if (!userId) return
+    fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})
+  }, [userId])
 
   useEffect(() => {
     let cancelled = false
@@ -158,6 +171,16 @@ export default function PaywallScreen() {
             Tempo Pro schedules your training around your life and tells you exactly what to do each day.
           </Text>
         </FadeInView>
+
+        {/* Personalized proof of the wedge (hidden until it's meaningful). */}
+        {impact && impact.scheduledByTempo >= 3 && (
+          <View style={styles.proofPill}>
+            <Ionicons name="sparkles" size={16} color={C.primary} />
+            <Text style={styles.proofText}>
+              Tempo has already planned & scheduled {impact.scheduledByTempo} of your workouts around your week. Keep the momentum going.
+            </Text>
+          </View>
+        )}
 
         {/* Value props */}
         <View style={styles.valueCard}>
@@ -336,6 +359,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroGlow: { position: 'absolute', top: -24, left: '50%', width: 220, height: 220, borderRadius: 110, marginLeft: -110, backgroundColor: C.primaryGlow },
   heroTitle: { fontFamily: C.fontDisplay, fontSize: 29, color: C.text, letterSpacing: -0.6, textAlign: 'center', lineHeight: 34 },
   heroSub: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.md },
+
+  proofPill: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: C.primarySoft, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  proofText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.text, lineHeight: 18 },
 
   valueCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Elevation.e1 },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
