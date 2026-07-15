@@ -178,7 +178,7 @@ export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDispl
   const data = await resp.json()
   const items = (data.items ?? []) as GoogleEvent[]
 
-  return items
+  const kept = items
     .filter(e =>
       !!e.start?.dateTime && !!e.end?.dateTime &&
       e.status !== 'cancelled' &&
@@ -191,6 +191,19 @@ export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDispl
       end: new Date(e.end!.dateTime!),
     }))
     .sort((a, b) => a.start.getTime() - b.start.getTime())
+
+  // Diagnostic for the "connected + 200 from Google, but the feed is empty" case:
+  // Google returned events yet every one was filtered out of the timeline. The usual
+  // cause is that the user's events are ALL-DAY (we only render timed events) — or
+  // they're all Tempo's own. Reported so this is visible in Sentry instead of silent.
+  if (items.length > 0 && kept.length === 0) {
+    const allDay = items.filter(e => !!e.start?.date && !e.start?.dateTime).length
+    captureApiError('gcal_events_hidden', new Error(`all_filtered_raw_${items.length}_allDay_${allDay}`), {
+      raw: items.length, allDay, timed: items.length - allDay,
+      hint: 'Google returned events but none survived the timed-event / primary-calendar filter — likely all-day events or a secondary calendar.',
+    })
+  }
+  return kept
 }
 
 // ── 2) The algorithm: find the best open slot (PURE — no network) ───────────────
