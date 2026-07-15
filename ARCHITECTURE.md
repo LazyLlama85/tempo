@@ -706,7 +706,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   moved workout's new time; used by both auto-movers and Home's one-tap reschedule, so the
   calendar never disagrees with the app), `reschedule` (slot suggestion for moves +
   `suggestTimeOnDate` — a calendar-aware time on a specific day, powering the builder's smart
-  pre-fill), `dedupeSchedule`, `unavailability`, `ignoredEvents`.
+  pre-fill; also **`rescheduleWholeWeek`** — the one-call "reschedule my whole week" wedge action:
+  re-lays every upcoming session across the best DAYS+times at once, resyncing each moved event,
+  running even in `manual` mode since it's an explicit request), **`weekReschedule`** (the pure,
+  unit-tested planner behind it — `planWeekReschedule` composes `scoreDay`+`findVariedSlot` to
+  assign one recovery-spaced workout per day, never dropping a session), `dedupeSchedule`,
+  `unavailability`, `ignoredEvents`.
 - **Program / Split layer:** `splits` (split CRUD + active-split management + day hydration +
   **`ensureAutoSplit`** — mirrors the auto-generated program into My Splits as a `kind='auto'`
   split so every user, even on an auto plan, has an activatable split; its `days` are a read-only
