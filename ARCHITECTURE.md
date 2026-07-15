@@ -741,9 +741,21 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `optimalWindow` / `successPatterns` (real time-of-day + weekday patterns from log timestamps),
   `workoutForecast` (3-day fatigue outlook), `consistencyPredictor` (weekly-goal projection),
   `consistencyHeatmap` (GitHub-style adherence grid), `frequencySeries`, `muscleBalance`,
-  `strengthTrends` (per-lift start→now top movers), `journeyTimeline`. Every output ships a human
-  message and honest empty/low-confidence states; no invented numbers. 15 unit tests
-  (`__tests__/fitnessInsights.test.ts`).
+  `strengthTrends` (per-lift start→now top movers), `journeyTimeline`, `intensityFromReadiness` +
+  `muscleRecovery` (Train tab readiness), and **`muscleIntelligence`** (Body Map: per-group status/
+  recovery/volume-trend + an overall balance score, over the coarse `muscle_group` only — no
+  fabricated per-fine-muscle stats). Every output ships a human message and honest empty states; no
+  invented numbers. 19 unit tests (`__tests__/fitnessInsights.test.ts`).
+- **Body Intelligence / Muscle Map** (`app/muscle-map.tsx` + `components/MuscleMap.tsx`): a signature,
+  **Pro-gated** feature reached from a card in Progress → Coaching. A clean geometric SVG figure
+  (front/back, `react-native-svg` shapes — motivational, not medical) with tappable, status-coloured
+  muscle zones (green optimal · amber attention · red recovering · purple growing), a **muscle-balance
+  score** with per-group bars, per-muscle detail (frequency, weekly sets, recovery %, last trained,
+  volume trend + Train/See-progress actions), and auto insights. New Pro id `muscle_intelligence` in
+  `proFeatures.ts` (+ a paywall point). **Gating is dormant-safe**: `useProGate().locked` is only true
+  once Pro is LIVE and the user isn't subscribed — then free users get a premium *preview* (dimmed map
+  + locked detail + a feature-specific "Unlock Muscle Intelligence" upsell); while Pro is dormant
+  everyone sees it in full.
 - **User workouts:** `customExercises` (custom-exercise CRUD + `metricsFor` + `EXERCISE_COLUMNS`),
   `workoutBuilder` (drafts, templates, scheduling, duplicate, duration estimate).
 - **Origin labelling:** `workoutOrigin(source)` maps a scheduled workout's `source` to a

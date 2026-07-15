@@ -11,6 +11,7 @@ import {
   strengthTrends,
   intensityFromReadiness,
   muscleRecovery,
+  muscleIntelligence,
   journeyTimeline,
 } from '../fitnessInsights'
 import type { StreakRow } from '../streak'
@@ -174,6 +175,27 @@ describe('muscleRecovery', () => {
     expect(mr.groups.find((g) => g.group === 'legs')!.status).toBe('fatigued')
     expect(mr.groups.find((g) => g.group === 'back')!.status).toBe('untrained')
     expect(typeof mr.recommendedFocus).toBe('string')
+  })
+})
+
+describe('muscleIntelligence', () => {
+  it('derives per-group status + a balance score from real set data', () => {
+    const now = new Date(`${TODAY}T18:00:00`)
+    const sets = [
+      ...Array(6).fill(0).map(() => ({ group: 'chest', at: `${TODAY}T09:00:00` })), // today → fatigued
+      ...Array(6).fill(0).map(() => ({ group: 'legs', at: `${d(-3)}T09:00:00` })),  // 3 days ago → recovered
+    ]
+    const mi = muscleIntelligence(sets, now)
+    expect(mi.hasData).toBe(true)
+    expect(mi.groups).toHaveLength(6)
+    expect(mi.groups.find((g) => g.group === 'chest')!.status).toBe('fatigued')
+    expect(mi.groups.find((g) => g.group === 'legs')!.status).toBe('optimal')
+    expect(mi.groups.find((g) => g.group === 'back')!.status).toBe('attention') // never trained
+    expect(mi.overallBalance).toBeGreaterThanOrEqual(0)
+    expect(mi.overallBalance).toBeLessThanOrEqual(100)
+  })
+  it('reports no data for an empty history', () => {
+    expect(muscleIntelligence([]).hasData).toBe(false)
   })
 })
 

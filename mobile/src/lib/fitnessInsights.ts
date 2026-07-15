@@ -604,6 +604,90 @@ export function muscleRecovery(sets: { group: string | null; at: string | null }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 12b. MUSCLE INTELLIGENCE — the Body Map's per-group status, recovery, trend,
+//      and an overall balance score. Built only on the coarse muscle_group Tempo
+//      actually stores (chest/back/shoulders/arms/legs/core), so every number is
+//      real — no fabricated per-fine-muscle stats.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type MuscleStatus = 'optimal' | 'attention' | 'fatigued' | 'growing'
+export interface MuscleGroupIntel {
+  group: string
+  status: MuscleStatus
+  weeklySets: number
+  sessionsPerWeek: number
+  recoveryPct: number
+  lastTrainedHours: number | null
+  volumeTrendPct: number | null
+  balance: number            // 0–100 vs an even share of your volume
+}
+export interface MuscleIntelResult {
+  groups: MuscleGroupIntel[]
+  overallBalance: number
+  insights: { kind: 'balanced' | 'weak' | 'recovery' | 'growth'; text: string }[]
+  hasData: boolean
+}
+
+export function muscleIntelligence(sets: { group: string | null; at: string | null }[], now: Date = new Date()): MuscleIntelResult {
+  const nowMs = now.getTime()
+  const times = new Map<string, number[]>()
+  for (const g of CANONICAL_GROUPS) times.set(g, [])
+  for (const s of sets) {
+    if (!s.group || !s.at) continue
+    const g = s.group.toLowerCase()
+    if (!times.has(g)) continue
+    const t = new Date(s.at).getTime()
+    if (Number.isFinite(t) && t <= nowMs) times.get(g)!.push(t)
+  }
+
+  const raw = CANONICAL_GROUPS.map((group) => {
+    const ts = times.get(group)!
+    const last = ts.length ? Math.max(...ts) : null
+    const lastTrainedHours = last != null ? Math.round((nowMs - last) / 3_600_000) : null
+    const weeklySets = ts.filter((t) => nowMs - t <= 7 * DAY_MS).length
+    const sets28 = ts.filter((t) => nowMs - t <= 28 * DAY_MS).length
+    const prev28 = ts.filter((t) => nowMs - t > 28 * DAY_MS && nowMs - t <= 56 * DAY_MS).length
+    const daysSet = new Set(ts.filter((t) => nowMs - t <= 28 * DAY_MS).map((t) => Math.floor(t / DAY_MS)))
+    const sessionsPerWeek = Math.round((daysSet.size / 4) * 10) / 10
+    const volumeTrendPct = prev28 > 0 ? Math.round(((sets28 - prev28) / prev28) * 100) : null
+    const recoveryPct = lastTrainedHours == null ? 100 : Math.max(0, Math.min(100, Math.round((lastTrainedHours / 48) * 100)))
+    return { group, lastTrainedHours, weeklySets, sets28, sessionsPerWeek, volumeTrendPct, recoveryPct }
+  })
+
+  const totalSets28 = raw.reduce((a, b) => a + b.sets28, 0)
+  const meanShare = 1 / CANONICAL_GROUPS.length
+
+  const groups: MuscleGroupIntel[] = raw.map((r) => {
+    const share = totalSets28 > 0 ? r.sets28 / totalSets28 : 0
+    const balance = totalSets28 > 0 ? Math.max(0, Math.min(100, Math.round((share / meanShare) * 100))) : 0
+    let status: MuscleStatus
+    if (r.lastTrainedHours != null && r.lastTrainedHours < 36) status = 'fatigued'
+    else if (r.volumeTrendPct != null && r.volumeTrendPct >= 30) status = 'growing'
+    else if (totalSets28 > 0 && (balance < 60 || (r.lastTrainedHours != null && r.lastTrainedHours > 14 * 24) || r.lastTrainedHours == null)) status = 'attention'
+    else status = 'optimal'
+    return {
+      group: r.group, status, weeklySets: r.weeklySets, sessionsPerWeek: r.sessionsPerWeek,
+      recoveryPct: r.recoveryPct, lastTrainedHours: r.lastTrainedHours, volumeTrendPct: r.volumeTrendPct, balance,
+    }
+  })
+
+  const overallBalance = totalSets28 > 0 ? Math.round(groups.reduce((a, b) => a + b.balance, 0) / groups.length) : 0
+
+  const insights: MuscleIntelResult['insights'] = []
+  if (totalSets28 >= 8) {
+    const weakest = [...groups].sort((a, b) => a.balance - b.balance)[0]
+    if (weakest && weakest.balance < 70) insights.push({ kind: 'weak', text: `Your ${weakest.group} is undertrained compared to your other muscle groups.` })
+    const fatigued = groups.find((g) => g.status === 'fatigued')
+    if (fatigued && fatigued.lastTrainedHours != null) insights.push({ kind: 'recovery', text: `Your ${fatigued.group} is still recovering — trained ${fatigued.lastTrainedHours}h ago (~${fatigued.recoveryPct}% recovered).` })
+    const growing = groups.filter((g) => g.status === 'growing').sort((a, b) => (b.volumeTrendPct ?? 0) - (a.volumeTrendPct ?? 0))[0]
+    if (growing) insights.push({ kind: 'growth', text: `Your ${growing.group} volume is trending up (+${growing.volumeTrendPct}% vs last month).` })
+    if (overallBalance >= 80 && insights.length < 3) insights.push({ kind: 'balanced', text: 'Your training is well balanced across all muscle groups.' })
+  }
+
+  return { groups, overallBalance, insights: insights.slice(0, 4), hasData: totalSets28 > 0 }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 13. JOURNEY TIMELINE — the emotional "how far you've come" story.
 // ═══════════════════════════════════════════════════════════════════════════════
 

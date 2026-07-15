@@ -22,6 +22,7 @@ export type ProFeatureId =
   | 'premium_personalization'
   | 'smart_notifications'
   | 'tempo_coach'
+  | 'muscle_intelligence'
 
 export interface ProFeatureMeta {
   id: ProFeatureId
@@ -69,6 +70,12 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'A coach that reprograms on command and explains every decision.',
     icon: 'chatbubbles',
   },
+  muscle_intelligence: {
+    id: 'muscle_intelligence',
+    title: 'Muscle Intelligence',
+    benefit: 'An interactive body map — training balance, recovery, and weak points, muscle by muscle.',
+    icon: 'body',
+  },
 }
 
 export function proFeature(id: ProFeatureId): ProFeatureMeta {
@@ -92,4 +99,5 @@ export const PAYWALL_POINTS: PaywallPoint[] = [
   { icon: 'barbell', title: 'Strength Progress', benefit: 'Watch every lift’s estimated 1RM climb over time.' },
   { icon: 'trophy', title: 'Records History', benefit: 'Search and revisit all your PRs — not just the latest few.' },
   { icon: 'stats-chart', title: 'Deep Charts', benefit: 'Rich, animated performance charts across your training.' },
+  { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
 ]

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'expo-router'
@@ -278,6 +278,18 @@ export default function ProgressScreen() {
 
             {/* ── Coaching (new): forecast + behavioural insights ── */}
             <SectionLabel title="Coaching" hint="What Tempo notices about you." />
+            {/* Body Intelligence — the muscle-map feature (free preview → Pro). */}
+            <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map' as any)}>
+              <View style={styles.bodyIntelIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.bodyIntelTitle}>Body Intelligence</Text>
+                  {proLocked && <ProBadge />}
+                </View>
+                <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.outline} />
+            </PressableScale>
             {insights && insights.forecast.length > 0 && <ForecastStrip days={insights.forecast} delay={40} />}
             {insights && (
               <InsightsCard
@@ -463,6 +475,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   streakCaption: { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 20 },
 
   statCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow },
+  bodyIntelCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e1 },
+  bodyIntelIcon: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  bodyIntelTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  bodyIntelSub: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
   statLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   statRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   statValue: { fontFamily: C.fontDisplay, fontSize: 36, color: C.text, letterSpacing: -1, lineHeight: 40 },
