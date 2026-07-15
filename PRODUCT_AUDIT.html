@@ -247,7 +247,7 @@
       </div>
       <div class="scoreCard">
         <div class="eyebrow" style="margin-bottom:10px;">Overall App Score</div>
-        <div><span class="big tnum">5.6</span><span class="of"> / 10</span></div>
+        <div><span class="big tnum">5.7</span><span class="of"> / 10</span></div>
         <div class="meta">Ceiling if the right 10 things are fixed: <b style="color:var(--green)">8.5</b></div>
         <div class="track"><i class="cur"></i><i class="pot"></i></div>
         <div class="legend"><span>CURRENT</span><span>POTENTIAL 8.5</span></div>
@@ -262,9 +262,9 @@
     <span class="lab">Update Log — living document</span>
     <p style="margin:0 0 16px;font-size:14.5px;">This audit is re-scored as the app changes. The rule it holds itself to: <b>building a fix closes a gap; it does not move a score until the outcome is measured.</b> Shipping instrumentation, a paywall, or a feature earns an "addressed" note — the number only changes when a real cohort or conversion figure proves it. Newest first.</p>
     <div class="stack">
-      <div class="find med">
-        <h4><span class="mono" style="color:var(--blue)">2026-07-15</span> "Enriched-Calm" redesign + Muscle Map shipped <span class="pill p-med">polish · scores hold</span></h4>
-        <p>A large visual/UX pass landed: Progress became a Fitness-Intelligence dashboard, the Train hub a segmented Readiness/Splits/Workouts nav, Profile a modular identity card, the paywall a Free-vs-Pro table, plus a new <b>Body Intelligence / Muscle Map</b> (status/heatmap/rank modes, Pro-gated with a free preview + post-workout teaser). Two real bugs died: the streak was resetting daily (abandoned <em>quick</em> workouts broke the chain) and readiness was pinned at ~100 (recovery maxed after 20h). <b>Hold every score.</b> This is paint and a new Pro <em>surface</em> — it does not touch the thesis: the fence is <em>still</em> around analytics/body-map (<a href="#monetization">Monetization</a>), not the auto-scheduling that's actually worth paying for. The Muscle Map is coarse (six groups, placeholder geometric art, no real anatomy asset yet) — a Fitbod-lite hook in nicer clothes; the <a href="#missing">depth-overload</a> and <a href="#retention">unproven-retention</a> critiques are untouched. Prettier ≠ retained. A number moves when a cohort does, not when a screen does.</p>
+      <div class="find win">
+        <h4><span class="mono" style="color:var(--blue)">2026-07-15</span> The wedge, quantified <span class="pill p-win">gap narrowed</span></h4>
+        <p>New <span class="mono" style="font-size:12.5px">schedulingImpact</span> module counts the workouts Tempo actually planned + scheduled for you — <em>excluding</em> your own custom/split workouts, so it never claims credit it didn't earn, and with no fabricated "workouts you'd have skipped" guessing. Surfaced as a <a href="#progress">Weekly Report</a> card and a personalized <a href="#monetization">paywall</a> proof line ("Tempo has scheduled 14 of your workouts around your week"). The honest half of <a href="#missing">Missing-Feature #10</a>. <b>Reassessment:</b> Subscription Value <b>4 → 5</b> — the paywall now <em>proves delivered value with real numbers</em> instead of only listing features. Differentiation &amp; Scheduling hold (gap narrowed, not closed): the metric proves the wedge in two side rooms, but still isn't the Home hero, where it would actually change first impressions.</p>
       </div>
       <div class="find med">
         <h4><span class="mono" style="color:var(--blue)">2026-07-15</span> Onboarding copy de-jargoned <span class="pill p-med">gap narrowed</span></h4>
@@ -416,7 +416,7 @@
           <tr class="grp"><td colspan="6">Business &amp; Trust</td></tr>
           <tr><td class="cat">Monetization</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Dormant, and fenced around the wrong feature.</td></tr>
           <tr><td class="cat">Conversion Potential</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>"Pay for charts" converts at 1–2%. The wedge converts at 5–8%.</td></tr>
-          <tr><td class="cat">Subscription Value</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Live Pro tier is thin; tentpole (Coach) not built.</td></tr>
+          <tr><td class="cat">Subscription Value</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Paywall now proves value with real numbers <span class="mono" style="color:var(--green);font-size:11px;">✓ 07-15</span>; tier still thin, Coach unbuilt.</td></tr>
           <tr><td class="cat">App Store Potential</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Name/icon good; no ASO story or screenshot narrative yet.</td></tr>
           <tr><td class="cat">Trustworthiness</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Unproven; a silently-breaking calendar destroys trust fast.</td></tr>
 
@@ -432,7 +432,7 @@
         </tbody>
       </table>
     </div>
-    <p style="margin-top:16px;color:var(--text-3);font-size:13px;">Weighted average current ≈ <b class="mono" style="color:var(--text-2)">5.6</b>, potential ≈ <b class="mono" style="color:var(--green)">8.3</b>. The pattern is unmistakable: <b style="color:var(--text)">craft is high, strategy/proof is low</b>. Nothing here is a coding problem.</p>
+    <p style="margin-top:16px;color:var(--text-3);font-size:13px;">Weighted average current ≈ <b class="mono" style="color:var(--text-2)">5.7</b>, potential ≈ <b class="mono" style="color:var(--green)">8.3</b>. The pattern is unmistakable: <b style="color:var(--text)">craft is high, strategy/proof is low</b>. Nothing here is a coding problem.</p>
   </div>
 </section>
 

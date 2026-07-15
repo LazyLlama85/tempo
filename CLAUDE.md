@@ -75,11 +75,18 @@ then re-publish it with the Artifact tool passing
 link. Rules:
 - Add a dated entry to the **Update Log** section at the top: what changed and its honest audit
   impact, in the same brutal voice. Newest first.
-- Re-evaluate the scorecard rows / sections the change touches. **Never inflate a score just
-  because code was written.** A number moves only when a real *outcome* is proven (e.g. a
-  retained cohort, a measured conversion lift) — not when a feature ships. Shipping a fix earns
-  an "addressed / gap-narrowed" note; the score holds until the result is measured. Stay
-  skeptical about what's still weak.
+- **Reassess and update the scorecard** — scores are not frozen. Move a **Current** score
+  (up or down) whenever the change genuinely alters the current-state quality a fair, skeptical
+  reviewer would assign *today*: a real UX / reliability / craft / feature improvement can raise
+  it; a regression or newly-found weakness can lower it. Adjust **Potential** and the **Gap** to
+  match, refresh the row's note, and keep the headline "Overall App Score" and averages in sync.
+  The discipline is honesty, not stinginess: **do not inflate for vanity** (merely writing code,
+  or shipping a feature nobody has used), and for any score defined by a *proven outcome*
+  (Retention, Conversion, PMF), still wait for the real measurement — instrumentation or a build
+  earns an "addressed / gap-narrowed" note and unblocks the eventual re-score, but the number
+  only moves once a cohort / conversion figure proves it. Everything else (design, IA, feature
+  completeness, reliability once verified) is fair to re-score on delivered quality. Stay
+  skeptical about what's still weak, and say so in the Update Log entry.
 - Keep it fully self-contained (inline CSS/JS, no external hosts) — the Artifact CSP blocks them.
 
 **Honest limitation to tell the user:** an artifact cannot auto-refresh "when opened" — there is
