@@ -1,18 +1,25 @@
 // Tempo — Muscle Map.
 //
-// A clean, geometric athletic figure (front + back) built from simple SVG shapes —
-// modern and motivational, NOT a medical anatomy diagram. Each of the six coarse
-// muscle groups Tempo actually tracks (chest/back/shoulders/arms/legs/core) is a
-// tappable, status-coloured zone. Deliberately schematic so it reads well without
-// hand-authored anatomical paths.
+// A stylized muscular figure (front + back) built from organic SVG shapes — rounded
+// muscle "bellies" and tapered limbs over a neutral silhouette, so it reads as a body,
+// not a block diagram. Motivational, not a medical chart. Each of the six coarse
+// muscle groups Tempo tracks (chest/back/shoulders/arms/legs/core) is a tappable,
+// status- or heat-coloured zone. (For a photoreal body, drop in a real anatomical SVG
+// asset and keep the same group ids + fills.)
 
-import Svg, { Circle, Rect, Ellipse, G } from 'react-native-svg'
-import { View, StyleSheet } from 'react-native'
+import { ReactNode } from 'react'
+import Svg, { Ellipse, Path, G } from 'react-native-svg'
+import { View, Text, StyleSheet } from 'react-native'
+import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, type Palette } from '@/theme'
 import type { MuscleStatus } from '@/lib/fitnessInsights'
 
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core'
 export type BodyView = 'front' | 'back'
+export type MapMode = 'status' | 'heatmap'
+
+const VB_W = 220
+const VB_H = 480
 
 export function muscleStatusColor(C: Palette, status: MuscleStatus | undefined): string {
   switch (status) {
@@ -24,105 +31,152 @@ export function muscleStatusColor(C: Palette, status: MuscleStatus | undefined):
   }
 }
 
-interface ZoneShape { type: 'rect' | 'ellipse'; props: Record<string, number> }
-type ZoneMap = Partial<Record<MuscleGroup, ZoneShape[]>>
+type Shape =
+  | { t: 'e'; cx: number; cy: number; rx: number; ry: number }
+  | { t: 'p'; d: string }
+type Zones = Partial<Record<MuscleGroup, Shape[]>>
 
-// viewBox 0 0 200 380. Neutral silhouette (head/neck/hips) is drawn separately.
-const FRONT: ZoneMap = {
+// Neutral, non-muscle silhouette parts (head / neck / hips / hands / feet).
+const SILHOUETTE_FRONT: Shape[] = [
+  { t: 'e', cx: 110, cy: 44, rx: 22, ry: 27 },   // head
+  { t: 'p', d: 'M99 66 h22 v18 q-11 6 -22 0 Z' }, // neck
+  { t: 'e', cx: 110, cy: 250, rx: 33, ry: 22 },  // hips
+  { t: 'e', cx: 52, cy: 246, rx: 9, ry: 11 },    // L hand
+  { t: 'e', cx: 168, cy: 246, rx: 9, ry: 11 },   // R hand
+  { t: 'e', cx: 91, cy: 455, rx: 13, ry: 12 },   // L foot
+  { t: 'e', cx: 129, cy: 455, rx: 13, ry: 12 },  // R foot
+]
+const SILHOUETTE_BACK = SILHOUETTE_FRONT
+
+const FRONT: Zones = {
   shoulders: [
-    { type: 'ellipse', props: { cx: 63, cy: 80, rx: 19, ry: 13 } },
-    { type: 'ellipse', props: { cx: 137, cy: 80, rx: 19, ry: 13 } },
+    { t: 'e', cx: 66, cy: 104, rx: 21, ry: 18 },
+    { t: 'e', cx: 154, cy: 104, rx: 21, ry: 18 },
   ],
   chest: [
-    { type: 'rect', props: { x: 70, y: 84, width: 27, height: 30, rx: 9 } },
-    { type: 'rect', props: { x: 103, y: 84, width: 27, height: 30, rx: 9 } },
+    { t: 'e', cx: 90, cy: 122, rx: 22, ry: 17 },
+    { t: 'e', cx: 130, cy: 122, rx: 22, ry: 17 },
   ],
   arms: [
-    { type: 'rect', props: { x: 42, y: 88, width: 17, height: 76, rx: 8 } },
-    { type: 'rect', props: { x: 141, y: 88, width: 17, height: 76, rx: 8 } },
+    { t: 'e', cx: 55, cy: 156, rx: 14, ry: 30 },   // L bicep
+    { t: 'e', cx: 51, cy: 212, rx: 12, ry: 32 },   // L forearm
+    { t: 'e', cx: 165, cy: 156, rx: 14, ry: 30 },  // R bicep
+    { t: 'e', cx: 169, cy: 212, rx: 12, ry: 32 },  // R forearm
   ],
-  core: [{ type: 'rect', props: { x: 80, y: 118, width: 40, height: 62, rx: 12 } }],
+  core: [{ t: 'e', cx: 110, cy: 182, rx: 24, ry: 44 }],
   legs: [
-    { type: 'rect', props: { x: 74, y: 202, width: 23, height: 120, rx: 11 } },
-    { type: 'rect', props: { x: 103, y: 202, width: 23, height: 120, rx: 11 } },
+    { t: 'e', cx: 91, cy: 312, rx: 20, ry: 58 },   // L quad
+    { t: 'e', cx: 91, cy: 412, rx: 15, ry: 40 },   // L calf
+    { t: 'e', cx: 129, cy: 312, rx: 20, ry: 58 },  // R quad
+    { t: 'e', cx: 129, cy: 412, rx: 15, ry: 40 },  // R calf
   ],
 }
 
-const BACK: ZoneMap = {
+const BACK: Zones = {
   shoulders: [
-    { type: 'ellipse', props: { cx: 63, cy: 80, rx: 19, ry: 13 } },
-    { type: 'ellipse', props: { cx: 137, cy: 80, rx: 19, ry: 13 } },
+    { t: 'e', cx: 66, cy: 104, rx: 21, ry: 18 },
+    { t: 'e', cx: 154, cy: 104, rx: 21, ry: 18 },
   ],
   back: [
-    { type: 'rect', props: { x: 76, y: 78, width: 48, height: 22, rx: 8 } },   // traps
-    { type: 'rect', props: { x: 71, y: 100, width: 26, height: 46, rx: 9 } },  // lat L
-    { type: 'rect', props: { x: 103, y: 100, width: 26, height: 46, rx: 9 } }, // lat R
-    { type: 'rect', props: { x: 82, y: 148, width: 36, height: 30, rx: 8 } },  // lower back
+    { t: 'e', cx: 110, cy: 104, rx: 30, ry: 15 },  // traps
+    { t: 'e', cx: 90, cy: 145, rx: 21, ry: 34 },   // L lat
+    { t: 'e', cx: 130, cy: 145, rx: 21, ry: 34 },  // R lat
+    { t: 'e', cx: 110, cy: 190, rx: 22, ry: 28 },  // lower back
   ],
   arms: [
-    { type: 'rect', props: { x: 42, y: 88, width: 17, height: 76, rx: 8 } },
-    { type: 'rect', props: { x: 141, y: 88, width: 17, height: 76, rx: 8 } },
+    { t: 'e', cx: 55, cy: 156, rx: 14, ry: 30 },
+    { t: 'e', cx: 51, cy: 212, rx: 12, ry: 32 },
+    { t: 'e', cx: 165, cy: 156, rx: 14, ry: 30 },
+    { t: 'e', cx: 169, cy: 212, rx: 12, ry: 32 },
   ],
   legs: [
-    { type: 'rect', props: { x: 76, y: 182, width: 48, height: 24, rx: 10 } }, // glutes
-    { type: 'rect', props: { x: 74, y: 208, width: 23, height: 114, rx: 11 } },
-    { type: 'rect', props: { x: 103, y: 208, width: 23, height: 114, rx: 11 } },
+    { t: 'e', cx: 110, cy: 252, rx: 33, ry: 22 },  // glutes
+    { t: 'e', cx: 91, cy: 318, rx: 20, ry: 56 },   // L ham
+    { t: 'e', cx: 91, cy: 414, rx: 15, ry: 40 },   // L calf
+    { t: 'e', cx: 129, cy: 318, rx: 20, ry: 56 },  // R ham
+    { t: 'e', cx: 129, cy: 414, rx: 15, ry: 40 },  // R calf
   ],
 }
 
+// Bubble anchor (normalized 0–1 within the viewBox) per group.
+const ANCHOR: Record<MuscleGroup, { x: number; y: number }> = {
+  chest: { x: 0.5, y: 0.25 },
+  back: { x: 0.5, y: 0.23 },
+  shoulders: { x: 0.3, y: 0.21 },
+  arms: { x: 0.25, y: 0.33 },
+  core: { x: 0.5, y: 0.38 },
+  legs: { x: 0.5, y: 0.66 },
+}
+
+export interface MapBubble { group: MuscleGroup; text: string; tone: string }
+
 export function MuscleMap({
-  view,
-  statusByGroup,
-  selected,
-  onSelect,
-  dimmed = false,
-  size = 240,
+  view, statusByGroup, heatByGroup, mode = 'status', selected, onSelect, dimmed = false, bubbles, size = 220,
 }: {
   view: BodyView
   statusByGroup: Partial<Record<MuscleGroup, MuscleStatus>>
+  /** 0–1 training stimulus per group, for heatmap mode. */
+  heatByGroup?: Partial<Record<MuscleGroup, number>>
+  mode?: MapMode
   selected?: MuscleGroup | null
   onSelect?: (g: MuscleGroup) => void
-  /** Free-preview teaser: colours shown faintly. */
   dimmed?: boolean
+  bubbles?: MapBubble[]
   size?: number
 }) {
   const C = useTheme()
   const zones = view === 'front' ? FRONT : BACK
+  const silhouette = view === 'front' ? SILHOUETTE_FRONT : SILHOUETTE_BACK
   const neutral = C.surfaceContainerHigh
+  const w = size
+  const h = size * (VB_H / VB_W)
+
+  const renderShape = (sh: Shape, key: number, fill: string, opacity: number, sel: boolean): ReactNode =>
+    sh.t === 'e' ? (
+      <Ellipse key={key} cx={sh.cx} cy={sh.cy} rx={sh.rx} ry={sh.ry} fill={fill} fillOpacity={opacity}
+        stroke={sel ? C.text : 'transparent'} strokeWidth={sel ? 2.5 : 0} />
+    ) : (
+      <Path key={key} d={sh.d} fill={fill} fillOpacity={opacity}
+        stroke={sel ? C.text : 'transparent'} strokeWidth={sel ? 2.5 : 0} />
+    )
+
+  const fillFor = (group: MuscleGroup): { fill: string; opacity: number } => {
+    if (mode === 'heatmap') {
+      const heat = Math.max(0, Math.min(1, heatByGroup?.[group] ?? 0))
+      return { fill: C.primary, opacity: 0.14 + heat * 0.86 }
+    }
+    return { fill: muscleStatusColor(C, statusByGroup[group]), opacity: dimmed ? 0.45 : 1 }
+  }
 
   return (
-    <View style={styles.wrap}>
-      <Svg width={size} height={size * (380 / 200)} viewBox="0 0 200 380">
-        {/* Neutral silhouette */}
-        <G>
-          <Circle cx={100} cy={34} r={19} fill={neutral} />
-          <Rect x={91} y={50} width={18} height={12} rx={4} fill={neutral} />
-          <Rect x={74} y={180} width={52} height={26} rx={9} fill={neutral} />
-        </G>
-        {/* Muscle zones */}
+    <View style={[styles.wrap, { width: w, height: h }]}>
+      <Svg width={w} height={h} viewBox={`0 0 ${VB_W} ${VB_H}`}>
+        <G>{silhouette.map((sh, i) => renderShape(sh, i, neutral, 1, false))}</G>
         {(Object.keys(zones) as MuscleGroup[]).map((group) => {
           const isSel = selected === group
-          const base = muscleStatusColor(C, statusByGroup[group])
-          const opacity = dimmed ? 0.5 : 1
+          const { fill, opacity } = fillFor(group)
           return (
             <G key={group} onPress={onSelect ? () => onSelect(group) : undefined}>
-              {zones[group]!.map((s, i) =>
-                s.type === 'ellipse' ? (
-                  <Ellipse key={i} {...s.props} fill={base} fillOpacity={opacity}
-                    stroke={isSel ? C.text : 'transparent'} strokeWidth={isSel ? 2 : 0} />
-                ) : (
-                  <Rect key={i} {...s.props} fill={base} fillOpacity={opacity}
-                    stroke={isSel ? C.text : 'transparent'} strokeWidth={isSel ? 2 : 0} />
-                ),
-              )}
+              {zones[group]!.map((sh, i) => renderShape(sh, i, fill, opacity, isSel))}
             </G>
           )
         })}
       </Svg>
+
+      {bubbles?.map((b) => {
+        const a = ANCHOR[b.group]
+        return (
+          <View key={b.group} pointerEvents="none" style={[styles.bubble, { backgroundColor: b.tone, left: a.x * w - 20, top: a.y * h - 12 }]}>
+            <Text style={styles.bubbleText}>{b.text}</Text>
+          </View>
+        )
+      })}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
+  bubble: { position: 'absolute', minWidth: 40, alignItems: 'center', borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  bubbleText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: '#fff' },
 })

@@ -377,6 +377,18 @@ export default function WorkoutCompleteScreen() {
             </Text>
           </View>
         )}
+
+        {/* Muscle Intelligence teaser — a Pro upsell at a high-intent moment. */}
+        {locked && (
+          <PressableScale style={styles.muscleTeaser} scaleTo={0.98} onPress={() => { track('paywall_shown', { context: 'post_workout_muscle' }); router.push('/muscle-map' as any) }}>
+            <View style={styles.muscleTeaserIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.muscleTeaserTitle}>Unlock Muscle Intelligence</Text>
+              <Text style={styles.muscleTeaserSub}>See your complete body analysis — training balance, recovery & weak points.</Text>
+            </View>
+            <Ionicons name="lock-closed" size={16} color={C.primary} />
+          </PressableScale>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -454,6 +466,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   tileRow: { flexDirection: 'row', gap: Spacing.md },
   tile: { flex: 1, backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, gap: 2 },
+  muscleTeaser: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: C.primarySoft, borderRadius: Radius.card, padding: Spacing.md, borderWidth: 1, borderColor: C.primaryLine },
+  muscleTeaserIcon: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center' },
+  muscleTeaserTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  muscleTeaserSub: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1, lineHeight: 17 },
   tileLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
   tileValue: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -1 },
   tileValueUnit: { fontFamily: 'Inter_400Regular', fontSize: 18, color: C.textSecondary },

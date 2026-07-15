@@ -755,7 +755,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `proFeatures.ts` (+ a paywall point). **Gating is dormant-safe**: `useProGate().locked` is only true
   once Pro is LIVE and the user isn't subscribed — then free users get a premium *preview* (dimmed map
   + locked detail + a feature-specific "Unlock Muscle Intelligence" upsell); while Pro is dormant
-  everyone sees it in full.
+  everyone sees it in full. The map has a **Status** mode (status colours + recovery-% callout bubbles
+  on the least-recovered muscles) and a **Heatmap** mode (7/30/90-day training-stimulus glow). A
+  **post-workout teaser** on `workout-complete` surfaces it at a high-intent moment (only when locked).
+  The figure is built from organic SVG shapes over a silhouette — a photoreal anatomical body just
+  needs a real `.svg` asset dropped in with the same group ids + fills.
 - **User workouts:** `customExercises` (custom-exercise CRUD + `metricsFor` + `EXERCISE_COLUMNS`),
   `workoutBuilder` (drafts, templates, scheduling, duplicate, duration estimate).
 - **Origin labelling:** `workoutOrigin(source)` maps a scheduled workout's `source` to a

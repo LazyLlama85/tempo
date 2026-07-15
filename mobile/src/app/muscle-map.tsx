@@ -22,7 +22,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { muscleIntelligence, type MuscleStatus, type MuscleGroupIntel } from '@/lib/fitnessInsights'
-import { MuscleMap, muscleStatusColor, type MuscleGroup, type BodyView } from '@/components/MuscleMap'
+import { MuscleMap, muscleStatusColor, type MuscleGroup, type BodyView, type MapMode, type MapBubble } from '@/components/MuscleMap'
 import { useProGate } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
 
@@ -63,6 +63,36 @@ export default function MuscleMapScreen() {
     return m
   }, [intel])
 
+  const [mode, setMode] = useState<MapMode>('status')
+  const [heatRange, setHeatRange] = useState<7 | 30 | 90>(30)
+
+  // Heatmap: training stimulus per group over the window, normalized 0–1.
+  const heatByGroup = useMemo(() => {
+    const now = Date.now(); const win = heatRange * 86_400_000
+    const counts: Partial<Record<MuscleGroup, number>> = {}
+    for (const s of muscleTimeline) {
+      if (!s.group || !s.at) continue
+      const g = s.group.toLowerCase() as MuscleGroup
+      const t = new Date(s.at).getTime()
+      if (Number.isFinite(t) && now - t <= win) counts[g] = (counts[g] ?? 0) + 1
+    }
+    const max = Math.max(1, ...Object.values(counts) as number[])
+    const out: Partial<Record<MuscleGroup, number>> = {}
+    for (const g of Object.keys(counts) as MuscleGroup[]) out[g] = (counts[g] ?? 0) / max
+    return out
+  }, [muscleTimeline, heatRange])
+
+  // Recovery-% callout bubbles — the 3 least-recovered visible muscles (Image #15 style).
+  const VIEW_GROUPS: Record<BodyView, MuscleGroup[]> = { front: ['chest', 'shoulders', 'arms', 'core', 'legs'], back: ['back', 'shoulders', 'arms', 'legs'] }
+  const bubbles = useMemo<MapBubble[] | undefined>(() => {
+    if (locked || mode !== 'status') return undefined
+    return VIEW_GROUPS[view]
+      .map((g) => byGroup[g]).filter((g): g is MuscleGroupIntel => !!g && g.lastTrainedHours != null)
+      .sort((a, b) => a.recoveryPct - b.recoveryPct).slice(0, 3)
+      .map((g) => ({ group: g.group as MuscleGroup, text: `${g.recoveryPct}%`, tone: muscleStatusColor(C, g.status) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, mode, view, byGroup, C])
+
   const openPaywall = () => {
     track('paywall_shown', { context: 'muscle_map' })
     router.push({ pathname: '/paywall', params: { context: 'muscle_map' } } as never)
@@ -87,21 +117,43 @@ export default function MuscleMapScreen() {
           />
         ) : (
           <>
-            {/* Front / back toggle */}
-            <View style={s.viewToggle}>
-              {(['front', 'back'] as BodyView[]).map((v) => (
-                <PressableScale key={v} style={[s.viewBtn, v === view && s.viewBtnOn]} scaleTo={0.95} onPress={() => setView(v)}>
-                  <Text style={[s.viewBtnText, v === view && { color: C.onPrimary }]}>{v === 'front' ? 'Front' : 'Back'}</Text>
-                </PressableScale>
-              ))}
+            {/* Toggles: front/back + status/heatmap */}
+            <View style={s.toggleRow}>
+              <View style={s.viewToggle}>
+                {(['front', 'back'] as BodyView[]).map((v) => (
+                  <PressableScale key={v} style={[s.viewBtn, v === view && s.viewBtnOn]} scaleTo={0.95} onPress={() => setView(v)}>
+                    <Text style={[s.viewBtnText, v === view && { color: C.onPrimary }]}>{v === 'front' ? 'Front' : 'Back'}</Text>
+                  </PressableScale>
+                ))}
+              </View>
+              <View style={s.viewToggle}>
+                {(['status', 'heatmap'] as MapMode[]).map((m) => (
+                  <PressableScale key={m} style={[s.viewBtn, m === mode && s.viewBtnOn]} scaleTo={0.95} onPress={() => setMode(m)}>
+                    <Text style={[s.viewBtnText, m === mode && { color: C.onPrimary }]}>{m === 'status' ? 'Status' : 'Heatmap'}</Text>
+                  </PressableScale>
+                ))}
+              </View>
             </View>
 
+            {mode === 'heatmap' && (
+              <View style={s.rangeRow}>
+                {([7, 30, 90] as const).map((r) => (
+                  <PressableScale key={r} style={[s.rangeChip, r === heatRange && s.rangeChipOn]} scaleTo={0.94} onPress={() => setHeatRange(r)}>
+                    <Text style={[s.rangeChipText, r === heatRange && { color: C.onPrimary }]}>Last {r} days</Text>
+                  </PressableScale>
+                ))}
+              </View>
+            )}
+
             {/* The map */}
-            <FadeInView key={view} style={s.mapCard}>
+            <FadeInView key={`${view}-${mode}`} style={s.mapCard}>
               <View style={s.heroGlow} pointerEvents="none" />
               <MuscleMap
                 view={view}
                 statusByGroup={statusByGroup}
+                heatByGroup={heatByGroup}
+                mode={mode}
+                bubbles={bubbles}
                 selected={selected}
                 onSelect={(g) => setSelected(g === selected ? null : g)}
                 dimmed={locked}
@@ -113,14 +165,24 @@ export default function MuscleMapScreen() {
                   <Text style={s.mapLockPillText}>Pro preview</Text>
                 </View>
               )}
-              <View style={s.legend}>
-                {(['optimal', 'growing', 'attention', 'fatigued'] as MuscleStatus[]).map((st) => (
-                  <View key={st} style={s.legendItem}>
-                    <View style={[s.legendDot, { backgroundColor: muscleStatusColor(C, st) }]} />
-                    <Text style={s.legendText}>{STATUS_LABEL[st]}</Text>
-                  </View>
-                ))}
-              </View>
+              {mode === 'status' ? (
+                <View style={s.legend}>
+                  {(['optimal', 'growing', 'attention', 'fatigued'] as MuscleStatus[]).map((st) => (
+                    <View key={st} style={s.legendItem}>
+                      <View style={[s.legendDot, { backgroundColor: muscleStatusColor(C, st) }]} />
+                      <Text style={s.legendText}>{STATUS_LABEL[st]}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={s.legend}>
+                  <Text style={s.legendText}>Less trained</Text>
+                  <View style={[s.legendDot, { backgroundColor: C.primary, opacity: 0.25 }]} />
+                  <View style={[s.legendDot, { backgroundColor: C.primary, opacity: 0.6 }]} />
+                  <View style={[s.legendDot, { backgroundColor: C.primary }]} />
+                  <Text style={s.legendText}>More</Text>
+                </View>
+              )}
             </FadeInView>
 
             {/* Tapped muscle detail */}
@@ -274,10 +336,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   muted: { fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 19 },
   footNote: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.outline, textAlign: 'center' },
 
-  viewToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 4, gap: 2, alignSelf: 'center' },
-  viewBtn: { paddingHorizontal: Spacing.xl, paddingVertical: 8, borderRadius: Radius.md },
+  toggleRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.sm },
+  viewToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 4, gap: 2 },
+  viewBtn: { paddingHorizontal: Spacing.lg, paddingVertical: 8, borderRadius: Radius.md },
   viewBtnOn: { backgroundColor: C.primary },
   viewBtnText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+  rangeRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xs },
+  rangeChip: { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.surfaceContainerLow },
+  rangeChipOn: { backgroundColor: C.primary },
+  rangeChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
 
   mapCard: { backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: C.glassBorder, overflow: 'hidden', ...Elevation.e1 },
   heroGlow: { position: 'absolute', top: -40, alignSelf: 'center', width: 260, height: 260, borderRadius: 130, backgroundColor: C.primaryGlow },
