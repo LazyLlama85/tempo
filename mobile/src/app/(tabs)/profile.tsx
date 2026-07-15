@@ -13,6 +13,10 @@ import { ScreenTransition } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
+import { useQuery } from '@tanstack/react-query'
+import { fetchActiveSplit } from '@/lib/splits'
+import { readinessFromHistory } from '@/lib/fitnessInsights'
+import { FitnessIdentityCard, InsightsGrid, type IdentityChip, type InsightTile } from '@/components/ProfileCards'
 import { getCalendarPermissionStatus } from '@/services/calendarService'
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
@@ -146,7 +150,7 @@ export default function ProfileScreen() {
   const { mode, setMode } = useThemeMode()
   const { profile, session, signOut, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
-  const { stats, workouts } = useProgressStats(userId)
+  const { stats, workouts, logTimes } = useProgressStats(userId)
 
   // Consistency badges (lib/badges): derived from my session history + any stored
   // competitive/social badges. Stored keys refresh on focus so a just-awarded
@@ -198,6 +202,32 @@ export default function ProfileScreen() {
 
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
+
+  // Profile identity + insights (premium redesign). All from data Tempo already
+  // has — the active split, a history-based readiness, and the progress stats.
+  const { data: activeSplit } = useQuery({
+    queryKey: ['profile_active_split', userId],
+    queryFn: () => fetchActiveSplit(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+  const readiness = useMemo(() => readinessFromHistory(workouts, logTimes, new Date()), [workouts, logTimes])
+
+  const identityChips: IdentityChip[] = [
+    { icon: 'flag-outline', label: 'Goal', value: profile?.goal ? GOAL_LABELS[profile.goal] : 'Not set' },
+    { icon: 'calendar-outline', label: 'Frequency', value: profile?.days_per_week ? `${profile.days_per_week}× / week` : '—' },
+    { icon: 'time-outline', label: 'Session length', value: profile?.preferred_duration_min ? `${profile.preferred_duration_min} min` : '—' },
+    { icon: 'barbell-outline', label: 'Equipment', value: equipmentSummary(profile?.equipment) },
+  ]
+  if (activeSplit) identityChips.push({ icon: 'repeat-outline', label: 'Active split', value: activeSplit.name })
+  const insightTiles: InsightTile[] = [
+    { icon: 'checkmark-done', label: 'Workouts', value: String(stats.totalWorkouts), tint: C.primary },
+    { icon: 'flame', label: 'Day streak', value: String(stats.streak), tint: C.ember },
+    { icon: 'pulse', label: 'Consistency', value: `${stats.consistency_pct ?? 0}%`, tint: C.success },
+    { icon: 'trophy', label: 'PRs', value: String(stats.prs?.length ?? 0), tint: C.gold },
+    { icon: 'barbell', label: 'Volume', value: stats.totalVolume ?? '0', tint: C.primaryBright },
+    { icon: 'heart', label: 'Readiness', value: String(readiness.score), tint: readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow },
+  ]
 
   // Edit-profile modal
   const [editing, setEditing] = useState(false)
@@ -701,9 +731,17 @@ export default function ProfileScreen() {
         {/* ── Hero (gaming-style header banner) ───────────────────────────── */}
         <View style={[styles.hero, { backgroundColor: avatar.color }]}>
           <View style={styles.heroTopRow}>
-            <View style={styles.levelChip}>
-              <Ionicons name="star" size={12} color="#fff" />
-              <Text style={styles.levelChipText}>LVL {level.level} · {level.title.toUpperCase()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={styles.levelChip}>
+                <Ionicons name="star" size={12} color="#fff" />
+                <Text style={styles.levelChipText}>LVL {level.level} · {level.title.toUpperCase()}</Text>
+              </View>
+              {isPro && (
+                <View style={styles.proBadge}>
+                  <Ionicons name="flash" size={10} color="#1b1400" />
+                  <Text style={styles.proBadgeText}>PRO</Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Ionicons name="pencil" size={16} color="rgba(255,255,255,0.9)" />
@@ -731,6 +769,19 @@ export default function ProfileScreen() {
             {profile?.goal ? GOAL_LABELS[profile.goal] : 'Set your goal'}
             {profile?.experience ? ` · ${EXP_LABELS[profile.experience]}` : ''}
           </Text>
+          <View style={styles.heroMetaRow}>
+            {stats.streak > 0 && (
+              <View style={styles.heroStreakChip}>
+                <Ionicons name="flame" size={12} color="#fff" />
+                <Text style={styles.heroStreakText}>{stats.streak} streak</Text>
+              </View>
+            )}
+            {!!profile?.created_at && (
+              <Text style={styles.memberSince}>
+                Member since {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </Text>
+            )}
+          </View>
 
           {/* Level progress */}
           <View style={styles.levelBarTrack}>
@@ -739,6 +790,12 @@ export default function ProfileScreen() {
           <Text style={styles.levelHint}>
             {level.toNext} more workout{level.toNext !== 1 ? 's' : ''} to Level {level.level + 1}
           </Text>
+        </View>
+
+        {/* ── Fitness identity + Tempo insights (premium redesign) ──────────── */}
+        <View style={styles.identitySection}>
+          <FitnessIdentityCard chips={identityChips} delay={60} />
+          <InsightsGrid tiles={insightTiles} delay={100} />
         </View>
 
         {/* ── Save your progress (guest → permanent account, §1.1) ────────────
@@ -1458,6 +1515,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
   levelChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
   levelChipText: { fontFamily: C.fontDisplay, fontSize: 11, color: '#fff', letterSpacing: 0.5 },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.gold, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 4 },
+  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, color: '#1b1400', letterSpacing: 0.6 },
+  heroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 4 },
+  heroStreakChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.20)', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  heroStreakText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff' },
+  memberSince: { fontFamily: 'Inter_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.75)' },
+  identitySection: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg, marginTop: Spacing.md },
   heroAvatarWrap: { marginTop: Spacing.xs },
   avatarLarge: { width: 84, height: 84, borderRadius: Radius.full, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg: { width: '100%', height: '100%' },

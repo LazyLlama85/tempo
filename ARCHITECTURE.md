@@ -208,8 +208,10 @@ you moving."*
   Quick Workout / History / Library stay as a secondary link row under any segment. The hub renders
   **even on a rest day / when nothing is scheduled** (the Session segment shows an empty state while
   Readiness/Splits/Workouts stay usable — the old separate "nothing scheduled" screen is gone).
-  **Discarding** an unstarted session now also **removes its synced calendar event** (best-effort, via
-  `removeWorkoutFromCalendar`) so no ghost workout lingers on the user's calendar. The **live
+  **Discarding** an unstarted session now **fully cancels** it — drops it from the plan (status
+  `rescheduled`, so it's ignored by the streak + never re-synced) **and** removes its synced calendar
+  event (best-effort, `removeWorkoutFromCalendar`) so no ghost workout lingers. The **finish screen**
+  (`workout-complete.tsx`) uses the `Elevation` depth ramp. The **live
   session runner is deliberately untouched** — every hub change is inside the `!sessionActive` branch,
   and Splits/Workouts actions route to the existing screens (single source of truth). Hub/loading/empty headers carry only the wordmark + avatar — no back
   button (it's a tab, not a pushed screen); only the live session keeps its chevron-down
@@ -305,11 +307,14 @@ you moving."*
   `exercise-progress`), and a **journey timeline**. Data comes from `useProgressStats` (extended
   additively to also expose `logTimes` + `muscleSets` + `strengthSets` from its existing set-log query
   — no new fetches). Profile no longer duplicates any of the performance cards (see below).
-- **Profile** (`(tabs)/profile.tsx`): identity + config surface. A single glanceable stat — the
-  gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1").
-  (Enriched-Calm: the hero uses `Elevation.e2` and cards use `e1` for premium depth — style-only.) The
-  stat grid, achievements grid, and Personal Records card were **removed** so Progress owns all
-  performance stats; Profile keeps **Body
+- **Profile** (`(tabs)/profile.tsx`): identity + config surface. The **level/XP hero** now also shows
+  a **Pro badge** (gold, when `useProAccess().isPro`), a **streak chip**, and **member-since**. Below
+  it (`components/ProfileCards.tsx`): a **Fitness Identity card** (goal · frequency · session length ·
+  equipment · active split, as chips — from `profile` + `fetchActiveSplit`) and a **Tempo Insights
+  grid** (WHOOP/Oura-style stat tiles: workouts, streak, consistency, PRs, volume, readiness — from
+  `useProgressStats` + `readinessFromHistory`; no new fetches beyond the split). Hero uses
+  `Elevation.e2`, cards `e1`. This surfaces stats *on Profile as identity*, distinct from Progress's
+  analytics dashboard. Profile keeps **Body
   Stats** (weight + body-fat + waist trends, progress-photo capture — the only place to *log* a
   measurement; "View trend" links to Progress), saved exercise swaps, a
   **"Right Now"** section (temporary/personal adjustments — **travel mode + injuries**, surfaced at

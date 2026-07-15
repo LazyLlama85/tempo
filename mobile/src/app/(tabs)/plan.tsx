@@ -1171,23 +1171,27 @@ export default function WorkoutsScreen() {
         await supabase.from('workout_logs').delete().eq('id', workoutLogId)
       } catch { /* an orphaned zero-set log is closed out by the stale-log sweep */ }
     }
-    // Discarding means "I'm not doing this one" — so pull its synced calendar event
-    // too (best-effort), instead of leaving a ghost workout on the user's calendar.
-    if (workout?.calendar_event_id) {
+    // Discarding fully cancels this session: drop it from the plan/feed ('rescheduled'
+    // is ignored by the streak and never re-synced) and pull any synced calendar event,
+    // so nothing lingers on the user's calendar or their upcoming week.
+    if (workout) {
       try {
-        await removeWorkoutFromCalendar(supabase, {
-          id: workout.id,
-          focus: workout.focus,
-          planned_date: workout.planned_date,
-          planned_start_time: '00:00:00', // unused by remove; add-only field
-          planned_duration_min: workout.planned_duration_min,
-          calendar_event_id: workout.calendar_event_id,
-          calendar_provider: workout.calendar_provider,
-        }, userId)
-        setWorkout(w => (w ? { ...w, calendar_event_id: null, calendar_provider: null } : w))
+        if (workout.calendar_event_id) {
+          await removeWorkoutFromCalendar(supabase, {
+            id: workout.id,
+            focus: workout.focus,
+            planned_date: workout.planned_date,
+            planned_start_time: '00:00:00', // unused by remove; add-only field
+            planned_duration_min: workout.planned_duration_min,
+            calendar_event_id: workout.calendar_event_id,
+            calendar_provider: workout.calendar_provider,
+          }, userId)
+        }
+        await supabase.from('scheduled_workouts').update({ status: 'rescheduled' }).eq('id', workout.id).eq('user_id', userId)
+        setWorkout(null)
         queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
         queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
-      } catch { /* best-effort — the pointer is cleared server-side regardless */ }
+      } catch { /* best-effort — a partial failure never corrupts anything */ }
     }
     setSessionActive(false)
     setWorkoutLogId(null)
