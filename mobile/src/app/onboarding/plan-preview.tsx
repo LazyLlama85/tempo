@@ -3,7 +3,7 @@ import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
@@ -344,7 +344,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
   planCard: {
     backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
-    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm, marginTop: Spacing.xs,
+    borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, gap: Spacing.sm, marginTop: Spacing.xs,
   },
   programEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   programName: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -2 },

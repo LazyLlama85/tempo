@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
-import { Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
@@ -279,7 +279,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroTitle: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center' },
   heroSub: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.md },
 
-  valueCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow },
+  valueCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Elevation.e1 },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   valueIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   valueTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
@@ -293,6 +293,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, padding: Spacing.lg,
     borderWidth: 2, borderColor: 'transparent',
+    ...Elevation.e1,
   },
   planSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
   radio: {
@@ -309,7 +310,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   trialNote: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, textAlign: 'center' },
 
   footer: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm, gap: Spacing.sm, borderTopWidth: 1, borderTopColor: C.outlineVariant },
-  cta: { backgroundColor: C.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
+  cta: { backgroundColor: C.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center', minHeight: 52, ...Elevation.e2 },
   ctaDisabled: { opacity: 0.5 },
   ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff', letterSpacing: 0.2 },
   footerLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },

@@ -6,7 +6,7 @@ import {
 import { useRouter, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -200,7 +200,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   preview: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
   avatarLarge: {
     width: 84, height: 84, borderRadius: Radius.full,
-    alignItems: 'center', justifyContent: 'center', ...CardShadow,
+    alignItems: 'center', justifyContent: 'center', ...Elevation.e1,
   },
   previewName: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.2 },
 

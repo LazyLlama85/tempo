@@ -12,7 +12,7 @@ import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-nati
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
@@ -364,7 +364,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
   previewCard: {
     backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
-    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.sm,
+    borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, gap: Spacing.sm,
   },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   previewIconChip: {

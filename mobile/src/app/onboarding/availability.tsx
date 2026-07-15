@@ -14,7 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -339,7 +339,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
   card: {
     backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
-    ...CardShadow, overflow: 'hidden',
+    ...Elevation.e1, overflow: 'hidden',
   },
   divider: { height: 1, backgroundColor: C.surfaceContainerHigh, marginLeft: Spacing.md },
   timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
