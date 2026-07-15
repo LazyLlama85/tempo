@@ -297,6 +297,12 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     })),
     [setLogsQ.data],
   )
+  // Per-set muscle group + when it was trained — powers the Training tab's
+  // per-muscle recovery readout (lib/fitnessInsights.muscleRecovery). Additive.
+  const muscleTimeline = useMemo(
+    () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({ group: sl.muscleGroup, at: sl.completed_at })),
+    [setLogsQ.data],
+  )
 
   return {
     stats,
@@ -308,6 +314,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     logTimes,
     muscleSets,
     strengthSets,
+    muscleTimeline,
     isLoading: workoutsQ.isLoading || setLogsQ.isLoading,
     isError: workoutsQ.isError || setLogsQ.isError,
     refetch: async () => { await Promise.all([workoutsQ.refetch(), setLogsQ.refetch()]) },

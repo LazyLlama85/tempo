@@ -549,7 +549,62 @@ export function strengthTrends(sets: StrengthSet[], limit = 4): StrengthTrend[] 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 11. JOURNEY TIMELINE — the emotional "how far you've come" story.
+// 12. WORKOUT READINESS HELPERS (Training tab — "what should I do today?")
+//     Distinct from the Progress dashboard: these drive workout SELECTION, not
+//     analytics. `intensityFromReadiness` maps a 0–100 readiness to a training
+//     intensity; `muscleRecovery` reports per-muscle-group recovery from set logs.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface Intensity { label: 'Easy' | 'Moderate' | 'Hard'; blurb: string }
+
+export function intensityFromReadiness(score: number): Intensity {
+  if (score >= 75) return { label: 'Hard', blurb: 'Good day to push — heavier loads or higher intensity.' }
+  if (score >= 50) return { label: 'Moderate', blurb: 'Train as planned; adjust by feel.' }
+  return { label: 'Easy', blurb: 'Keep it light — technique work or a shorter session.' }
+}
+
+export type RecoveryStatus = 'recovered' | 'recovering' | 'fatigued' | 'untrained'
+export interface MuscleRecovery { group: string; hours: number | null; status: RecoveryStatus; label: string }
+export interface MuscleRecoveryResult { groups: MuscleRecovery[]; recommendedFocus: string; recommendedReason: string }
+
+// The five coarse groups Tempo's exercises bucket into (core is trained implicitly).
+const RECOVERY_GROUPS = ['chest', 'back', 'legs', 'shoulders', 'arms'] as const
+// Which "day" trains a recovered group first — maps a group to a split label.
+const DAY_FOR_GROUP: Record<string, string> = { chest: 'Push', shoulders: 'Push', arms: 'Push', back: 'Pull', legs: 'Legs' }
+
+/** `sets` = working sets with the exercise's coarse muscle_group + completed_at. */
+export function muscleRecovery(sets: { group: string | null; at: string | null }[], now: Date = new Date()): MuscleRecoveryResult {
+  const lastAt = new Map<string, number>()
+  for (const s of sets) {
+    if (!s.group || !s.at) continue
+    const g = s.group.toLowerCase()
+    const t = new Date(s.at).getTime()
+    if (!Number.isFinite(t) || t > now.getTime()) continue
+    if (!lastAt.has(g) || t > (lastAt.get(g) as number)) lastAt.set(g, t)
+  }
+
+  const groups: MuscleRecovery[] = RECOVERY_GROUPS.map((group) => {
+    const t = lastAt.get(group)
+    if (t == null) return { group, hours: null, status: 'untrained' as RecoveryStatus, label: 'Ready' }
+    const hours = Math.round((now.getTime() - t) / 3_600_000)
+    const status: RecoveryStatus = hours >= 48 ? 'recovered' : hours >= 24 ? 'recovering' : 'fatigued'
+    const label = status === 'recovered' ? 'Fully recovered' : status === 'recovering' ? 'Recovering' : 'Needs rest'
+    return { group, hours, status, label }
+  })
+
+  // Recommend a focus for the most-recovered (untrained ranks highest) region.
+  const rank = (g: MuscleRecovery) => (g.status === 'untrained' ? Number.MAX_SAFE_INTEGER : (g.hours ?? 0))
+  const top = [...groups].sort((a, b) => rank(b) - rank(a))[0]
+  const recommendedFocus = DAY_FOR_GROUP[top.group] ?? 'Full Body'
+  const recommendedReason = top.status === 'untrained'
+    ? `Your ${top.group} hasn't been trained recently.`
+    : `Your ${top.group} is ${top.label.toLowerCase()}.`
+
+  return { groups, recommendedFocus, recommendedReason }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 13. JOURNEY TIMELINE — the emotional "how far you've come" story.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface JourneyEvent { date: string; title: string; detail: string; icon: string }

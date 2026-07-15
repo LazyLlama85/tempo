@@ -10,7 +10,12 @@ import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useProgressStats } from '@/hooks/useProgressStats'
+import { fetchSplits } from '@/lib/splits'
+import { fetchTemplates } from '@/lib/workoutBuilder'
+import { readinessFromHistory, intensityFromReadiness, muscleRecovery } from '@/lib/fitnessInsights'
+import { TrainSegments, TrainReadinessView, SplitsView, WorkoutsView, type TrainSeg } from '@/components/TrainSegments'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -194,6 +199,28 @@ export default function WorkoutsScreen() {
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const experience = useAuthStore(s => s.profile?.experience)
+
+  // ── Training hub segmented nav (Readiness / Splits / Workouts / Session) ──────
+  // Strictly Training: readiness for choosing today's workout + the user's splits
+  // and saved workouts. No Progress analytics, no Calendar scheduling here.
+  const [hubSeg, setHubSeg] = useState<TrainSeg>('session')
+  const { workouts: histWorkouts, logTimes, muscleTimeline } = useProgressStats(userId)
+  const trainReady = useMemo(() => {
+    const r = readinessFromHistory(histWorkouts, logTimes, new Date())
+    return { readiness: r, intensity: intensityFromReadiness(r.score), muscle: muscleRecovery(muscleTimeline, new Date()) }
+  }, [histWorkouts, logTimes, muscleTimeline])
+  const { data: hubSplits = [], isLoading: splitsLoading } = useQuery({
+    queryKey: ['train_splits', userId],
+    queryFn: () => fetchSplits(supabase, userId),
+    enabled: !!userId && hubSeg === 'splits',
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: hubTemplates = [], isLoading: templatesLoading } = useQuery({
+    queryKey: ['train_templates', userId],
+    queryFn: () => fetchTemplates(supabase, userId),
+    enabled: !!userId && hubSeg === 'workouts',
+    staleTime: 5 * 60 * 1000,
+  })
 
   const [workout, setWorkout] = useState<WorkoutRow | null>(null)
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
@@ -1349,6 +1376,10 @@ export default function WorkoutsScreen() {
           }
         />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <TrainSegments value={hubSeg} onChange={setHubSeg} />
+
+          {hubSeg === 'session' && (
+          <>
           <FadeInView style={styles.hubHero}>
             <View style={styles.hubEyebrowRow}>
               <Text style={styles.hubEyebrow}>{workoutLogId ? 'IN PROGRESS' : "TODAY'S SESSION"}</Text>
@@ -1378,30 +1409,6 @@ export default function WorkoutsScreen() {
                 <Text style={styles.hubEditText}>Edit workout</Text>
               </PressableScale>
             </View>
-          </FadeInView>
-
-          {/* Prominent quick-nav — the workout hub's most-used destinations promoted
-              from small bottom links to full cards. Multi-accent (blue/ember/gold) so
-              each reads as its own thing, per the enriched Tempo palette. */}
-          <FadeInView delay={40} style={styles.hubNav}>
-            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/my-workouts' as any)}>
-              <View style={[styles.hubNavIcon, { backgroundColor: C.primarySoft }]}>
-                <Ionicons name="construct" size={20} color={C.primary} />
-              </View>
-              <Text style={styles.hubNavLabel}>Workouts</Text>
-            </PressableScale>
-            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/my-splits' as any)}>
-              <View style={[styles.hubNavIcon, { backgroundColor: C.emberSoft }]}>
-                <Ionicons name="repeat" size={20} color={C.ember} />
-              </View>
-              <Text style={styles.hubNavLabel}>Splits</Text>
-            </PressableScale>
-            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/(tabs)')}>
-              <View style={[styles.hubNavIcon, { backgroundColor: C.goldSoft }]}>
-                <Ionicons name="calendar" size={20} color={C.gold} />
-              </View>
-              <Text style={styles.hubNavLabel}>Agenda</Text>
-            </PressableScale>
           </FadeInView>
 
           <FadeInView delay={70} style={styles.hubList}>
@@ -1437,9 +1444,31 @@ export default function WorkoutsScreen() {
               <Text style={styles.hubStartText}>{workoutLogId ? 'Resume session' : 'Start session'}</Text>
             </PressableScale>
           </FadeInView>
+          </>
+          )}
 
-          {/* Secondary links — Workouts & Splits are now the prominent cards above,
-              so this row keeps the remaining destinations reachable without duplication. */}
+          {hubSeg === 'readiness' && (
+            <TrainReadinessView readiness={trainReady.readiness} intensity={trainReady.intensity} muscle={trainReady.muscle} />
+          )}
+          {hubSeg === 'splits' && (
+            <SplitsView
+              splits={hubSplits}
+              loading={splitsLoading}
+              onOpenSplit={() => router.push('/my-splits' as any)}
+              onManage={() => router.push('/my-splits' as any)}
+            />
+          )}
+          {hubSeg === 'workouts' && (
+            <WorkoutsView
+              templates={hubTemplates}
+              loading={templatesLoading}
+              onOpenWorkout={() => router.push('/my-workouts' as any)}
+              onBrowse={() => router.push('/my-workouts' as any)}
+              onCreate={() => router.push('/workout-builder' as any)}
+            />
+          )}
+
+          {/* Quick destinations — always available under any segment. */}
           <View style={styles.emptyLinksRow}>
             <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/quick-workout')} activeOpacity={0.7}>
               <Ionicons name="flash" size={15} color={C.textSecondary} />

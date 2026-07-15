@@ -9,6 +9,8 @@ import {
   frequencySeries,
   muscleBalance,
   strengthTrends,
+  intensityFromReadiness,
+  muscleRecovery,
   journeyTimeline,
 } from '../fitnessInsights'
 import type { StreakRow } from '../streak'
@@ -148,6 +150,30 @@ describe('strengthTrends', () => {
     expect(bench!.pct).toBeCloseTo(20, 1)
     expect(t.find((x) => x.id === 'squat')).toBeUndefined() // no gain
     expect(t.find((x) => x.id === 'ohp')).toBeUndefined() // single day
+  })
+})
+
+describe('intensityFromReadiness', () => {
+  it('maps a readiness score to a training intensity', () => {
+    expect(intensityFromReadiness(85).label).toBe('Hard')
+    expect(intensityFromReadiness(60).label).toBe('Moderate')
+    expect(intensityFromReadiness(30).label).toBe('Easy')
+  })
+})
+
+describe('muscleRecovery', () => {
+  it('classifies per-muscle recovery and recommends a focus', () => {
+    const now = new Date(`${TODAY}T18:00:00`)
+    const sets = [
+      { group: 'chest', at: `${d(-3)}T10:00:00` }, // ~3 days → recovered
+      { group: 'legs', at: `${TODAY}T09:00:00` },  // ~9h → fatigued
+    ]
+    const mr = muscleRecovery(sets, now)
+    expect(mr.groups).toHaveLength(5)
+    expect(mr.groups.find((g) => g.group === 'chest')!.status).toBe('recovered')
+    expect(mr.groups.find((g) => g.group === 'legs')!.status).toBe('fatigued')
+    expect(mr.groups.find((g) => g.group === 'back')!.status).toBe('untrained')
+    expect(typeof mr.recommendedFocus).toBe('string')
   })
 })
 

@@ -197,12 +197,17 @@ you moving."*
   listener now re-runs just that cheap check (not the whole entry sweep) whenever the app foregrounds
   on a new calendar day. A "Google Calendar needs reconnecting" banner (see §5) can also appear here.
 - **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
-  Tapping the tab (no `workoutId` param) lands on the **hub** — the day's session previewed
-  (focus, exercise list, sets) with a **Start session** button. **Redesign (Phase 3):** the hub now
-  promotes its top destinations to a prominent multi-accent card row — **Workouts** (blue),
-  **Splits** (ember), **Agenda** (gold) — and keeps Quick Workout / History / Library as a secondary
-  link row (no destination removed; cards + list carry the `Elevation` depth ramp). The **live
-  session runner is deliberately untouched** — all hub-only, style + one additive nav row. Hub/loading/empty headers carry only the wordmark + avatar — no back
+  Tapping the tab (no `workoutId` param) lands on the **hub**. **Training redesign:** the hub is now a
+  four-way **segmented control** (`components/TrainSegments.tsx`) — kept strictly to Training (no
+  Progress analytics, no Calendar scheduling): **Session** (default — today's session preview: focus,
+  exercise list, **Start session**), **Readiness** (a workout-focused card — readiness score +
+  recommended intensity Easy/Moderate/Hard + per-muscle recovery for chest/back/legs/shoulders/arms +
+  a recommended focus, from `fitnessInsights.readinessFromHistory`/`intensityFromReadiness`/
+  `muscleRecovery` over `useProgressStats`), **Splits** (the user's `fetchSplits` list as premium
+  cards → `my-splits`), **Workouts** (the user's `fetchTemplates` list + search → `my-workouts`).
+  Quick Workout / History / Library stay as a secondary link row under any segment. The **live
+  session runner is deliberately untouched** — every change is inside the `!sessionActive` hub branch,
+  and Splits/Workouts actions route to the existing screens (single source of truth). Hub/loading/empty headers carry only the wordmark + avatar — no back
   button (it's a tab, not a pushed screen); only the live session keeps its chevron-down
   leave-to-hub control. You only enter the live logger deliberately (hub button, or an
   explicit start from Home / Quick Workout which pass a `workoutId`), and the `workout_logs` row +
