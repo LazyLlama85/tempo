@@ -14,6 +14,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { FadeInView, PressableScale } from '@/components/motion'
 import { CountUp } from '@/components/celebration'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
+import { HeroGlow } from '@/components/HeroGlow'
 import type {
   Momentum, Readiness, Predictor, Heatmap, ForecastDay, OptimalWindow, JourneyEvent,
   FrequencySeries, FreqRange, MuscleBalance, StrengthTrend,
@@ -89,6 +90,7 @@ export function ReadinessCard({ readiness, delay = 0 }: { readiness: Readiness; 
   const C = useTheme()
   const s = useThemedStyles(makeStyles)
   const band = scoreBand(C, readiness.score)
+  const bandGlow = readiness.score >= 80 ? 'rgba(34,197,94,0.16)' : readiness.score >= 55 ? C.goldGlow : C.emberGlow
 
   return (
     <FadeInView style={s.card} delay={delay}>
@@ -97,12 +99,15 @@ export function ReadinessCard({ readiness, delay = 0 }: { readiness: Readiness; 
         <Text style={[s.pill, { color: band, borderColor: band }]}>{readiness.label}</Text>
       </View>
       <View style={s.readyBody}>
-        <SvgProgressRing value={readiness.score} size={104} stroke={11} gradientFrom={band} gradientTo={band} delay={delay + 150}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <CountUp value={readiness.score} delay={delay + 250} style={[s.readyNum, { color: band }]} />
-            <Text style={[s.readyPct, { color: band }]}>%</Text>
-          </View>
-        </SvgProgressRing>
+        <View style={s.readyRingWrap}>
+          <HeroGlow color={bandGlow} size={132} />
+          <SvgProgressRing value={readiness.score} size={104} stroke={11} gradientFrom={band} gradientTo={band} delay={delay + 150}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <CountUp value={readiness.score} delay={delay + 250} style={[s.readyNum, { color: band }]} />
+              <Text style={[s.readyPct, { color: band }]}>%</Text>
+            </View>
+          </SvgProgressRing>
+        </View>
         <View style={s.readyRight}>
           <Text style={s.readyHeadline}>{readiness.headline}</Text>
           <ReadyComponentRow label="Recovery" comp={readiness.recovery} />
@@ -479,7 +484,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   // Hero
   heroCard: { backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.lg, gap: Spacing.md, overflow: 'hidden', borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e2 },
-  heroGlow: { position: 'absolute', top: -80, right: -60, width: 220, height: 220, borderRadius: 110, backgroundColor: C.primarySoft },
+  heroGlow: { position: 'absolute', top: -80, right: -60, width: 220, height: 220, borderRadius: 110, backgroundColor: C.primaryGlow },
   heroEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 1 },
   heroNumber: { fontFamily: C.fontDisplay, fontSize: Typography.metricHero.fontSize, lineHeight: Typography.metricHero.lineHeight, color: C.text, letterSpacing: Typography.metricHero.letterSpacing },
   heroDenom: { fontFamily: 'Inter_500Medium', fontSize: 18, color: C.textSecondary, marginBottom: 8 },
@@ -492,6 +497,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   // Readiness
   readyBody: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  readyRingWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   readyNum: { fontFamily: C.fontDisplay, fontSize: 30, letterSpacing: -1 },
   readyPct: { fontFamily: C.fontDisplay, fontSize: 16 },
   readyRight: { flex: 1, gap: Spacing.xs },
@@ -515,7 +521,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   predictorMsg: { fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.text, lineHeight: 19 },
 
   // Heatmap
-  heatStreak: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+  heatStreak: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.ember },
   heatGrid: { flexDirection: 'row', gap: 3, justifyContent: 'space-between' },
   heatCol: { gap: 3, flex: 1 },
   heatCell: { width: '100%', aspectRatio: 1, borderRadius: 2, maxHeight: 14 },

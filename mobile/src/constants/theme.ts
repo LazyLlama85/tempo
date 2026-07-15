@@ -71,6 +71,11 @@ const inkDark = {
   readyHigh: '#22C55E',
   readyMed: '#F2B84B',
   readyLow: '#FF6A45',
+  // Soft accent glows — the low-opacity blob behind a single hero ring/metric per
+  // screen (premium depth without a native blur). Pair with the `HeroGlow` component.
+  primaryGlow: 'rgba(78,139,255,0.22)',
+  emberGlow: 'rgba(255,106,69,0.20)',
+  goldGlow: 'rgba(217,161,59,0.20)',
   // Legacy aliases used in existing components
   backgroundElement: '#1F232B',
   backgroundSelected: '#232830',
@@ -129,6 +134,9 @@ const paperLight: Palette = {
   readyHigh: '#178A44',
   readyMed: '#B7791F',
   readyLow: '#E0451F',
+  primaryGlow: 'rgba(0,88,188,0.14)',
+  emberGlow: 'rgba(251,87,51,0.12)',
+  goldGlow: 'rgba(168,122,28,0.12)',
   backgroundElement: '#F6F3F4',
   backgroundSelected: '#EFF4FF',
 };

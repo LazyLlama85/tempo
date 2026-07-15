@@ -446,6 +446,9 @@ aware):**
   `JourneyTimeline`, `SectionLabel`). Pure presentational — fed pre-computed `lib/fitnessInsights`
   outputs by the Progress screen; reuse `SvgProgressRing`/`CountUp`/`FadeInView`/`PressableScale` and
   the new `glass`/`Elevation`/`metricHero` tokens so they match the rest of the app.
+- **`HeroGlow`** — a reusable soft accent blob (a large low-opacity `*Glow`-colored circle) placed
+  behind a single hero ring/metric per screen for premium depth without a native blur module. Static,
+  Reduce-Motion-safe. Used by the Progress Readiness ring; reusable on Today/Profile heroes.
 - **`EmptyState`** — illustrated empty states (geometric View-built art: calendar/barbell/chart/
   moon/flash + floating brand sparks) with title/body/CTA. Used app-wide — the three tabs **plus**
   Workout History, Weekly Report, Plan Explainer, Exercise Progress, and My Splits — so every
@@ -554,8 +557,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   (Progress charts), and `warning`/`readyHigh`/`readyMed`/`readyLow` (forecast/readiness good·caution·
   risk). `Typography.metricHero` (64px) for the single biggest number; `Radius` gains semantic
   `chip`/`card`/`sheet`/`pill`; `Motion` gains `micro`/`celebrate`/`stagger`; a new `Elevation` ramp
-  (e0–e3) sits alongside the kept `CardShadow`. The design strategy + direction review live in
-  `DESIGN_STRATEGY.md`.
+  (e0–e3) sits alongside the kept `CardShadow`; and soft `primaryGlow`/`emberGlow`/`goldGlow` for the
+  new `HeroGlow` component. **Confirmed visual direction = "Enriched-Calm"** — calm calendar-first
+  base + disciplined functional accents (blue dominant, ember=energy/streaks, gold=records/milestones)
+  + depth + one soft glow per screen; no wall-to-wall gradients, stock photos, or tactical copy. The
+  design strategy + direction review live in `DESIGN_STRATEGY.md`; execution plan in `~/.claude/plans/`.
 - **Theme engine:** `src/theme/` — a Zustand store (`useThemeStore`, persisted to the SQLite-backed
   `localStorage`, **default dark**) drives live dark/light switching. Screens read colors via
   `useTheme()` and build styles with `useThemedStyles(makeStyles)` so a mode change re-renders the

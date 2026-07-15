@@ -247,7 +247,7 @@ export default function ProgressScreen() {
               <View style={styles.statCard}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.statLabel}>NEXT MILESTONE</Text>
-                  <Ionicons name={nextMilestone.def.icon as any} size={16} color={C.primary} />
+                  <Ionicons name={nextMilestone.def.icon as any} size={16} color={C.gold} />
                 </View>
                 <View style={styles.statRow}>
                   <Text style={styles.milestoneName}>{nextMilestone.def.label}</Text>
@@ -256,7 +256,7 @@ export default function ProgressScreen() {
                   </Text>
                 </View>
                 <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { width: `${Math.round(nextMilestone.ratio * 100)}%` as `${number}%` }]} />
+                  <View style={[styles.barFill, { backgroundColor: C.gold, width: `${Math.round(nextMilestone.ratio * 100)}%` as `${number}%` }]} />
                 </View>
                 <Text style={styles.milestoneCaption}>
                   {nextMilestone.def.description} · {Math.round(nextMilestone.current).toLocaleString()}/{nextMilestone.target.toLocaleString()}
@@ -404,8 +404,8 @@ export default function ProgressScreen() {
                   onPress={() => { if (requirePro('advanced_analytics')) router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any) }}
                   scaleTo={0.98}
                 >
-                  <View style={styles.recordIcon}>
-                    <Ionicons name="barbell-outline" size={20} color={C.primary} />
+                  <View style={[styles.recordIcon, { backgroundColor: C.goldSoft }]}>
+                    <Ionicons name="barbell-outline" size={20} color={C.gold} />
                   </View>
                   <View style={styles.recordInfo}>
                     <Text style={styles.recordName}>{pr.name}</Text>
@@ -471,7 +471,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   barTrack: { height: 8, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full },
   barFill: { height: 8, backgroundColor: C.primary, borderRadius: Radius.full },
   milestoneName: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.4 },
-  milestoneRemain: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary, marginBottom: 4 },
+  milestoneRemain: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.gold, marginBottom: 4 },
   milestoneCaption: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary },
 
   periodToggle: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 3, gap: 2 },
