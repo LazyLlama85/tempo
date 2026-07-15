@@ -1,25 +1,27 @@
 // Tempo — Muscle Map.
 //
-// A stylized muscular figure (front + back) built from organic SVG shapes — rounded
-// muscle "bellies" and tapered limbs over a neutral silhouette, so it reads as a body,
-// not a block diagram. Motivational, not a medical chart. Each of the six coarse
-// muscle groups Tempo tracks (chest/back/shoulders/arms/legs/core) is a tappable,
-// status- or heat-coloured zone. (For a photoreal body, drop in a real anatomical SVG
-// asset and keep the same group ids + fills.)
+// Anatomically-real muscular figure (front + back) rendered from
+// `react-native-body-highlighter` (MIT) SVG path data. Each of the six coarse
+// muscle groups Tempo tracks (chest/back/shoulders/arms/legs/core) is mapped to
+// the library's fine muscle slugs and coloured by status / heatmap / rank, so the
+// same public API drives a realistic body instead of stylised blobs.
+//
+// Public API is unchanged from the previous geometric version: `MuscleMap`,
+// `muscleStatusColor`, `muscleTierColor`, the `MapBubble` interface and the
+// `MuscleGroup` / `BodyView` / `MapMode` types — every existing call site keeps
+// working, bubbles included (their anchors are re-derived from the anatomy below).
 
-import { ReactNode } from 'react'
-import Svg, { Ellipse, Path, G } from 'react-native-svg'
+import Body, { type Slug, type ExtendedBodyPart } from 'react-native-body-highlighter'
+import { bodyFront } from 'react-native-body-highlighter/dist/assets/bodyFront'
+import { bodyBack } from 'react-native-body-highlighter/dist/assets/bodyBack'
 import { View, Text, StyleSheet } from 'react-native'
-import { Spacing, Radius } from '@/constants/theme'
+import { Radius } from '@/constants/theme'
 import { useTheme, type Palette } from '@/theme'
 import type { MuscleStatus, MuscleTier } from '@/lib/fitnessInsights'
 
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core'
 export type BodyView = 'front' | 'back'
 export type MapMode = 'status' | 'heatmap' | 'rank'
-
-const VB_W = 220
-const VB_H = 480
 
 export function muscleStatusColor(C: Palette, status: MuscleStatus | undefined): string {
   switch (status) {
@@ -43,81 +45,74 @@ export function muscleTierColor(C: Palette, tier: MuscleTier | undefined): strin
   }
 }
 
-type Shape =
-  | { t: 'e'; cx: number; cy: number; rx: number; ry: number }
-  | { t: 'p'; d: string }
-type Zones = Partial<Record<MuscleGroup, Shape[]>>
-
-// Neutral, non-muscle silhouette parts (head / neck / hips / hands / feet).
-const SILHOUETTE_FRONT: Shape[] = [
-  { t: 'e', cx: 110, cy: 44, rx: 22, ry: 27 },   // head
-  { t: 'p', d: 'M99 66 h22 v18 q-11 6 -22 0 Z' }, // neck
-  { t: 'e', cx: 110, cy: 250, rx: 33, ry: 22 },  // hips
-  { t: 'e', cx: 52, cy: 246, rx: 9, ry: 11 },    // L hand
-  { t: 'e', cx: 168, cy: 246, rx: 9, ry: 11 },   // R hand
-  { t: 'e', cx: 91, cy: 455, rx: 13, ry: 12 },   // L foot
-  { t: 'e', cx: 129, cy: 455, rx: 13, ry: 12 },  // R foot
-]
-const SILHOUETTE_BACK = SILHOUETTE_FRONT
-
-const FRONT: Zones = {
-  shoulders: [
-    { t: 'e', cx: 66, cy: 104, rx: 21, ry: 18 },
-    { t: 'e', cx: 154, cy: 104, rx: 21, ry: 18 },
-  ],
-  chest: [
-    { t: 'e', cx: 90, cy: 122, rx: 22, ry: 17 },
-    { t: 'e', cx: 130, cy: 122, rx: 22, ry: 17 },
-  ],
-  arms: [
-    { t: 'e', cx: 55, cy: 156, rx: 14, ry: 30 },   // L bicep
-    { t: 'e', cx: 51, cy: 212, rx: 12, ry: 32 },   // L forearm
-    { t: 'e', cx: 165, cy: 156, rx: 14, ry: 30 },  // R bicep
-    { t: 'e', cx: 169, cy: 212, rx: 12, ry: 32 },  // R forearm
-  ],
-  core: [{ t: 'e', cx: 110, cy: 182, rx: 24, ry: 44 }],
-  legs: [
-    { t: 'e', cx: 91, cy: 312, rx: 20, ry: 58 },   // L quad
-    { t: 'e', cx: 91, cy: 412, rx: 15, ry: 40 },   // L calf
-    { t: 'e', cx: 129, cy: 312, rx: 20, ry: 58 },  // R quad
-    { t: 'e', cx: 129, cy: 412, rx: 15, ry: 40 },  // R calf
-  ],
+// Tempo's coarse group → the library's fine muscle slugs, per view. Muscles that
+// don't exist on a given view (e.g. chest on the back) simply have no slugs there.
+const GROUP_TO_SLUGS_FRONT: Record<MuscleGroup, Slug[]> = {
+  chest: ['chest'],
+  back: ['trapezius'],
+  shoulders: ['deltoids'],
+  arms: ['biceps', 'triceps', 'forearm'],
+  legs: ['quadriceps', 'calves', 'adductors', 'tibialis'],
+  core: ['abs', 'obliques'],
+}
+const GROUP_TO_SLUGS_BACK: Record<MuscleGroup, Slug[]> = {
+  chest: [],
+  back: ['trapezius', 'upper-back', 'lower-back'],
+  shoulders: ['deltoids'],
+  arms: ['triceps', 'forearm'],
+  legs: ['gluteal', 'hamstring', 'calves', 'adductors'],
+  core: [],
 }
 
-const BACK: Zones = {
-  shoulders: [
-    { t: 'e', cx: 66, cy: 104, rx: 21, ry: 18 },
-    { t: 'e', cx: 154, cy: 104, rx: 21, ry: 18 },
-  ],
-  back: [
-    { t: 'e', cx: 110, cy: 104, rx: 30, ry: 15 },  // traps
-    { t: 'e', cx: 90, cy: 145, rx: 21, ry: 34 },   // L lat
-    { t: 'e', cx: 130, cy: 145, rx: 21, ry: 34 },  // R lat
-    { t: 'e', cx: 110, cy: 190, rx: 22, ry: 28 },  // lower back
-  ],
-  arms: [
-    { t: 'e', cx: 55, cy: 156, rx: 14, ry: 30 },
-    { t: 'e', cx: 51, cy: 212, rx: 12, ry: 32 },
-    { t: 'e', cx: 165, cy: 156, rx: 14, ry: 30 },
-    { t: 'e', cx: 169, cy: 212, rx: 12, ry: 32 },
-  ],
-  legs: [
-    { t: 'e', cx: 110, cy: 252, rx: 33, ry: 22 },  // glutes
-    { t: 'e', cx: 91, cy: 318, rx: 20, ry: 56 },   // L ham
-    { t: 'e', cx: 91, cy: 414, rx: 15, ry: 40 },   // L calf
-    { t: 'e', cx: 129, cy: 318, rx: 20, ry: 56 },  // R ham
-    { t: 'e', cx: 129, cy: 414, rx: 15, ry: 40 },  // R calf
-  ],
+function invertGroups(m: Record<MuscleGroup, Slug[]>): Partial<Record<Slug, MuscleGroup>> {
+  const out: Partial<Record<Slug, MuscleGroup>> = {}
+  ;(Object.keys(m) as MuscleGroup[]).forEach((g) => m[g].forEach((s) => { out[s] = g }))
+  return out
 }
+const SLUG_TO_GROUP_FRONT = invertGroups(GROUP_TO_SLUGS_FRONT)
+const SLUG_TO_GROUP_BACK = invertGroups(GROUP_TO_SLUGS_BACK)
 
-// Bubble anchor (normalized 0–1 within the viewBox) per group.
-const ANCHOR: Record<MuscleGroup, { x: number; y: number }> = {
-  chest: { x: 0.5, y: 0.25 },
-  back: { x: 0.5, y: 0.23 },
-  shoulders: { x: 0.3, y: 0.21 },
-  arms: { x: 0.25, y: 0.33 },
-  core: { x: 0.5, y: 0.38 },
-  legs: { x: 0.5, y: 0.66 },
+// --- Bubble anchors: centroid per group derived from the anatomy path data, so
+// recovery-% / rank callouts land on the right muscle. Front viewBox is
+// "0 0 724 1448", back is "724 0 724 1448" (SvgMaleWrapper).
+const VB_W = 724
+const VB_H = 1448
+type Anchor = { x: number; y: number }
+type PathPart = { slug?: Slug; path?: { common?: string[]; left?: string[]; right?: string[] } }
+
+function computeAnchors(
+  body: ReadonlyArray<PathPart>,
+  groupMap: Record<MuscleGroup, Slug[]>,
+  xOffset: number,
+): Partial<Record<MuscleGroup, Anchor>> {
+  const out: Partial<Record<MuscleGroup, Anchor>> = {}
+  ;(Object.keys(groupMap) as MuscleGroup[]).forEach((g) => {
+    const slugs = groupMap[g]
+    if (!slugs.length) return
+    let sx = 0, sy = 0, n = 0
+    for (const part of body) {
+      if (!part.slug || !slugs.includes(part.slug)) continue
+      for (const arr of [part.path?.common, part.path?.left, part.path?.right]) {
+        if (!arr) continue
+        for (const d of arr) {
+          const nums = d.match(/-?\d*\.?\d+/g)
+          if (!nums) continue
+          for (let i = 0; i + 1 < nums.length; i += 2) { sx += +nums[i]; sy += +nums[i + 1]; n++ }
+        }
+      }
+    }
+    if (n > 0) out[g] = { x: (sx / n - xOffset) / VB_W, y: (sy / n) / VB_H }
+  })
+  return out
+}
+const ANCHOR_FRONT = computeAnchors(bodyFront as ReadonlyArray<PathPart>, GROUP_TO_SLUGS_FRONT, 0)
+const ANCHOR_BACK = computeAnchors(bodyBack as ReadonlyArray<PathPart>, GROUP_TO_SLUGS_BACK, VB_W)
+
+function hexToRgba(hex: string, a: number): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim())
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a.toFixed(3)})`
 }
 
 export interface MapBubble { group: MuscleGroup; text: string; tone: string }
@@ -139,49 +134,57 @@ export function MuscleMap({
   size?: number
 }) {
   const C = useTheme()
-  const zones = view === 'front' ? FRONT : BACK
-  const silhouette = view === 'front' ? SILHOUETTE_FRONT : SILHOUETTE_BACK
-  const neutral = C.surfaceContainerHigh
-  const w = size
-  const h = size * (VB_H / VB_W)
+  const isFront = view === 'front'
+  const groupMap = isFront ? GROUP_TO_SLUGS_FRONT : GROUP_TO_SLUGS_BACK
+  const slugToGroup = isFront ? SLUG_TO_GROUP_FRONT : SLUG_TO_GROUP_BACK
+  const anchors = isFront ? ANCHOR_FRONT : ANCHOR_BACK
 
-  const renderShape = (sh: Shape, key: number, fill: string, opacity: number, sel: boolean): ReactNode =>
-    sh.t === 'e' ? (
-      <Ellipse key={key} cx={sh.cx} cy={sh.cy} rx={sh.rx} ry={sh.ry} fill={fill} fillOpacity={opacity}
-        stroke={sel ? C.text : 'transparent'} strokeWidth={sel ? 2.5 : 0} />
-    ) : (
-      <Path key={key} d={sh.d} fill={fill} fillOpacity={opacity}
-        stroke={sel ? C.text : 'transparent'} strokeWidth={sel ? 2.5 : 0} />
-    )
-
-  const fillFor = (group: MuscleGroup): { fill: string; opacity: number } => {
+  const colorForGroup = (g: MuscleGroup): string => {
     if (mode === 'heatmap') {
-      const heat = Math.max(0, Math.min(1, heatByGroup?.[group] ?? 0))
-      return { fill: C.primary, opacity: dimmed ? (0.1 + heat * 0.35) : (0.14 + heat * 0.86) }
+      const heat = Math.max(0, Math.min(1, heatByGroup?.[g] ?? 0))
+      return hexToRgba(C.primary, 0.14 + heat * 0.86)
     }
-    if (mode === 'rank') {
-      return { fill: muscleTierColor(C, rankByGroup?.[group]), opacity: dimmed ? 0.45 : 1 }
-    }
-    return { fill: muscleStatusColor(C, statusByGroup[group]), opacity: dimmed ? 0.45 : 1 }
+    if (mode === 'rank') return muscleTierColor(C, rankByGroup?.[g])
+    return muscleStatusColor(C, statusByGroup[g])
   }
+
+  // Expand each group's colour onto its member muscles; highlight the selected group.
+  const data: ExtendedBodyPart[] = []
+  ;(Object.keys(groupMap) as MuscleGroup[]).forEach((g) => {
+    const slugs = groupMap[g]
+    if (!slugs.length) return
+    const color = colorForGroup(g)
+    const sel = selected === g
+    slugs.forEach((slug) =>
+      data.push(sel ? { slug, color, styles: { stroke: C.text, strokeWidth: 2 } } : { slug, color }))
+  })
+
+  const scale = size / 200 // SvgMaleWrapper renders at 200*scale × 400*scale
+  const w = size
+  const h = size * 2
 
   return (
     <View style={[styles.wrap, { width: w, height: h }]}>
-      <Svg width={w} height={h} viewBox={`0 0 ${VB_W} ${VB_H}`}>
-        <G>{silhouette.map((sh, i) => renderShape(sh, i, neutral, 1, false))}</G>
-        {(Object.keys(zones) as MuscleGroup[]).map((group) => {
-          const isSel = selected === group
-          const { fill, opacity } = fillFor(group)
-          return (
-            <G key={group} onPress={onSelect ? () => onSelect(group) : undefined}>
-              {zones[group]!.map((sh, i) => renderShape(sh, i, fill, opacity, isSel))}
-            </G>
-          )
-        })}
-      </Svg>
+      <View style={{ opacity: dimmed ? 0.5 : 1 }}>
+        <Body
+          data={data}
+          side={view}
+          gender="male"
+          scale={scale}
+          border={C.outline}
+          defaultFill={C.surfaceContainerHigh}
+          onBodyPartPress={onSelect ? (p) => {
+            const s = p.slug
+            if (!s) return
+            const g = slugToGroup[s]
+            if (g) onSelect(g)
+          } : undefined}
+        />
+      </View>
 
       {bubbles?.map((b) => {
-        const a = ANCHOR[b.group]
+        const a = anchors[b.group]
+        if (!a) return null
         return (
           <View key={b.group} pointerEvents="none" style={[styles.bubble, { backgroundColor: b.tone, left: a.x * w - 20, top: a.y * h - 12 }]}>
             <Text style={styles.bubbleText}>{b.text}</Text>
