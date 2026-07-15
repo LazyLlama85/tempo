@@ -41,6 +41,7 @@ import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
 import { suggestNextSlot, rescheduleWorkout, type SlotSuggestion } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
+import { trackCalendarConnected } from '@/lib/activation'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
 import { getTodayCheckin } from '@/lib/recovery'
@@ -659,6 +660,9 @@ export default function ScheduleScreen() {
   const addViaDevice = async (workout: ScheduledWorkout) => {
     const granted = await requestCalendarPermissions()
     if (!granted) { openSettingsAlert(); return }
+    // Granting device-calendar permission is the "connected" moment for this path;
+    // de-duped per user+provider inside, so it never double-counts calendar-setup.
+    trackCalendarConnected(userId, 'device')
     const res = await addWorkoutToCalendar(supabase, workout, userId, 'device')
     if (res.ok) markCalendar(workout.id, res.eventId, res.provider)
     else Alert.alert('Error', 'Could not add workout to your device calendar.')

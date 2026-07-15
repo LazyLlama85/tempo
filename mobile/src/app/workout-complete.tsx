@@ -18,6 +18,7 @@ import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { SaveProgressSheet } from '@/components/SaveProgressSheet'
 import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
+import { maybeTrackActivation } from '@/lib/activation'
 import { useProAccess } from '@/stores/entitlements'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
 import { useTutorialStore } from '@/stores/tutorial'
@@ -71,6 +72,10 @@ export default function WorkoutCompleteScreen() {
       tut.setFirstWorkoutCompleted()
       track('first_workout_completed', { experience: profile?.experience, duration_min: mins || undefined })
     }
+    // This session is already banked (see above), so the "activated" check counts it.
+    // Fires the one-time activation event once the core loop is proven (2nd completed
+    // session); guarded + best-effort inside, so it never blocks this screen.
+    void maybeTrackActivation(userId)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A PR deserves a second, firmer buzz on top of the completion haptic.

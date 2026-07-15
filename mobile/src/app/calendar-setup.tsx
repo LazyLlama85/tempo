@@ -24,6 +24,7 @@ import {
 } from '@/services/googleCalendar/CalendarAuthService'
 import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
 import { syncUpcomingWorkouts, purgeSyncedWorkouts } from '@/lib/calendarAutoSync'
+import { trackCalendarConnected } from '@/lib/activation'
 
 function friendlyConnectError(code?: string): string {
   switch (code) {
@@ -73,6 +74,7 @@ export default function CalendarSetupScreen() {
     if (r.ok) {
       setGoogleConnected(true)
       setNeedsReconnect(false)
+      trackCalendarConnected(userId, 'google')
       await setPreferredCalendar('google')
       syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'google' }).catch(() => {})
       Alert.alert('Google Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')
@@ -89,6 +91,7 @@ export default function CalendarSetupScreen() {
     setBusy(null)
     setDeviceStatus(granted ? 'granted' : 'denied')
     if (granted) {
+      trackCalendarConnected(userId, 'device')
       await setPreferredCalendar('device')
       syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'device' }).catch(() => {})
       Alert.alert('Device Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')

@@ -54,6 +54,14 @@ export type EventProperties = {
   share_card_opened: undefined
   // Auto-progression graduated the user to a harder experience level.
   experience_promoted: { from: string; to: string }
+  // ── Retention & activation instrumentation (audit "Critical" tier) ──────────
+  // Fired once per user when the core loop is proven — they returned and completed
+  // their Nth session (see lib/activation.ACTIVATION_SESSIONS). The activation event
+  // PostHog builds retention cohorts and the onboarding→activation funnel from.
+  activation_reached: { sessions: number }
+  // Fired once per user+provider the first time a calendar is connected — the wedge
+  // adoption signal, so retention/consistency can be split by calendar-adopters vs not.
+  calendar_connected: { provider: 'google' | 'device' }
   // ── First-time experience (tutorial framework) ──────────────────────────────
   tutorial_started: { tutorial: string; experience?: string }
   tutorial_step_completed: { tutorial: string; step: string; experience?: string }

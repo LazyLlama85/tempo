@@ -810,6 +810,8 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `refreshSession()` so its "Tempo is refreshing it — tap Try Again" copy is true at every call
   site. Used by onboarding saves, the runner's start/set/complete writes, quick-workout start,
   Home's skip, split-editor template loads, and sign-in), `analytics` (PostHog, typed events),
+  **`activation`** (retention instrumentation — fires the one-time `activation_reached` +
+  `calendar_connected` events behind durable per-user flags; analytics-only, see §7),
   `crashReporting` (Sentry), `pushTokens` (register/enable device push — **never prompts for
   permission itself**; onboarding's primed ask and the Profile toggle own the OS prompt),
   `notifications` (local pre-workout reminder — now gated at its single choke point by the
@@ -1101,6 +1103,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 ## 7. Telemetry, privacy, store-readiness
 - **Analytics events:** `app_open`, signup/login, `onboarding_complete`, `session_start/end`,
   quick-workout generated, workout feedback, share-card opened — with platform + app-version props.
+  **Retention/activation instrumentation (`lib/activation.ts`):** `activation_reached` (fired **once**
+  per user when the core loop is proven — a returning 2nd completed session; from `workout-complete`)
+  and `calendar_connected` (fired **once** per user+provider the first time a calendar is connected —
+  the wedge-adoption signal; from `calendar-setup` for Google + device and Home's device-add path).
+  Both are de-duped by durable, per-user, force-close-proof localStorage flags (the same idiom as the
+  tutorial + guest-save prompts), so PostHog can build the onboarding→activation funnel and split
+  retention by calendar-adopters vs not. Analytics-only — no behavior change; no-ops without a key.
 - **Privacy/compliance:** in-app Privacy Policy + Terms (`legal.tsx`, opened from the sign-in footer
   **and** Profile → Privacy & Terms — the sign-in links were previously dead text, now wired),
   in-app **account deletion** (App Store Guideline 5.1.1(v)), per-user RLS everywhere, Google token
