@@ -16,6 +16,7 @@ import { fetchSplits } from '@/lib/splits'
 import { fetchTemplates } from '@/lib/workoutBuilder'
 import { removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { readinessFromHistory, intensityFromReadiness, muscleRecovery } from '@/lib/fitnessInsights'
+import { useProGate } from '@/stores/entitlements'
 import { TrainSegments, TrainReadinessView, SplitsView, WorkoutsView, type TrainSeg } from '@/components/TrainSegments'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
@@ -207,6 +208,7 @@ export default function WorkoutsScreen() {
   // Strictly Training: readiness for choosing today's workout + the user's splits
   // and saved workouts. No Progress analytics, no Calendar scheduling here.
   const [hubSeg, setHubSeg] = useState<TrainSeg>('session')
+  const { locked: proLocked } = useProGate()
   const { workouts: histWorkouts, logTimes, muscleTimeline } = useProgressStats(userId)
   const trainReady = useMemo(() => {
     const r = readinessFromHistory(histWorkouts, logTimes, new Date())
@@ -1448,7 +1450,13 @@ export default function WorkoutsScreen() {
           ))}
 
           {hubSeg === 'readiness' && (
-            <TrainReadinessView readiness={trainReady.readiness} intensity={trainReady.intensity} muscle={trainReady.muscle} />
+            <TrainReadinessView
+              readiness={trainReady.readiness}
+              intensity={trainReady.intensity}
+              muscle={trainReady.muscle}
+              locked={proLocked}
+              onUnlock={() => router.push({ pathname: '/paywall', params: { context: 'muscle_map' } } as any)}
+            />
           )}
           {hubSeg === 'splits' && (
             <SplitsView

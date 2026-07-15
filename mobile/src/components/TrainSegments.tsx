@@ -16,7 +16,8 @@ import { FadeInView, PressableScale } from '@/components/motion'
 import { CountUp } from '@/components/celebration'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { HeroGlow } from '@/components/HeroGlow'
-import type { Readiness, Intensity, MuscleRecoveryResult, RecoveryStatus } from '@/lib/fitnessInsights'
+import { MuscleMap, type MuscleGroup, type MapBubble } from '@/components/MuscleMap'
+import type { Readiness, Intensity, MuscleRecoveryResult, RecoveryStatus, MuscleStatus } from '@/lib/fitnessInsights'
 import type { Split, WorkoutTemplate } from '@/types'
 
 export type TrainSeg = 'readiness' | 'splits' | 'workouts' | 'session'
@@ -58,13 +59,24 @@ const STATUS_COLOR = (C: Palette, st: RecoveryStatus) =>
 const MUSCLE_LABEL: Record<string, string> = { chest: 'Chest', back: 'Back', legs: 'Legs', shoulders: 'Shoulders', arms: 'Arms' }
 
 export function TrainReadinessView({
-  readiness, intensity, muscle,
-}: { readiness: Readiness; intensity: Intensity; muscle: MuscleRecoveryResult }) {
+  readiness, intensity, muscle, locked = false, onUnlock,
+}: { readiness: Readiness; intensity: Intensity; muscle: MuscleRecoveryResult; locked?: boolean; onUnlock?: () => void }) {
   const C = useTheme()
   const s = useThemedStyles(makeStyles)
   const band = readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow
   const bandGlow = readiness.score >= 80 ? 'rgba(34,197,94,0.16)' : readiness.score >= 55 ? C.goldGlow : C.emberGlow
   const intTint = intensity.label === 'Hard' ? C.readyHigh : intensity.label === 'Moderate' ? C.readyMed : C.readyLow
+
+  // Body map: colour each muscle by its recovery, and bubble the % on the least-recovered.
+  const recToStatus = (st: RecoveryStatus): MuscleStatus | undefined =>
+    st === 'recovered' ? 'optimal' : st === 'recovering' ? 'attention' : st === 'fatigued' ? 'fatigued' : undefined
+  const pct = (hours: number | null) => (hours == null ? 100 : Math.min(100, Math.round((hours / 48) * 100)))
+  const statusByGroup: Partial<Record<MuscleGroup, MuscleStatus>> = {}
+  for (const g of muscle.groups) { const m = recToStatus(g.status); if (m) statusByGroup[g.group as MuscleGroup] = m }
+  const bubbles: MapBubble[] | undefined = locked
+    ? undefined
+    : [...muscle.groups].filter((g) => g.hours != null).sort((a, b) => pct(a.hours) - pct(b.hours)).slice(0, 3)
+        .map((g) => ({ group: g.group as MuscleGroup, text: `${pct(g.hours)}%`, tone: STATUS_COLOR(C, g.status) }))
 
   return (
     <FadeInView key="readiness" style={s.card}>
@@ -89,15 +101,33 @@ export function TrainReadinessView({
         </View>
       </View>
 
-      <View style={s.muscleList}>
-        {muscle.groups.map((g) => (
-          <View key={g.group} style={s.muscleRow}>
-            <View style={[s.muscleDot, { backgroundColor: STATUS_COLOR(C, g.status) }]} />
-            <Text style={s.muscleName}>{MUSCLE_LABEL[g.group] ?? g.group}</Text>
-            <Text style={[s.muscleStatus, { color: STATUS_COLOR(C, g.status) }]}>{g.label}</Text>
+      {/* Recovery body map — Muscle Intelligence (Pro). Free users see a dimmed teaser. */}
+      <View style={s.readyBodyWrap}>
+        <MuscleMap view="front" statusByGroup={statusByGroup} bubbles={bubbles} dimmed={locked} size={150} />
+        {locked && (
+          <View style={s.readyLockOverlay}>
+            <Ionicons name="lock-closed" size={20} color={C.onPrimary} />
+            <Text style={s.readyLockText}>Recovery by muscle</Text>
+            {onUnlock && (
+              <PressableScale style={s.readyUnlockBtn} scaleTo={0.96} onPress={onUnlock}>
+                <Text style={s.readyUnlockText}>Unlock Muscle Intelligence</Text>
+              </PressableScale>
+            )}
           </View>
-        ))}
+        )}
       </View>
+
+      {!locked && (
+        <View style={s.muscleList}>
+          {muscle.groups.map((g) => (
+            <View key={g.group} style={s.muscleRow}>
+              <View style={[s.muscleDot, { backgroundColor: STATUS_COLOR(C, g.status) }]} />
+              <Text style={s.muscleName}>{MUSCLE_LABEL[g.group] ?? g.group}</Text>
+              <Text style={[s.muscleStatus, { color: STATUS_COLOR(C, g.status) }]}>{g.label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <Text style={s.readyFoot}>Recovery is estimated from your recent sessions — it helps you pick today's workout.</Text>
     </FadeInView>
   )
@@ -262,6 +292,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   muscleName: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
   muscleStatus: { fontFamily: 'Inter_500Medium', fontSize: 12.5 },
   readyFoot: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary, lineHeight: 16 },
+  readyBodyWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xs },
+  readyLockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: C.scrim, borderRadius: Radius.md },
+  readyLockText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.onPrimary },
+  readyUnlockBtn: { backgroundColor: C.primary, borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 8, marginTop: 2 },
+  readyUnlockText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.onPrimary },
 
   sectionTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   sectionAction: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },

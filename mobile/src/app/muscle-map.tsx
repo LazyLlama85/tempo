@@ -21,8 +21,8 @@ import { FadeInView, PressableScale } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
-import { muscleIntelligence, type MuscleStatus, type MuscleGroupIntel } from '@/lib/fitnessInsights'
-import { MuscleMap, muscleStatusColor, type MuscleGroup, type BodyView, type MapMode, type MapBubble } from '@/components/MuscleMap'
+import { muscleIntelligence, muscleRank, MUSCLE_TIERS, MUSCLE_TIER_LABEL, type MuscleStatus, type MuscleGroupIntel, type MuscleTier } from '@/lib/fitnessInsights'
+import { MuscleMap, muscleStatusColor, muscleTierColor, type MuscleGroup, type BodyView, type MapMode, type MapBubble } from '@/components/MuscleMap'
 import { useProGate } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
 
@@ -82,6 +82,14 @@ export default function MuscleMapScreen() {
     return out
   }, [muscleTimeline, heatRange])
 
+  // Rank: per-muscle training tier (most→least trained) for the Progress view.
+  const rank = useMemo(() => muscleRank(muscleTimeline), [muscleTimeline])
+  const rankByGroup = useMemo(() => {
+    const m: Partial<Record<MuscleGroup, MuscleTier>> = {}
+    for (const g of rank.groups) m[g.group as MuscleGroup] = g.tier
+    return m
+  }, [rank])
+
   // Recovery-% callout bubbles — the 3 least-recovered visible muscles (Image #15 style).
   const VIEW_GROUPS: Record<BodyView, MuscleGroup[]> = { front: ['chest', 'shoulders', 'arms', 'core', 'legs'], back: ['back', 'shoulders', 'arms', 'legs'] }
   const bubbles = useMemo<MapBubble[] | undefined>(() => {
@@ -127,9 +135,9 @@ export default function MuscleMapScreen() {
                 ))}
               </View>
               <View style={s.viewToggle}>
-                {(['status', 'heatmap'] as MapMode[]).map((m) => (
+                {(['status', 'heatmap', 'rank'] as MapMode[]).map((m) => (
                   <PressableScale key={m} style={[s.viewBtn, m === mode && s.viewBtnOn]} scaleTo={0.95} onPress={() => setMode(m)}>
-                    <Text style={[s.viewBtnText, m === mode && { color: C.onPrimary }]}>{m === 'status' ? 'Status' : 'Heatmap'}</Text>
+                    <Text style={[s.viewBtnText, m === mode && { color: C.onPrimary }]}>{m === 'status' ? 'Status' : m === 'heatmap' ? 'Heatmap' : 'Rank'}</Text>
                   </PressableScale>
                 ))}
               </View>
@@ -152,6 +160,7 @@ export default function MuscleMapScreen() {
                 view={view}
                 statusByGroup={statusByGroup}
                 heatByGroup={heatByGroup}
+                rankByGroup={rankByGroup}
                 mode={mode}
                 bubbles={bubbles}
                 selected={selected}
@@ -174,7 +183,7 @@ export default function MuscleMapScreen() {
                     </View>
                   ))}
                 </View>
-              ) : (
+              ) : mode === 'heatmap' ? (
                 <View style={s.legend}>
                   <Text style={s.legendText}>Less trained</Text>
                   <View style={[s.legendDot, { backgroundColor: C.primary, opacity: 0.25 }]} />
@@ -182,6 +191,18 @@ export default function MuscleMapScreen() {
                   <View style={[s.legendDot, { backgroundColor: C.primary }]} />
                   <Text style={s.legendText}>More</Text>
                 </View>
+              ) : (
+                <View style={s.legend}>
+                  {MUSCLE_TIERS.map((t) => (
+                    <View key={t} style={s.legendItem}>
+                      <View style={[s.legendDot, { backgroundColor: muscleTierColor(C, t) }]} />
+                      <Text style={s.legendText}>{MUSCLE_TIER_LABEL[t]}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {mode === 'rank' && rank.mostTrained && (
+                <Text style={s.footNote}>Most trained: {GROUP_LABEL[rank.mostTrained]} · Least: {GROUP_LABEL[rank.leastTrained ?? '']}</Text>
               )}
             </FadeInView>
 

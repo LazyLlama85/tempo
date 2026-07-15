@@ -697,6 +697,40 @@ export function muscleIntelligence(sets: { group: string | null; at: string | nu
   return { groups, overallBalance, insights: insights.slice(0, 4), hasData: totalSets28 > 0 }
 }
 
+// ── Muscle RANK — a gamified "how developed is my training here" tier per group,
+//    for the Progress body map (most→least trained). Derived from cumulative logged
+//    volume, so it's an honest training-development signal (NOT a strength standard).
+export type MuscleTier = 'beginner' | 'novice' | 'intermediate' | 'advanced' | 'elite' | 'world_class'
+export const MUSCLE_TIERS: MuscleTier[] = ['beginner', 'novice', 'intermediate', 'advanced', 'elite', 'world_class']
+export const MUSCLE_TIER_LABEL: Record<MuscleTier, string> = {
+  beginner: 'Beginner', novice: 'Novice', intermediate: 'Intermediate', advanced: 'Advanced', elite: 'Elite', world_class: 'World Class',
+}
+function tierForSets(n: number): MuscleTier {
+  if (n < 10) return 'beginner'
+  if (n < 30) return 'novice'
+  if (n < 80) return 'intermediate'
+  if (n < 160) return 'advanced'
+  if (n < 320) return 'elite'
+  return 'world_class'
+}
+export interface MuscleRankGroup { group: string; tier: MuscleTier; totalSets: number }
+export interface MuscleRankResult { groups: MuscleRankGroup[]; mostTrained: string | null; leastTrained: string | null; hasData: boolean }
+
+export function muscleRank(sets: { group: string | null }[]): MuscleRankResult {
+  const counts = new Map<string, number>()
+  for (const g of CANONICAL_GROUPS) counts.set(g, 0)
+  for (const s of sets) {
+    const g = (s.group ?? '').toLowerCase()
+    if (counts.has(g)) counts.set(g, (counts.get(g) ?? 0) + 1)
+  }
+  const groups: MuscleRankGroup[] = CANONICAL_GROUPS.map((group) => ({ group, tier: tierForSets(counts.get(group) ?? 0), totalSets: counts.get(group) ?? 0 }))
+  const total = groups.reduce((a, b) => a + b.totalSets, 0)
+  const trained = groups.filter((g) => g.totalSets > 0)
+  const most = trained.length ? trained.reduce((a, b) => (b.totalSets > a.totalSets ? b : a)).group : null
+  const least = trained.length ? trained.reduce((a, b) => (b.totalSets < a.totalSets ? b : a)).group : null
+  return { groups, mostTrained: most, leastTrained: least, hasData: total > 0 }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 13. JOURNEY TIMELINE — the emotional "how far you've come" story.
 // ═══════════════════════════════════════════════════════════════════════════════

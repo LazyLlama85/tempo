@@ -12,6 +12,7 @@ import {
   intensityFromReadiness,
   muscleRecovery,
   muscleIntelligence,
+  muscleRank,
   journeyTimeline,
 } from '../fitnessInsights'
 import type { StreakRow } from '../streak'
@@ -202,6 +203,22 @@ describe('muscleIntelligence', () => {
   })
   it('reports no data for an empty history', () => {
     expect(muscleIntelligence([]).hasData).toBe(false)
+  })
+})
+
+describe('muscleRank', () => {
+  it('tiers muscles by cumulative volume and finds most/least trained', () => {
+    const sets = [
+      ...Array(120).fill(0).map(() => ({ group: 'chest' })), // advanced
+      ...Array(5).fill(0).map(() => ({ group: 'legs' })),    // beginner
+    ]
+    const mr = muscleRank(sets)
+    expect(mr.hasData).toBe(true)
+    expect(mr.groups).toHaveLength(6)
+    expect(mr.groups.find((g) => g.group === 'chest')!.tier).toBe('advanced')
+    expect(mr.groups.find((g) => g.group === 'legs')!.tier).toBe('beginner')
+    expect(mr.mostTrained).toBe('chest')
+    expect(mr.leastTrained).toBe('legs')
   })
 })
 

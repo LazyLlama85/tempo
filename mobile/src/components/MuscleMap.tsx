@@ -12,11 +12,11 @@ import Svg, { Ellipse, Path, G } from 'react-native-svg'
 import { View, Text, StyleSheet } from 'react-native'
 import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, type Palette } from '@/theme'
-import type { MuscleStatus } from '@/lib/fitnessInsights'
+import type { MuscleStatus, MuscleTier } from '@/lib/fitnessInsights'
 
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core'
 export type BodyView = 'front' | 'back'
-export type MapMode = 'status' | 'heatmap'
+export type MapMode = 'status' | 'heatmap' | 'rank'
 
 const VB_W = 220
 const VB_H = 480
@@ -28,6 +28,18 @@ export function muscleStatusColor(C: Palette, status: MuscleStatus | undefined):
     case 'fatigued': return C.readyLow       // ember/red
     case 'growing': return C.eventPersonal   // purple
     default: return C.surfaceContainerHigh
+  }
+}
+
+// Rank-tier colours (Beginner→World Class), matching the reference legend.
+export function muscleTierColor(C: Palette, tier: MuscleTier | undefined): string {
+  switch (tier) {
+    case 'novice': return C.primary          // blue
+    case 'intermediate': return C.readyHigh  // green
+    case 'advanced': return C.eventPersonal  // purple
+    case 'elite': return C.ember             // orange
+    case 'world_class': return C.error       // red
+    default: return C.surfaceContainerHigh   // beginner / untrained — grey
   }
 }
 
@@ -111,12 +123,14 @@ const ANCHOR: Record<MuscleGroup, { x: number; y: number }> = {
 export interface MapBubble { group: MuscleGroup; text: string; tone: string }
 
 export function MuscleMap({
-  view, statusByGroup, heatByGroup, mode = 'status', selected, onSelect, dimmed = false, bubbles, size = 220,
+  view, statusByGroup, heatByGroup, rankByGroup, mode = 'status', selected, onSelect, dimmed = false, bubbles, size = 220,
 }: {
   view: BodyView
   statusByGroup: Partial<Record<MuscleGroup, MuscleStatus>>
   /** 0–1 training stimulus per group, for heatmap mode. */
   heatByGroup?: Partial<Record<MuscleGroup, number>>
+  /** Rank tier per group, for rank mode. */
+  rankByGroup?: Partial<Record<MuscleGroup, MuscleTier>>
   mode?: MapMode
   selected?: MuscleGroup | null
   onSelect?: (g: MuscleGroup) => void
@@ -143,7 +157,10 @@ export function MuscleMap({
   const fillFor = (group: MuscleGroup): { fill: string; opacity: number } => {
     if (mode === 'heatmap') {
       const heat = Math.max(0, Math.min(1, heatByGroup?.[group] ?? 0))
-      return { fill: C.primary, opacity: 0.14 + heat * 0.86 }
+      return { fill: C.primary, opacity: dimmed ? (0.1 + heat * 0.35) : (0.14 + heat * 0.86) }
+    }
+    if (mode === 'rank') {
+      return { fill: muscleTierColor(C, rankByGroup?.[group]), opacity: dimmed ? 0.45 : 1 }
     }
     return { fill: muscleStatusColor(C, statusByGroup[group]), opacity: dimmed ? 0.45 : 1 }
   }
