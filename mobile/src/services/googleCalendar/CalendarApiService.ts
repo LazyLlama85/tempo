@@ -12,6 +12,7 @@
 
 import { getGoogleAccessToken, invalidateGoogleAccessToken } from './CalendarAuthService'
 import { eventsEndpoint, WORKOUT_EVENT_COLOR_ID } from './config'
+import { captureApiError } from '@/lib/crashReporting'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,38 @@ interface GoogleEvent {
   end?: { dateTime?: string; date?: string }
 }
 
+// ── Diagnostics: never let a Calendar READ fail silently ─────────────────────────
+// A valid access token that still can't read the calendar means a Google-PROJECT
+// gap, not a token problem — almost always either the Calendar API isn't enabled,
+// or the token was granted WITHOUT the calendar.events scope (a common break right
+// after flipping the OAuth app to "In production" without registering the scope).
+// getCalendarEventsForRange swallows read failures to [] on purpose (so the feed
+// never blanks), which historically made this impossible to diagnose. We now record
+// + report the real Google reason so the cause is visible in Sentry and to any UI.
+let lastReadError: { status: number; reason: string } | null = null
+export function getLastCalendarReadError(): { status: number; reason: string } | null {
+  return lastReadError
+}
+
+// Read the Google error body ONCE, map it to a concrete reason + fix hint, record +
+// report it, and return an Error for the caller to throw. Google shape:
+// { error: { code, status, message, errors: [{ reason }] } }.
+async function describeReadError(resp: Response, where: string): Promise<Error> {
+  let reason = `http_${resp.status}`
+  try {
+    const body = await resp.json()
+    reason = body?.error?.errors?.[0]?.reason || body?.error?.status || body?.error?.message || reason
+  } catch { /* body wasn't JSON */ }
+  lastReadError = { status: resp.status, reason }
+  const hint =
+    /accessNotConfigured|SERVICE_DISABLED/i.test(reason) ? 'Enable "Google Calendar API" in the Cloud project (APIs & Services → Library).'
+    : /scope|insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason) ? 'Register the calendar.events scope (Auth Platform → Data Access), then disconnect + reconnect Google in the app.'
+    : /PERMISSION_DENIED|forbidden/i.test(reason) ? 'Calendar API permission denied — check API enablement + granted scope.'
+    : undefined
+  captureApiError('gcal_read', new Error(`${where}_${resp.status}_${reason}`), { status: resp.status, reason, hint })
+  return new Error(`gcal_fetch_failed_${resp.status}_${reason}`)
+}
+
 // ── Heuristics (soft, transparent — not pseudo-science) ──────────────────────────
 
 // Waking hours we'll ever place a workout in.
@@ -102,7 +135,7 @@ export async function fetchUserBusySlots(daysAhead = 7): Promise<BusySlot[]> {
   })
 
   const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
-  if (!resp.ok) throw new Error(`gcal_fetch_failed_${resp.status}`)
+  if (!resp.ok) throw await describeReadError(resp, 'fetchUserBusySlots')
 
   const data = await resp.json()
   const items = (data.items ?? []) as GoogleEvent[]
@@ -140,7 +173,7 @@ export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDispl
   })
 
   const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
-  if (!resp.ok) throw new Error(`gcal_fetch_failed_${resp.status}`)
+  if (!resp.ok) throw await describeReadError(resp, 'fetchUserEvents')
 
   const data = await resp.json()
   const items = (data.items ?? []) as GoogleEvent[]

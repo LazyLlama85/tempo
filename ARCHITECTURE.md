@@ -362,7 +362,15 @@ you moving."*
   tokens after 7 days; that's a Google Cloud Console setting, not something fixable from the repo).
   `CalendarAuthService` now exposes `googleCalendarNeedsReconnect()`, set whenever that specific
   reason is detected; Home shows a "Google Calendar needs reconnecting" banner (tap → calendar-setup)
-  and calendar-setup shows the same banner inline.
+  and calendar-setup shows the same banner inline. **Read-failure diagnostics
+  (`CalendarApiService.describeReadError` + `getLastCalendarReadError()`):** when the token mints fine
+  but the Calendar *Data API* rejects the read (valid token, but the **Calendar API isn't enabled on
+  the Google project** or the token lacks the **`calendar.events` scope** — the classic break after
+  flipping the OAuth app to "In production" without registering the scope), the read paths
+  (`fetchUserEvents`/`fetchUserBusySlots`) no longer swallow it blindly: they parse Google's error
+  `reason`, attach a fix hint, and report it via `captureApiError('gcal_read', …)` to Sentry — so a
+  silently-empty timeline is diagnosable instead of a mystery (`getCalendarEventsForRange` still
+  degrades to `[]` for the UI so the feed never blanks).
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 
@@ -760,9 +768,10 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   fabricated per-fine-muscle stats). Every output ships a human message and honest empty states; no
   invented numbers. 19 unit tests (`__tests__/fitnessInsights.test.ts`).
 - **Body Intelligence / Muscle Map** (`app/muscle-map.tsx` + `components/MuscleMap.tsx`): a signature,
-  **Pro-gated** feature reached from a card in Progress → Coaching. A clean geometric SVG figure
-  (front/back, `react-native-svg` shapes — motivational, not medical) with tappable, status-coloured
-  muscle zones (green optimal · amber attention · red recovering · purple growing), a **muscle-balance
+  **Pro-gated** feature reached from a card in Progress → Coaching. An **anatomically-real** muscular
+  figure rendered from `react-native-body-highlighter` (MIT, SVG-only, on top of the already-installed
+  `react-native-svg` — JS-only, no rebuild) with tappable, status-coloured muscle zones (green optimal ·
+  amber attention · red recovering · purple growing), a **muscle-balance
   score** with per-group bars, per-muscle detail (frequency, weekly sets, recovery %, last trained,
   volume trend + Train/See-progress actions), and auto insights. New Pro id `muscle_intelligence` in
   `proFeatures.ts` (+ a paywall point). **Gating is dormant-safe**: `useProGate().locked` is only true
@@ -774,8 +783,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Progress view). The **Train → Readiness** segment also embeds the recovery body map with %
   bubbles, **Pro-gated** (free = dimmed + a lock overlay; the score/ring stays free). A
   **post-workout teaser** on `workout-complete` surfaces it at a high-intent moment (only when locked).
-  The figure is built from organic SVG shapes over a silhouette — a photoreal anatomical body just
-  needs a real `.svg` asset dropped in with the same group ids + fills.
+  `MuscleMap`'s public API (`view` / `statusByGroup` / `heatByGroup` / `rankByGroup` / `mode` /
+  `selected` / `onSelect` / `dimmed` / `bubbles` / `size` + the `muscleStatusColor` / `muscleTierColor`
+  exports) is unchanged — internally each Tempo group maps to the library's fine muscle slugs per view
+  (`GROUP_TO_SLUGS_FRONT/BACK`), colours are computed by the same status/heat/rank engine and passed as
+  per-part `color`, and bubble anchors are re-derived from the anatomy path data (centroid per group,
+  normalized to the 724×1448 viewBox) so recovery-% / rank callouts still land on the right muscle.
 - **User workouts:** `customExercises` (custom-exercise CRUD + `metricsFor` + `EXERCISE_COLUMNS`),
   `workoutBuilder` (drafts, templates, scheduling, duplicate, duration estimate).
 - **Origin labelling:** `workoutOrigin(source)` maps a scheduled workout's `source` to a

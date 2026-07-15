@@ -10,7 +10,7 @@
 
 - **Milestone:** M0 — Measurable & Reliable *(with M1 code work running in parallel)*
 - **Founder's critical path (only you can do these — do them this week):**
-  - **B0.2** — Google Cloud Console → OAuth consent screen → **Publish app** (Testing → In production). Stops the 7-day token death. *(The #1 blocker; B1.2 is gated on it.)*
+  - **B0.2** — ✅ *In production* already. **New sub-issue found:** Google connects + token mints fine (edge-fn logs all 200), but events don't show → the Calendar **Data API** call is being rejected with a valid token. Fix in console: **(1)** APIs & Services → Library → enable **Google Calendar API**; **(2)** Auth Platform → **Data Access** → add scope `.../auth/calendar.events`; then **disconnect + reconnect** Google in the app. In-app diagnostic shipped (the real reason now goes to Sentry).
   - **B0.3** — In PostHog, build the funnel `onboarding_complete → activation_reached → D7 retained`, and write the one-line activation definition. Data already flows (B0.1 ✅).
   - **B0.5** — Smoke-test the current build on your iPhone; report any blank-render so it can be fixed.
 - **Claude's next code batch:** **B1.3a — "Reschedule my whole week" engine.** Rationale: OTA-safe, does *not* depend on the OAuth fix, it's the payable wedge action, and it unblocks all of M2 (Pro re-fence + paywall trigger). Extends `lib/reschedule.ts` / `lib/autoSchedule.ts` — additive.
@@ -27,7 +27,7 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
 | B0.1 | Retention instrumentation (`activation_reached` + `calendar_connected`) | ✅ | Measurability | `lib/activation.ts`, `analytics.ts` | Events fire once, behind durable flags *(shipped)* |
-| B0.2 | Google OAuth → Production (kill 7-day token death) | 🔲 | Reliability, Trust | Google Cloud Console *(founder)* + optional in-app harden of the reconnect banner | Calendar stays connected > 7 days on device |
+| B0.2 | Google OAuth → Production (done) + fix "connects but no events" | 🔄 | Reliability, Trust | Console: enable Calendar API + register `calendar.events` scope *(founder)*; in-app diagnostic ✅ `CalendarApiService.describeReadError` | Events render on device after enabling API + reconnect |
 | B0.3 | PostHog funnel + written activation definition | 🔲 | Measurability | PostHog dashboard *(founder)* | Funnel onboarding→activation→D7 visible |
 | B0.4 | Feature-freeze policy (no new surfaces until M4) | ✅ | Focus | `EXECUTION.md` §2/§9 | Written + in effect |
 | B0.5 | Device-matrix QA of redesign; fix any blank-render | 🔲 | Reliability, Polish | Real device *(founder)* + fixes as found | No blank-render on cold start on device |
@@ -99,4 +99,5 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 
 ## Session Log  *(newest first — the audit trail of what actually happened)*
 
+- **2026-07-15 (pm)** — Debugged "Google connects but no events." Edge-fn logs = all 200, so token minting is healthy; the failure is the Calendar Data API rejecting a valid token (API not enabled and/or `calendar.events` scope not registered after going to production). Shipped an in-app diagnostic (`CalendarApiService.describeReadError`) that captures the real Google reason + fix hint to Sentry instead of swallowing to `[]`. Founder fix: enable Calendar API + register scope + reconnect. B0.2 → 🔄.
 - **2026-07-15** — Built the Execution OS (`EXECUTION.md` + this ledger + CLAUDE.md Execution Protocol). Prior in this session: retention instrumentation (B0.1 ✅), wedge quantifier on Weekly Report + paywall (B1.1 partial), plain-language goal copy (B3.1 partial); audit re-scored Overall 5.6→5.7, Subscription Value 4→5. Feature freeze (B0.4) declared. **Next:** founder does B0.2/B0.3; Claude builds B1.3a.
