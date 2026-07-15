@@ -136,23 +136,27 @@ export function readinessFromHistory(sessions: StreakRow[], logTimes: string[], 
   let recoveryTerm: number
   let recovery: ReadinessComponent
   if (hoursSince == null) {
-    recoveryTerm = 0.8
+    recoveryTerm = 0.75
     recovery = { label: 'Fresh', detail: 'No recent sessions logged — ease back in.', tone: 'ok' }
   } else if (hoursSince < 12) {
-    recoveryTerm = 0.45
+    recoveryTerm = 0.4
     recovery = { label: 'Short rest', detail: `Only ${hoursSince}h since your last session.`, tone: 'low' }
   } else if (hoursSince < 20) {
-    recoveryTerm = 0.72
+    recoveryTerm = 0.6
     recovery = { label: 'Building', detail: `${hoursSince}h since your last session.`, tone: 'ok' }
-  } else if (hoursSince <= 72) {
-    recoveryTerm = 1.0
+  } else if (hoursSince < 36) {
+    // ~a day out: still recovering — deliberately NOT full readiness (that was the bug).
+    recoveryTerm = 0.75
+    recovery = { label: 'Recovering', detail: `${hoursSince}h since your last session — about a day in.`, tone: 'ok' }
+  } else if (hoursSince < 60) {
+    recoveryTerm = 0.9
     recovery = { label: 'Recovered', detail: `You rested ${hoursSince}h after your last session.`, tone: 'good' }
   } else if (hoursSince <= 168) {
     const days = Math.round(hoursSince / 24)
-    recoveryTerm = 0.85
+    recoveryTerm = 1.0
     recovery = { label: 'Well rested', detail: `${days} days since your last session.`, tone: 'good' }
   } else {
-    recoveryTerm = 0.78
+    recoveryTerm = 0.82
     recovery = { label: 'Refreshed', detail: `It's been a while — start moderate.`, tone: 'ok' }
   }
 
@@ -164,16 +168,22 @@ export function readinessFromHistory(sessions: StreakRow[], logTimes: string[], 
   let loadTerm: number
   let load: ReadinessComponent
   if (consecutive >= 4) {
-    loadTerm = 0.5
+    loadTerm = 0.42
     load = { label: 'High', detail: `${consecutive} days in a row — a lighter or recovery session is smart.`, tone: 'low' }
   } else if (consecutive === 3) {
-    loadTerm = 0.72
+    loadTerm = 0.62
     load = { label: 'Elevated', detail: `3 straight training days — watch fatigue.`, tone: 'ok' }
+  } else if (consecutive === 2) {
+    loadTerm = 0.8
+    load = { label: 'Moderate', detail: `Back-to-back training days.`, tone: 'ok' }
+  } else if (recent7 >= 4) {
+    loadTerm = 0.82
+    load = { label: 'Busy week', detail: `${recent7} sessions in the last 7 days.`, tone: 'ok' }
   } else if (recent7 === 0) {
-    loadTerm = 0.9
+    loadTerm = 0.95
     load = { label: 'Light', detail: `Fresh week — plenty in the tank.`, tone: 'good' }
   } else {
-    loadTerm = 1.0
+    loadTerm = 0.9
     load = { label: 'Balanced', detail: `Your recent training matches your usual pattern.`, tone: 'good' }
   }
 

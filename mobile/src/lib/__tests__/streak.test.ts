@@ -1,6 +1,6 @@
 import { sessionStreak, longestSessionStreak, type StreakRow } from '@/lib/streak'
 
-const row = (planned_date: string, status: string): StreakRow => ({ planned_date, status })
+const row = (planned_date: string, status: string, source?: string): StreakRow => ({ planned_date, status, source })
 
 describe('streak — consecutive completed sessions (not calendar days)', () => {
   it('rest days between sessions never break the streak', () => {
@@ -39,16 +39,35 @@ describe('streak — consecutive completed sessions (not calendar days)', () => 
     expect(sessionStreak(rows, '2026-07-10')).toBe(1)
   })
 
-  it('a day holding both a completion and a miss nets the win before the break', () => {
+  it('a day you trained is NOT broken by another missed session that same day', () => {
     const rows = [
       row('2026-07-08', 'completed'),
       row('2026-07-09', 'completed'),
       row('2026-07-10', 'completed'),
-      row('2026-07-10', 'missed'),
+      row('2026-07-10', 'missed'), // e.g. the plan slot you replaced with a different workout
     ]
-    // The completed session on the shared day is counted (→ 1) before the same
-    // day's miss ends the run — never 0, never past the break.
-    expect(sessionStreak(rows, '2026-07-10')).toBe(1)
+    // You completed a session every day → the same-day miss doesn't reset it.
+    expect(sessionStreak(rows, '2026-07-10')).toBe(3)
+  })
+
+  it('opportunistic quick workouts (skipped/missed) never break the streak', () => {
+    const rows = [
+      row('2026-07-13', 'completed', 'split'),
+      row('2026-07-14', 'completed', 'split'),
+      row('2026-07-14', 'skipped', 'quick'),   // added + abandoned → ignored
+      row('2026-07-15', 'skipped', 'quick'),    // today: only a skipped quick workout
+    ]
+    // The quick skips are ignored; the real completions still form a 2-session streak.
+    expect(sessionStreak(rows, '2026-07-15')).toBe(2)
+    expect(longestSessionStreak(rows, '2026-07-15')).toBe(2)
+  })
+
+  it('a committed (plan) skip with no completion that day DOES break it', () => {
+    const rows = [
+      row('2026-07-09', 'completed', 'split'),
+      row('2026-07-10', 'skipped', 'plan'), // committed plan session skipped, nothing else done
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(0)
   })
 
   it('empty history is a zero streak', () => {

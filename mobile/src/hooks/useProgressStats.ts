@@ -5,7 +5,7 @@ import { sessionStreak } from '@/lib/streak'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type WorkoutRow = { planned_date: string; status: string }
+type WorkoutRow = { planned_date: string; status: string; source: string | null }
 
 type EnrichedSetLog = {
   workout_log_id: string
@@ -51,7 +51,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     queryFn: async () => {
       const { data } = await supabase
         .from('scheduled_workouts')
-        .select('planned_date, status')
+        .select('planned_date, status, source')
         .eq('user_id', userId)
       return (data ?? []) as WorkoutRow[]
     },
@@ -130,7 +130,12 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     // a) Consistency — last 30 days + delta vs prior 30.
     // 'rescheduled' rows are superseded duplicates / cleared sessions — they were
     // never real commitments, so they don't count toward the completion rate.
-    const counts = (w: WorkoutRow) => w.status !== 'rescheduled'
+    // Superseded rows never counted; and an opportunistic quick workout the user
+    // added but didn't finish shouldn't count against consistency either (it was
+    // never a scheduled commitment) — same rule the streak uses.
+    const counts = (w: WorkoutRow) =>
+      w.status !== 'rescheduled' &&
+      !(w.source === 'quick' && (w.status === 'skipped' || w.status === 'missed'))
     const thirtyAgo = toDateStr(daysAgo(30))
     const sixtyAgo = toDateStr(daysAgo(60))
     const last30 = workouts.filter(w => counts(w) && w.planned_date >= thirtyAgo)

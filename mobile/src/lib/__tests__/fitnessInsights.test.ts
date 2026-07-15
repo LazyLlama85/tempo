@@ -44,11 +44,17 @@ describe('computeMomentum', () => {
 describe('readinessFromHistory', () => {
   it('scores an optimally-rested lifter high', () => {
     const now = new Date(`${TODAY}T18:00:00`)
-    const sessions = [s(d(-1), 'completed')]
-    const r = readinessFromHistory(sessions, [`${d(-1)}T12:00:00`], now)
+    const sessions = [s(d(-2), 'completed')]
+    const r = readinessFromHistory(sessions, [`${d(-2)}T18:00:00`], now) // ~48h rest
     expect(r.score).toBeGreaterThanOrEqual(80)
     expect(r.recovery.tone).toBe('good')
     expect(r.recovery.detail).toMatch(/rested/i)
+  })
+  it('does NOT max out just a day after training', () => {
+    const now = new Date(`${TODAY}T18:00:00`)
+    const r = readinessFromHistory([s(d(-1), 'completed')], [`${d(-1)}T12:00:00`], now) // ~30h
+    expect(r.score).toBeLessThan(90) // was incorrectly hitting ~100
+    expect(r.recovery.label).toBe('Recovering')
   })
   it('penalises training again within a few hours', () => {
     const now = new Date(`${TODAY}T18:00:00`)

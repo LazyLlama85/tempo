@@ -729,9 +729,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **Insights & motivation:** `weeklyReport` (the Sunday recap engine — workouts/volume/strength/
   weight/consistency), `prs` (per-session weight/e1rm/rep PR detection), `goalProjection`
   (goal-countdown ETA from weight trend + strength max), **`streak`** (`sessionStreak` — the one
-  streak definition, shared by stats/wrapped/achievements: **consecutive completed sessions**;
-  rest days never break it, a missed/skipped commitment does — so a Mon/Wed/Fri user can actually
-  build one; the server `streak_at_risk` push follows the same philosophy).
+  streak definition, shared by stats/wrapped/achievements: **completed sessions across consecutive
+  training days**. It's **day-aware and source-aware**: rest days never break it; a day you completed
+  ANY session counts even if another session that day was missed/skipped (e.g. the plan slot you
+  replaced); and **opportunistic `source:'quick'` workouts you added but didn't finish are ignored
+  entirely** — a skipped/missed quick workout never breaks the streak (it was never a commitment).
+  Only a missed/skipped *committed* session with no completion that day breaks it. `StreakRow` carries
+  an optional `source`; `useProgressStats` selects it and applies the same rule to `consistency_pct`.
+  The server `streak_at_risk` push follows the same philosophy.
 - **Fitness Intelligence (`fitnessInsights.ts`, new — powers the Progress-dashboard redesign):**
   pure derivations over the data Tempo already has (scheduled_workouts status, workout_logs
   `started_at`, set_logs) that turn Progress from a stats page into a coach that explains behaviour.
