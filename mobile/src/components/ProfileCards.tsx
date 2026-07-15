@@ -83,11 +83,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   tile: {
     flexGrow: 1, flexBasis: '30%', minWidth: '30%',
-    backgroundColor: C.background, borderRadius: Radius.lg, padding: Spacing.md, gap: 6,
-    borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1,
+    backgroundColor: C.surfaceContainer, borderRadius: Radius.lg, padding: Spacing.md, gap: 8,
+    borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e1,
   },
-  tileIcon: { width: 30, height: 30, borderRadius: Radius.sm + 2, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 34, height: 34, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   tileValue: { height: 0 },
-  tileValueText: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.6 },
-  tileLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary },
+  tileValueText: { fontFamily: C.fontDisplay, fontSize: 25, color: C.text, letterSpacing: -0.8, marginTop: 2 },
+  tileLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.textSecondary, letterSpacing: 0.2 },
 })

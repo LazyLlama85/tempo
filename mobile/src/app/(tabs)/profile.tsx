@@ -14,9 +14,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { useQuery } from '@tanstack/react-query'
-import { fetchActiveSplit } from '@/lib/splits'
 import { readinessFromHistory } from '@/lib/fitnessInsights'
-import { FitnessIdentityCard, InsightsGrid, type IdentityChip, type InsightTile } from '@/components/ProfileCards'
+import { InsightsGrid, type InsightTile } from '@/components/ProfileCards'
 import { getCalendarPermissionStatus } from '@/services/calendarService'
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
@@ -37,9 +36,10 @@ import {
   useUnitStore, unitLabel, displayWeight, inputToLbs, formatWeightDelta,
   type WeightUnit,
 } from '@/lib/units'
-import { getPushEnabled, setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
+import { setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
 import {
   loadNotificationPrefs, setServerRuleEnabled, setPreWorkoutEnabled,
+  getMasterPushEnabled, setMasterPushEnabled,
   DEFAULT_PREFS, type NotificationPrefs, type ServerRule,
 } from '@/lib/notificationPrefs'
 import { scheduleWorkoutReminders, cancelAllReminders, hasReminderPermission } from '@/lib/notifications'
@@ -203,23 +203,9 @@ export default function ProfileScreen() {
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
 
-  // Profile identity + insights (premium redesign). All from data Tempo already
-  // has — the active split, a history-based readiness, and the progress stats.
-  const { data: activeSplit } = useQuery({
-    queryKey: ['profile_active_split', userId],
-    queryFn: () => fetchActiveSplit(supabase, userId),
-    enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
-  })
+  // Profile insights (premium redesign) — a history-based readiness + progress stats.
   const readiness = useMemo(() => readinessFromHistory(workouts, logTimes, new Date()), [workouts, logTimes])
 
-  const identityChips: IdentityChip[] = [
-    { icon: 'flag-outline', label: 'Goal', value: profile?.goal ? GOAL_LABELS[profile.goal] : 'Not set' },
-    { icon: 'calendar-outline', label: 'Frequency', value: profile?.days_per_week ? `${profile.days_per_week}× / week` : '—' },
-    { icon: 'time-outline', label: 'Session length', value: profile?.preferred_duration_min ? `${profile.preferred_duration_min} min` : '—' },
-    { icon: 'barbell-outline', label: 'Equipment', value: equipmentSummary(profile?.equipment) },
-  ]
-  if (activeSplit) identityChips.push({ icon: 'repeat-outline', label: 'Active split', value: activeSplit.name })
   const insightTiles: InsightTile[] = [
     { icon: 'checkmark-done', label: 'Workouts', value: String(stats.totalWorkouts), tint: C.primary },
     { icon: 'flame', label: 'Day streak', value: String(stats.streak), tint: C.ember },
@@ -328,10 +314,11 @@ export default function ProfileScreen() {
   }, [userId])
   useFocusEffect(loadMeasurements)
 
-  // Reflect this device's push on/off state when the screen gains focus.
+  // Reflect the user's push on/off state when the screen gains focus. Read from the
+  // user-level flag (not the device token, which may not exist) so it's accurate.
   useFocusEffect(
     useCallback(() => {
-      if (userId) getPushEnabled(supabase).then(setPushEnabled).catch(() => {})
+      if (userId) getMasterPushEnabled(supabase, userId).then(setPushEnabled).catch(() => {})
     }, [userId]),
   )
 
@@ -349,10 +336,14 @@ export default function ProfileScreen() {
   const togglePush = async (next: boolean) => {
     setPushEnabled(next) // optimistic
     if (!userId) return
+    // Persist at the USER level so the switch STICKS even when no device token is
+    // registered (the old device_tokens-only path silently reverted on those devices).
+    await setMasterPushEnabled(supabase, userId, next).catch(() => {})
+    // Still flip device_tokens so the retention engine skips a disabled device (and,
+    // when turning ON, prompt for permission + register a token).
     await applyPushEnabled(supabase, userId, next).catch(() => {})
-    // Re-sync with reality — the OS prompt may have been denied or the write may
-    // have failed, and the switch must not lie about it.
-    getPushEnabled(supabase).then(setPushEnabled).catch(() => {})
+    // Re-sync from the user-level flag — the source of truth for the switch.
+    getMasterPushEnabled(supabase, userId).then(setPushEnabled).catch(() => {})
   }
 
   // Flip one account-level retention rule (§6.1). Optimistic; the edge function
@@ -728,73 +719,76 @@ export default function ProfileScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* ── Hero (gaming-style header banner) ───────────────────────────── */}
-        <View style={[styles.hero, { backgroundColor: avatar.color }]}>
-          <View style={styles.heroTopRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {/* ── Profile card — dark, modular: header · XP · stats grid ───────── */}
+        <View style={styles.hero}>
+          <View style={styles.heroHeader}>
+            <TouchableOpacity style={styles.heroAvatarWrap} onPress={handleAvatarPress} disabled={avatarUploading} activeOpacity={0.85}>
+              <View style={[styles.avatarLarge, { backgroundColor: avatar.color }]}>
+                {avatarUploading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : avatar.imageUri ? (
+                  <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
+                ) : (
+                  <Ionicons name={avatar.icon as any} size={30} color="#fff" />
+                )}
+              </View>
+              <View style={styles.avatarEditBadge}>
+                <Ionicons name="camera" size={12} color={avatar.color} />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.heroHeaderInfo}>
+              <View style={styles.heroNameRow}>
+                <Text style={styles.displayName} numberOfLines={1}>{profile?.display_name ?? 'Athlete'}</Text>
+                {isPro && (
+                  <View style={styles.proBadge}>
+                    <Ionicons name="flash" size={10} color="#1b1400" />
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                )}
+              </View>
+              {!!profile?.username && <Text style={styles.username} numberOfLines={1}>@{profile.username}</Text>}
               <View style={styles.levelChip}>
-                <Ionicons name="star" size={12} color="#fff" />
+                <Ionicons name="star" size={11} color={C.primary} />
                 <Text style={styles.levelChipText}>LVL {level.level} · {level.title.toUpperCase()}</Text>
               </View>
-              {isPro && (
-                <View style={styles.proBadge}>
-                  <Ionicons name="flash" size={10} color="#1b1400" />
-                  <Text style={styles.proBadgeText}>PRO</Text>
-                </View>
-              )}
             </View>
-            <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
-              <Ionicons name="pencil" size={16} color="rgba(255,255,255,0.9)" />
+
+            <TouchableOpacity onPress={openEdit} style={styles.heroEditBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit profile">
+              <Ionicons name="pencil" size={15} color={C.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.heroAvatarWrap} onPress={handleAvatarPress} disabled={avatarUploading} activeOpacity={0.85}>
-            <View style={styles.avatarLarge}>
-              {avatarUploading ? (
-                <ActivityIndicator color="#fff" />
-              ) : avatar.imageUri ? (
-                <Image source={{ uri: avatar.imageUri }} style={styles.avatarImg} contentFit="cover" />
-              ) : (
-                <Ionicons name={avatar.icon as any} size={38} color={avatar.color} />
-              )}
-            </View>
-            <View style={styles.avatarEditBadge}>
-              <Ionicons name="camera" size={13} color={avatar.color} />
-            </View>
-          </TouchableOpacity>
-
-          <Text style={styles.displayName}>{profile?.display_name ?? 'Athlete'}</Text>
-          {!!profile?.username && <Text style={styles.username}>@{profile.username}</Text>}
-          <Text style={styles.heroSub}>
-            {profile?.goal ? GOAL_LABELS[profile.goal] : 'Set your goal'}
-            {profile?.experience ? ` · ${EXP_LABELS[profile.experience]}` : ''}
-          </Text>
-          <View style={styles.heroMetaRow}>
-            {stats.streak > 0 && (
-              <View style={styles.heroStreakChip}>
-                <Ionicons name="flame" size={12} color="#fff" />
-                <Text style={styles.heroStreakText}>{stats.streak} streak</Text>
-              </View>
-            )}
-            {!!profile?.created_at && (
-              <Text style={styles.memberSince}>
-                Member since {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-              </Text>
-            )}
-          </View>
-
-          {/* Level progress */}
+          {/* XP progress */}
           <View style={styles.levelBarTrack}>
             <View style={[styles.levelBarFill, { width: `${Math.round((level.intoLevel / level.perLevel) * 100)}%` as `${number}%` }]} />
           </View>
           <Text style={styles.levelHint}>
             {level.toNext} more workout{level.toNext !== 1 ? 's' : ''} to Level {level.level + 1}
+            {profile?.goal ? `  ·  ${GOAL_LABELS[profile.goal]}` : ''}
           </Text>
+
+          {/* Secondary stats grid */}
+          <View style={styles.heroStatsGrid}>
+            <View style={styles.heroStat}>
+              <Text style={[styles.heroStatValue, { color: C.ember }]}>{stats.streak}</Text>
+              <Text style={styles.heroStatLabel}>Day streak</Text>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>{stats.totalWorkouts}</Text>
+              <Text style={styles.heroStatLabel}>Workouts</Text>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStat}>
+              <Text style={[styles.heroStatValue, { color: C.success }]}>{stats.consistency_pct ?? 0}%</Text>
+              <Text style={styles.heroStatLabel}>Consistency</Text>
+            </View>
+          </View>
         </View>
 
-        {/* ── Fitness identity + Tempo insights (premium redesign) ──────────── */}
+        {/* ── Tempo insights ───────────────────────────────────────────────── */}
         <View style={styles.identitySection}>
-          <FitnessIdentityCard chips={identityChips} delay={60} />
           <InsightsGrid tiles={insightTiles} delay={100} />
         </View>
 
@@ -875,14 +869,16 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Exercise swaps (saved substitution preferences) ─────────────── */}
+        {/* Saved exercise swaps — only shown once the user actually has some, so it
+            isn't a prominent empty category at the top. Management stays fully intact. */}
+        {swaps.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Exercise Swaps</Text>
-            {swaps.length > 0 && <Text style={styles.sectionMeta}>{swaps.length} saved</Text>}
+            <Text style={styles.sectionMeta}>{swaps.length} saved</Text>
           </View>
           <View style={styles.card}>
-            {swaps.length > 0 ? swaps.map((s, i) => (
+            {swaps.map((s, i) => (
               <View key={s.originalId}>
                 {i > 0 && <View style={styles.divider} />}
                 <TouchableOpacity style={styles.swapRow} onPress={() => openSwap(s)} activeOpacity={0.7}>
@@ -894,14 +890,10 @@ export default function ProfileScreen() {
                   <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />
                 </TouchableOpacity>
               </View>
-            )) : (
-              <Text style={styles.emptyHint}>
-                No saved swaps yet. Tap “Swap” on any exercise during a workout and Tempo will remember
-                it here — then reuse it automatically every time that exercise comes up.
-              </Text>
-            )}
+            ))}
           </View>
         </View>
+        )}
 
         {/* ── Right Now (temporary / personal adjustments) ──────────────────── */}
         <View style={styles.section}>
@@ -1504,38 +1496,45 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingBottom: 120, gap: Spacing.lg },
 
   // Hero
+  // Dark modular profile card: a layered surface, not a solid colour block.
   hero: {
     marginHorizontal: Spacing.containerPadding,
-    borderRadius: Radius.xl,
+    backgroundColor: C.surfaceContainer,
+    borderRadius: Radius.card,
     padding: Spacing.lg,
-    alignItems: 'center',
-    gap: 6,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: C.glassBorder,
     ...Elevation.e2,
   },
-  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
-  levelChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  levelChipText: { fontFamily: C.fontDisplay, fontSize: 11, color: '#fff', letterSpacing: 0.5 },
-  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.gold, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 4 },
-  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, color: '#1b1400', letterSpacing: 0.6 },
-  heroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 4 },
-  heroStreakChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.20)', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4 },
-  heroStreakText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff' },
-  memberSince: { fontFamily: 'Inter_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.75)' },
-  identitySection: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg, marginTop: Spacing.md },
-  heroAvatarWrap: { marginTop: Spacing.xs },
-  avatarLarge: { width: 84, height: 84, borderRadius: Radius.full, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  heroHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  heroHeaderInfo: { flex: 1, gap: 3 },
+  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroEditBtn: { width: 34, height: 34, borderRadius: Radius.md, backgroundColor: C.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center' },
+  heroAvatarWrap: {},
+  avatarLarge: { width: 68, height: 68, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: C.glassBorder },
   avatarImg: { width: '100%', height: '100%' },
   avatarEditBadge: {
-    position: 'absolute', right: -2, bottom: -2, width: 26, height: 26, borderRadius: Radius.full,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
+    position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: Radius.full,
+    backgroundColor: C.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: C.surfaceContainer,
   },
-  displayName: { fontFamily: C.fontDisplay, fontSize: 24, color: '#fff', letterSpacing: -0.3, marginTop: 4 },
-  username: { fontFamily: 'Inter_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: -2 },
-  heroSub: { fontFamily: 'Inter_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.85)' },
-  levelBarTrack: { height: 7, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radius.full, marginTop: Spacing.sm },
-  levelBarFill: { height: 7, backgroundColor: '#fff', borderRadius: Radius.full },
-  levelHint: { fontFamily: 'Inter_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.85)' },
+  displayName: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, flexShrink: 1 },
+  username: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  levelChip: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, marginTop: 2 },
+  levelChipText: { fontFamily: C.fontDisplay, fontSize: 11, color: C.primary, letterSpacing: 0.4 },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.gold, borderRadius: Radius.full, paddingHorizontal: 7, paddingVertical: 3 },
+  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.6 },
+  identitySection: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg, marginTop: Spacing.md },
+  levelBarTrack: { height: 7, alignSelf: 'stretch', backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full },
+  levelBarFill: { height: 7, backgroundColor: C.primary, borderRadius: Radius.full },
+  levelHint: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  // Secondary stats grid inside the card.
+  heroStatsGrid: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, paddingVertical: Spacing.sm, marginTop: 2 },
+  heroStat: { flex: 1, alignItems: 'center', gap: 2 },
+  heroStatValue: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.6 },
+  heroStatLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, letterSpacing: 0.2 },
+  heroStatDivider: { width: 1, height: 28, backgroundColor: C.outlineVariant },
 
   // Sections
   section: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.sm },

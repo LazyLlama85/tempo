@@ -137,7 +137,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
   }
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
       <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
         <Text style={styles.eyebrow}>EDIT WORKOUT</Text>
         <Text style={styles.title}>{workout.focus}</Text>

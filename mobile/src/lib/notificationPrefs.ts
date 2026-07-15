@@ -124,3 +124,37 @@ export async function setServerRuleEnabled(
     await client.from('user_profiles').update({ notification_prefs: next }).eq('user_id', userId)
   } catch { /* best-effort; the switch re-syncs from the server on next load */ }
 }
+
+// ── Master push switch: persisted at the USER level ─────────────────────────────
+// device_tokens.enabled (pushTokens.ts) still gates whether the retention engine
+// sends to a *device* — but it can only persist "off" when a push token exists.
+// On devices where the token isn't registered (no APNs creds yet, simulator, denied
+// permission) the old master toggle would silently revert. Storing the master flag
+// in user_profiles.notification_prefs.push_enabled makes the switch *stick* for that
+// user regardless of token state; setPushEnabled still flips device_tokens too.
+
+export async function getMasterPushEnabled(client: SupabaseClient, userId: string): Promise<boolean> {
+  try {
+    const { data } = await client
+      .from('user_profiles')
+      .select('notification_prefs')
+      .eq('user_id', userId)
+      .maybeSingle()
+    const prefs = (data?.notification_prefs ?? {}) as Record<string, unknown>
+    return prefs.push_enabled === false ? false : true // default on (opt-out)
+  } catch {
+    return true
+  }
+}
+
+export async function setMasterPushEnabled(client: SupabaseClient, userId: string, enabled: boolean): Promise<void> {
+  try {
+    const { data } = await client
+      .from('user_profiles')
+      .select('notification_prefs')
+      .eq('user_id', userId)
+      .maybeSingle()
+    const current = (data?.notification_prefs ?? {}) as Record<string, unknown>
+    await client.from('user_profiles').update({ notification_prefs: { ...current, push_enabled: enabled } }).eq('user_id', userId)
+  } catch { /* best-effort; re-syncs on next load */ }
+}
