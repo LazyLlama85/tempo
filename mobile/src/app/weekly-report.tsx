@@ -21,6 +21,7 @@ import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingIm
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
+import { track } from '@/lib/analytics'
 
 
 export default function WeeklyReportScreen() {
@@ -39,6 +40,7 @@ export default function WeeklyReportScreen() {
 
   useEffect(() => {
     if (!userId) return
+    track('weekly_report_viewed')
     computeWeeklyReport(supabase, userId).then((r) => { setReport(r); setLoading(false) })
     buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
     fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})

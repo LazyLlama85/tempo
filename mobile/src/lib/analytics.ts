@@ -89,6 +89,21 @@ export type EventProperties = {
   trial_started: undefined
   trial_converted: undefined
   subscription_cancelled: undefined
+  // ── Social features ──────────────────────────────────────────────────────────
+  friend_request_sent: undefined
+  friend_request_accepted: undefined
+  activity_reacted: { reacted: boolean }
+  workout_invite_responded: { action: 'accept' | 'decline' }
+  group_created: undefined
+  group_joined: undefined
+  // ── Onboarding completion ────────────────────────────────────────────────────
+  profile_setup_completed: { has_name: boolean; has_weight: boolean }
+  profile_setup_skipped: undefined
+  // ── Feature engagement ───────────────────────────────────────────────────────
+  weekly_report_viewed: undefined
+  travel_mode_enabled: { equipment_count: number; duration: string }
+  travel_mode_cleared: undefined
+  custom_workout_saved: { exercise_count: number; scheduled: boolean }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

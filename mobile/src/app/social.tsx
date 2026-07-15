@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, Share } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
+import { track } from '@/lib/analytics'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -125,6 +126,7 @@ export default function SocialScreen() {
         ? { ...f, i_reacted: res.reacted, reaction_count: res.count }
         : { ...f, i_reacted: wasReacted, reaction_count: item.reaction_count ?? 0 }
     }))
+    if (res) track('activity_reacted', { reacted: res.reacted })
   }, [])
 
   const shareMyCode = () => {
@@ -164,15 +166,19 @@ export default function SocialScreen() {
     const ok = await sendFriendRequest(supabase, userId, p.user_id)
     if (!ok) {
       setSentTo((prev) => { const n = new Set(prev); n.delete(p.user_id); return n })
-      Alert.alert('Couldn’t send request', 'You may already have a pending request with this person.')
+      Alert.alert("Couldn't send request", 'You may already have a pending request with this person.')
       return
     }
+    track('friend_request_sent')
     load()
   }
 
   const handleAccept = async (f: FriendEntry) => {
     haptics.success()
-    if (await acceptFriendRequest(supabase, f.friendshipId)) load()
+    if (await acceptFriendRequest(supabase, f.friendshipId)) {
+      track('friend_request_accepted')
+      load()
+    }
   }
 
   const handleRemove = (f: FriendEntry) => setRemoveConfirm(f)
@@ -198,8 +204,8 @@ export default function SocialScreen() {
     haptics.tapLight()
     setGroupName('')
     const g = await createGroup(supabase, name)
-    if (g) { load(); router.push(`/group-detail?id=${g.id}` as any) }
-    else Alert.alert('Couldn’t create group', 'Please try again.')
+    if (g) { track('group_created'); load(); router.push(`/group-detail?id=${g.id}` as any) }
+    else Alert.alert("Couldn't create group", 'Please try again.')
   }
   const onJoinGroup = async () => {
     const c = groupCode.trim()
@@ -207,7 +213,7 @@ export default function SocialScreen() {
     haptics.tapLight()
     setGroupCode('')
     const gid = await joinGroup(supabase, c)
-    if (gid) { load(); router.push(`/group-detail?id=${gid}` as any) }
+    if (gid) { track('group_joined'); load(); router.push(`/group-detail?id=${gid}` as any) }
     else Alert.alert('Group not found', 'Double-check the code and try again.')
   }
 
@@ -215,11 +221,12 @@ export default function SocialScreen() {
     haptics.tapMedium()
     const ok = await respondWorkoutInvite(supabase, inv.id, action)
     if (ok) {
+      track('workout_invite_responded', { action })
       load()
       if (action === 'accept') {
         Alert.alert('Scheduled!', `Your ${inv.focus} with ${inv.display_name ?? 'your friend'} is on both your calendars.`)
       }
-    } else Alert.alert('Couldn’t respond', 'Please try again.')
+    } else Alert.alert("Couldn't respond", 'Please try again.')
   }
 
   const cyclePrivacy = async (key: keyof PrivacyPrefs) => {
@@ -230,7 +237,7 @@ export default function SocialScreen() {
     setPrivacy(updated)
     if (!(await updatePrivacy(supabase, userId, { [key]: next }))) {
       setPrivacy(privacy) // revert on failure
-      Alert.alert('Couldn’t save', 'Check your connection and try again.')
+      Alert.alert("Couldn't save", 'Check your connection and try again.')
     }
   }
 

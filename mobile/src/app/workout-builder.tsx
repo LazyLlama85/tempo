@@ -32,6 +32,7 @@ import {
 } from '@/lib/workoutBuilder'
 import { WORKOUT_PRESETS, workoutPresetById, hydrateWorkoutPreset } from '@/lib/starterTemplates'
 import { setSplitHandoff } from '@/lib/handoff'
+import { track } from '@/lib/analytics'
 import type { Exercise, WorkoutTemplate } from '@/types'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -178,15 +179,16 @@ export default function WorkoutBuilderScreen() {
     const id = await saveTemplate(supabase, userId, { name, items, templateId: templateId ?? null })
     setBusy(null)
     if (id) {
+      track('custom_workout_saved', { exercise_count: items.length, scheduled: false })
       if (forSplit) {
-        // Came from the split editor's "create a new workout for this day" — hand
+        // Came from the split editor's “create a new workout for this day” — hand
         // the result back and return immediately; the split editor assigns it to
         // the day and reopens, so there's nothing to hunt for.
         setSplitHandoff(id)
         router.back()
         return
       }
-      Alert.alert('Saved', `“${name.trim()}” is in My Workouts.`)
+      Alert.alert('Saved', `”${name.trim()}” is in My Workouts.`)
       router.back()
     } else Alert.alert('Could not save', 'Please try again.')
   }
@@ -199,6 +201,7 @@ export default function WorkoutBuilderScreen() {
     })
     setBusy(null)
     if (id) {
+      track('custom_workout_saved', { exercise_count: items.length, scheduled: true })
       // Best-effort: also keep it as a reusable template the first time.
       if (!templateId) saveTemplate(supabase, userId, { name, items }).catch(() => {})
       // Pre-workout reminder, like plan workouts get (best-effort, never blocks).

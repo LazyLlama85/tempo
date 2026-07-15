@@ -20,6 +20,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { saveTravelMode, clearTravelMode, describeTravelUntil } from '@/lib/travelMode'
+import { track } from '@/lib/analytics'
 import { syncTravelSchedule } from '@/lib/travelSchedule'
 import type { Equipment, TravelMode } from '@/types'
 
@@ -100,6 +101,7 @@ export default function TravelModeScreen() {
     const tm: TravelMode = { equipment, until: untilFor(dur), label: label.trim() || null }
     const ok = await saveTravelMode(supabase, userId, tm)
     if (ok) {
+      track('travel_mode_enabled', { equipment_count: equipment.length, duration: dur })
       // Immediately rewrite upcoming sessions to the gear they have, then refresh.
       try { await syncTravelSchedule(supabase, userId) } catch { /* best-effort */ }
       await refreshProfile()
@@ -115,6 +117,7 @@ export default function TravelModeScreen() {
     if (!userId || saving) return
     setSaving(true)
     await clearTravelMode(supabase, userId)
+    track('travel_mode_cleared')
     // Restore every travel-adjusted session back to the original plan.
     try { await syncTravelSchedule(supabase, userId) } catch { /* best-effort */ }
     await refreshProfile()

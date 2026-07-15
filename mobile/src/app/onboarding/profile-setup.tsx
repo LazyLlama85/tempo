@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth'
 import { AVATAR_PRESETS, buildAvatarValue, parseAvatar } from '@/lib/avatar'
 import { logMeasurement } from '@/lib/bodyMeasurements'
 import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
+import { track } from '@/lib/analytics'
 
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
@@ -49,7 +50,7 @@ export default function ProfileSetupScreen() {
   const preset = AVATAR_PRESETS.find(p => p.id === avatarId) ?? AVATAR_PRESETS[0]
   const firstName = name.trim().split(' ')[0]
 
-  const enterApp = () => router.replace('/(tabs)')
+  const enterApp = () => { track('profile_setup_skipped'); router.replace('/(tabs)') }
 
   const handleSave = async () => {
     if (saving) return
@@ -73,7 +74,8 @@ export default function ProfileSetupScreen() {
         try { await logMeasurement(supabase, session.user.id, { weight_lbs: weightLbs }) } catch {}
       }
       await refreshProfile().catch(() => {})
-      enterApp()
+      track('profile_setup_completed', { has_name: !!name.trim(), has_weight: validWeight })
+      router.replace('/(tabs)')
     } catch {
       setSaving(false)
       Alert.alert('Could not save', 'Please try again, or skip for now.')
