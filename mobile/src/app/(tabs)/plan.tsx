@@ -1378,6 +1378,12 @@ export default function WorkoutsScreen() {
               })()}
             </View>
             <Text style={styles.hubTitle}>{workout.focus}</Text>
+            {/* Readiness glance — tap to open the full Readiness view. */}
+            <PressableScale style={styles.hubReadyChip} scaleTo={0.96} onPress={() => setHubSeg('readiness')}>
+              <View style={[styles.hubReadyDot, { backgroundColor: trainReady.readiness.score >= 80 ? C.readyHigh : trainReady.readiness.score >= 55 ? C.readyMed : C.readyLow }]} />
+              <Text style={styles.hubReadyText}>{trainReady.readiness.score}% ready · go {trainReady.intensity.label.toLowerCase()}</Text>
+              <Ionicons name="chevron-forward" size={13} color={C.outline} />
+            </PressableScale>
             <View style={styles.hubMetaRow}>
               <Text style={styles.hubMeta}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'} · ~{hubEstimateMin} min</Text>
               <PressableScale
@@ -2348,6 +2354,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   hubTitle: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.4 },
   hubMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   hubMeta: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
+  hubReadyChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full, paddingLeft: 10, paddingRight: 8, paddingVertical: 6, marginTop: 2 },
+  hubReadyDot: { width: 8, height: 8, borderRadius: 4 },
+  hubReadyText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.text },
   hubEditBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: C.primarySoft, borderRadius: Radius.full,

@@ -18,7 +18,7 @@ import { Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
-import { PAYWALL_POINTS } from '@/lib/proFeatures'
+import { PAYWALL_POINTS, type IoniconName } from '@/lib/proFeatures'
 import {
   getProOffering, purchaseProPackage, restorePurchases, packageHasIntroOffer,
 } from '@/lib/purchases'
@@ -26,6 +26,26 @@ import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
 
 type PlanKey = 'annual' | 'monthly'
+
+// Free-vs-Pro — kept honest to the actual gating (proFeatures.ts): the free app is
+// fully functional; Pro adds depth/foresight/breadth/personalization on top.
+const COMPARE: { label: string; free: boolean }[] = [
+  { label: 'Auto-scheduled workout plan', free: true },
+  { label: 'Calendar sync & logging', free: true },
+  { label: 'Splits, templates & quick workouts', free: true },
+  { label: 'Advanced analytics', free: false },
+  { label: 'Smart scheduling around your week', free: false },
+  { label: 'Readiness & recovery insights', free: false },
+  { label: 'Long-term & periodized planning', free: false },
+  { label: 'Premium themes & app icons', free: false },
+]
+
+const TRUST: { icon: IoniconName; label: string }[] = [
+  { icon: 'lock-closed', label: 'Secure' },
+  { icon: 'shield-checkmark', label: 'Private' },
+  { icon: 'close-circle', label: 'No ads' },
+  { icon: 'refresh', label: 'Cancel anytime' },
+]
 
 function trialLabel(pkg: PurchasesPackage | null): string | null {
   const intro = pkg?.product.introPrice
@@ -129,12 +149,13 @@ export default function PaywallScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Hero */}
         <FadeInView style={styles.hero} delay={20}>
+          <View style={styles.heroGlow} pointerEvents="none" />
           <View style={styles.heroBadge}>
             <TempoPulse size={26} />
           </View>
-          <Text style={styles.heroTitle}>Unlock Tempo Pro</Text>
+          <Text style={styles.heroTitle}>Train smarter.{'\n'}Never miss a workout.</Text>
           <Text style={styles.heroSub}>
-            Train smarter, stay consistent, and let Tempo optimize your workouts.
+            Tempo Pro schedules your training around your life and tells you exactly what to do each day.
           </Text>
         </FadeInView>
 
@@ -150,6 +171,28 @@ export default function PaywallScreen() {
                 <Text style={styles.valueBenefit}>{p.benefit}</Text>
               </View>
             </FadeInView>
+          ))}
+        </View>
+
+        {/* Free vs Pro comparison */}
+        <View style={styles.compareCard}>
+          <View style={styles.compareHead}>
+            <Text style={styles.compareHeadLabel}>What you get</Text>
+            <Text style={styles.compareCol}>Free</Text>
+            <Text style={[styles.compareCol, styles.compareColPro]}>Pro</Text>
+          </View>
+          {COMPARE.map((row, i) => (
+            <View key={i} style={[styles.compareRow, i > 0 && styles.compareRowDivider]}>
+              <Text style={styles.compareLabel}>{row.label}</Text>
+              <View style={styles.compareCell}>
+                {row.free
+                  ? <Ionicons name="checkmark" size={16} color={C.textSecondary} />
+                  : <Ionicons name="remove" size={16} color={C.outlineVariant} />}
+              </View>
+              <View style={styles.compareCell}>
+                <Ionicons name="checkmark-circle" size={18} color={C.primary} />
+              </View>
+            </View>
           ))}
         </View>
 
@@ -200,6 +243,20 @@ export default function PaywallScreen() {
             {selected === 'annual' ? '/yr' : '/mo'}. Cancel anytime.
           </Text>
         )}
+
+        {hasPlans && (
+          <Text style={styles.valueStatement}>Less than a coffee a week — cancel anytime.</Text>
+        )}
+
+        {/* Trust indicators */}
+        <View style={styles.trustRow}>
+          {TRUST.map((t) => (
+            <View key={t.label} style={styles.trustItem}>
+              <Ionicons name={t.icon} size={15} color={C.success} />
+              <Text style={styles.trustText}>{t.label}</Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
 
       {/* Sticky CTA footer */}
@@ -276,7 +333,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     width: 64, height: 64, borderRadius: Radius.full, backgroundColor: C.primarySoft,
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
   },
-  heroTitle: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center' },
+  heroGlow: { position: 'absolute', top: -24, left: '50%', width: 220, height: 220, borderRadius: 110, marginLeft: -110, backgroundColor: C.primaryGlow },
+  heroTitle: { fontFamily: C.fontDisplay, fontSize: 29, color: C.text, letterSpacing: -0.6, textAlign: 'center', lineHeight: 34 },
   heroSub: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.md },
 
   valueCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Elevation.e1 },
@@ -284,6 +342,21 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   valueIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   valueTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   valueBenefit: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
+
+  compareCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
+  compareHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.outlineVariant },
+  compareHeadLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, textTransform: 'uppercase' },
+  compareCol: { width: 46, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
+  compareColPro: { color: C.primary },
+  compareRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm + 1 },
+  compareRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
+  compareLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.text },
+  compareCell: { width: 46, alignItems: 'center' },
+
+  valueStatement: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, textAlign: 'center' },
+  trustRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.md, marginTop: 2 },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  trustText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
 
   loadingBox: { alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg },
   loadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },

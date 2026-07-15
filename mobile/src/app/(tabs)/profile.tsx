@@ -1014,13 +1014,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── App ─────────────────────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App</Text>
-          <View style={styles.card}>
-            {/* Tempo Pro (§10) — shown only when Pro is live; hidden while dormant. */}
-            {proEnabled && !isPro && (
-              <>
+        {/* ── Subscription (Tempo Pro) — its own group; only while Pro is live ─ */}
+        {proEnabled && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Subscription</Text>
+            <View style={styles.card}>
+              {!isPro ? (
                 <TouchableOpacity style={styles.settingRow} onPress={openPaywall} activeOpacity={0.7}>
                   <View style={[styles.settingIcon, { backgroundColor: C.primarySoft }]}>
                     <Ionicons name="sparkles" size={18} color={C.primary} />
@@ -1031,11 +1030,7 @@ export default function ProfileScreen() {
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={C.primary} />
                 </TouchableOpacity>
-                <View style={styles.divider} />
-              </>
-            )}
-            {proEnabled && isPro && (
-              <>
+              ) : (
                 <TouchableOpacity style={styles.settingRow} onPress={() => void presentCustomerCenter()} activeOpacity={0.7}>
                   <View style={[styles.settingIcon, { backgroundColor: C.primarySoft }]}>
                     <Ionicons name="star" size={18} color={C.primary} />
@@ -1046,9 +1041,15 @@ export default function ProfileScreen() {
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={C.outlineVariant} />
                 </TouchableOpacity>
-                <View style={styles.divider} />
-              </>
-            )}
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── App ─────────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App</Text>
+          <View style={styles.card}>
             <View style={styles.settingRow}>
               <View style={styles.settingIcon}>
                 <Ionicons name="notifications-outline" size={18} color={C.primary} />

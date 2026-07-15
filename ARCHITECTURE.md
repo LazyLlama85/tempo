@@ -611,8 +611,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   next milestone, completion rate, recent-PR list, and weight trend. **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
-  StoreKit-compliant. Everything ships DORMANT — flip `app_config.pro_enabled` (or allow-list a uid)
-  to go live with no rebuild.
+  StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
+  **Free-vs-Pro comparison table** (kept honest to the real gating in `proFeatures.ts`) → the live
+  plan cards + trial note → a "less than a coffee a week" value line → **trust indicators** (Secure ·
+  Private · No ads · Cancel anytime). No fake testimonials (deliberately — real ones can be dropped
+  in later). All purchase/restore/offering logic unchanged. Everything ships DORMANT — flip
+  `app_config.pro_enabled` (or allow-list a uid) to go live with no rebuild. On Profile, the Pro
+  upgrade/manage rows now live in their own **Subscription** section (shown only while Pro is live).
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;
