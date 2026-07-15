@@ -20,12 +20,16 @@ import { useAuthStore } from '@/stores/auth'
 import type { Goal, Experience, Equipment } from '@/types'
 
 
+// Copy is deliberately plain-language, benefit-first — no gym jargon ("hypertrophy",
+// "metabolic conditioning", "CNS optimization"). The busy-generalist persona should never
+// feel this app is for someone more serious than them at the very first screen. (Ids,
+// labels, and icons are unchanged — this only softens the descriptions.)
 const GOALS: { id: Goal; label: string; description: string; icon: string }[] = [
-  { id: 'muscle_gain', label: 'Build Muscle', description: 'Hypertrophy and mass building focus.', icon: 'barbell-outline' },
-  { id: 'fat_loss', label: 'Lose Fat', description: 'High intensity metabolic conditioning.', icon: 'flame-outline' },
-  { id: 'strength', label: 'Gain Strength', description: 'Powerlifting and CNS optimization.', icon: 'battery-charging-outline' },
-  { id: 'athletic', label: 'Athletic Performance', description: 'Agility, power, and coordination.', icon: 'speedometer-outline' },
-  { id: 'general_fitness', label: 'General Fitness', description: 'Longevity and everyday wellness.', icon: 'pulse-outline' },
+  { id: 'muscle_gain', label: 'Build Muscle', description: 'Build visible size and strength.', icon: 'barbell-outline' },
+  { id: 'fat_loss', label: 'Lose Fat', description: 'Burn fat and get leaner.', icon: 'flame-outline' },
+  { id: 'strength', label: 'Gain Strength', description: 'Get stronger on the big lifts.', icon: 'battery-charging-outline' },
+  { id: 'athletic', label: 'Athletic Performance', description: 'Build speed, power, and agility.', icon: 'speedometer-outline' },
+  { id: 'general_fitness', label: 'General Fitness', description: 'Feel good and stay healthy.', icon: 'pulse-outline' },
 ]
 
 // Each level previews a real slice of the program it unlocks — sample lifts with
