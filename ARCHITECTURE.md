@@ -198,8 +198,11 @@ you moving."*
   on a new calendar day. A "Google Calendar needs reconnecting" banner (see §5) can also appear here.
 - **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
   Tapping the tab (no `workoutId` param) lands on the **hub** — the day's session previewed
-  (focus, exercise list, sets) with a **Start session** button, plus Quick Workout / My Workouts /
-  My Splits / Schedule links. Hub/loading/empty headers carry only the wordmark + avatar — no back
+  (focus, exercise list, sets) with a **Start session** button. **Redesign (Phase 3):** the hub now
+  promotes its top destinations to a prominent multi-accent card row — **Workouts** (blue),
+  **Splits** (ember), **Agenda** (gold) — and keeps Quick Workout / History / Library as a secondary
+  link row (no destination removed; cards + list carry the `Elevation` depth ramp). The **live
+  session runner is deliberately untouched** — all hub-only, style + one additive nav row. Hub/loading/empty headers carry only the wordmark + avatar — no back
   button (it's a tab, not a pushed screen); only the live session keeps its chevron-down
   leave-to-hub control. You only enter the live logger deliberately (hub button, or an
   explicit start from Home / Quick Workout which pass a `workoutId`), and the `workout_logs` row +

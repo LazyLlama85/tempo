@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
 import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
@@ -1380,6 +1380,30 @@ export default function WorkoutsScreen() {
             </View>
           </FadeInView>
 
+          {/* Prominent quick-nav — the workout hub's most-used destinations promoted
+              from small bottom links to full cards. Multi-accent (blue/ember/gold) so
+              each reads as its own thing, per the enriched Tempo palette. */}
+          <FadeInView delay={40} style={styles.hubNav}>
+            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/my-workouts' as any)}>
+              <View style={[styles.hubNavIcon, { backgroundColor: C.primarySoft }]}>
+                <Ionicons name="construct" size={20} color={C.primary} />
+              </View>
+              <Text style={styles.hubNavLabel}>Workouts</Text>
+            </PressableScale>
+            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/my-splits' as any)}>
+              <View style={[styles.hubNavIcon, { backgroundColor: C.emberSoft }]}>
+                <Ionicons name="repeat" size={20} color={C.ember} />
+              </View>
+              <Text style={styles.hubNavLabel}>Splits</Text>
+            </PressableScale>
+            <PressableScale style={styles.hubNavCard} scaleTo={0.95} onPress={() => router.push('/(tabs)')}>
+              <View style={[styles.hubNavIcon, { backgroundColor: C.goldSoft }]}>
+                <Ionicons name="calendar" size={20} color={C.gold} />
+              </View>
+              <Text style={styles.hubNavLabel}>Agenda</Text>
+            </PressableScale>
+          </FadeInView>
+
           <FadeInView delay={70} style={styles.hubList}>
             {exercises.map((ex, i) => (
               <View key={ex.id} style={[styles.hubRow, i > 0 && styles.hubRowDivider]}>
@@ -1414,18 +1438,12 @@ export default function WorkoutsScreen() {
             </PressableScale>
           </FadeInView>
 
+          {/* Secondary links — Workouts & Splits are now the prominent cards above,
+              so this row keeps the remaining destinations reachable without duplication. */}
           <View style={styles.emptyLinksRow}>
             <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/quick-workout')} activeOpacity={0.7}>
               <Ionicons name="flash" size={15} color={C.textSecondary} />
               <Text style={styles.emptyLinkText}>Quick Workout</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-workouts' as any)} activeOpacity={0.7}>
-              <Ionicons name="construct-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>My Workouts</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
-              <Ionicons name="repeat-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>My Splits</Text>
             </PressableScale>
             <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/workout-history' as any)} activeOpacity={0.7}>
               <Ionicons name="journal-outline" size={15} color={C.textSecondary} />
@@ -2322,9 +2340,19 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     textAlign: 'center', lineHeight: 20, overflow: 'hidden',
   },
   whyLine: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 19 },
+  hubNav: { flexDirection: 'row', gap: Spacing.sm },
+  hubNavCard: {
+    flex: 1, alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.card,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs,
+    ...Elevation.e1,
+  },
+  hubNavIcon: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  hubNavLabel: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, letterSpacing: -0.1 },
   hubList: {
     backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant,
-    paddingHorizontal: Spacing.md, ...CardShadow,
+    paddingHorizontal: Spacing.md, ...Elevation.e1,
   },
   hubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
   hubRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
@@ -2335,6 +2363,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   hubStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
     height: 56, borderRadius: Radius.lg, backgroundColor: C.primary,
+    ...Elevation.e2,
   },
   hubStartText: { fontFamily: C.fontDisplay, fontSize: 16, color: C.onPrimary, letterSpacing: 0.2 },
 
