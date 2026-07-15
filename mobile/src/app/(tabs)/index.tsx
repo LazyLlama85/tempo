@@ -12,7 +12,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { useTutorialTarget } from '@/components/TutorialOverlay'
 import { useTutorialStore } from '@/stores/tutorial'
 import { T, HOME_TOUR_STEPS, TARGET, shouldShowTip } from '@/lib/tutorial'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
@@ -1800,6 +1800,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderColor: C.primary,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
+    ...Elevation.e1,
   },
   quickIcon: {
     width: 36, height: 36, borderRadius: Radius.md,
@@ -1821,6 +1822,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderColor: C.outlineVariant,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
+    ...Elevation.e1,
   },
   weekTargetRingNum: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text },
   weekTargetLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
@@ -1835,6 +1837,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     backgroundColor: C.background, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: C.outlineVariant,
     padding: Spacing.md,
+    ...Elevation.e1,
   },
   phaseBannerDeload: { borderColor: C.success, backgroundColor: C.successSoft },
   phaseIcon: {
@@ -1850,6 +1853,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.sm,
     backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
     padding: Spacing.md,
+    ...Elevation.e1,
   },
   goalIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   goalHeadline: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text, letterSpacing: -0.2 },
@@ -1984,7 +1988,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderLeftColor: C.primary,
     padding: Spacing.md,
     gap: Spacing.sm,
-    ...CardShadow,
+    ...Elevation.e1,
   },
   workoutCardDone: { opacity: 0.72 },
   workoutCardAttn: { borderColor: C.ember, borderLeftColor: C.ember },

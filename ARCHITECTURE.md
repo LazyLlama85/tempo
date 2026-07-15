@@ -169,6 +169,8 @@ you moving."*
   sessions" + bar — the winnable loop for a 3×/week plan, always visible); **Add Workout** FAB
   (opens `AddWorkoutSheet` → build new / pick a saved workout / pick a starter template, scheduled
   onto the selected day via the builder); "ignore event" to free time; recovery check-in entry.
+  (Redesign polish: the workout/quick/weekly-target/phase/goal cards now carry the shared
+  `Elevation.e1` depth ramp instead of reading flat — style-only, no logic/layout change.)
   **Today's-context strip** (`contextItems` array in `index.tsx`): the contextual banners that used
   to stack independently — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
   block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), and the
