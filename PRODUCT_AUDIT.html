@@ -1,0 +1,1114 @@
+<title>Tempo — Brutal Product Audit</title>
+<style>
+  :root {
+    --ink-0:#0F1014; --ink-1:#181A20; --ink-2:#1F232B; --ink-3:#262A33; --ink-4:#2E333D;
+    --paper:#0F1014;
+    --line:#2A2F39; --line-soft:#20242C;
+    --text:#F3F4F7; --text-2:#AFB5C1; --text-3:#787F8C;
+    --blue:#4E8BFF; --blue-br:#6BA0FF; --blue-dim:#2C58B8;
+    --ember:#FF6A45; --gold:#D9A13B; --green:#33C777; --red:#FF6B6B;
+    --s-crit:#FF6B6B; --s-weak:#D9A13B; --s-ok:#4E8BFF; --s-good:#33C777;
+    --bg:var(--ink-0); --card:var(--ink-2); --card-2:var(--ink-1); --hero:var(--ink-1);
+    --glow: radial-gradient(120% 120% at 15% 0%, rgba(78,139,255,.16), transparent 55%);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --maxw: 1120px;
+    --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 12px 30px -18px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ink-0:#FBFAF7; --ink-1:#FFFFFF; --ink-2:#FFFFFF; --ink-3:#F2F1EC; --ink-4:#EAE8E1;
+      --line:#E4E2DA; --line-soft:#EEECE4;
+      --text:#161821; --text-2:#5A6070; --text-3:#8A909C;
+      --blue:#0058BC; --blue-br:#0058BC; --blue-dim:#B9CBEC;
+      --ember:#D8461E; --gold:#B07E1E; --green:#1B9E5A; --red:#D23A3A;
+      --s-crit:#D23A3A; --s-weak:#B07E1E; --s-ok:#0058BC; --s-good:#1B9E5A;
+      --bg:var(--ink-0); --card:var(--ink-1); --card-2:#FFFFFF; --hero:#FFFFFF;
+      --glow: radial-gradient(120% 120% at 15% 0%, rgba(0,88,188,.10), transparent 55%);
+      --shadow: 0 1px 2px rgba(20,20,30,.04), 0 18px 40px -28px rgba(20,20,40,.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink-0:#0F1014; --ink-1:#181A20; --ink-2:#1F232B; --ink-3:#262A33; --ink-4:#2E333D;
+    --line:#2A2F39; --line-soft:#20242C;
+    --text:#F3F4F7; --text-2:#AFB5C1; --text-3:#787F8C;
+    --blue:#4E8BFF; --blue-br:#6BA0FF; --blue-dim:#2C58B8;
+    --ember:#FF6A45; --gold:#D9A13B; --green:#33C777; --red:#FF6B6B;
+    --s-crit:#FF6B6B; --s-weak:#D9A13B; --s-ok:#4E8BFF; --s-good:#33C777;
+    --bg:var(--ink-0); --card:var(--ink-2); --card-2:var(--ink-1); --hero:var(--ink-1);
+    --glow: radial-gradient(120% 120% at 15% 0%, rgba(78,139,255,.16), transparent 55%);
+    --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 12px 30px -18px rgba(0,0,0,.7);
+  }
+  :root[data-theme="light"]{
+    --ink-0:#FBFAF7; --ink-1:#FFFFFF; --ink-2:#FFFFFF; --ink-3:#F2F1EC; --ink-4:#EAE8E1;
+    --line:#E4E2DA; --line-soft:#EEECE4;
+    --text:#161821; --text-2:#5A6070; --text-3:#8A909C;
+    --blue:#0058BC; --blue-br:#0058BC; --blue-dim:#B9CBEC;
+    --ember:#D8461E; --gold:#B07E1E; --green:#1B9E5A; --red:#D23A3A;
+    --s-crit:#D23A3A; --s-weak:#B07E1E; --s-ok:#0058BC; --s-good:#1B9E5A;
+    --bg:var(--ink-0); --card:var(--ink-1); --card-2:#FFFFFF; --hero:#FFFFFF;
+    --glow: radial-gradient(120% 120% at 15% 0%, rgba(0,88,188,.10), transparent 55%);
+    --shadow: 0 1px 2px rgba(20,20,30,.04), 0 18px 40px -28px rgba(20,20,40,.28);
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:.005em;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px;}
+  a{color:var(--blue);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  :focus-visible{outline:2px solid var(--blue-br);outline-offset:3px;border-radius:4px;}
+
+  h2,h3,h4{text-wrap:balance;line-height:1.15;margin:0;}
+  p{margin:0 0 12px;max-width:72ch;}
+  strong{color:var(--text);font-weight:650;}
+  em{color:var(--text);font-style:normal;font-weight:600;}
+
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);}
+  .mono{font-family:var(--mono);}
+  .tnum{font-variant-numeric:tabular-nums;}
+
+  /* ---- Hero ---- */
+  .hero{background:var(--hero);background-image:var(--glow);border-bottom:1px solid var(--line);
+    padding:56px 0 44px;}
+  .hero .kick{display:flex;align-items:center;gap:10px;margin-bottom:26px;flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 4px color-mix(in srgb,var(--blue) 22%,transparent);}
+  .wordmark{font-weight:800;letter-spacing:-.02em;font-size:15px;}
+  .hero h1{font-size:clamp(34px,6vw,60px);font-weight:820;letter-spacing:-.028em;line-height:1.02;margin:0 0 18px;}
+  .hero h1 .u{color:var(--ember);}
+  .lede{font-size:clamp(17px,2.2vw,20px);color:var(--text-2);max-width:60ch;line-height:1.5;}
+  .heroGrid{display:grid;grid-template-columns:1.5fr .9fr;gap:32px;align-items:end;margin-top:8px;}
+  @media(max-width:820px){.heroGrid{grid-template-columns:1fr;gap:26px;}}
+
+  .scoreCard{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px 26px;box-shadow:var(--shadow);}
+  .scoreCard .big{font-family:var(--mono);font-size:64px;font-weight:700;letter-spacing:-.04em;line-height:1;
+    background:linear-gradient(180deg,var(--text),var(--text-2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .scoreCard .of{color:var(--text-3);font-size:26px;}
+  .scoreCard .meta{color:var(--text-2);font-size:13.5px;margin-top:6px;}
+  .track{height:8px;border-radius:6px;background:var(--ink-3);margin-top:18px;position:relative;overflow:hidden;}
+  .track > i{position:absolute;inset:0 auto 0 0;border-radius:6px;display:block;}
+  .track .cur{background:linear-gradient(90deg,var(--s-weak),var(--s-ok));width:56%;}
+  .track .pot{position:absolute;top:0;bottom:0;width:85%;border-right:2px dashed var(--green);opacity:.5;}
+  .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text-3);margin-top:8px;}
+
+  /* ---- Section index ---- */
+  .toc{padding:30px 0 6px;}
+  .toc ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:2px 26px;}
+  @media(max-width:820px){.toc ol{grid-template-columns:1fr 1fr;}}
+  @media(max-width:520px){.toc ol{grid-template-columns:1fr;}}
+  .toc li{border-top:1px solid var(--line-soft);}
+  .toc a{display:flex;gap:12px;padding:10px 2px;color:var(--text-2);font-size:14px;align-items:baseline;}
+  .toc a:hover{color:var(--text);text-decoration:none;}
+  .toc .n{font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:22px;}
+
+  /* ---- Sections ---- */
+  section{padding:52px 0;border-top:1px solid var(--line);}
+  .secHead{display:flex;align-items:baseline;gap:16px;margin-bottom:8px;flex-wrap:wrap;}
+  .secHead .num{font-family:var(--mono);font-size:12px;color:var(--blue);letter-spacing:.1em;}
+  section h2{font-size:clamp(24px,3.4vw,34px);font-weight:780;letter-spacing:-.022em;}
+  .subhead{color:var(--text-2);font-size:16px;max-width:74ch;margin:10px 0 26px;}
+
+  /* ---- Cards / prose ---- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:var(--shadow);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .card h3{font-size:18px;font-weight:700;margin-bottom:8px;letter-spacing:-.01em;}
+  .card h4{font-size:14.5px;font-weight:680;margin-bottom:6px;}
+  .card p:last-child{margin-bottom:0;}
+  .card .lab{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);display:block;margin-bottom:10px;}
+
+  /* verdict answer chips */
+  .qa{display:grid;grid-template-columns:1fr;gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card);}
+  .qa .row{display:grid;grid-template-columns:minmax(200px,1fr) 120px;gap:14px;padding:15px 20px;border-top:1px solid var(--line-soft);align-items:center;}
+  .qa .row:first-child{border-top:none;}
+  .qa .q{font-weight:600;font-size:15px;}
+  .verdict{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-align:right;}
+  .v-yes{color:var(--green);} .v-no{color:var(--red);} .v-mostly{color:var(--blue-br);} .v-not{color:var(--gold);}
+
+  /* pills */
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap;}
+  .p-crit{color:var(--s-crit);background:color-mix(in srgb,var(--s-crit) 14%,transparent);border-color:color-mix(in srgb,var(--s-crit) 30%,transparent);}
+  .p-high{color:var(--ember);background:color-mix(in srgb,var(--ember) 13%,transparent);border-color:color-mix(in srgb,var(--ember) 28%,transparent);}
+  .p-med{color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border-color:color-mix(in srgb,var(--gold) 28%,transparent);}
+  .p-low{color:var(--text-2);background:color-mix(in srgb,var(--text-2) 10%,transparent);border-color:var(--line);}
+  .p-win{color:var(--green);background:color-mix(in srgb,var(--green) 13%,transparent);border-color:color-mix(in srgb,var(--green) 28%,transparent);}
+  .p-blue{color:var(--blue-br);background:color-mix(in srgb,var(--blue) 14%,transparent);border-color:color-mix(in srgb,var(--blue) 30%,transparent);}
+
+  /* scorecard table */
+  .tableWrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--card);}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px;}
+  thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);
+    text-align:left;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;position:sticky;top:0;background:var(--card);}
+  tbody td{padding:12px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle;color:var(--text-2);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody td.cat{color:var(--text);font-weight:600;font-size:14px;}
+  .grp td{background:var(--card-2);font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);padding:11px 16px;font-weight:700;}
+  .sc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;}
+  .sc.c1,.sc.c2,.sc.c3{color:var(--s-crit);}
+  .sc.c4,.sc.c5{color:var(--s-weak);}
+  .sc.c6,.sc.c7{color:var(--s-ok);}
+  .sc.c8,.sc.c9,.sc.c10{color:var(--s-good);}
+  .dual{position:relative;height:7px;border-radius:5px;background:var(--ink-3);min-width:96px;}
+  .dual .cur{position:absolute;left:0;top:0;bottom:0;border-radius:5px;}
+  .dual .pot{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--green);opacity:.7;border-radius:2px;}
+  .gap{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--gold);}
+
+  /* finding blocks with severity stripe */
+  .find{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px 18px 24px;overflow:hidden;}
+  .find::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--text-3);}
+  .find.crit::before{background:var(--s-crit);}
+  .find.high::before{background:var(--ember);}
+  .find.med::before{background:var(--gold);}
+  .find.win::before{background:var(--green);}
+  .find h4{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:15.5px;font-weight:700;margin-bottom:7px;}
+  .find p{font-size:14.5px;color:var(--text-2);}
+  .find .fix{font-size:14px;margin-top:8px;color:var(--text-2);}
+  .find .fix b{color:var(--blue-br);font-weight:650;}
+  .stack{display:flex;flex-direction:column;gap:14px;}
+
+  /* competitor block */
+  .comp{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;}
+  .comp h3{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:17px;margin-bottom:4px;}
+  .comp .role{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:600;}
+  .comp ul{margin:10px 0 0;padding:0;list-style:none;font-size:13.6px;}
+  .comp li{display:flex;gap:8px;padding:4px 0;color:var(--text-2);}
+  .comp li .k{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;min-width:52px;padding-top:2px;}
+  .k.better{color:var(--red);} .k.worse{color:var(--green);} .k.copy{color:var(--gold);}
+
+  /* journey / list */
+  .journey{border-left:2px solid var(--line);margin-left:6px;padding-left:22px;display:flex;flex-direction:column;gap:22px;}
+  .stage{position:relative;}
+  .stage::before{content:"";position:absolute;left:-29px;top:6px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid var(--blue);}
+  .stage.risk::before{border-color:var(--ember);}
+  .stage.bleed::before{border-color:var(--red);}
+  .stage h4{font-size:16px;font-weight:700;margin-bottom:4px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;}
+  .stage p{font-size:14.3px;color:var(--text-2);margin-bottom:0;}
+
+  ul.clean{list-style:none;margin:0;padding:0;}
+  ul.clean li{padding:8px 0 8px 24px;position:relative;color:var(--text-2);font-size:14.6px;border-top:1px solid var(--line-soft);}
+  ul.clean li:first-child{border-top:none;}
+  ul.clean li::before{content:"→";position:absolute;left:0;color:var(--blue);font-family:var(--mono);}
+  ul.clean li b{color:var(--text);}
+
+  .callout{background:linear-gradient(180deg,color-mix(in srgb,var(--ember) 10%,var(--card)),var(--card));
+    border:1px solid color-mix(in srgb,var(--ember) 30%,var(--line));border-radius:16px;padding:22px 24px;}
+  .callout .lab{color:var(--ember);}
+  .callout.blue{background:linear-gradient(180deg,color-mix(in srgb,var(--blue) 12%,var(--card)),var(--card));border-color:color-mix(in srgb,var(--blue) 32%,var(--line));}
+  .callout.blue .lab{color:var(--blue-br);}
+  .callout.gold{background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 11%,var(--card)),var(--card));border-color:color-mix(in srgb,var(--gold) 32%,var(--line));}
+  .callout.gold .lab{color:var(--gold);}
+
+  .kpiRow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  @media(max-width:720px){.kpiRow{grid-template-columns:1fr 1fr;}}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+  .kpi .v{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--text);}
+  .kpi .v small{font-size:14px;color:var(--text-3);}
+  .kpi .l{font-size:12.5px;color:var(--text-2);margin-top:2px;}
+  .kpi.good .v{color:var(--green);} .kpi.bad .v{color:var(--red);} .kpi.warn .v{color:var(--gold);} .kpi.blue .v{color:var(--blue-br);}
+
+  .tiers{display:flex;flex-direction:column;gap:14px;}
+  .tier{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card);}
+  .tier .th{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-soft);}
+  .tier .th h3{font-size:16px;}
+  .tier .body{padding:6px 20px 16px;}
+  .tier ul{margin:0;padding:0;list-style:none;}
+  .tier li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line-soft);font-size:14.3px;color:var(--text-2);}
+  .tier li:first-child{border-top:none;}
+  .tier li b{color:var(--text);font-weight:600;}
+  .roi{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.05em;}
+  .roi.hi{color:var(--green);} .roi.md{color:var(--gold);} .roi.lo{color:var(--text-3);}
+
+  .foot{padding:44px 0 70px;color:var(--text-3);font-size:13px;}
+  .foot .wrap > div{border-top:1px solid var(--line);padding-top:22px;}
+
+  .big-quote{font-size:clamp(20px,3vw,27px);font-weight:720;letter-spacing:-.02em;line-height:1.28;color:var(--text);text-wrap:balance;max-width:24ch;}
+  .big-quote .hl{color:var(--blue);}
+
+  @media (prefers-reduced-motion: no-preference){
+    .fadein{animation:f .6s ease both;}
+    @keyframes f{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  }
+  sup.fn{font-family:var(--mono);font-size:10px;color:var(--blue);}
+</style>
+
+<div class="hero">
+  <div class="wrap fadein">
+    <div class="kick">
+      <span class="dot"></span>
+      <span class="wordmark">tempo</span>
+      <span class="eyebrow">· Independent Product Audit · Panel of 10 · v1.0.0 pre-launch</span>
+    </div>
+    <div class="heroGrid">
+      <div>
+        <h1>A beautifully engineered app that is <span class="u">quietly solving the wrong problem</span> — and hasn't proven anyone wants it.</h1>
+        <p class="lede">Tempo is one of the most complete solo-built fitness apps I've reviewed. It is also over-scoped, unvalidated, monetized on its weakest feature, and hiding the one thing that makes it special. This is the unvarnished version.</p>
+      </div>
+      <div class="scoreCard">
+        <div class="eyebrow" style="margin-bottom:10px;">Overall App Score</div>
+        <div><span class="big tnum">5.6</span><span class="of"> / 10</span></div>
+        <div class="meta">Ceiling if the right 10 things are fixed: <b style="color:var(--green)">8.5</b></div>
+        <div class="track"><i class="cur"></i><i class="pot"></i></div>
+        <div class="legend"><span>CURRENT</span><span>POTENTIAL 8.5</span></div>
+        <div class="meta" style="margin-top:14px;font-size:12.5px;">Strong: design, personalization engine, vision.<br>Weak: focus, reliability, monetization, proof.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="updates" style="padding-top:34px;">
+  <div class="callout blue">
+    <span class="lab">Update Log — living document</span>
+    <p style="margin:0 0 16px;font-size:14.5px;">This audit is re-scored as the app changes. The rule it holds itself to: <b>building a fix closes a gap; it does not move a score until the outcome is measured.</b> Shipping instrumentation, a paywall, or a feature earns an "addressed" note — the number only changes when a real cohort or conversion figure proves it. Newest first.</p>
+    <div class="stack">
+      <div class="find med">
+        <h4><span class="mono" style="color:var(--blue)">2026-07-15</span> Onboarding copy de-jargoned <span class="pill p-med">gap narrowed</span></h4>
+        <p>Killed "hypertrophy," "metabolic conditioning," and "CNS optimization" on the goal cards — the exact voice the <a href="#first">First Impression</a> and <a href="#redteam">beginner Red-Team</a> quoted as making a busy generalist feel the app isn't for them. <b>Score unchanged:</b> Beginner Friendliness holds at 5/10 — the copy is fixed, but the underlying <em>depth</em> is still overwhelming and first-run drop-off is still unmeasured. Change the number when the funnel data does.</p>
+      </div>
+      <div class="find win">
+        <h4><span class="mono" style="color:var(--blue)">2026-07-15</span> Retention instrumentation shipped <span class="pill p-win">gap closed</span></h4>
+        <p>Added <span class="mono" style="font-size:12.5px">activation_reached</span> (a returning 2nd completed session — the core loop proven) and <span class="mono" style="font-size:12.5px">calendar_connected</span> (wedge adoption) — closing <a href="#missing">Missing-Feature #4</a> and the Critical-tier "instrument retention" item. Both fire once, behind durable per-user flags; analytics-only, zero behavior change. <b>Scores unchanged:</b> Retention stays 4/10. You can now <em>measure</em> retention — you have not <em>proven</em> it. This unblocks the honest re-score; it is not the re-score.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap toc">
+  <div class="eyebrow" style="margin-bottom:14px;">Contents</div>
+  <ol>
+    <li><a href="#updates"><span class="n">◆</span> Update Log <span class="pill p-blue" style="margin-left:6px;">live</span></a></li>
+    <li><a href="#exec"><span class="n">01</span> Executive Summary</a></li>
+    <li><a href="#scorecard"><span class="n">02</span> Category Scorecard (48)</a></li>
+    <li><a href="#first"><span class="n">03</span> First Impression</a></li>
+    <li><a href="#competitors"><span class="n">04</span> Competitor Comparison</a></li>
+    <li><a href="#journey"><span class="n">05</span> User Journey Audit</a></li>
+    <li><a href="#uiux"><span class="n">06</span> UI / UX Deep Review</a></li>
+    <li><a href="#home"><span class="n">07</span> Home Screen</a></li>
+    <li><a href="#calendar"><span class="n">08</span> Calendar &amp; Scheduling</a></li>
+    <li><a href="#training"><span class="n">09</span> Training Section</a></li>
+    <li><a href="#progress"><span class="n">10</span> Progress Section</a></li>
+    <li><a href="#readiness"><span class="n">11</span> Readiness &amp; Recovery</a></li>
+    <li><a href="#personalization"><span class="n">12</span> Personalization</a></li>
+    <li><a href="#monetization"><span class="n">13</span> Monetization</a></li>
+    <li><a href="#retention"><span class="n">14</span> Retention</a></li>
+    <li><a href="#growth"><span class="n">15</span> Growth</a></li>
+    <li><a href="#appstore"><span class="n">16</span> App Store</a></li>
+    <li><a href="#engineering"><span class="n">17</span> Engineering</a></li>
+    <li><a href="#science"><span class="n">18</span> Fitness Science</a></li>
+    <li><a href="#missing"><span class="n">19</span> Top 50 Missing Features</a></li>
+    <li><a href="#redteam"><span class="n">20</span> Red Team</a></li>
+    <li><a href="#roadmap"><span class="n">21</span> Roadmap by ROI</a></li>
+    <li><a href="#verdict"><span class="n">22</span> Final Verdict</a></li>
+  </ol>
+</div>
+
+<!-- ===================== EXEC ===================== -->
+<section id="exec">
+  <div class="wrap">
+    <div class="secHead"><span class="num">01</span><h2>Executive Summary</h2></div>
+    <p class="subhead">Six blunt questions, answered before any diplomacy.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="qa">
+        <div class="row"><span class="q">Would I invest in this app?</span><span class="verdict v-not">Not yet</span></div>
+        <div class="row"><span class="q">Would I pay for this app?</span><span class="verdict v-no">Not as gated</span></div>
+        <div class="row"><span class="q">Would I recommend it?</span><span class="verdict v-mostly">To one niche</span></div>
+        <div class="row"><span class="q">Would I use it daily?</span><span class="verdict v-mostly">If it earned it</span></div>
+        <div class="row"><span class="q">Would I switch from a competitor?</span><span class="verdict v-not">Only from a calendar</span></div>
+        <div class="row"><span class="q">Is it the best in its category?</span><span class="verdict v-no">No</span></div>
+      </div>
+      <div class="stack">
+        <div class="callout blue">
+          <span class="lab">The one-sentence truth</span>
+          <p style="margin:0;font-size:15.5px;">Tempo has a <b>real wedge</b> (schedules training around your actual calendar) and a <b>genuinely premium build</b>, but it has buried the wedge, over-built everything around it, and is trying to charge for charts while giving away the intelligence. It is a 9/10 <em>craft</em> project wrapped around a 5/10 <em>product</em> decision set.</p>
+        </div>
+        <div class="grid2" style="gap:12px;">
+          <div class="kpi good"><div class="v">~1,360</div><div class="l">exercises, calendar sync, periodization, adaptation, social, groups, muscle map — all shipped</div></div>
+          <div class="kpi bad"><div class="v">~0</div><div class="l">validated users behind any of it; every decision is an assumption</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:22px;">
+      <div class="card">
+        <span class="lab">Why "not yet" to invest</span>
+        <p>Zero demand signal. The roadmap already shipped 4 stages of social features, a monetization system, and a muscle-intelligence body map <em>before</em> a single cohort proved retention on the core loop. An investor sees velocity without evidence — the most common way solo founders burn 18 months. Fixable, but the honest state today is pre-traction.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Why "not as gated" to pay</span>
+        <p>The only live Pro gate is <b>Advanced Analytics + Muscle Map</b>. Nobody has ever churned <em>onto</em> a fitness app to see volume charts. Meanwhile the thing worth money — auto-scheduling your week around real life — is free. The price ($4.99/mo · $34.99/yr) is fine; the <em>fence is around the wrong feature</em>.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Why "one niche" to recommend</span>
+        <p>The mission says "busy people." The product is a hypertrophy/periodization engine with RPE autoregulation, deloads, and mesocycles. Those two users are not the same person. Today I'd recommend it to the <b>organized intermediate lifter with a chaotic calendar</b> — a real, narrow, winnable segment the marketing doesn't name.</p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:22px;">
+      <span class="lab">The core contradiction</span>
+      <p style="margin:0;font-size:15.5px;max-width:88ch;">Your own <span class="mono" style="font-size:13px;color:var(--text)">DESIGN_STRATEGY.md</span> says it out loud: <em>"the live app buries its single best differentiator (scheduling workouts around your real calendar) inside Settings. That is the biggest miss."</em> You diagnosed the disease and then spent the next several sprints building leaderboards, badges, groups, a Tempo Score, and a muscle map instead of curing it. <b>The audit's #1 finding is one you already wrote down.</b></p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SCORECARD ===================== -->
+<section id="scorecard">
+  <div class="wrap">
+    <div class="secHead"><span class="num">02</span><h2>Category Scorecard</h2></div>
+    <p class="subhead">48 dimensions. <b>Current</b> = where it honestly is today (pre-launch, unvalidated, but built). <b>Potential</b> = realistic ceiling if the right work is done. The gap is the opportunity. Bars: filled = current, dashed marker = potential.</p>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr><th style="min-width:200px;">Dimension</th><th style="width:56px;">Now</th><th style="width:56px;">Max</th><th style="width:130px;">Trajectory</th><th style="width:50px;">Gap</th><th>Where the gap lives</th></tr>
+        </thead>
+        <tbody>
+          <tr class="grp"><td colspan="6">Product &amp; Market</td></tr>
+          <tr><td class="cat">Product Vision</td><td class="sc c8">8</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:80%;background:var(--s-good)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+1</td><td>Clear and good; just not lived on the home screen.</td></tr>
+          <tr><td class="cat">Problem Solved</td><td class="sc c6">6</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+3</td><td>Real problem, but the app over-solves it into complexity.</td></tr>
+          <tr><td class="cat">Market Need</td><td class="sc c7">7</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+1</td><td>"No time to train" is a huge, evergreen need.</td></tr>
+          <tr><td class="cat">Product-Market Fit Potential</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Unproven; persona/product mismatch is the blocker.</td></tr>
+          <tr><td class="cat">Uniqueness</td><td class="sc c7">7</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+2</td><td>Calendar-native scheduling is genuinely rare.</td></tr>
+          <tr><td class="cat">Differentiation</td><td class="sc c6">6</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+3</td><td>Differentiated but buried &amp; undefended.</td></tr>
+          <tr><td class="cat">Value Proposition</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Muddled by scope; can't say it in one breath.</td></tr>
+          <tr><td class="cat">Competitive Positioning</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Sits between Fitbod and a calendar without owning either.</td></tr>
+          <tr><td class="cat">Long-Term Defensibility</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>No data moat, no network yet; Fitbod could copy the wedge.</td></tr>
+          <tr><td class="cat">Brand Potential</td><td class="sc c7">7</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+2</td><td>"Tempo" + the Ink Instrument look is ownable.</td></tr>
+
+          <tr class="grp"><td colspan="6">Design &amp; Experience</td></tr>
+          <tr><td class="cat">User Experience</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Too many surfaces; decisions per screen too high.</td></tr>
+          <tr><td class="cat">Visual Design</td><td class="sc c8">8</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:80%;background:var(--s-good)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+1</td><td>A genuine strength. Keep it, don't touch it.</td></tr>
+          <tr><td class="cat">Mobile Design Quality</td><td class="sc c7">7</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+2</td><td>Great tokens; device-untested redesign is a risk.</td></tr>
+          <tr><td class="cat">Navigation</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>4-tab IA is right; too many modals hang off it.</td></tr>
+          <tr><td class="cat">Information Architecture</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Crown jewel in Settings; ~30 stack routes.</td></tr>
+          <tr><td class="cat">Onboarding</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>4 steps is good; jargon &amp; no aha-moment.</td></tr>
+          <tr><td class="cat">Accessibility</td><td class="sc c5">5</td><td class="sc c7">7</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:70%"></i></div></td><td class="gap">+2</td><td>Reduce-Motion handled; contrast/VoiceOver unproven.</td></tr>
+          <tr><td class="cat">Premium Feel</td><td class="sc c8">8</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:80%;background:var(--s-good)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+1</td><td>Glass, elevation, mono numerals — reads expensive.</td></tr>
+          <tr><td class="cat">Polish</td><td class="sc c7">7</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+2</td><td>High, but "blank-until-revisit" bug history worries me.</td></tr>
+
+          <tr class="grp"><td colspan="6">Core Fitness Product</td></tr>
+          <tr><td class="cat">Workout Experience</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Dense &amp; gym-proofed; logging less slick than Hevy/Strong.</td></tr>
+          <tr><td class="cat">Scheduling Experience</td><td class="sc c6">6</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+3</td><td>The wedge — under-surfaced &amp; not yet felt-magic.</td></tr>
+          <tr><td class="cat">Calendar Integration</td><td class="sc c4">4</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+5</td><td><b>7-day Google token expiry</b> silently breaks the core feature.</td></tr>
+          <tr><td class="cat">Progress Tracking</td><td class="sc c7">7</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+1</td><td>Rich Fitness-Intelligence dashboard; over-built for a new user.</td></tr>
+          <tr><td class="cat">Personalization</td><td class="sc c7">7</td><td class="sc c9">9</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:90%"></i></div></td><td class="gap">+2</td><td>Adaptation + experience auto-progression is best-in-class effort.</td></tr>
+          <tr><td class="cat">AI Features</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Heuristics branded as intelligence; no real model; Coach unbuilt.</td></tr>
+          <tr><td class="cat">Fitness Science</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Solid periodization; readiness is fake, no MEV/MRV model.</td></tr>
+          <tr><td class="cat">Beginner Friendliness</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Depth still overwhelms novices. <span class="mono" style="color:var(--green);font-size:11px;">✓ 07-15 jargon copy fixed;</span> depth risk remains.</td></tr>
+          <tr><td class="cat">Intermediate Lifters</td><td class="sc c7">7</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+1</td><td>The true sweet spot. Serve them explicitly.</td></tr>
+          <tr><td class="cat">Advanced Lifters</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Will want manual control &amp; RP-grade volume landmarks.</td></tr>
+
+          <tr class="grp"><td colspan="6">Retention &amp; Growth</td></tr>
+          <tr><td class="cat">Motivation Systems</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Streaks/PRs/Wrapped built; celebration moment is good.</td></tr>
+          <tr><td class="cat">Retention</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Loops exist on paper; zero proof they hold a cohort. <span class="mono" style="color:var(--green);font-size:11px;">✓ 07-15 instrumented — now measurable, still unproven.</span></td></tr>
+          <tr><td class="cat">Habit Formation</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Session-based streak is a smart, honest design.</td></tr>
+          <tr><td class="cat">Notifications</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Server-driven &amp; per-rule opt-out; needs APNs/FCM creds live.</td></tr>
+          <tr><td class="cat">Virality</td><td class="sc c3">3</td><td class="sc c7">7</td><td><div class="dual"><i class="cur" style="width:30%;background:var(--s-crit)"></i><i class="pot" style="left:70%"></i></div></td><td class="gap">+4</td><td>Share cards exist; no engineered loop, no reason to invite.</td></tr>
+          <tr><td class="cat">Referral Potential</td><td class="sc c3">3</td><td class="sc c7">7</td><td><div class="dual"><i class="cur" style="width:30%;background:var(--s-crit)"></i><i class="pot" style="left:70%"></i></div></td><td class="gap">+4</td><td>No referral program at all.</td></tr>
+          <tr><td class="cat">Social Features</td><td class="sc c6">6</td><td class="sc c7">7</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:70%"></i></div></td><td class="gap">+1</td><td>Well-built — but premature; dead weight without users.</td></tr>
+          <tr><td class="cat">Community Features</td><td class="sc c3">3</td><td class="sc c7">7</td><td><div class="dual"><i class="cur" style="width:30%;background:var(--s-crit)"></i><i class="pot" style="left:70%"></i></div></td><td class="gap">+4</td><td>Groups shipped into an empty room.</td></tr>
+
+          <tr class="grp"><td colspan="6">Business &amp; Trust</td></tr>
+          <tr><td class="cat">Monetization</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Dormant, and fenced around the wrong feature.</td></tr>
+          <tr><td class="cat">Conversion Potential</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>"Pay for charts" converts at 1–2%. The wedge converts at 5–8%.</td></tr>
+          <tr><td class="cat">Subscription Value</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Live Pro tier is thin; tentpole (Coach) not built.</td></tr>
+          <tr><td class="cat">App Store Potential</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Name/icon good; no ASO story or screenshot narrative yet.</td></tr>
+          <tr><td class="cat">Trustworthiness</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Unproven; a silently-breaking calendar destroys trust fast.</td></tr>
+
+          <tr class="grp"><td colspan="6">Engineering</td></tr>
+          <tr><td class="cat">Performance</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Persisted query cache is smart; RN new-arch risk remains.</td></tr>
+          <tr><td class="cat">Speed</td><td class="sc c7">7</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+1</td><td>Cold-start paints cached content instantly. Good call.</td></tr>
+          <tr><td class="cat">Reliability</td><td class="sc c4">4</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:40%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+4</td><td>Dense history of near-miss critical bugs = fragile state machines.</td></tr>
+          <tr><td class="cat">Scalability</td><td class="sc c6">6</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:60%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+2</td><td>Supabase + hourly cron fine to ~5-figure users.</td></tr>
+          <tr><td class="cat">Engineering Architecture</td><td class="sc c7">7</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:70%;background:var(--s-ok)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+1</td><td>Impressively clean for solo — arguably too clever for its stage.</td></tr>
+
+          <tr class="grp"><td colspan="6">Overall</td></tr>
+          <tr><td class="cat">Overall Market Competitiveness</td><td class="sc c5">5</td><td class="sc c8">8</td><td><div class="dual"><i class="cur" style="width:50%;background:var(--s-weak)"></i><i class="pot" style="left:80%"></i></div></td><td class="gap">+3</td><td>Loses head-to-head today; wins if it commits to the wedge.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;color:var(--text-3);font-size:13px;">Weighted average current ≈ <b class="mono" style="color:var(--text-2)">5.6</b>, potential ≈ <b class="mono" style="color:var(--green)">8.3</b>. The pattern is unmistakable: <b style="color:var(--text)">craft is high, strategy/proof is low</b>. Nothing here is a coding problem.</p>
+  </div>
+</section>
+
+<!-- ===================== FIRST IMPRESSION ===================== -->
+<section id="first">
+  <div class="wrap">
+    <div class="secHead"><span class="num">03</span><h2>First Impression Review</h2></div>
+    <p class="subhead">What a brand-new user actually thinks, timestamped. This is where installs are won or lost.</p>
+
+    <div class="journey">
+      <div class="stage risk">
+        <h4><span class="mono" style="color:var(--blue)">0:05</span> Five seconds</h4>
+        <p>"Nice-looking dark fitness app." The Ink Instrument look reads premium instantly — this is a real asset. But nothing in five seconds tells me <em>why this instead of Hevy</em>. The wordmark + a workout card could be any of thirty apps. <b>The differentiator is invisible at the exact moment first impressions form.</b></p>
+      </div>
+      <div class="stage risk">
+        <h4><span class="mono" style="color:var(--blue)">0:30</span> Thirty seconds</h4>
+        <p>Onboarding asks goal → experience → equipment → schedule. Competent, four clean steps. But the goal cards say "CNS optimization," "metabolic conditioning," "hypertrophy" — <b>jargon that tells a busy beginner "this app is for someone more serious than me."</b> A busy person wants "get in shape without it eating my week," not powerlifting vocabulary.</p>
+      </div>
+      <div class="stage">
+        <h4><span class="mono" style="color:var(--blue)">2:00</span> Two minutes</h4>
+        <p>A plan appears, periodized, slotted around days I picked. This <em>can</em> be the aha — but only if the "we put your Tuesday session at 6:30pm in the gap before dinner" magic is front-and-center. If it feels like "another generated workout list," the moment is wasted. Right now the calendar placement is real but under-dramatized. <b>You have a magic trick and you're performing it with the lights off.</b></p>
+      </div>
+      <div class="stage">
+        <h4><span class="mono" style="color:var(--blue)">1 day</span> First day</h4>
+        <p>If the pre-workout reminder fires and one tap drops me into a clean session runner, trust builds fast — the runner is genuinely well made (wall-clock timers, offline-safe logging, form GIFs). The risk: if I never connected a calendar, the "scheduled around your life" promise quietly degrades to "a workout on a day," and I never see what makes Tempo special.</p>
+      </div>
+      <div class="stage bleed">
+        <h4><span class="mono" style="color:var(--blue)">1 week</span> First week</h4>
+        <p>This is the danger zone. If my Google Calendar token silently expired (the documented 7-day "Testing" OAuth issue), the events vanish with <em>no explanation</em> and the core feature looks broken. Even if not, week one throws leaderboards, badges, groups, Tempo Score, muscle maps, and a paywall at a user who has done three workouts. <b>The app is performing for a power user who doesn't exist yet.</b> A beginner feels the depth as noise and churns.</p>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:24px;">
+      <div class="find high"><h4>Would they immediately understand it? <span class="pill p-med">Partially</span></h4><p>They'll understand "workout app." They will <em>not</em> understand "the calendar-native one" — which is the only understanding that matters for switching.</p></div>
+      <div class="find win"><h4>Would they be impressed? <span class="pill p-win">Yes, visually</span></h4><p>The craft impresses immediately. That buys you goodwill you're currently spending on complexity instead of clarity.</p></div>
+      <div class="find med"><h4>Would they trust it? <span class="pill p-med">Conditionally</span></h4><p>Trust holds until the calendar breaks or the depth overwhelms. Both are avoidable.</p></div>
+      <div class="find crit"><h4>Would they subscribe? <span class="pill p-crit">No</span></h4><p>Nothing in the first week creates a "I'd pay to keep this" moment, and the paywall gates the least payable feature.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMPETITORS ===================== -->
+<section id="competitors">
+  <div class="wrap">
+    <div class="secHead"><span class="num">04</span><h2>Competitor Comparison</h2></div>
+    <p class="subhead">Head-to-head against the field. <span class="k better mono">RED</span> = they beat you · <span class="k worse mono">GRN</span> = you beat them · <span class="k copy mono">GLD</span> = steal this. The honest summary: <b>Tempo wins on "puts training in your week," loses on almost everything mature apps have polished for years.</b></p>
+
+    <div class="grid2">
+      <div class="comp">
+        <h3>Strong <span class="role">Logbook · 5M+ users</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Frictionless logging, rock-solid reliability, trusted brand, plate calculator, Apple Watch.</span></li>
+          <li><span class="k worse">LOSES</span><span>No programming, no scheduling, no adaptation. It's a spreadsheet with a great UI.</span></li>
+          <li><span class="k copy">COPY</span><span>The logging <em>speed</em> and reliability. Their rest timer and set entry are the genre benchmark.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Hevy <span class="role">Modern logbook + social</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>A social feed people actually use, generous free tier, huge routine library, polish at scale.</span></li>
+          <li><span class="k worse">LOSES</span><span>Still fundamentally a logger; no "what/when should I train" intelligence.</span></li>
+          <li><span class="k copy">COPY</span><span>How their feed drives retention <em>without</em> feeling like a chore. Don't copy: building it before you have friends to populate it.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Fitbod <span class="role">Your closest threat</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>A <em>real</em> muscle-recovery model, gorgeous exercise animations, mature brand, years of tuning. Your muscle map is a Fitbod echo.</span></li>
+          <li><span class="k worse">LOSES</span><span>Fitbod generates a workout but <b>does not put it in your calendar</b>. That is your entire moat against them — protect it.</span></li>
+          <li><span class="k copy">COPY</span><span>Recovery-driven exercise selection. Do NOT copy: their "every day is a fresh generated list" model — your <em>plan continuity</em> is a differentiator.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Boostcamp <span class="role">Proven programs</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Free, named, coach-authored programs (nSuns, PPL, 5/3/1) people <em>trust</em> because a human wrote them.</span></li>
+          <li><span class="k worse">LOSES</span><span>Static; doesn't adapt or schedule. You out-personalize it easily.</span></li>
+          <li><span class="k copy">COPY</span><span>The trust of "a real coach designed this." Offer a few named, opinionated Tempo templates, not just algorithmic ones.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Alpha Progression <span class="role">Hypertrophy nerd tool</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Best-in-class progression algorithm + analytics for people who love the numbers.</span></li>
+          <li><span class="k worse">LOSES</span><span>Intimidating for anyone but enthusiasts; no scheduling; utilitarian design.</span></li>
+          <li><span class="k copy">COPY</span><span>Their per-exercise progression clarity. Don't copy: their density — it's the opposite of your calm positioning.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Google Calendar <span class="role">The "do nothing" competitor</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Free, already installed, zero learning curve. A busy person can just type "Gym 6pm" and be done.</span></li>
+          <li><span class="k worse">LOSES</span><span>Tells you nothing about <em>what</em> to do or whether you're progressing.</span></li>
+          <li><span class="k copy">COPY</span><span>Its ubiquity is why calendar-native is your wedge — but remember: your real enemy is inertia, not Fitbod.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Apple Fitness+ <span class="role">Ecosystem &amp; content</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Studio-produced video, Watch integration, Apple distribution, ring habit loop.</span></li>
+          <li><span class="k worse">LOSES</span><span>No strength programming or planning; it's guided cardio/classes, not a plan.</span></li>
+          <li><span class="k copy">COPY</span><span>The ring's dead-simple daily habit signal. You have Tempo Score — make it that legible.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Ladder <span class="role">Coach-led teams</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Human coaches, premium content, real community/accountability, strong monetization.</span></li>
+          <li><span class="k worse">LOSES</span><span>Expensive, one-size programs, no calendar-fitting or auto-adaptation.</span></li>
+          <li><span class="k copy">COPY</span><span>Their willingness to charge confidently for a premium promise. Your $34.99/yr under-prices your ambition.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>Train Fitness <span class="role">AI auto-tracking</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Apple-Watch auto-detection of sets/reps — near-zero logging friction. A wedge you can't match without hardware.</span></li>
+          <li><span class="k worse">LOSES</span><span>Niche, Watch-dependent, thin planning.</span></li>
+          <li><span class="k copy">COPY</span><span>The <em>ambition</em> to remove logging friction. Even without a Watch, pre-filled sets + one-tap ✓ is your version — lean into it harder.</span></li>
+        </ul>
+      </div>
+      <div class="comp">
+        <h3>RP Hypertrophy <span class="role">Science gold standard</span></h3>
+        <ul>
+          <li><span class="k better">BEATS</span><span>Renaissance Periodization brand + real MEV/MRV volume-landmark autoregulation. The credibility ceiling.</span></li>
+          <li><span class="k worse">LOSES</span><span>Clunky UX, premium price, zero scheduling, intimidating for generalists.</span></li>
+          <li><span class="k copy">COPY</span><span>Volume-landmark logic under the hood (silently). Don't copy: exposing that complexity to a busy user.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout blue" style="margin-top:22px;">
+      <span class="lab">Where Tempo is winning &amp; losing — in one line each</span>
+      <p style="margin:0 0 6px;"><b style="color:var(--green)">Winning:</b> the only app that <em>plans a real strength program AND fits it into your actual calendar and adapts it</em>. Nobody else does all three.</p>
+      <p style="margin:0;"><b style="color:var(--red)">Losing:</b> logging polish (Strong/Hevy), recovery science (Fitbod/RP), trusted programs (Boostcamp), frictionless tracking (Train), content &amp; community (Apple/Ladder), and — critically — <em>years of real-user tuning</em> every one of them has and you have none of.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== JOURNEY ===================== -->
+<section id="journey">
+  <div class="wrap">
+    <div class="secHead"><span class="num">05</span><h2>User Journey Audit</h2></div>
+    <p class="subhead">Every stage from discovery to month one. <span class="pill p-blue">solid</span> = works · <span class="pill p-med">friction</span> = confusion/drop-off · <span class="pill p-crit">bleed</span> = abandonment risk.</p>
+
+    <div class="journey">
+      <div class="stage bleed"><h4>Discovery <span class="pill p-crit">bleed</span></h4><p><b>Problem:</b> there is no discovery engine. No content, no SEO, no influencer, no referral. <b>Fix:</b> the wedge is inherently shareable — "my AI put my workouts in my Google Calendar" is a TikTok. Build one repeatable acquisition motion before adding one more feature.</p></div>
+      <div class="stage risk"><h4>App Store Page <span class="pill p-med">friction</span></h4><p><b>Problem:</b> without a screenshot narrative that leads with the calendar magic, the listing looks like every dark fitness app. <b>Fix:</b> screenshot 1 = the calendar with a workout slotted into a gap + headline "Training that fits your actual week."</p></div>
+      <div class="stage"><h4>Install <span class="pill p-blue">solid</span></h4><p>Standard. Icon is clean (full-bleed white glyph, Apple-safe). No issue.</p></div>
+      <div class="stage risk"><h4>Account Creation <span class="pill p-med">friction</span></h4><p><b>Good:</b> guest mode exists — huge for reducing friction. <b>Problem:</b> Apple linking relies on a Services ID that may not be configured; guest→permanent linking needs Supabase "manual linking" enabled. <b>Fix:</b> verify both on a real device before launch, or a guest's data quietly can't be saved.</p></div>
+      <div class="stage risk"><h4>Onboarding <span class="pill p-med">friction</span></h4><p><b>Problem:</b> jargon-heavy goal copy; the calendar connect was (correctly) moved out of the required path, but that means many users never experience the wedge. <b>Fix:</b> plain-language goals; a low-friction "want us to fit this into your calendar?" moment right after the plan appears.</p></div>
+      <div class="stage bleed"><h4>Calendar Setup <span class="pill p-crit">bleed</span></h4><p><b>Problem:</b> the single most important integration is optional, and when connected via Google's "Testing" OAuth it expires in 7 days and fails silently. <b>Fix:</b> ship Google OAuth verification (production publish status) <em>before</em> marketing spend — this is non-negotiable for a calendar-first app.</p></div>
+      <div class="stage"><h4>Workout Setup <span class="pill p-blue">solid</span></h4><p>Plan generation respects constraints (injuries, never-train days), 2–6 days/week. Genuinely strong. The engine-v2 exercise selection is coach-grade.</p></div>
+      <div class="stage"><h4>First Scheduled Workout <span class="pill p-blue">solid</span></h4><p>Smart time pre-fill + "you're free at this time" is exactly right. This is the product at its best — make sure the user actually <em>sees</em> it happen.</p></div>
+      <div class="stage"><h4>First Workout <span class="pill p-blue">solid</span></h4><p>The runner is the most mature screen: wall-clock timers, keep-awake, offline-safe writes, form GIFs, ⋯ menu for gym reality. Real craft here.</p></div>
+      <div class="stage risk"><h4>First Week <span class="pill p-med">friction</span></h4><p><b>Problem:</b> feature avalanche — social, badges, groups, muscle map, paywall — for someone with 3 sessions logged. <b>Fix:</b> progressive disclosure. Hide social/groups/muscle-map until the user has earned the context to want them.</p></div>
+      <div class="stage risk"><h4>First Month <span class="pill p-med">friction</span></h4><p><b>Problem:</b> no proof the habit sticks; retention is unmeasured. The plan auto-extends (good, the 4-week cliff is fixed), but there's no re-engagement story beyond push nudges. <b>Fix:</b> instrument D1/D7/D30, define the activation event ("connected calendar + completed 2 sessions"), and optimize <em>that</em> — not new features.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== UI/UX ===================== -->
+<section id="uiux">
+  <div class="wrap">
+    <div class="secHead"><span class="num">06</span><h2>UI / UX Deep Review</h2></div>
+    <p class="subhead">The design system is a genuine strength — this section is mostly about restraint, not repair. Severity by stripe.</p>
+
+    <div class="stack">
+      <div class="find win"><h4>Design system &amp; premium feel <span class="pill p-win">strength — protect</span></h4><p>Bricolage display + JetBrains Mono numerals + electric-blue-on-ink is a coherent, ownable, expensive-looking identity. The elevation ramp, glass tokens, single-glow-per-screen discipline, and Reduce-Motion awareness are better than most funded apps. <span class="fix"><b>Reference:</b> this is Linear-tier system thinking. Don't dilute it by adding surfaces.</span></p></div>
+
+      <div class="find crit"><h4>Information architecture overload <span class="pill p-crit">critical</span></h4><p>~30 stack routes hanging off a 4-tab bar. My Splits, My Workouts, Exercise Library, PR Browser, Exercise Progress, Muscle Map, Weekly Report, Plan Explainer, Badges, Groups, Social, Travel Mode… A busy person cannot hold this map in their head. <span class="fix"><b>Fix:</b> ruthlessly demote. A busy-person app should have maybe 8 places, not 30. Bury the enthusiast tools one layer deeper and let the calendar breathe. <b>Top-tier example:</b> Things 3 hides enormous power behind 5 visible destinations.</span></p></div>
+
+      <div class="find high"><h4>Too many decisions per screen <span class="pill p-high">high</span></h4><p>The Home context strip alone juggles missed-workout, reconnect, travel, rest-day, block-phase, goal-countdown, weekly-report, and quick-workout banners (you cap it to one + chips — good instinct, but the underlying surface is still doing eight jobs). <span class="fix"><b>Fix:</b> a busy user should open Tempo and see <em>one</em> answer: today's session, when it's slotted, one tap to start. Everything else is a swipe away.</span></p></div>
+
+      <div class="find high"><h4>Copy voice fights the positioning <span class="pill p-high">high</span></h4><p>"CNS optimization," "metabolic conditioning," "autoregulated heavy work" — this is powerlifting-forum voice on an app that says it's for busy generalists. <span class="fix"><b>Fix:</b> pick one voice. If the persona is busy people, the copy is "Lose fat," "Build muscle," "Just get moving" — not physiology terms. <b>Example:</b> Streaks/Oura write like a calm human, not a textbook.</span></p></div>
+
+      <div class="find crit"><h4>Rendering fragility on the stack <span class="pill p-crit">critical</span></h4><p>Your own architecture notes a recurring "blank until revisit" class of bug on RN 0.85 / React 19 / new-arch (Reanimated entrances dying silently, clipped list rows freezing invisible). You've patched it with JS failsafe deadlines — but a premium visual that intermittently doesn't paint is <em>worse</em> than a plain one that always does. <span class="fix"><b>Fix:</b> treat this as a P0 reliability track with device-matrix testing, not a series of one-off patches. The redesign is currently device-untested — that's a launch blocker.</span></p></div>
+
+      <div class="find med"><h4>Empty / loading / error states <span class="pill p-med">medium — mostly good</span></h4><p>Illustrated empty states, branded loaders, skeleton cards, and classified save errors are all present and well done. This is above-average. <span class="fix"><b>Watch:</b> make sure the calendar-fetch-failed state is as loud as it needs to be — a silent empty timeline reads as "app is broken."</span></p></div>
+
+      <div class="find med"><h4>Touch targets &amp; dock collision <span class="pill p-med">medium</span></h4><p>Your strategy doc flags content colliding with the floating GO dock on Profile/Progress. <span class="fix"><b>Fix:</b> enforce <span class="mono" style="font-size:12.5px">BottomTabInset</span> on every scroll container — you've identified it, now make it a lint rule so it can't regress. <b>Example:</b> Apple reserves the home-indicator zone religiously.</span></p></div>
+
+      <div class="find med"><h4>Accessibility unknowns <span class="pill p-med">medium</span></h4><p>Reduce-Motion is handled well. Unknown: color contrast of <span class="mono" style="font-size:12.5px">--text-3</span> greys on ink, Dynamic Type scaling, VoiceOver labels on custom controls (rings, segmented hub, RPE bars). <span class="fix"><b>Fix:</b> one accessibility audit pass before launch. Custom SVG rings and gesture chips are the usual screen-reader dead zones.</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== HOME ===================== -->
+<section id="home">
+  <div class="wrap">
+    <div class="secHead"><span class="num">07</span><h2>Home Screen Review</h2></div>
+    <p class="subhead">The screen 80% of opens land on. Its only job: answer "what do I do right now, and when does it fit today?"</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="stack">
+        <div class="find high"><h4>Usefulness &amp; daily value <span class="pill p-med">good bones, wrong emphasis</span></h4><p>It merges plan + device + Google events into one calendar — that's the soul of the product and it's here. But the hero is a generic workout card; the <em>timing intelligence</em> ("slotted 9:00–9:45 before your 10am") is not the star. You built the magic and framed it as a to-do item.</p></div>
+        <div class="find med"><h4>Density <span class="pill p-med">too busy</span></h4><p>Weekly-target card + readiness ring + context banner + chips + calendar + FAB + phase card + goal countdown. That's a dashboard, not a "here's your next move."</p></div>
+        <div class="find win"><h4>Motivation <span class="pill p-win">strong</span></h4><p>The always-visible weekly target ("2 of 3 sessions") is the single best retention mechanic on the screen — a winnable loop. Keep it prominent.</p></div>
+      </div>
+      <div class="card">
+        <span class="lab">Verdict per element</span>
+        <ul class="clean">
+          <li><b>Keep:</b> unified calendar, weekly-target card, one-tap Start, overdue "still on for this?" state.</li>
+          <li><b>Redesign:</b> make the hero a <b>day-timeline</b> — your real calendar gaps with the Tempo workout dropped in place. This is the #1 change on the whole app.</li>
+          <li><b>Add:</b> a "lacking time? swap to 15 min" escape hatch inline — directly serves the busy persona and saves a skipped day.</li>
+          <li><b>Remove/demote:</b> goal countdown, block-phase card, and 3 of the 4 context banner types → one calm chip row. Move enthusiast context to Progress.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout blue" style="margin-top:18px;"><span class="lab">The Home thesis</span><p style="margin:0;">Open Tempo → in one glance: <b>today's session, the time it's slotted into your real day, and a Start button.</b> One readiness glance and one weekly-target glance as support. Everything else earns its way onto the screen or leaves. If a busy person can't act in 3 seconds, the home screen failed.</p></div>
+  </div>
+</section>
+
+<!-- ===================== CALENDAR ===================== -->
+<section id="calendar">
+  <div class="wrap">
+    <div class="secHead"><span class="num">08</span><h2>Calendar &amp; Scheduling Review</h2></div>
+    <p class="subhead">This is Tempo's reason to exist. It is also the most under-leveraged and least reliable part of the app. That combination is the single biggest problem in this audit.</p>
+
+    <div class="grid3">
+      <div class="find crit"><h4>Reliability <span class="pill p-crit">critical</span></h4><p>Google OAuth in "Testing" status expires refresh tokens every 7 days; events then vanish silently. You've added a reconnect banner, but the root cause (Google Cloud verification) is unsolved. For a calendar-first app this is existential.</p></div>
+      <div class="find high"><h4>Discoverability <span class="pill p-high">high</span></h4><p>Scheduling logic is excellent (auto/manual modes, conflict resolution, free-slot placement, opt-in calendar write-back) but it lives in Settings and Profile. Users can't value what they can't see.</p></div>
+      <div class="find med"><h4>User understanding <span class="pill p-med">medium</span></h4><p>You needed a whole "how-tempo-works" tutorial to explain that Tempo <em>generates</em> exercises vs <em>schedules</em> the day/time. If the model needs a tutorial to grasp, the UI hasn't made it self-evident yet.</p></div>
+    </div>
+
+    <div class="callout gold" style="margin-top:20px;">
+      <span class="lab">The ideal scheduling system</span>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>Calendar-first onboarding:</b> connect calendar (or skip) is step 1, framed as the magic — "watch us find time for you." The plan preview then <em>animates</em> workouts dropping into real gaps.</li>
+        <li><b>A visible day-timeline on Home</b> showing busy blocks + the slotted workout, color-coded (work red / personal purple / Tempo blue). Make the intelligence a spectacle.</li>
+        <li><b>Bulletproof reliability:</b> production Google OAuth, graceful degraded state, and an honest "reconnect" that never silently empties.</li>
+        <li><b>Two-way respect:</b> if a meeting appears over a workout, proactively offer "move it to 7pm?" (you have this in manual mode — surface it louder).</li>
+        <li><b>The "reschedule my whole week" button</b> for when life explodes — the ultimate busy-person payoff, and a perfect Pro upsell.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TRAINING ===================== -->
+<section id="training">
+  <div class="wrap">
+    <div class="secHead"><span class="num">09</span><h2>Training Section Review</h2></div>
+    <p class="subhead">The Train hub (session · readiness · splits · workouts) + the live runner. The runner is your best screen; the hub is doing too much.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="stack">
+        <div class="find win"><h4>Live session runner <span class="pill p-win">best-in-app</span></h4><p>Instant set logging, optional post-log RPE, wall-clock + rest timers, keep-awake, offline-verified writes, form GIFs, warm-up sets excluded from PRs, ⋯ menu (swap / move to end / skip) for real gym conditions, adopt-orphaned-log recovery. This is thoughtful, gym-tested-in-spirit engineering.</p></div>
+        <div class="find med"><h4>Logging speed vs the benchmark <span class="pill p-med">medium</span></h4><p>It's good, but Strong/Hevy have spent years shaving milliseconds off set entry. That's the one axis where a logging-first user will feel you're younger. Keep obsessing over taps-per-set.</p></div>
+        <div class="find high"><h4>Hub is over-segmented <span class="pill p-high">high</span></h4><p>A four-way segmented control (Session/Readiness/Splits/Workouts) plus a secondary link row (Quick/History/Library) is a lot of surface for "what am I training." Splits vs Templates vs auto-plan is a genuinely confusing mental model even after your tutorial.</p></div>
+      </div>
+      <div class="card">
+        <span class="lab">Design the perfect training experience</span>
+        <ul class="clean">
+          <li><b>Default view = today's session</b>, full-bleed: focus, duration, exercise list, one Start. No segmented control on top of the most common intent.</li>
+          <li><b>One "Programs" door</b> that unifies Splits + Templates + starter programs. Three overlapping concepts is two too many for a busy user.</li>
+          <li><b>Readiness as a chip at the point of decision</b>, not a full tab — "You're good to go hard today."</li>
+          <li><b>Keep every runner control</b> — it's the crown jewel of execution. Don't refactor it to simplify the hub.</li>
+          <li><b>Borrow Fitbod's animation quality</b> for exercise demos; your GIF pipeline is fragile (shared RapidAPI quota, 404 gaps).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PROGRESS ===================== -->
+<section id="progress">
+  <div class="wrap">
+    <div class="secHead"><span class="num">10</span><h2>Progress Section Review</h2></div>
+    <p class="subhead">The Fitness-Intelligence dashboard is rich — arguably too rich for a new user, and it's what you chose to charge for. Both facts matter.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="find med"><h4>Depth vs stage mismatch <span class="pill p-med">medium</span></h4><p>Tempo Score hero, momentum, consistency predictor, GitHub-style heatmap, 3-day forecast, muscle-balance radar, strength top-movers, journey timeline. Beautiful — but a user with 4 sessions has nothing to fill it. <span class="fix"><b>Fix:</b> progressive disclosure. Show 2 things at 4 sessions, unlock depth as data accrues.</span></p></div>
+      <div class="find crit"><h4>Monetizing the wrong screen <span class="pill p-crit">critical</span></h4><p>Advanced Analytics is the live Pro gate. Charts are the classic "everyone builds, nobody buys" paywall. <span class="fix"><b>Fix:</b> free the analytics, charge for the <em>scheduling superpowers</em> instead (see §13).</span></p></div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <span class="lab">Every metric that should exist — ranked by motivational ROI</span>
+      <div class="tableWrap" style="border:none;">
+        <table style="min-width:520px;">
+          <thead><tr><th style="width:34px;">#</th><th>Metric / chart</th><th>Why it drives the next session</th><th style="width:90px;">Status</th></tr></thead>
+          <tbody>
+            <tr><td class="sc c9">1</td><td class="cat">Consistency / Tempo Score (single number)</td><td>One glanceable "am I winning" — the credit-score effect.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c9">2</td><td class="cat">Current streak (session-based)</td><td>Loss aversion; the anti-skip nudge.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c8">3</td><td class="cat">Weekly volume / training load trend</td><td>Proof the work accumulates. <b>Keep free.</b></td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c8">4</td><td class="cat">Per-lift estimated 1RM progression</td><td>The "I'm getting stronger" trophy — hugely motivating.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c8">5</td><td class="cat">Adherence heatmap (calendar-native)</td><td>Ties progress back to the calendar wedge.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c7">6</td><td class="cat">Bodyweight / measurement trend</td><td>Goal proof for fat-loss users.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c6">7</td><td class="cat">Muscle balance / weak-point map</td><td>Coaching insight; a good Pro hook.</td><td><span class="pill p-win">have it</span></td></tr>
+            <tr><td class="sc c5">8</td><td class="cat">Time-of-day success pattern</td><td>Feeds smarter scheduling — <em>connect it to the wedge</em>.</td><td><span class="pill p-med">underused</span></td></tr>
+            <tr><td class="sc c4">9</td><td class="cat">Predicted goal-arrival date</td><td>Forward-looking motivation; you have goalProjection — surface it.</td><td><span class="pill p-med">buried</span></td></tr>
+            <tr><td class="sc c3">10</td><td class="cat">"Sessions saved by scheduling" counter</td><td>Quantify the wedge's value → your best upsell.</td><td><span class="pill p-crit">missing</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:12px;font-size:13.5px;color:var(--text-3);">You have 1–9 already. #10 doesn't exist and would be the most persuasive metric in the app: "Tempo fit in 14 workouts you'd have skipped this month." That's the number that sells the subscription.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== READINESS ===================== -->
+<section id="readiness">
+  <div class="wrap">
+    <div class="secHead"><span class="num">11</span><h2>Readiness &amp; Recovery Review</h2></div>
+    <p class="subhead">The most intellectually honest problem in the app: you present a WHOOP-style readiness ring computed from a heuristic, with no physiological signal.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="find high"><h4>Readiness is inferred, not measured <span class="pill p-high">high — credibility risk</span></h4><p>Derived from recovery gap, consecutive training days, recent RPE, and adaptation mode. That's a <em>reasonable</em> training-load proxy — but rendered as a percentage ring it borrows WHOOP/Oura's visual authority without their data. A knowledgeable user will call it theater the moment it says "68% ready" on a day they feel great. <span class="fix"><b>Fix:</b> label it honestly — "Training Readiness (from your recent training)" — keep it a <em>supporting glance, never a gate</em>, and design it to accept a real HRV/sleep signal later with zero layout change. Your own strategy doc already reached this exact conclusion; follow it.</span></p></div>
+      <div class="stack">
+        <div class="find med"><h4>Muscle recovery is coarse <span class="pill p-med">medium</span></h4><p>Per-group recovery from set history is a Fitbod-lite model. Fitbod's is more granular and tuned. Fine as a signal; don't oversell its precision.</p></div>
+        <div class="find crit"><h4>No sleep / HRV / HealthKit <span class="pill p-crit">gap</span></h4><p>The entire "recovery" story runs on training history alone. No Apple Health, no wearable. That caps how credible readiness can ever be.</p></div>
+      </div>
+    </div>
+
+    <div class="callout blue" style="margin-top:18px;"><span class="lab">What world-class readiness looks like</span><p style="margin:0;">Sleep + HRV + resting HR + training load, fused into <em>one</em> honest number with a plain-language recommendation ("go hard / go moderate / take it easy"), and — crucially for Tempo — <b>fed back into scheduling</b>: a low-readiness morning auto-suggests moving today's heavy session to tomorrow. That closes the loop only <em>you</em> can close, because only you own the calendar. Readiness isn't a vanity ring for Tempo — it's a scheduling input. Frame it that way and it stops being theater.</p></div>
+  </div>
+</section>
+
+<!-- ===================== PERSONALIZATION ===================== -->
+<section id="personalization">
+  <div class="wrap">
+    <div class="secHead"><span class="num">12</span><h2>Personalization Review</h2></div>
+    <p class="subhead">Quietly the most impressive engine in the app — and, unlike readiness, it's real. Under-marketed.</p>
+
+    <div class="grid3">
+      <div class="card"><span class="lab">What's genuinely strong</span><ul class="clean"><li>Goal × experience × equipment drives real exercise selection from a curated 160-move core pool.</li><li><b>Adaptation</b> flips recovery/deload from missed sessions + "too hard" and re-stamps future weeks.</li><li><b>Experience auto-progression</b> graduates beginner→advanced and re-selects harder lifts. This is rare.</li><li>Constraint-aware: injuries + never-train days honored end-to-end.</li></ul></div>
+      <div class="card"><span class="lab">Where it falls short</span><ul class="clean"><li>Personalization is <b>invisible</b> — the user doesn't feel the plan changing <em>for them</em>.</li><li>No cold-start "why these exercises" story beyond a rationale sheet few will open.</li><li>Equipment/schedule captured once; life changes aren't re-solicited proactively.</li><li>No taste input (exercise likes/dislikes) — Fitbod lets you thumbs-down a movement forever.</li></ul></div>
+      <div class="card"><span class="lab">How it should work</span><ul class="clean"><li>Make adaptation <b>legible</b>: "We eased this week back — you flagged 3 sessions as too hard." Personalization you can't perceive doesn't retain.</li><li>Add <b>exercise preferences</b> (love/never) that persist across regenerations.</li><li>Periodically re-check life inputs ("Schedule changed? Re-fit your week").</li><li>Tie personalization to the wedge: "We moved leg day off Fridays — you miss those most."</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MONETIZATION ===================== -->
+<section id="monetization">
+  <div class="wrap">
+    <div class="secHead"><span class="num">13</span><h2>Monetization Review</h2></div>
+    <p class="subhead">Dormant, honest, and fenced around the wrong feature. The price is fine; the <em>value story</em> is the problem.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="find med"><h4>What's right <span class="pill p-win">good</span></h4><p>Custom on-brand paywall, dynamic pricing, honest bullets (no advertising unbuilt features — App-Store-safe), RevenueCat wired, dormant flag so you can launch free and flip Pro later without a rebuild. Mechanically excellent.</p></div>
+      <div class="find crit"><h4>What's wrong <span class="pill p-crit">critical</span></h4><p>The live gate is <b>Advanced Analytics + Muscle Map</b>. You are giving away the auto-scheduling intelligence (the payable magic) and charging for charts (the unpayable commodity). This inverts the value. Conversion on "pay for analytics" fitness apps is typically <b>1–2%</b>.</p></div>
+    </div>
+
+    <div class="grid2" style="margin-top:18px;align-items:start;">
+      <div class="tier">
+        <div class="th"><h3>Ideal Free Tier</h3><span class="pill p-low">the hook</span></div>
+        <div class="body"><ul>
+          <li><b>Full plan generation + adaptation</b><span></span><span class="roi hi">keep free</span></li>
+          <li><b>Manual scheduling + 1 calendar</b><span></span><span class="roi hi">keep free</span></li>
+          <li><b>Logging, streaks, basic progress</b><span></span><span class="roi hi">keep free</span></li>
+          <li><b>All analytics &amp; charts</b> (yes, free)<span></span><span class="roi hi">keep free</span></li>
+          <li><b>1 active program</b><span></span><span class="roi md">cap</span></li>
+        </ul></div>
+      </div>
+      <div class="tier" style="border-color:color-mix(in srgb,var(--gold) 34%,var(--line));">
+        <div class="th" style="background:color-mix(in srgb,var(--gold) 8%,transparent);"><h3 style="color:var(--gold)">Ideal Pro Tier — sell the wedge</h3><span class="pill p-med">the magic</span></div>
+        <div class="body"><ul>
+          <li><b>Auto-scheduling &amp; auto-reshuffle</b> around a chaotic week<span></span><span class="roi hi">tentpole</span></li>
+          <li><b>"Reschedule my whole week"</b> one-tap recovery<span></span><span class="roi hi">tentpole</span></li>
+          <li><b>Multi-calendar + readiness-aware timing</b><span></span><span class="roi hi">high</span></li>
+          <li><b>Tempo Coach</b> — reprogram on command, explains decisions<span></span><span class="roi hi">tentpole</span></li>
+          <li><b>Unlimited programs, long-horizon goal-date planning</b><span></span><span class="roi md">high</span></li>
+          <li><b>Premium themes / icons</b> (cheap flair)<span></span><span class="roi lo">bonus</span></li>
+        </ul></div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:18px;">
+      <div class="callout gold"><span class="lab">Ideal pricing &amp; conversion strategy</span><ul class="clean" style="margin-top:6px;">
+        <li><b>Raise annual to $49.99–$59.99/yr</b>, monthly $7.99–$9.99. You're under-pricing a "solves my chaotic week" promise. Ladder/RP charge multiples of this.</li>
+        <li><b>7-day free trial</b> on annual, hard trial-reminder, annual-default toggle.</li>
+        <li><b>Trigger the paywall at the payable moment:</b> when a user hits "reschedule my week" or connects a 2nd calendar — not after a random 1st workout.</li>
+        <li><b>Show the value counter:</b> "Tempo saved 14 workouts you'd have skipped" → Upgrade.</li>
+      </ul></div>
+      <div class="stack">
+        <div class="kpiRow" style="grid-template-columns:1fr 1fr;">
+          <div class="kpi bad"><div class="v">1–2<small>%</small></div><div class="l">Expected conversion <b>as gated now</b> (analytics paywall)</div></div>
+          <div class="kpi good"><div class="v">5–8<small>%</small></div><div class="l">Expected conversion <b>selling the wedge</b> at the right moment</div></div>
+          <div class="kpi warn"><div class="v">~25<small>%</small></div><div class="l">Realistic D30 retention for free tier at PMF (fitness is brutal)</div></div>
+          <div class="kpi blue"><div class="v">~55<small>%</small></div><div class="l">Achievable annual-sub renewal if the wedge genuinely saves time</div></div>
+        </div>
+        <p style="font-size:12.5px;color:var(--text-3);margin:0;">Benchmarks: paid fitness apps convert 2–5% typically; the top decile (habit-critical, clear value) reach 5–10%. Charts don't get there; time-saving does.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== RETENTION ===================== -->
+<section id="retention">
+  <div class="wrap">
+    <div class="secHead"><span class="num">14</span><h2>Retention Review</h2></div>
+    <p class="subhead">Loops are built; none are proven; some are network-dependent on a network that doesn't exist. Fitness retention is the hardest in consumer — 70–80% of users are gone by day 30 industry-wide.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="card"><span class="lab">Why users will leave</span><ul class="clean"><li>Feature overwhelm in week one (social/groups/maps before the habit forms).</li><li>The calendar silently breaks → the one reason they came is gone.</li><li>Motivation to keep going isn't tied tightly enough to the daily open.</li><li>Empty social features signal "nobody's here."</li><li>Life gets busy — the exact moment the app should save them, if it surfaced the 15-min swap louder.</li></ul></div>
+      <div class="card"><span class="lab">Why users will stay</span><ul class="clean"><li>The plan is <b>continuous</b> and auto-extends — no dead ends (4-week cliff fixed).</li><li>Session-based streak is winnable for a 3×/week person.</li><li>The scheduling wedge genuinely removes a real weekly decision.</li><li>Celebration + PR moments feel earned.</li><li>Server-driven nudges bring lapsers back (once APNs/FCM creds are live).</li></ul></div>
+    </div>
+
+    <div class="grid2" style="margin-top:18px;">
+      <div class="callout blue"><span class="lab">The four retention loops — designed</span><ul class="clean" style="margin-top:6px;">
+        <li><b>Daily:</b> open → "today's session, slotted at 6:30" → one-tap Start → ✓ → streak ticks. The whole loop must be &lt;10 seconds and calendar-anchored.</li>
+        <li><b>Weekly:</b> weekly target ("2 of 3") pulls you to close the ring; Sunday recap shows the week's win and previews next week's slots.</li>
+        <li><b>Monthly:</b> progress proof — strength up, consistency score climbing, "sessions saved" counter; a monthly Wrapped-style share.</li>
+        <li><b>Yearly:</b> a Tempo "Year in Training" (Spotify-Wrapped moment) + goal-arrival milestones. This is your best organic-growth artifact — build it once, it markets every December/January.</li>
+      </ul></div>
+      <div class="callout"><span class="lab">The missing loop</span><p style="margin:0;">You have motivation loops but no <b>accountability</b> loop that works at zero scale. Social competition needs friends; groups need members. <b>Fix:</b> a single-player accountability mechanic — a "commit to this session" nudge, a streak-at-risk save, or an optional real-human check-in — retains from day one without a network. Build the loop that works when the user is alone, because at launch, everyone is.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== GROWTH ===================== -->
+<section id="growth">
+  <div class="wrap">
+    <div class="secHead"><span class="num">15</span><h2>Growth Review</h2></div>
+    <p class="subhead">Blunt truth: there is currently no growth engine. Share cards ≠ virality. Here's how each scale tier is actually reached.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="card"><span class="lab">Current growth surface</span><ul class="clean"><li><b>Referrals:</b> none.</li><li><b>Sharing:</b> Wrapped/PR cards exist but nobody shares charts of themselves.</li><li><b>Community:</b> built (groups/feed) but empty.</li><li><b>Organic/SEO:</b> a static marketing site; no content engine.</li><li><b>Influencer/social:</b> unexploited — yet the wedge is inherently demo-able.</li></ul></div>
+      <div class="stack">
+        <div class="find high"><h4>To reach 100,000 users <span class="pill p-high">focus</span></h4><p>One repeatable channel, executed relentlessly. The wedge is a <b>content hook</b>: short videos of "my calendar auto-fills with workouts and reshuffles when a meeting drops in." Fitness + productivity is a huge TikTok/Reels/YouTube-Shorts vein. Pair with a referral ("give a friend a free month") and an ASO push on "workout scheduler / gym calendar" — terms competitors ignore.</p></div>
+        <div class="find med"><h4>To reach 1,000,000 users <span class="pill p-med">system</span></h4><p>Requires a compounding loop: (1) product-led sharing that <em>invites</em> (challenges with friends, shared programs, calendar-invite workouts — you have the plumbing), (2) a genuine content brand around "training that fits real life," (3) possibly a B2B angle — corporate wellness / busy professionals via employers. 1M is a distribution problem, not a feature problem. You will not build your way there.</p></div>
+      </div>
+    </div>
+    <div class="callout gold" style="margin-top:16px;"><span class="lab">The one growth asset you're sitting on</span><p style="margin:0;">"An app that puts your workouts <em>in your Google Calendar</em> and moves them when life changes" is a <b>10-second visual demo</b> that no competitor can show because none of them do it. That is a rare, ownable, organic hook. You have spent engineering on groups nobody's in; spend the next unit on the 10 videos that show the calendar trick.</p></div>
+  </div>
+</section>
+
+<!-- ===================== APP STORE ===================== -->
+<section id="appstore">
+  <div class="wrap">
+    <div class="secHead"><span class="num">16</span><h2>App Store Review</h2></div>
+    <p class="subhead">The storefront is the highest-leverage unspent surface in the whole product.</p>
+
+    <div class="grid3">
+      <div class="card"><span class="lab">Name</span><p><b>"Tempo"</b> is a strong, ownable brand name — rhythm/consistency, on-theme. Risk: crowded ASO term (many apps named Tempo). <span class="fix" style="display:block;margin-top:6px;"><b>Fix:</b> subtitle it hard — "Tempo: Workout Scheduler" — to win the search intent competitors don't target.</span></p></div>
+      <div class="card"><span class="lab">Icon</span><p>Clean full-bleed white glyph, Apple-safe, no black frame. Good. It doesn't say "fitness" at a glance, but it's distinctive on a dark home screen. Acceptable.</p></div>
+      <div class="card"><span class="lab">Category &amp; keywords</span><p>Health &amp; Fitness is right. <span class="fix" style="display:block;margin-top:6px;"><b>Own the gap:</b> "workout scheduler," "gym calendar," "training planner," "fit workouts into schedule" — low-competition, high-intent, and describe <em>only you</em>.</span></p></div>
+    </div>
+
+    <div class="callout" style="margin-top:16px;"><span class="lab">Screenshots &amp; description — the actual conversion lever</span><p style="margin:0 0 6px;">Do <b>not</b> lead with a workout card (every competitor does). Lead with the <b>calendar with a workout slotted into a gap</b>, captioned "Training that fits your real week." Screenshots 2–5: the reschedule-when-life-changes moment, the one-tap start, the progress proof, the "15-min when you're slammed" escape hatch. Description opens with the wedge in one sentence, not a feature list.</p></div>
+
+    <div class="kpiRow" style="margin-top:18px;">
+      <div class="kpi warn"><div class="v">Low</div><div class="l">Predicted download rate <b>as listed today</b> (no differentiated story)</div></div>
+      <div class="kpi blue"><div class="v">Med+</div><div class="l">Download rate <b>with a wedge-led listing</b> on low-competition terms</div></div>
+      <div class="kpi bad"><div class="v">2–3<small>%</small></div><div class="l">Likely install→page conversion now (generic)</div></div>
+      <div class="kpi good"><div class="v">4.3–4.6<small>★</small></div><div class="l">Rating potential — craft is high; will earn stars <em>if</em> the calendar doesn't break</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ENGINEERING ===================== -->
+<section id="engineering">
+  <div class="wrap">
+    <div class="secHead"><span class="num">17</span><h2>Engineering Review</h2></div>
+    <p class="subhead">For a solo build this is genuinely impressive architecture. The risk isn't sloppiness — it's <em>ambition outrunning validation</em>, and a lot of subtle state machines that have already bitten.</p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="card"><span class="lab">Strengths</span><ul class="clean"><li>Clean separation: zustand for session, TanStack Query for server data, persisted cache for instant cold starts.</li><li>RLS everywhere; service-role-only secrets; account deletion; per-user data isolation.</li><li>Pure, unit-tested core logic (82 tests over periodization, progression, streak, rollover).</li><li>Offline-honest writes; wall-clock timers; orphaned-log adoption. Real production thinking.</li><li>OTA-first delivery via EAS Update — smart for iteration speed.</li></ul></div>
+      <div class="card"><span class="lab">Risks &amp; future issues</span><ul class="clean"><li><b>State-machine fragility:</b> the plan-replace/rollover/split-activation/calendar-sync logic has produced multiple <em>near-catastrophic</em> bugs (4-week cliff, poisoned Change Plan, silent Google vanish). All fixed — but the density signals fragility under change.</li><li><b>No E2E / integration tests</b> — only pure logic. The bugs that hurt live in RN + Supabase glue, which is exactly what's untested.</li><li><b>New-arch rendering</b> (RN 0.85 / React 19) has a history of silent non-paint. The redesign is device-untested.</li><li><b>Heuristics labeled as intelligence</b> — readiness, "AI" — will need real signals to hold up.</li><li><b>Scale ceiling:</b> hourly pg_cron push evaluation is fine to tens of thousands; beyond that, per-user rule evaluation needs batching/queueing.</li></ul></div>
+    </div>
+    <div class="callout blue" style="margin-top:16px;"><span class="lab">The engineering meta-point</span><p style="margin:0;">You have built a <b>Series-A feature surface with a pre-seed evidence base</b>. The architecture can carry far more than the business has earned. The highest-ROI engineering work right now is not new systems — it's <b>hardening the calendar path, adding integration tests around the state machines that keep breaking, and instrumenting retention</b> so the next feature is chosen by data, not intuition.</p></div>
+  </div>
+</section>
+
+<!-- ===================== SCIENCE ===================== -->
+<section id="science">
+  <div class="wrap">
+    <div class="secHead"><span class="num">18</span><h2>Fitness Science Review</h2></div>
+    <p class="subhead">Would a knowledgeable coach approve? <b>Mostly yes on programming, with reservations on recovery honesty.</b></p>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="card"><span class="lab">A coach would approve of</span><ul class="clean"><li>Real mesocycle structure: 3 overload weeks + a scheduled deload, with normal/recovery/deload/maintenance modes.</li><li>Fine-grained exercise classification (slot/role/family) preventing "two deadlift variants" and random leg-day order — this is legitimately coach-grade selection.</li><li>Role-aware prescriptions (compounds heavy/low-rep + full rest; isolations higher-rep) and goal-accurate session duration math.</li><li>Autoregulation via RPE + rep targets; experience progression tied to competency, not time.</li><li>Warm-ups excluded from volume/PRs; bodyweight/isometric metric handling. Details a real coach checks.</li></ul></div>
+      <div class="card"><span class="lab">A coach would push back on</span><ul class="clean"><li><b>No true volume landmarks</b> (MEV/MRV/MAV per muscle) — RP-style volume management is the current science standard; yours is a simplified wave.</li><li><b>Readiness without physiology</b> — a coach won't trust a readiness % with no sleep/HRV input.</li><li><b>Recovery model is coarse</b> (muscle-group, not per-fine-muscle, and history-only).</li><li><b>No fatigue management across a training block</b> beyond the scheduled deload — no reactive volume titration.</li><li><b>No nutrition/sleep context</b> — recovery is only ever inferred from training.</li></ul></div>
+    </div>
+    <div class="callout gold" style="margin-top:16px;"><span class="lab">Net scientific verdict</span><p style="margin:0;">The <em>programming</em> is better than most consumer apps and would pass a knowledgeable eye. The <em>recovery/readiness</em> layer over-claims relative to its inputs and is where a coach's trust breaks. Quietly adopt volume-landmark logic under the hood; make readiness honest on the surface. Do both and Tempo becomes scientifically credible without becoming intimidating.</p></div>
+  </div>
+</section>
+
+<!-- ===================== MISSING FEATURES ===================== -->
+<section id="missing">
+  <div class="wrap">
+    <div class="secHead"><span class="num">19</span><h2>Top 50 Missing Features</h2></div>
+    <p class="subhead">Ranked by ROI. <b>Impact</b> &amp; <b>Effort</b> are 1–5 (5 = highest). <b>Priority</b> blends them. Note the pattern: most of the highest-priority items are <em>subtractions, hardening, or wedge-amplifiers</em> — not new toys. A few "features" here are "stop building X."</p>
+
+    <div class="tableWrap">
+      <table style="min-width:720px;">
+        <thead><tr><th style="width:30px;">#</th><th style="min-width:230px;">Feature / change</th><th style="width:54px;">Impact</th><th style="width:54px;">Effort</th><th style="width:90px;">Priority</th><th>User value</th></tr></thead>
+        <tbody>
+          <tr><td class="sc c9">1</td><td class="cat">Production Google OAuth (kill 7-day token expiry)</td><td class="sc c9">5</td><td class="sc c6">2</td><td><span class="pill p-crit">do now</span></td><td>The core feature stops silently breaking.</td></tr>
+          <tr><td class="sc c9">2</td><td class="cat">Calendar day-timeline on Home (the wedge, visible)</td><td class="sc c9">5</td><td class="sc c5">3</td><td><span class="pill p-crit">do now</span></td><td>Makes the differentiator felt in 3 seconds.</td></tr>
+          <tr><td class="sc c9">3</td><td class="cat">Re-fence Pro around scheduling, free the analytics</td><td class="sc c9">5</td><td class="sc c7">2</td><td><span class="pill p-crit">do now</span></td><td>3–4× the conversion rate.</td></tr>
+          <tr><td class="sc c9">4</td><td class="cat">Retention instrumentation (D1/D7/D30, activation event)</td><td class="sc c9">5</td><td class="sc c7">2</td><td><span class="pill p-crit">do now</span></td><td>Every future decision becomes data-driven.</td></tr>
+          <tr><td class="sc c8">5</td><td class="cat">"Reschedule my whole week" one-tap</td><td class="sc c9">5</td><td class="sc c5">3</td><td><span class="pill p-high">high</span></td><td>The ultimate busy-person payoff + Pro hook.</td></tr>
+          <tr><td class="sc c8">6</td><td class="cat">Plain-language onboarding copy (kill jargon)</td><td class="sc c7">4</td><td class="sc c8">1</td><td><span class="pill p-high">high</span></td><td>Beginners stop bouncing at step one.</td></tr>
+          <tr><td class="sc c8">7</td><td class="cat">Progressive disclosure (hide social/groups/map early)</td><td class="sc c8">4</td><td class="sc c6">2</td><td><span class="pill p-high">high</span></td><td>Week-one calm; less churn from overwhelm.</td></tr>
+          <tr><td class="sc c8">8</td><td class="cat">Apple Health / HealthKit import (steps, sleep, HR)</td><td class="sc c8">4</td><td class="sc c5">3</td><td><span class="pill p-high">high</span></td><td>Makes readiness real; unlocks recovery credibility.</td></tr>
+          <tr><td class="sc c8">9</td><td class="cat">Single-player accountability loop</td><td class="sc c8">4</td><td class="sc c6">2</td><td><span class="pill p-high">high</span></td><td>Retention that works at zero scale.</td></tr>
+          <tr><td class="sc c8">10</td><td class="cat">"Sessions saved by scheduling" value counter</td><td class="sc c8">4</td><td class="sc c7">2</td><td><span class="pill p-high">high</span></td><td>The most persuasive upsell metric you could show.</td></tr>
+          <tr><td class="sc c7">11</td><td class="cat">Referral program (give a month / get a month)</td><td class="sc c7">4</td><td class="sc c6">2</td><td><span class="pill p-high">high</span></td><td>A growth loop where there is none.</td></tr>
+          <tr><td class="sc c7">12</td><td class="cat">Apple Watch companion (timer, logging, HR)</td><td class="sc c8">4</td><td class="sc c3">4</td><td><span class="pill p-high">high</span></td><td>Table stakes vs Strong/Train; big logging friction cut.</td></tr>
+          <tr><td class="sc c7">13</td><td class="cat">Named, coach-branded starter programs</td><td class="sc c7">3</td><td class="sc c7">2</td><td><span class="pill p-high">high</span></td><td>Borrows Boostcamp's "a human made this" trust.</td></tr>
+          <tr><td class="sc c7">14</td><td class="cat">Exercise preferences (love / never again)</td><td class="sc c7">3</td><td class="sc c7">2</td><td><span class="pill p-med">med</span></td><td>Personalization the user can feel; Fitbod parity.</td></tr>
+          <tr><td class="sc c7">15</td><td class="cat">Make adaptation visible ("we eased this week")</td><td class="sc c7">3</td><td class="sc c7">2</td><td><span class="pill p-med">med</span></td><td>The smart engine finally gets credit for being smart.</td></tr>
+          <tr><td class="sc c7">16</td><td class="cat">Readiness → scheduling feedback (move heavy day)</td><td class="sc c8">4</td><td class="sc c5">3</td><td><span class="pill p-high">high</span></td><td>Closes a loop only Tempo can close.</td></tr>
+          <tr><td class="sc c6">17</td><td class="cat">Integration/E2E tests on the state machines</td><td class="sc c7">3</td><td class="sc c5">3</td><td><span class="pill p-med">med</span></td><td>Stops the recurring near-catastrophic bugs.</td></tr>
+          <tr><td class="sc c6">18</td><td class="cat">Device-matrix QA for the redesign</td><td class="sc c7">4</td><td class="sc c6">2</td><td><span class="pill p-high">high</span></td><td>No "blank until revisit" at launch.</td></tr>
+          <tr><td class="sc c6">19</td><td class="cat">"Year in Training" annual Wrapped</td><td class="sc c7">3</td><td class="sc c5">3</td><td><span class="pill p-med">med</span></td><td>A once-built organic-growth artifact.</td></tr>
+          <tr><td class="sc c6">20</td><td class="cat">Volume landmarks (MEV/MRV) under the hood</td><td class="sc c6">3</td><td class="sc c4">4</td><td><span class="pill p-med">med</span></td><td>Scientific credibility without UI complexity.</td></tr>
+          <tr><td class="sc c6">21</td><td class="cat">Superset / circuit support in the runner</td><td class="sc c6">3</td><td class="sc c5">3</td><td><span class="pill p-med">med</span></td><td>Real gym programming; time-efficient for busy users.</td></tr>
+          <tr><td class="sc c6">22</td><td class="cat">Plate calculator + bar-load in runner</td><td class="sc c6">3</td><td class="sc c8">1</td><td><span class="pill p-med">med</span></td><td>Logging table stakes; cheap to add.</td></tr>
+          <tr><td class="sc c6">23</td><td class="cat">Rest-day active recovery / mobility flows</td><td class="sc c5">2</td><td class="sc c6">2</td><td><span class="pill p-med">med</span></td><td>Keeps the daily open alive on non-lifting days.</td></tr>
+          <tr><td class="sc c6">24</td><td class="cat">Home-workout / no-equipment first-class mode</td><td class="sc c7">3</td><td class="sc c6">2</td><td><span class="pill p-med">med</span></td><td>Huge busy-person segment; you already gate apparatus.</td></tr>
+          <tr><td class="sc c5">25</td><td class="cat">Onboarding "aha" — animate workouts into calendar</td><td class="sc c7">4</td><td class="sc c6">2</td><td><span class="pill p-high">high</span></td><td>Turns the plan reveal into the magic moment.</td></tr>
+          <tr><td class="sc c5">26</td><td class="cat">Nutrition/protein light-touch (or MFP link)</td><td class="sc c5">2</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Adjacent need; risk of scope creep — link, don't build.</td></tr>
+          <tr><td class="sc c5">27</td><td class="cat">Progress-photo timeline / before-after compare</td><td class="sc c5">2</td><td class="sc c6">2</td><td><span class="pill p-med">med</span></td><td>Capture exists; the payoff view doesn't.</td></tr>
+          <tr><td class="sc c5">28</td><td class="cat">Widget: today's session + Start (home screen)</td><td class="sc c6">3</td><td class="sc c5">3</td><td><span class="pill p-med">med</span></td><td>Re-entry without opening the app; habit anchor.</td></tr>
+          <tr><td class="sc c5">29</td><td class="cat">Live Activity / Dynamic Island rest timer</td><td class="sc c5">2</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Premium polish; gym-phone-on-bench delight.</td></tr>
+          <tr><td class="sc c5">30</td><td class="cat">Calendar-invite a friend to a workout (already plumbed)</td><td class="sc c6">3</td><td class="sc c7">2</td><td><span class="pill p-med">med</span></td><td>Product-led sharing that actually invites.</td></tr>
+          <tr><td class="sc c5">31</td><td class="cat">Deload / illness "pause my plan" mode</td><td class="sc c5">2</td><td class="sc c7">2</td><td><span class="pill p-med">med</span></td><td>Life happens; graceful pause beats guilt-churn.</td></tr>
+          <tr><td class="sc c5">32</td><td class="cat">1RM / strength-standard benchmarks vs population</td><td class="sc c5">2</td><td class="sc c6">2</td><td><span class="pill p-low">later</span></td><td>"You're stronger than 70%" motivation.</td></tr>
+          <tr><td class="sc c4">33</td><td class="cat">Manual program import (bring your own spreadsheet)</td><td class="sc c5">2</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Wins power users who distrust generation.</td></tr>
+          <tr><td class="sc c4">34</td><td class="cat">Coach/PT B2B mode (assign to clients)</td><td class="sc c6">3</td><td class="sc c2">5</td><td><span class="pill p-low">later</span></td><td>A real revenue line — but a different company.</td></tr>
+          <tr><td class="sc c4">35</td><td class="cat">Voice / hands-free set logging</td><td class="sc c4">2</td><td class="sc c3">4</td><td><span class="pill p-low">later</span></td><td>Friction cut; niche until proven.</td></tr>
+          <tr><td class="sc c4">36</td><td class="cat">Google Fit / Android health parity</td><td class="sc c5">2</td><td class="sc c5">3</td><td><span class="pill p-med">med</span></td><td>Don't strand Android on the readiness story.</td></tr>
+          <tr><td class="sc c4">37</td><td class="cat">Onboarding time-budget question ("30 min, 3×")</td><td class="sc c6">3</td><td class="sc c8">1</td><td><span class="pill p-med">med</span></td><td>Anchors the whole promise to the busy persona.</td></tr>
+          <tr><td class="sc c4">38</td><td class="cat">In-app form-check video per exercise (real clips)</td><td class="sc c5">2</td><td class="sc c3">4</td><td><span class="pill p-low">later</span></td><td>Your GIF pipeline is fragile; upgrade eventually.</td></tr>
+          <tr><td class="sc c4">39</td><td class="cat">Smart notification timing (don't nudge mid-meeting)</td><td class="sc c5">2</td><td class="sc c6">2</td><td><span class="pill p-med">med</span></td><td>Uses the calendar you already read; feels intelligent.</td></tr>
+          <tr><td class="sc c4">40</td><td class="cat">Weekly "plan your week" ritual screen</td><td class="sc c6">3</td><td class="sc c6">2</td><td><span class="pill p-med">med</span></td><td>A weekly habit anchor around the wedge.</td></tr>
+          <tr><td class="sc c3">41</td><td class="cat">Challenges / seasons (time-boxed goals)</td><td class="sc c5">2</td><td class="sc c5">3</td><td><span class="pill p-low">later</span></td><td>Engagement — but only once there's a base.</td></tr>
+          <tr><td class="sc c3">42</td><td class="cat">Public program marketplace / community programs</td><td class="sc c5">2</td><td class="sc c3">4</td><td><span class="pill p-low">later</span></td><td>Network effect; premature at zero scale.</td></tr>
+          <tr><td class="sc c3">43</td><td class="cat">Cardio / running plan integration</td><td class="sc c4">2</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Broadens TAM; dilutes focus now.</td></tr>
+          <tr><td class="sc c3">44</td><td class="cat">Localization (beyond English)</td><td class="sc c4">2</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Growth lever post-PMF only.</td></tr>
+          <tr><td class="sc c3">45</td><td class="cat">In-app coach chat (Tempo Coach LLM) — the tentpole</td><td class="sc c8">4</td><td class="sc c2">5</td><td><span class="pill p-med">strategic</span></td><td>The real "AI" story; build after the wedge lands.</td></tr>
+          <tr><td class="sc c3">46</td><td class="cat">Injury-aware auto-substitution surfaced to user</td><td class="sc c4">2</td><td class="sc c7">2</td><td><span class="pill p-low">later</span></td><td>Logic exists; make it visible &amp; reassuring.</td></tr>
+          <tr><td class="sc c3">47</td><td class="cat">Gym-equipment profiles (home vs commercial vs travel)</td><td class="sc c4">2</td><td class="sc c6">2</td><td><span class="pill p-low">later</span></td><td>Travel mode exists; generalize to saved gyms.</td></tr>
+          <tr><td class="sc c2">48</td><td class="cat">Watch-face / lock-screen streak complication</td><td class="sc c3">1</td><td class="sc c4">4</td><td><span class="pill p-low">later</span></td><td>Habit surface; low priority pre-scale.</td></tr>
+          <tr><td class="sc c2">49</td><td class="cat">AI photo-based form analysis</td><td class="sc c4">2</td><td class="sc c1">5</td><td><span class="pill p-low">later</span></td><td>Flashy; huge effort; not the wedge.</td></tr>
+          <tr><td class="sc c2">50</td><td class="cat">STOP building social/community until there are users</td><td class="sc c8">4</td><td class="sc c9">0</td><td><span class="pill p-crit">do now</span></td><td>The highest-ROI "feature" is refusing to build more.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px;color:var(--text-3);font-size:13px;">If you do nothing else from this table, do #1–4 and #50. They cost little and change the trajectory more than the other 45 combined.</p>
+  </div>
+</section>
+
+<!-- ===================== RED TEAM ===================== -->
+<section id="redteam">
+  <div class="wrap">
+    <div class="secHead"><span class="num">20</span><h2>Red Team Review</h2></div>
+    <p class="subhead">Six hostile personas. What each would say to your face.</p>
+
+    <div class="stack">
+      <div class="find crit"><h4><span class="pill p-crit">1★ reviewer</span> "It stopped showing my calendar and never told me why."</h4><p>"Looked slick, set it all up, then a week later my workouts vanished from Google Calendar. No error, no fix. If a scheduling app can't schedule, what am I paying for? Deleted." — <em>This review is pre-written by the 7-day OAuth bug. It will happen. Fix it before anyone can leave it.</em></p></div>
+
+      <div class="find high"><h4><span class="pill p-high">Pro fitness coach</span> "The programming's decent. The 'readiness' is fiction."</h4><p>"Selection and periodization are better than I expected — genuinely usable. But you're showing a recovery percentage with no HRV, no sleep, nothing. That's a dial that spins on vibes. And where are volume landmarks? Don't put a number on recovery you can't measure."</p></div>
+
+      <div class="find high"><h4><span class="pill p-high">Power user</span> "Too much hand-holding, not enough control."</h4><p>"I know my program. Let me import it, log fast, and get out. Instead I'm navigating splits vs templates vs auto-plans and dodging a muscle-map upsell. Strong logs a set in one tap; you make me think. And no Apple Watch? Non-starter."</p></div>
+
+      <div class="find med"><h4><span class="pill p-med">Beginner</span> "I felt dumb by the second screen."</h4><p>"It asked if I wanted 'CNS optimization.' I don't know what that is. Then there were charts and body maps and a leaderboard with nobody on it. I just wanted someone to tell me what to do at the gym without making me feel behind."</p></div>
+
+      <div class="find high"><h4><span class="pill p-high">Investor</span> "Where's the evidence, and what's the moat?"</h4><p>"Impressive surface area for a solo founder — that's the problem. You've built for a scale you haven't reached. Show me a retained cohort on the core loop before another feature. And the calendar wedge is copyable by Fitbod in a quarter; what's defensible when they do? I need traction and a moat, and I see neither yet."</p></div>
+
+      <div class="find med"><h4><span class="pill p-med">Competitor CEO</span> "Cute, but they'll drown in their own scope."</h4><p>"They found a real seam we ignored — calendar scheduling. If they'd shipped <em>only</em> that, polished, I'd be nervous. Instead they built a whole social network and a body map nobody asked for. They'll spread thin, we'll bolt a 'schedule' tab onto our 5M-user app, and it's over. Their focus is my best friend."</p></div>
+    </div>
+    <div class="callout blue" style="margin-top:18px;"><span class="lab">The shared thread</span><p style="margin:0;">Five of six critics say a version of the same thing: <b>the wedge is real, the calendar reliability is a liability, and the scope is the enemy.</b> The one thing that would silence most of them is not a feature — it's <em>focus + reliability + proof</em>.</p></div>
+  </div>
+</section>
+
+<!-- ===================== ROADMAP ===================== -->
+<section id="roadmap">
+  <div class="wrap">
+    <div class="secHead"><span class="num">21</span><h2>Roadmap by ROI</h2></div>
+    <p class="subhead">Ordered by return, not by what's fun to build. The theme of the top tier: <b>subtract, harden, and aim everything at the wedge.</b></p>
+
+    <div class="tiers">
+      <div class="tier" style="border-color:color-mix(in srgb,var(--red) 34%,var(--line));">
+        <div class="th" style="background:color-mix(in srgb,var(--red) 8%,transparent);"><h3 style="color:var(--red)">Critical — do before any marketing spend</h3><span class="pill p-crit">week 0–4</span></div>
+        <div class="body"><ul>
+          <li><b>Fix Google OAuth reliability</b> (production verification, kill silent token death)<span></span><span class="roi hi">ROI ▲▲▲</span></li>
+          <li><b>Instrument retention</b> (D1/D7/D30 + define activation event)<span></span><span class="roi hi">ROI ▲▲▲</span></li>
+          <li><b>Re-fence Pro around scheduling; free the analytics</b><span></span><span class="roi hi">ROI ▲▲▲</span></li>
+          <li><b>Device-matrix QA the redesign</b> (no blank-render at launch)<span></span><span class="roi hi">ROI ▲▲▲</span></li>
+          <li><b>Freeze new feature building</b> — social/groups/map are done, stop<span></span><span class="roi hi">ROI ▲▲▲</span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier" style="border-color:color-mix(in srgb,var(--ember) 34%,var(--line));">
+        <div class="th" style="background:color-mix(in srgb,var(--ember) 7%,transparent);"><h3 style="color:var(--ember)">High impact — make the wedge undeniable</h3><span class="pill p-high">month 2–3</span></div>
+        <div class="body"><ul>
+          <li><b>Calendar day-timeline as the Home hero</b><span></span><span class="roi hi">ROI ▲▲▲</span></li>
+          <li><b>"Reschedule my whole week"</b> + the "sessions saved" counter<span></span><span class="roi hi">ROI ▲▲</span></li>
+          <li><b>Plain-language copy</b> + progressive disclosure of depth<span></span><span class="roi hi">ROI ▲▲</span></li>
+          <li><b>Wedge-led App Store listing</b> + one content channel<span></span><span class="roi hi">ROI ▲▲</span></li>
+          <li><b>Single-player accountability loop</b> + referral program<span></span><span class="roi md">ROI ▲▲</span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier">
+        <div class="th"><h3>Medium impact — credibility &amp; retention</h3><span class="pill p-med">month 4–6</span></div>
+        <div class="body"><ul>
+          <li><b>HealthKit import</b> → honest readiness → readiness-aware scheduling<span></span><span class="roi md">ROI ▲▲</span></li>
+          <li><b>Apple Watch companion</b> (logging + timer + HR)<span></span><span class="roi md">ROI ▲</span></li>
+          <li><b>Integration/E2E tests</b> on plan/split/calendar state machines<span></span><span class="roi md">ROI ▲</span></li>
+          <li><b>Named coach-branded starter programs</b> + exercise preferences<span></span><span class="roi md">ROI ▲</span></li>
+          <li><b>Make adaptation visible</b>; superset/circuit support; plate calc<span></span><span class="roi md">ROI ▲</span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier">
+        <div class="th"><h3>Nice-to-have — polish once PMF is proven</h3><span class="pill p-low">later</span></div>
+        <div class="body"><ul>
+          <li>Home-screen widget + Live Activity rest timer<span></span><span class="roi lo">ROI ▲</span></li>
+          <li>"Year in Training" annual Wrapped<span></span><span class="roi lo">ROI ▲</span></li>
+          <li>Volume landmarks (MEV/MRV) under the hood; strength standards<span></span><span class="roi lo">ROI ▲</span></li>
+          <li>Progress-photo timeline; pause-plan mode; smart notif timing<span></span><span class="roi lo">ROI ◦</span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier" style="border-color:color-mix(in srgb,var(--blue) 32%,var(--line));">
+        <div class="th" style="background:color-mix(in srgb,var(--blue) 7%,transparent);"><h3 style="color:var(--blue-br)">Future vision — earn the right to build these</h3><span class="pill p-blue">12mo+</span></div>
+        <div class="body"><ul>
+          <li><b>Tempo Coach</b> — conversational reprogramming, the real AI tentpole<span></span><span class="roi md">strategic</span></li>
+          <li><b>B2B / coach mode</b> — assign programs to clients (a second business)<span></span><span class="roi md">strategic</span></li>
+          <li><b>Program marketplace</b> — network effects once there's a network<span></span><span class="roi lo">strategic</span></li>
+          <li><b>Corporate wellness</b> — "training that fits a busy professional's day" sold to employers<span></span><span class="roi lo">strategic</span></li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VERDICT ===================== -->
+<section id="verdict">
+  <div class="wrap">
+    <div class="secHead"><span class="num">22</span><h2>Final Verdict</h2></div>
+
+    <div class="grid2" style="align-items:start;margin-bottom:22px;">
+      <div class="qa">
+        <div class="row"><span class="q">Category leader?</span><span class="verdict v-mostly">Possible, in a narrow lane</span></div>
+        <div class="row"><span class="q">$1M ARR product?</span><span class="verdict v-yes">Yes — realistic</span></div>
+        <div class="row"><span class="q">$10M ARR product?</span><span class="verdict v-not">Plausible with focus</span></div>
+        <div class="row"><span class="q">$100M ARR product?</span><span class="verdict v-no">Unlikely as scoped</span></div>
+      </div>
+      <div class="big-quote">You didn't build a bad app. You built <span class="hl">three good apps</span> and hid the best one.</div>
+    </div>
+
+    <div class="stack">
+      <div class="card"><span class="lab">Can it become a category leader?</span><p><b>Yes — but only of a category it defines and names.</b> Tempo will not out-log Strong or out-science RP. It <em>can</em> own "the calendar-native training planner for busy people who still want to train seriously." That's a real, winnable, un-owned category. Leadership requires narrowing to it, not broadening away from it.</p></div>
+      <div class="grid2" style="align-items:start;">
+        <div class="card"><span class="lab">$1M / $10M ARR</span><p><b>$1M is very achievable</b> — ~2,000 annual subs at a corrected price. The engine and craft already justify it; you need the wedge visible, the paywall fixed, and one working acquisition channel. <b>$10M requires</b> proven retention, a compounding growth loop, and the Coach tentpole — a focused 2–3 year path, not a fantasy.</p></div>
+        <div class="card"><span class="lab">$100M ARR — the honest ceiling</span><p><b>Unlikely on the current shape.</b> $100M fitness apps are either platform-scale content (Apple/Peloton), hardware-attached (WHOOP), or category-defining with a distribution machine. Tempo could get there only by becoming <em>the</em> default for a massive segment (busy professionals) with a growth engine it doesn't have yet. Don't optimize for this — earn $10M first, and the path either appears or it doesn't.</p></div>
+      </div>
+      <div class="callout"><span class="lab">What's actually preventing success</span><p style="margin:0;">Not code. Not design. Not the idea. It's <b>three self-inflicted things</b>: (1) the wedge is buried and unreliable, (2) the scope is diluting the message and the effort, and (3) there is zero evidence anyone retains, so every bet is blind. All three are fixable in a quarter of disciplined <em>subtraction and hardening</em> — the hardest kind of work for a builder this capable, because it means stopping.</p></div>
+    </div>
+
+    <h3 style="font-size:20px;margin:32px 0 4px;">The 10 highest-impact changes</h3>
+    <p class="subhead" style="margin-bottom:16px;">In order. If you do these ten, the 5.6 becomes an 8.</p>
+    <div class="tableWrap">
+      <table style="min-width:560px;">
+        <thead><tr><th style="width:34px;">#</th><th>Change</th><th style="width:150px;">Moves the needle on</th></tr></thead>
+        <tbody>
+          <tr><td class="sc c9">1</td><td class="cat">Fix Google Calendar reliability (production OAuth) — the core feature must never silently break.</td><td>Reliability, Trust</td></tr>
+          <tr><td class="sc c9">2</td><td class="cat">Make the calendar day-timeline the Home hero — perform the magic trick with the lights on.</td><td>Differentiation, UX</td></tr>
+          <tr><td class="sc c9">3</td><td class="cat">Re-fence Pro around scheduling superpowers; give the analytics away free.</td><td>Monetization ×3–4</td></tr>
+          <tr><td class="sc c8">4</td><td class="cat">Instrument retention and define the activation event; choose the next feature with data.</td><td>Everything downstream</td></tr>
+          <tr><td class="sc c8">5</td><td class="cat">Freeze feature building — no more social/groups/maps. Subtract week-one surface area.</td><td>Focus, Retention</td></tr>
+          <tr><td class="sc c8">6</td><td class="cat">Rewrite the copy in plain human language; name the busy-lifter persona explicitly.</td><td>Onboarding, Positioning</td></tr>
+          <tr><td class="sc c7">7</td><td class="cat">Ship "reschedule my whole week" + the "sessions saved" counter — quantify the wedge.</td><td>Conversion, Value</td></tr>
+          <tr><td class="sc c7">8</td><td class="cat">Make readiness honest (label it) and turn it into a scheduling input, not a vanity ring.</td><td>Science, Trust</td></tr>
+          <tr><td class="sc c7">9</td><td class="cat">Build one acquisition channel + a referral loop around the demo-able calendar trick.</td><td>Growth</td></tr>
+          <tr><td class="sc c6">10</td><td class="cat">Add integration tests + device-matrix QA around the state machines that keep breaking.</td><td>Reliability</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout blue" style="margin-top:24px;"><span class="lab">Closing, without the padding</span><p style="margin:0;font-size:15.5px;">Tempo is the work of someone who can clearly build almost anything. That's exactly why the risk is scope, not skill. The market doesn't reward the most-built app; it rewards the one that says <em>one true thing</em> and delivers it flawlessly. Your one true thing is: <b>"Tempo puts your training into your real week, and moves it when life does."</b> Everything that serves that sentence, keep and sharpen. Everything that doesn't, hide or cut. Do that, and this goes from an impressive project to a product people can't quit.</p></div>
+  </div>
+</section>
+
+<div class="foot">
+  <div class="wrap"><div>
+    Independent product audit of <b style="color:var(--text-2)">Tempo v1.0.0</b> (feature/tempo-pro) · Panel review across product, design, growth, fitness science, behavioral psychology, architecture, venture, ASO, subscription, and QA lenses · Grounded in the live codebase, <span class="mono" style="font-size:12px">ARCHITECTURE.md</span>, and <span class="mono" style="font-size:12px">DESIGN_STRATEGY.md</span>.
+    <br><br>Scores reflect a pre-launch, unvalidated but fully-built product. "Potential" assumes disciplined execution of the roadmap above. No metric here is a substitute for a retained cohort — get real users on the core loop, and re-audit against their behavior.
+  </div></div>
+</div>

@@ -62,6 +62,31 @@ those stay opt-in, not automatic.
 change a screen, lib module, table, edge function, or feature, reflect it in `ARCHITECTURE.md`
 in the same turn so it stays an accurate map of the system.
 
+## Audit Artifact Protocol
+`PRODUCT_AUDIT.html` (repo root) is the **canonical source** for the brutal product-audit
+artifact, published at
+`https://claude.ai/code/artifact/6d53765f-21fe-4fff-bc04-ca9eaac67928`. It is written in the
+original brief's voice — *a panel of ruthless experts; criticize everything; no compliments;
+hard truths only; current-score vs potential-score with honest gaps.*
+
+**Every time you change the app in a session, update `PRODUCT_AUDIT.html` in the same turn**,
+then re-publish it with the Artifact tool passing
+`url=https://claude.ai/code/artifact/6d53765f-21fe-4fff-bc04-ca9eaac67928` so it keeps the same
+link. Rules:
+- Add a dated entry to the **Update Log** section at the top: what changed and its honest audit
+  impact, in the same brutal voice. Newest first.
+- Re-evaluate the scorecard rows / sections the change touches. **Never inflate a score just
+  because code was written.** A number moves only when a real *outcome* is proven (e.g. a
+  retained cohort, a measured conversion lift) — not when a feature ships. Shipping a fix earns
+  an "addressed / gap-narrowed" note; the score holds until the result is measured. Stay
+  skeptical about what's still weak.
+- Keep it fully self-contained (inline CSS/JS, no external hosts) — the Artifact CSP blocks them.
+
+**Honest limitation to tell the user:** an artifact cannot auto-refresh "when opened" — there is
+no such trigger, and a CLAUDE.md rule only runs while a session is active. The document stays
+current because it is updated here on every change, so it is already accurate by the time it is
+opened. This protocol is what keeps that true.
+
 ## Stack
 - Expo ~56 (React Native) in `mobile/` — **SDK changes fast; read the versioned docs
   at https://docs.expo.dev/versions/v56.0.0/ before writing native/config code.**
