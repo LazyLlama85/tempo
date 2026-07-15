@@ -1228,8 +1228,8 @@ export default function ScheduleScreen() {
       eligible: !!projection,
       primary: () => projection ? (
         <View style={styles.goalCard}>
-          <View style={styles.goalIcon}>
-            <Ionicons name={projection.icon as IconName} size={18} color={C.primary} />
+          <View style={[styles.goalIcon, { backgroundColor: C.goldSoft }]}>
+            <Ionicons name={projection.icon as IconName} size={18} color={C.gold} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.goalHeadline} numberOfLines={1}>{projection.headline}</Text>
@@ -1859,7 +1859,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   goalHeadline: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text, letterSpacing: -0.2 },
   goalSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   goalTrack: { height: 6, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6, overflow: 'hidden' },
-  goalFill: { height: 6, backgroundColor: C.primary, borderRadius: Radius.full },
+  goalFill: { height: 6, backgroundColor: C.gold, borderRadius: Radius.full },
 
   // ── Weekly report entry ──────────────────────────────────────────────────────
   reportRow: {
@@ -2013,7 +2013,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroBlob: {
     position: 'absolute', top: -60, right: -50,
     width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(78,139,255,0.22)',
+    backgroundColor: C.primaryGlow,
   },
 
   workoutTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

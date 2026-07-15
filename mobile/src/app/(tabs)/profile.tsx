@@ -6,7 +6,7 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, useThemeMode, type Palette, type ThemeMode } from '@/theme'
 import { ScreenHeader, HeaderActions, PulseLoader } from '@/components/brand'
 import { ScreenTransition } from '@/components/motion'
@@ -1453,7 +1453,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     padding: Spacing.lg,
     alignItems: 'center',
     gap: 6,
-    ...CardShadow,
+    ...Elevation.e2,
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
   levelChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
@@ -1493,7 +1493,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   saveBody: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
 
   // Cards & lists
-  card: { backgroundColor: C.background, borderRadius: Radius.xl, ...CardShadow, borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden' },
+  card: { backgroundColor: C.background, borderRadius: Radius.xl, ...Elevation.e1, borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden' },
   emptyHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, padding: Spacing.md, lineHeight: 19 },
 
   // Body stats

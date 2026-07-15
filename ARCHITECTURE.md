@@ -297,7 +297,8 @@ you moving."*
   additively to also expose `logTimes` + `muscleSets` + `strengthSets` from its existing set-log query
   — no new fetches). Profile no longer duplicates any of the performance cards (see below).
 - **Profile** (`(tabs)/profile.tsx`): identity + config surface. A single glanceable stat — the
-  gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1"). The
+  gaming-style level/XP hero (avatar, level chip, progress bar, "N more workouts to Level N+1").
+  (Enriched-Calm: the hero uses `Elevation.e2` and cards use `e1` for premium depth — style-only.) The
   stat grid, achievements grid, and Personal Records card were **removed** so Progress owns all
   performance stats; Profile keeps **Body
   Stats** (weight + body-fat + waist trends, progress-photo capture — the only place to *log* a
