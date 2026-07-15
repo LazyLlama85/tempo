@@ -23,10 +23,10 @@ export type TrainSeg = 'readiness' | 'splits' | 'workouts' | 'session'
 
 type IconName = keyof typeof Ionicons.glyphMap
 const SEG_META: { key: TrainSeg; label: string; icon: IconName; tint: (c: Palette) => string }[] = [
+  { key: 'session', label: 'Session', icon: 'play', tint: (c) => c.primary },
   { key: 'readiness', label: 'Readiness', icon: 'pulse', tint: (c) => c.success },
   { key: 'splits', label: 'Splits', icon: 'repeat', tint: (c) => c.ember },
   { key: 'workouts', label: 'Workouts', icon: 'barbell', tint: (c) => c.gold },
-  { key: 'session', label: 'Session', icon: 'play', tint: (c) => c.primary },
 ]
 
 // ── Segmented control ───────────────────────────────────────────────────────────

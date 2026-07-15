@@ -205,8 +205,12 @@ you moving."*
   a recommended focus, from `fitnessInsights.readinessFromHistory`/`intensityFromReadiness`/
   `muscleRecovery` over `useProgressStats`), **Splits** (the user's `fetchSplits` list as premium
   cards → `my-splits`), **Workouts** (the user's `fetchTemplates` list + search → `my-workouts`).
-  Quick Workout / History / Library stay as a secondary link row under any segment. The **live
-  session runner is deliberately untouched** — every change is inside the `!sessionActive` hub branch,
+  Quick Workout / History / Library stay as a secondary link row under any segment. The hub renders
+  **even on a rest day / when nothing is scheduled** (the Session segment shows an empty state while
+  Readiness/Splits/Workouts stay usable — the old separate "nothing scheduled" screen is gone).
+  **Discarding** an unstarted session now also **removes its synced calendar event** (best-effort, via
+  `removeWorkoutFromCalendar`) so no ghost workout lingers on the user's calendar. The **live
+  session runner is deliberately untouched** — every hub change is inside the `!sessionActive` branch,
   and Splits/Workouts actions route to the existing screens (single source of truth). Hub/loading/empty headers carry only the wordmark + avatar — no back
   button (it's a tab, not a pushed screen); only the live session keeps its chevron-down
   leave-to-hub control. You only enter the live logger deliberately (hub button, or an

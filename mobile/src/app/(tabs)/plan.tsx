@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchSplits } from '@/lib/splits'
 import { fetchTemplates } from '@/lib/workoutBuilder'
+import { removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { readinessFromHistory, intensityFromReadiness, muscleRecovery } from '@/lib/fitnessInsights'
 import { TrainSegments, TrainReadinessView, SplitsView, WorkoutsView, type TrainSeg } from '@/components/TrainSegments'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
@@ -65,6 +66,8 @@ interface WorkoutRow {
   split_id: string | null
   progression: WeekProgression | null
   exercise_config: WorkoutExerciseConfig[] | null
+  calendar_event_id: string | null
+  calendar_provider: 'google' | 'device' | null
 }
 
 interface ExerciseRow {
@@ -387,7 +390,7 @@ export default function WorkoutsScreen() {
 
     const { data: workoutRow } = await supabase
       .from('scheduled_workouts')
-      .select('id, focus, planned_date, planned_duration_min, exercise_ids, status, source, split_id, progression, exercise_config')
+      .select('id, focus, planned_date, planned_duration_min, exercise_ids, status, source, split_id, progression, exercise_config, calendar_event_id, calendar_provider')
       .eq('id', targetId)
       .single()
 
@@ -1168,6 +1171,24 @@ export default function WorkoutsScreen() {
         await supabase.from('workout_logs').delete().eq('id', workoutLogId)
       } catch { /* an orphaned zero-set log is closed out by the stale-log sweep */ }
     }
+    // Discarding means "I'm not doing this one" — so pull its synced calendar event
+    // too (best-effort), instead of leaving a ghost workout on the user's calendar.
+    if (workout?.calendar_event_id) {
+      try {
+        await removeWorkoutFromCalendar(supabase, {
+          id: workout.id,
+          focus: workout.focus,
+          planned_date: workout.planned_date,
+          planned_start_time: '00:00:00', // unused by remove; add-only field
+          planned_duration_min: workout.planned_duration_min,
+          calendar_event_id: workout.calendar_event_id,
+          calendar_provider: workout.calendar_provider,
+        }, userId)
+        setWorkout(w => (w ? { ...w, calendar_event_id: null, calendar_provider: null } : w))
+        queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+        queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
+      } catch { /* best-effort — the pointer is cleared server-side regardless */ }
+    }
     setSessionActive(false)
     setWorkoutLogId(null)
     accumulatedSec.current = 0
@@ -1311,49 +1332,8 @@ export default function WorkoutsScreen() {
     )
   }
 
-  if (notFound || !workout) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenTransition>
-        <ScreenHeader
-          right={
-            <HeaderActions>
-              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
-                <Ionicons name="book-outline" size={22} color={C.text} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
-                <Avatar size={32} iconSize={16} />
-              </TouchableOpacity>
-            </HeaderActions>
-          }
-        />
-        <View style={styles.emptyStateContainer}>
-          <EmptyState
-            kind="flash"
-            title="Nothing scheduled right now"
-            body="Got a spare 10–45 minutes? Start a Quick Workout and Tempo builds the highest-impact session for the time you have."
-            actionLabel="Start a Quick Workout"
-            onAction={() => router.push('/quick-workout')}
-          />
-          <View style={styles.emptyLinksRow}>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-workouts' as any)} activeOpacity={0.7}>
-              <Ionicons name="construct-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>My Workouts</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
-              <Ionicons name="repeat-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>My Splits</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/(tabs)')} activeOpacity={0.7}>
-              <Ionicons name="calendar-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>Schedule</Text>
-            </PressableScale>
-          </View>
-        </View>
-      </ScreenTransition>
-    </SafeAreaView>
-    )
-  }
+  // Rest day / nothing scheduled today is handled inside the hub's Session segment
+  // below (so the Readiness / Splits / Workouts segments stay available too).
 
   // ── Hub (pre-session) ───────────────────────────────────────────────────────
   // Landing on the Workouts tab shows the day's session ready to go. You start it
@@ -1378,7 +1358,7 @@ export default function WorkoutsScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           <TrainSegments value={hubSeg} onChange={setHubSeg} />
 
-          {hubSeg === 'session' && (
+          {hubSeg === 'session' && (workout ? (
           <>
           <FadeInView style={styles.hubHero}>
             <View style={styles.hubEyebrowRow}>
@@ -1445,7 +1425,17 @@ export default function WorkoutsScreen() {
             </PressableScale>
           </FadeInView>
           </>
-          )}
+          ) : (
+            <View style={{ paddingVertical: Spacing.xl }}>
+              <EmptyState
+                kind="flash"
+                title="No session scheduled today"
+                body="Rest day, or nothing planned yet — start a Quick Workout, check your Readiness, or browse your Splits and Workouts above."
+                actionLabel="Start a Quick Workout"
+                onAction={() => router.push('/quick-workout')}
+              />
+            </View>
+          ))}
 
           {hubSeg === 'readiness' && (
             <TrainReadinessView readiness={trainReady.readiness} intensity={trainReady.intensity} muscle={trainReady.muscle} />
@@ -1491,7 +1481,7 @@ export default function WorkoutsScreen() {
             <View style={styles.coachCard}>
               <View style={styles.coachIcon}><Ionicons name="bulb" size={24} color={C.onPrimary} /></View>
               {(() => {
-                const r = describeSession(exercises, workout.focus)
+                const r = describeSession(exercises, workout?.focus ?? '')
                 if (!r) return null
                 return (
                   <>
@@ -1517,6 +1507,9 @@ export default function WorkoutsScreen() {
   }
 
   // ── Main render (live session) ──────────────────────────────────────────────
+  // Reaching here means a session is active, which can't happen without a workout;
+  // this guard just narrows the type (a harmless no-op in practice).
+  if (!workout) return null
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
