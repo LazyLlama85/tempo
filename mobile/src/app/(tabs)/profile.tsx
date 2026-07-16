@@ -21,6 +21,7 @@ import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAut
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { computeLevel } from '@/lib/achievements'
+import { ACTIVATION_SESSIONS } from '@/lib/activation'
 import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, unviewedBadgeCount } from '@/lib/badges'
 import { AVATAR_PRESETS, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
 import {
@@ -199,6 +200,14 @@ export default function ProfileScreen() {
   )
   // One "social" indicator on the Friends button: requests + incoming invites.
   const socialNotifs = pendingRequests + pendingInvites
+  // Progressive disclosure (B3.2): no network exists yet, so surfacing Friends/
+  // Groups before the core loop is proven is pure overwhelm. Gated on the same
+  // live, already-fetched `stats.totalWorkouts` the level/badges above use — never
+  // the fire-once activation *flag*, which wouldn't retroactively unlock this for
+  // an already-engaged existing user. A real pending signal (an actual friend
+  // request or invite) always shows regardless — hiding a genuine notification
+  // would be a regression, not progressive disclosure.
+  const activated = stats.totalWorkouts >= ACTIVATION_SESSIONS
 
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
@@ -706,19 +715,21 @@ export default function ProfileScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/social' as any)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={socialNotifs > 0 ? `Friends — ${socialNotifs} new` : 'Friends'}
-            >
-              <Ionicons name="people-outline" size={22} color={C.text} />
-              {socialNotifs > 0 && (
-                <View style={styles.friendBadge}>
-                  <Text style={styles.friendBadgeText}>{socialNotifs > 9 ? '9+' : socialNotifs}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {(activated || socialNotifs > 0) && (
+              <TouchableOpacity
+                onPress={() => router.push('/social' as any)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={socialNotifs > 0 ? `Friends — ${socialNotifs} new` : 'Friends'}
+              >
+                <Ionicons name="people-outline" size={22} color={C.text} />
+                {socialNotifs > 0 && (
+                  <View style={styles.friendBadge}>
+                    <Text style={styles.friendBadgeText}>{socialNotifs > 9 ? '9+' : socialNotifs}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
           </HeaderActions>
         }
       />
@@ -943,13 +954,16 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Social ──────────────────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Social</Text>
-          <View style={styles.card}>
-            <SettingRow icon="people-outline" label="FRIENDS" value="Find people, share workouts & privacy" onPress={() => router.push('/social' as any)} />
+        {/* ── Social (B3.2: hidden pre-activation — no network exists yet, so this
+              is overwhelm, not value, before the core loop is proven) ──────────── */}
+        {activated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Social</Text>
+            <View style={styles.card}>
+              <SettingRow icon="people-outline" label="FRIENDS" value="Find people, share workouts & privacy" onPress={() => router.push('/social' as any)} />
+            </View>
           </View>
-        </View>
+        )}
 
         {/* ── Calendar & Scheduling ───────────────────────────────────────── */}
         <View style={styles.section}>

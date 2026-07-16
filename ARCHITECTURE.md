@@ -1176,6 +1176,20 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Both are de-duped by durable, per-user, force-close-proof localStorage flags (the same idiom as the
   tutorial + guest-save prompts), so PostHog can build the onboarding→activation funnel and split
   retention by calendar-adopters vs not. Analytics-only — no behavior change; no-ops without a key.
+- **Progressive disclosure (B3.2, real behavior — unlike the analytics-only item above):** Social
+  (Profile's header Friends icon + its "Social" section, which is also the only entry point to
+  Groups) and Muscle Intelligence (Progress's "Body Intelligence" card + `workout-complete`'s
+  post-workout teaser) are hidden until a user has **completed** `ACTIVATION_SESSIONS` (2) sessions
+  — no network exists yet, so showing empty social surfaces to a day-1 user is overwhelm, not value
+  (audit finding). Gated on `stats.totalWorkouts >= ACTIVATION_SESSIONS` — the same live number
+  `useProgressStats` already fetches for the level/badges on the same screens — deliberately **not**
+  the fire-once `tempo.activated.*` flag in `lib/activation.ts`, which only gets set the moment a
+  user crosses the threshold and would read "not activated" (and wrongly hide the feature) for an
+  already-engaged existing user whose flag was never retroactively set. The Friends icon has one
+  exception: it still shows if there's a real pending friend request or invite, regardless of
+  activation — hiding an actual notification would be a regression, not disclosure. Deep links (a
+  notification tap routing to `/social`, a group-invite link) are untouched — only the discoverable
+  entry points are gated, never the routes themselves.
 - **Privacy/compliance:** in-app Privacy Policy + Terms (`legal.tsx`, opened from the sign-in footer
   **and** Profile → Privacy & Terms — the sign-in links were previously dead text, now wired),
   in-app **account deletion** (App Store Guideline 5.1.1(v)), per-user RLS everywhere, Google token

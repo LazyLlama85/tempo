@@ -28,6 +28,7 @@ import { Avatar } from '@/components/Avatar'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
+import { ACTIVATION_SESSIONS } from '@/lib/activation'
 import type { BodyMeasurement } from '@/types'
 // Fitness Intelligence — new dashboard layer (composes existing engines; adds no fetches).
 import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore'
@@ -94,6 +95,10 @@ export default function ProgressScreen() {
   useEffect(() => {
     if (userId) fetchMeasurements(supabase, userId, 120).then(setMeasurements).catch(() => {})
   }, [userId])
+  // Progressive disclosure (B3.2): Body Intelligence (muscle-map) stays hidden
+  // pre-activation — see the matching note on Profile's Social section.
+  const activated = stats.totalWorkouts >= ACTIVATION_SESSIONS
+
   const weightTrend = computeWeightTrend(measurements)
   const weightChartPoints = measurements
     .filter((m) => m.weight_lbs != null)
@@ -303,18 +308,22 @@ export default function ProgressScreen() {
 
             {/* ── Coaching (new): forecast + behavioural insights ── */}
             <SectionLabel title="Coaching" hint="What Tempo notices about you." />
-            {/* Body Intelligence — the muscle-map feature (free preview → Pro). */}
-            <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map' as any)}>
-              <View style={styles.bodyIntelIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.bodyIntelTitle}>Body Intelligence</Text>
-                  {proLocked && <ProBadge />}
+            {/* Body Intelligence — the muscle-map feature (free preview → Pro).
+                Hidden pre-activation (B3.2): it's a Fitbod-echo depth feature, not
+                something a day-1 user needs to be shown before the core loop lands. */}
+            {activated && (
+              <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map' as any)}>
+                <View style={styles.bodyIntelIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.bodyIntelTitle}>Body Intelligence</Text>
+                    {proLocked && <ProBadge />}
+                  </View>
+                  <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points</Text>
                 </View>
-                <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.outline} />
-            </PressableScale>
+                <Ionicons name="chevron-forward" size={18} color={C.outline} />
+              </PressableScale>
+            )}
             {insights && insights.forecast.length > 0 && <ForecastStrip days={insights.forecast} delay={40} />}
             {insights && (
               <InsightsCard

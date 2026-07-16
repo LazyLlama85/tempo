@@ -18,7 +18,7 @@ import { useWeightUnit } from '@/lib/units'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { SaveProgressSheet } from '@/components/SaveProgressSheet'
 import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
-import { maybeTrackActivation } from '@/lib/activation'
+import { maybeTrackActivation, ACTIVATION_SESSIONS } from '@/lib/activation'
 import { useProAccess } from '@/stores/entitlements'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
 import { useTutorialStore } from '@/stores/tutorial'
@@ -58,6 +58,9 @@ export default function WorkoutCompleteScreen() {
   // Stats were just mutated by completing the session — pull the fresh numbers so
   // the streak / consistency / weekly figures reflect this workout.
   useEffect(() => { refetch() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Progressive disclosure (B3.2): don't tease Muscle Intelligence pre-activation —
+  // see the matching note on Profile's Social section.
+  const activated = stats.totalWorkouts >= ACTIVATION_SESSIONS
 
   // Is this the account's FIRST completed session? Captured once on mount, before
   // we flip the flag — the most important retention moment, so it gets a bigger
@@ -384,7 +387,7 @@ export default function WorkoutCompleteScreen() {
         )}
 
         {/* Muscle Intelligence teaser — a Pro upsell at a high-intent moment. */}
-        {locked && (
+        {locked && activated && (
           <PressableScale style={styles.muscleTeaser} scaleTo={0.98} onPress={() => { track('paywall_shown', { context: 'post_workout_muscle' }); router.push('/muscle-map' as any) }}>
             <View style={styles.muscleTeaserIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
             <View style={{ flex: 1 }}>
