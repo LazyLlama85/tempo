@@ -42,8 +42,14 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   },
   schedule_optimization: {
     id: 'schedule_optimization',
+    // B2.1: this is specifically the one-tap "reschedule my whole week" action
+    // (lib/reschedule.rescheduleWholeWeek) — NOT the free, always-on background
+    // auto-scheduler (lib/autoSchedule.ts) that quietly time-optimizes every user's
+    // plan around their calendar. That stays free; only the on-demand full re-plan
+    // is gated. Keep this distinction explicit here so a future call site doesn't
+    // accidentally gate the ambient engine by using this same feature id.
     title: 'Smart Scheduling',
-    benefit: 'Auto-reshuffle around a busy week and recovery-aware workout timing.',
+    benefit: 'One-tap "reschedule my whole week" — re-lay every session around a busy stretch, recovery-aware.',
     icon: 'sparkles',
   },
   long_horizon_planning: {
@@ -94,10 +100,12 @@ export interface PaywallPoint {
   benefit: string
 }
 
+// B2.1: analytics/charts moved to free (nobody subscribes for charts) — the
+// paywall now sells the two things that are actually gated: the one-tap
+// reschedule-week action and Muscle Intelligence. Every point here still maps
+// to something a Pro user can use today; add to this list only as new gates
+// actually ship.
 export const PAYWALL_POINTS: PaywallPoint[] = [
-  { icon: 'trending-up', title: 'Volume Trends', benefit: 'Track total volume week-over-week and month-over-month.' },
-  { icon: 'barbell', title: 'Strength Progress', benefit: 'Watch every lift’s estimated 1RM climb over time.' },
-  { icon: 'trophy', title: 'Records History', benefit: 'Search and revisit all your PRs — not just the latest few.' },
-  { icon: 'stats-chart', title: 'Deep Charts', benefit: 'Rich, animated performance charts across your training.' },
+  { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
 ]

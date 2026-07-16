@@ -20,6 +20,7 @@ import { AnimatedRing } from '@/components/AnimatedRing'
 import { EmptyState } from '@/components/EmptyState'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useProGate } from '@/stores/entitlements'
 import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
 import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/CalendarAuthService'
@@ -238,6 +239,8 @@ export default function ScheduleScreen() {
   // B1.3b — "Reschedule my whole week" UI over the B1.3a engine.
   const [weekRescheduleConfirm, setWeekRescheduleConfirm] = useState(false)
   const [weekRescheduling, setWeekRescheduling] = useState(false)
+  // B2.1 — the payable moment: gates the reschedule-week action, dormant-safe.
+  const { requirePro: requireProForSchedule } = useProGate()
   // Ticks every minute so a workout flips to "overdue" an hour after its start
   // without needing a manual refresh.
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -772,8 +775,11 @@ export default function ScheduleScreen() {
   // "Reschedule my whole week" (B1.3b) — one tap re-lays every upcoming session via
   // the B1.3a engine. Single-flight (can't double-tap into two concurrent passes)
   // and an explicit offline/error path, since this rewrites the whole week at once.
+  // B2.1: the Pro gate. While dormant (proEnabled false) requirePro() always
+  // returns true, so nothing changes until Pro actually goes live.
   const handleWeekReschedule = () => {
     if (weekRescheduling) return
+    if (!requireProForSchedule('schedule_optimization')) return
     setWeekRescheduleConfirm(true)
   }
 

@@ -622,10 +622,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `subscription_cancelled` on entitlement transitions. The declarative layer is
   **`components/ProGate`** — `<ProGate feature>` renders children when unlocked (or dormant) and a
   branded `ProLockCard` (icon + benefit + "Unlock with Pro" → paywall) when locked, plus `ProBadge`.
-  **First live gate:** the Progress tab's **Advanced Analytics** — the volume-trends card is wrapped
-  in `<ProGate feature="advanced_analytics">` and the strength-trend deep-dives (PR-browser +
-  per-lift `exercise-progress`) route through `requirePro`; free keeps the consistency ring, streak,
-  next milestone, completion rate, recent-PR list, and weight trend. **The custom paywall**
+  **B2.1 re-fenced the gate** (audit finding: analytics doesn't convert, scheduling does — "monetized
+  on its weakest feature"). Progress's Advanced Analytics (volume-trends card, PR-browser, per-lift
+  `exercise-progress`) is now **free**, unconditionally — no `ProGate`/`requirePro` left on it.
+  **First real gate:** Home's **"Reschedule my whole week"** button (B1.3b) — `handleWeekReschedule`
+  calls `requirePro('schedule_optimization')` before opening the confirm sheet. Deliberately scoped
+  to just that one-tap action, NOT the free, always-on background auto-scheduler (`autoSchedule.ts`)
+  that already silently time-optimizes every user's plan around their calendar — gating the ambient
+  engine would break existing free users' current experience overnight, which is a live regression,
+  not a re-fence (see `proFeatures.ts`'s `schedule_optimization` comment, which spells out this
+  distinction so a future call site doesn't accidentally gate the ambient engine by reusing the same
+  feature id). Muscle Intelligence (`muscle-map.tsx`, plan.tsx's readiness tab, the post-workout
+  teaser) is unchanged — still gated, out of this batch's scope. **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
   StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
@@ -1232,15 +1240,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `eas build`.** **Now delivered (Depth & horizon model):** a **custom on-brand paywall**
   (`app/paywall.tsx`, dynamic pricing from the current offering — monthly/annual, auto-computed
   savings, trial CTA, Restore, Terms/Privacy), the `proFeatures` registry + `ProGate`/`ProLockCard`/
-  `ProBadge` gating primitives, and the **first live gate: Advanced Analytics** (volume trends +
-  strength-trend deep-dive on Progress). The engine stays FREE (plan generation, adaptation, quick
-  workouts, logging, scheduling, basic progress) so free is fully functional. Dashboard
-  prerequisites: the entitlement (`EXPO_PUBLIC_PRO_ENTITLEMENT`, currently `Tempo: Fitness Planner
-  Pro` — must match exactly) + monthly ($4.99) / annual ($34.99) products in a **current offering** +
-  Customer Center config; real `appl_` key is in `eas.json`. **Fast-follow Pro surfaces** (registry
-  entries already stubbed, each a `<ProGate>` wrap away): smart scheduling optimization, muscle-group
-  analysis + PR forecasting, long-horizon/goal-date planning, premium themes + app icons, and
-  **Tempo Coach** (the tentpole). Migration `add_app_config.sql`.
+  `ProBadge` gating primitives. **B2.1 re-fenced the gate** (analytics doesn't convert; scheduling
+  does): Advanced Analytics (volume trends + strength-trend deep-dive on Progress) is now **free**;
+  the **first real gate is "Reschedule my whole week"** (`schedule_optimization`, Home's one-tap
+  full-week re-plan — B1.3b) plus the pre-existing Muscle Intelligence gate. The free, always-on
+  background auto-scheduler stays free — only the on-demand full re-plan is Pro. The engine stays
+  FREE (plan generation, adaptation, quick workouts, logging, ambient scheduling, basic progress) so
+  free is fully functional. Dashboard prerequisites: the entitlement
+  (`EXPO_PUBLIC_PRO_ENTITLEMENT`, currently `Tempo: Fitness Planner Pro` — must match exactly) +
+  monthly ($4.99) / annual ($34.99) products in a **current offering** + Customer Center config; real
+  `appl_` key is in `eas.json`. **Fast-follow Pro surfaces** (registry entries already stubbed, each a
+  `<ProGate>` wrap away): muscle-group analysis + PR forecasting, long-horizon/goal-date planning,
+  premium themes + app icons, and **Tempo Coach** (the tentpole). Migration `add_app_config.sql`.
 - ~~Guests had no discoverable way to save their history off-device (data loss on reinstall/new
   phone)~~ **Done (§1.1)**: `lib/accountLinking` + `SaveProgressSheet` — a guest-only "Save your
   progress" card on Profile plus a one-time modal after the 3rd completed workout, both linking an

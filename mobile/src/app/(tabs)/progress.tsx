@@ -14,7 +14,7 @@ import { LoadingCard } from '@/components/LoadingCard'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { FadeInView, PressableScale, ScreenTransition } from '@/components/motion'
-import { ProGate, ProBadge } from '@/components/ProGate'
+import { ProBadge } from '@/components/ProGate'
 import { useProGate } from '@/stores/entitlements'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { SvgLineChart } from '@/components/SvgLineChart'
@@ -64,7 +64,7 @@ export default function ProgressScreen() {
   const unit = useWeightUnit()
   const { stats, workouts, logTimes, muscleSets, strengthSets, isLoading, isError, refetch } = useProgressStats(userId, period)
   const [freqRange, setFreqRange] = useState<FreqRange>('3M')
-  const { requirePro, locked: proLocked } = useProGate()
+  const { locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
 
@@ -301,9 +301,8 @@ export default function ProgressScreen() {
             )}
 
             <SectionLabel title="Trends" hint="Volume, load and bodyweight." />
-            {/* Volume + period chart — Pro (advanced analytics). Dormant-safe:
-                ProGate renders the card unchanged while Pro is off. */}
-            <ProGate feature="advanced_analytics">
+            {/* Volume + period chart — free (B2.1 re-fenced Pro around scheduling,
+                not analytics/charts; nobody subscribes for charts). */}
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>VOLUME LIFTED</Text>
               <View style={styles.statRow}>
@@ -366,7 +365,6 @@ export default function ProgressScreen() {
                 )
               })()}
             </View>
-            </ProGate>
 
             {/* Weight trend — the math already existed (bodyMeasurements.ts), it just
                 had no chart anywhere, only text numbers on Profile. */}
@@ -395,7 +393,7 @@ export default function ProgressScreen() {
               <StrengthProgressCard
                 trends={insights.strength}
                 formatWeight={fmtW}
-                onOpen={(id, name) => { if (requirePro('advanced_analytics')) router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as any) }}
+                onOpen={(id, name) => router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as any)}
                 delay={80}
               />
             )}
@@ -404,8 +402,7 @@ export default function ProgressScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Personal Records</Text>
-                <TouchableOpacity onPress={() => { if (requirePro('advanced_analytics')) router.push('/pr-browser' as any) }} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {proLocked && <ProBadge />}
+                <TouchableOpacity onPress={() => router.push('/pr-browser' as any)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.sectionAction}>Search all →</Text>
                 </TouchableOpacity>
               </View>
@@ -413,7 +410,7 @@ export default function ProgressScreen() {
                 <PressableScale
                   key={pr.name}
                   style={styles.recordRow}
-                  onPress={() => { if (requirePro('advanced_analytics')) router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any) }}
+                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any)}
                   scaleTo={0.98}
                 >
                   <View style={[styles.recordIcon, { backgroundColor: C.goldSoft }]}>
