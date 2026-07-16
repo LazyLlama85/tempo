@@ -42,3 +42,4 @@ example
 /ios
 /android
 play-service-account.json
+.env.local

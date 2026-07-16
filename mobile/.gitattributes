@@ -1,0 +1,10 @@
+# Force LF on files that feed the expo-updates fingerprint hash, so the value
+# computed locally on Windows (CRLF working tree, core.autocrlf=true) matches
+# the Linux EAS builder (LF). Without this, `runtimeVersion.policy: fingerprint`
+# fails EAS's local-vs-build consistency check ("Runtime version calculated on
+# local machine not equal to runtime version calculated during build").
+# @expo/fingerprint hashes raw bytes, so CRLF vs LF changes the hash.
+# See the OTA section in ../ARCHITECTURE.md.
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+eas.json       text eol=lf
