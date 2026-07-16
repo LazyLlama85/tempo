@@ -63,7 +63,12 @@ you moving."*
   the required path** — a first-time "Connect your calendar" Home context banner (lowest priority)
   plus Profile → Calendar (`calendar-setup.tsx`) own it now, so a new user's path to a first workout
   never touches OAuth (a user who never connects still gets auto placement from the free-slot engine).
-  Then `plan-preview`
+  **`schedule` also captures the time-budget question (B3.3)** — MINUTES PER SESSION (30/45/60/75/90,
+  pre-filled from the saved profile on Change Plan re-entry) — previously never asked anywhere, so
+  every new user silently got a hardcoded 45-minute `preferred_duration_min`. This is a real input,
+  not cosmetic: it flows through `availability` → `plan-preview` and directly sets
+  `preferred_duration_min`, which `generatePlan`'s `exerciseCountForDuration` uses to decide how many
+  exercises fit a session. Then `plan-preview`
   (primed notification ask — an explainer sheet *before* the one-shot OS prompt; push-token
   registration happens here on grant, never at sign-in) `→ profile-setup` (name, avatar, and an
   **optional starting weight** that seeds the weight trend + goal countdown on day one;
@@ -501,7 +506,14 @@ pill pops in with a draining time bar, Complete button flips success-green when 
 duration, weekly-target `AnimatedRing`. **Progress:** ring sweep + count-ups, chart bars grow in
 staggered. (The old "Achievement unlocked" confetti toast was removed when achievements merged into
 badges — the "new badge" signal is now the unviewed-count on the Profile badges button.)
-**Onboarding plan-preview:** staggered reveal + a narrated `TempoPulse` build sequence.
+**Onboarding plan-preview:** staggered reveal + a narrated `TempoPulse` build sequence, **then (B3.3)
+the real week ahead** — after generation succeeds, a 7-day strip fetched from the just-created
+`scheduled_workouts` (not a mockup) animates in one day at a time (`FadeInView`, staggered ~90ms/day),
+each day showing its real workout + time or "Rest day"; a "Continue" tap then does the exact
+navigation (`profile-setup` / back into the app) that used to happen immediately. Skips straight to
+that navigation, unchanged, if the fetch fails or the week is genuinely empty — never shows a
+misleading all-rest-days screen. Tutorial arming for new users happens *before* this fetch, so a
+force-close during the reveal still leaves the account correctly armed.
 **Branded loading, everywhere:** full-screen and section loads render Tempo's `PulseLoader`/`TempoPulse`
 metronome mark (with a contextual caption — "Loading your splits…", "Building your session…") instead
 of a generic OS `ActivityIndicator` — Home/feed loads use `LoadingCard` shimmer skeletons, and the

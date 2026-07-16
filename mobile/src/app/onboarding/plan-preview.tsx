@@ -19,6 +19,7 @@ import { requestPermissions, scheduleWorkoutReminders, cancelAllReminders } from
 import { registerPushToken } from '@/lib/pushTokens'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { describeSaveError, isAuthError } from '@/lib/saveErrors'
+import { formatTime12 } from '@/components/TimePickerSheet'
 import type { ScheduledWorkout } from '@/lib/notifications'
 
 // Prime before the one-shot OS permission prompt: explain the value in our own
@@ -55,6 +56,19 @@ const EXP_LABELS: Record<string, string> = {
   advanced: 'Advanced',
 }
 
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
+interface RevealWorkout {
+  id: string
+  focus: string
+  planned_date: string
+  planned_start_time: string
+}
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // Returns a human-readable program name based on inputs
 function getProgramName(goal: string, experience: string, days: number): string {
   if (experience === 'beginner') return `Beginner Full Body (${days}x/week)`
@@ -66,17 +80,22 @@ export default function PlanPreviewScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { goal, experience, equipment, daysPerWeek, preferredCalendar, schedulingMode } = useLocalSearchParams<{
+  const { goal, experience, equipment, daysPerWeek, preferredCalendar, schedulingMode, sessionMinutes } = useLocalSearchParams<{
     goal: string
     experience: string
     equipment: string
     daysPerWeek: string
     preferredCalendar?: string
     schedulingMode?: string
+    sessionMinutes?: string
   }>()
   const { session, profile, refreshProfile } = useAuthStore()
   const queryClient = useQueryClient()
-  const [status, setStatus] = useState<'idle' | 'saving' | 'generating'>('idle')
+  const [status, setStatus] = useState<'idle' | 'saving' | 'generating' | 'revealing'>('idle')
+  // B3.3 — the onboarding aha: the real week ahead, animating into place, instead
+  // of an instant jump into the app. Best-effort fetch; a failure just skips the
+  // reveal and goes straight in, same as before this batch.
+  const [revealWorkouts, setRevealWorkouts] = useState<RevealWorkout[]>([])
   const confirmLatch = useRef(false)
   // Re-running onboarding from Profile → Change Plan: the account already exists,
   // so we must not clobber personal fields and shouldn't re-run the intro steps.
@@ -103,6 +122,9 @@ export default function PlanPreviewScreen() {
   const days = parseInt(daysPerWeek ?? '3', 10)
   const equipmentList = (equipment ?? '').split(',').filter(Boolean) as Equipment[]
   const programName = getProgramName(goal ?? '', experience ?? '', days)
+  // B3.3 — the time-budget question, answered on schedule.tsx. Falls back to the
+  // saved profile value (Change Plan re-entry without re-answering) then 45.
+  const sessionMin = sessionMinutes ? parseInt(sessionMinutes, 10) : (profile?.preferred_duration_min ?? 45)
 
   const handleConfirm = async (attempt = 0) => {
     // Ref latch, not state: two taps in the same frame both read status==='idle'
@@ -124,7 +146,7 @@ export default function PlanPreviewScreen() {
         experience: experience as Experience,
         equipment: equipmentList,
         days_per_week: days,
-        preferred_duration_min: profile?.preferred_duration_min ?? 45,
+        preferred_duration_min: sessionMin,
         // onboarding_complete is deliberately NOT set here — it flips below, after
         // generatePlan succeeds. Setting it first meant a mid-chain failure + force
         // quit produced an "onboarded" account with no plan at next launch.
@@ -152,7 +174,7 @@ export default function PlanPreviewScreen() {
         experience: experience as Experience,
         equipment: equipmentList,
         days_per_week: days,
-        preferred_duration_min: profile?.preferred_duration_min ?? 45,
+        preferred_duration_min: sessionMin,
       })
 
       // The plan exists — NOW the account counts as onboarded. (On a re-plan this
@@ -208,23 +230,45 @@ export default function PlanPreviewScreen() {
       // tabs paint the new schedule immediately.
       invalidateTrainingData(queryClient)
 
-      if (isReplan) {
-        // Existing user changing plans: straight back into the app (pop the whole
-        // onboarding stack so back-swipe can't land on a stale step). Re-planners
-        // are NOT armed for the first-run tutorials — they've seen the app.
-        if (router.canDismiss()) router.dismissAll()
-        router.replace('/(tabs)')
-      } else {
-        // Brand-new user: arm the first-run tutorials at this deterministic moment
-        // (the only place they're ever armed, so existing users never see them).
-        // The (tabs) gate then routes through /welcome after profile-setup.
+      // Brand-new user: arm the first-run tutorials at this deterministic moment
+      // (the only place they're ever armed, so existing users never see them) —
+      // done here, BEFORE the reveal below, so a force-close during the reveal
+      // still leaves the account correctly armed (the (tabs) gate then routes
+      // through /welcome on next open, exactly as if there were no reveal at all).
+      // Re-planners are NOT armed — they've seen the app.
+      if (!isReplan) {
         const tut = useTutorialStore.getState()
         tut.init(session.user.id)
         tut.arm(T.welcome); tut.arm(T.homeTour); tut.arm(T.firstWorkout)
         tut.setFirstPlanCreated()
-        // Finish with a quick "make it yours" profile step before entering the app.
-        router.replace('/onboarding/profile-setup')
       }
+
+      // The onboarding aha (B3.3): fetch the real week ahead and animate it into
+      // place instead of jumping straight into the app. Best-effort AND honest —
+      // any failure, or a genuinely empty week, just skips straight to entering
+      // the app (exactly the old behavior) rather than show a misleading
+      // all-rest-days screen right after generating a plan.
+      try {
+        const today = new Date(); today.setHours(0, 0, 0, 0)
+        const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6)
+        const { data } = await supabase
+          .from('scheduled_workouts')
+          .select('id, focus, planned_date, planned_start_time')
+          .eq('user_id', session.user.id)
+          .eq('status', 'scheduled')
+          .gte('planned_date', toDateStr(today))
+          .lte('planned_date', toDateStr(weekEnd))
+          .order('planned_date')
+        const upcoming = (data ?? []) as RevealWorkout[]
+        if (upcoming.length > 0) {
+          setRevealWorkouts(upcoming)
+          setStatus('revealing')
+          return
+        }
+      } catch {
+        // Cosmetic only — fall through to entering the app either way
+      }
+      enterApp()
     } catch (err) {
       // An expired session refreshes in one call — do that and retry silently once
       // before involving the user.
@@ -244,8 +288,28 @@ export default function PlanPreviewScreen() {
     }
   }
 
+  // Called from the reveal's Continue button — the exact same destinations
+  // handleConfirm used to navigate to immediately; only the timing moved.
+  const enterApp = () => {
+    if (isReplan) {
+      // Pop the whole onboarding stack so back-swipe can't land on a stale step.
+      if (router.canDismiss()) router.dismissAll()
+      router.replace('/(tabs)')
+    } else {
+      // Tutorials were already armed in handleConfirm, before the reveal.
+      router.replace('/onboarding/profile-setup')
+    }
+  }
+
   const busy = status !== 'idle'
-  const sessionMin = profile?.preferred_duration_min ?? 45
+
+  // The next 7 days (today first), each with any real workout(s) Tempo placed —
+  // the data behind the reveal animation below.
+  const revealDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i)
+    const dateStr = toDateStr(d)
+    return { date: d, dateStr, workouts: revealWorkouts.filter(w => w.planned_date === dateStr) }
+  })
 
   const DETAILS = [
     { label: 'Goal', value: GOAL_LABELS[goal ?? ''] ?? '—' },
@@ -271,6 +335,40 @@ export default function PlanPreviewScreen() {
         <View style={[styles.progressFill, { width: '100%' }]} />
       </View>
 
+      {status === 'revealing' ? (
+        // The onboarding aha (B3.3): the REAL week Tempo just built, dropping into
+        // place one day at a time — the payoff, with the lights on, not a mockup.
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <FadeInView>
+            <Text style={styles.stepLabel}>YOUR WEEK</Text>
+            <Text style={styles.title}>Already on your calendar.</Text>
+            <Text style={styles.subtitle}>Tempo placed every session below — the what and the when, decided for you.</Text>
+          </FadeInView>
+          <View style={styles.revealList}>
+            {revealDays.map((day, i) => (
+              <FadeInView key={day.dateStr} delay={120 + i * 90} style={styles.revealRow}>
+                <View style={styles.revealDateCol}>
+                  <Text style={styles.revealWeekday}>{WEEKDAY_LABELS[day.date.getDay()]}</Text>
+                  <Text style={styles.revealDateNum}>{day.date.getDate()}</Text>
+                </View>
+                {day.workouts.length > 0 ? (
+                  <View style={styles.revealWorkoutCard}>
+                    <Ionicons name="barbell" size={16} color={C.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.revealWorkoutTitle}>{day.workouts[0].focus}</Text>
+                      <Text style={styles.revealWorkoutTime}>{formatTime12(day.workouts[0].planned_start_time)}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.revealRestCard}>
+                    <Text style={styles.revealRestText}>Rest day</Text>
+                  </View>
+                )}
+              </FadeInView>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView>
           <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 4 OF 4'}</Text>
@@ -303,6 +401,7 @@ export default function PlanPreviewScreen() {
           </Text>
         </FadeInView>
       </ScrollView>
+      )}
 
       <View style={styles.footer}>
         {status === 'generating' && (
@@ -311,6 +410,11 @@ export default function PlanPreviewScreen() {
             <Text style={styles.buildingText}>{BUILD_STEPS[buildStep]}</Text>
           </View>
         )}
+        {status === 'revealing' ? (
+          <PressableScale style={styles.confirmBtn} onPress={enterApp} activeOpacity={0.85}>
+            <Text style={styles.confirmText}>Enter Tempo →</Text>
+          </PressableScale>
+        ) : (
         <PressableScale
           style={[styles.confirmBtn, busy && { opacity: 0.6 }]}
           onPress={() => handleConfirm()}
@@ -323,6 +427,7 @@ export default function PlanPreviewScreen() {
             <Text style={styles.confirmText}>{isReplan ? 'Switch to This Plan →' : "Let's Go →"}</Text>
           )}
         </PressableScale>
+        )}
       </View>
     </SafeAreaView>
   )
@@ -360,4 +465,22 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   buildingText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary, textAlign: 'center' },
   confirmBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
+  // ── Onboarding aha reveal (B3.3) ──────────────────────────────────────────
+  revealList: { gap: Spacing.sm, marginTop: Spacing.sm },
+  revealRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  revealDateCol: { width: 44, alignItems: 'center' },
+  revealWeekday: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
+  revealDateNum: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, marginTop: 1 },
+  revealWorkoutCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: C.primaryLine,
+  },
+  revealWorkoutTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  revealWorkoutTime: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
+  revealRestCard: {
+    flex: 1, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: C.outlineVariant, borderStyle: 'dashed',
+  },
+  revealRestText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
 })

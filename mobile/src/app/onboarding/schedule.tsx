@@ -10,6 +10,8 @@ import { PressableScale } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
 
 
+const SESSION_MINUTES = [30, 45, 60, 75, 90] as const
+
 export default function ScheduleScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -21,6 +23,15 @@ export default function ScheduleScreen() {
   const [daysPerWeek, setDaysPerWeek] = useState(() => {
     const d = profile?.days_per_week ?? 3
     return d >= 2 && d <= 6 ? d : 3
+  })
+  // B3.3 — the time-budget question. Previously never asked: every new user
+  // silently got a hardcoded 45-minute session regardless of how much time they
+  // actually have, and preferred_duration_min directly drives how many exercises
+  // generatePlan picks per session (exerciseCountForDuration) — so this isn't
+  // cosmetic, it changes the plan the user actually gets.
+  const [sessionMinutes, setSessionMinutes] = useState(() => {
+    const m = profile?.preferred_duration_min ?? 45
+    return SESSION_MINUTES.includes(m as typeof SESSION_MINUTES[number]) ? m : 45
   })
   // Connecting a calendar does NOT force automatic scheduling — the user chooses.
   // Calendar connection itself now happens after onboarding (Home prompt / Profile →
@@ -35,7 +46,7 @@ export default function ScheduleScreen() {
   // that field untouched when no preferredCalendar param is present.)
   const goNext = () => router.push({
     pathname: '/onboarding/availability',
-    params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode },
+    params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes) },
   })
 
   return (
@@ -58,8 +69,9 @@ export default function ScheduleScreen() {
         <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
         <Text style={styles.title}>Your training rhythm.</Text>
         <Text style={styles.subtitle}>
-          How many days a week, and whether Tempo places each workout for you or you
-          pick the times yourself. You can connect a calendar later for smarter placement.
+          How many days a week, how long each session realistically is, and whether
+          Tempo places each workout for you or you pick the times yourself. You can
+          connect a calendar later for smarter placement.
         </Text>
 
         {/* Days per week selector */}
@@ -75,6 +87,26 @@ export default function ScheduleScreen() {
               >
                 <Text style={[styles.dayBtnText, daysPerWeek === d && styles.dayBtnTextSelected]}>
                   {d}
+                </Text>
+              </PressableScale>
+            ))}
+          </View>
+        </View>
+
+        {/* Session length — the time-budget question (B3.3): drives how many
+            exercises generatePlan picks per session, so this isn't decorative. */}
+        <View style={styles.daysSection}>
+          <Text style={styles.daysSectionLabel}>MINUTES PER SESSION</Text>
+          <View style={styles.daysRow}>
+            {SESSION_MINUTES.map((m) => (
+              <PressableScale
+                key={m}
+                style={[styles.dayBtn, sessionMinutes === m && styles.dayBtnSelected]}
+                onPress={() => setSessionMinutes(m)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.minBtnText, sessionMinutes === m && styles.dayBtnTextSelected]}>
+                  {m}
                 </Text>
               </PressableScale>
             ))}
@@ -201,5 +233,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   dayBtnSelected: { backgroundColor: C.primary, borderColor: C.primary },
   dayBtnText: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text },
+  minBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   dayBtnTextSelected: { color: C.onPrimary },
 })
