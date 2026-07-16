@@ -790,8 +790,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   own `custom`/`split` workouts, so the number only ever credits Tempo's contribution) — making the
   scheduling wedge visible and honest ("Tempo planned & scheduled N of your workouts around your
   week"), with no fabricated "workouts you'd have skipped" guesses. Surfaced as a **Weekly Report**
-  card (this-week count, hidden at zero) and a personalized **paywall** proof line (all-time count,
-  hidden below 3). `TEMPO_SCHEDULED_SOURCES` is the single source of truth for "by Tempo".
+  card (this-week count, hidden at zero), a personalized **paywall** proof line (all-time count,
+  hidden below 3), and — **B1.1, closing the gap to a primary tab** — a **Progress** stat card
+  (all-time + this-week, hidden at zero) right after Completion Rate, so the wedge is visible on a
+  bottom-tab screen, not only on side screens reached by tapping through. `TEMPO_SCHEDULED_SOURCES`
+  is the single source of truth for "by Tempo".
 - **Fitness Intelligence (`fitnessInsights.ts`, new — powers the Progress-dashboard redesign):**
   pure derivations over the data Tempo already has (scheduled_workouts status, workout_logs
   `started_at`, set_logs) that turn Progress from a stats page into a coach that explains behaviour.

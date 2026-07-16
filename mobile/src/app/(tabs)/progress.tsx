@@ -27,6 +27,7 @@ import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { Avatar } from '@/components/Avatar'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
+import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
 import type { BodyMeasurement } from '@/types'
 // Fitness Intelligence — new dashboard layer (composes existing engines; adds no fetches).
 import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore'
@@ -67,6 +68,14 @@ export default function ProgressScreen() {
   const { locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
+  // B1.1 — the wedge, quantified, on a primary tab (was previously only on
+  // weekly-report.tsx and the paywall — both side screens).
+  const { data: impact } = useQuery<SchedulingImpact>({
+    queryKey: ['scheduling_impact', userId],
+    queryFn: () => fetchSchedulingImpact(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const { data: cards = [] } = useQuery<WrappedCard[]>({
     queryKey: ['wrapped_cards', userId],
@@ -275,6 +284,22 @@ export default function ProgressScreen() {
                 <View style={[styles.barFill, { width: `${consistency_pct}%` as `${number}%` }]} />
               </View>
             </View>
+
+            {/* The wedge, made visible (B1.1): how much of your training Tempo
+                actually planned + scheduled for you, not just logged. Hidden when
+                zero — an honest empty state, never a fabricated number. */}
+            {impact && impact.scheduledByTempo > 0 && (
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>PLANNED & SCHEDULED BY TEMPO</Text>
+                <View style={styles.statRow}>
+                  <Text style={styles.statValue}>{impact.scheduledByTempo}</Text>
+                  <Text style={styles.statDelta}>{impact.thisWeek} this week</Text>
+                </View>
+                <Text style={styles.milestoneCaption}>
+                  The exercises and the time slot — chosen and scheduled for you around your real week.
+                </Text>
+              </View>
+            )}
 
             {/* ── Coaching (new): forecast + behavioural insights ── */}
             <SectionLabel title="Coaching" hint="What Tempo notices about you." />
