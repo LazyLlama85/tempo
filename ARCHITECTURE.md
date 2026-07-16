@@ -111,7 +111,18 @@ you moving."*
   wasn't today got no spotlight on that step.) **`first_workout`** fires
   `first_workout_started`/`first_set_logged` and the existing coach overlay; the **first completed
   session** gets a bigger `workout-complete` celebration + a "First Tempo Session" card and sets the
-  durable `firstWorkoutCompleted` flag. **Profile → Replay App Tour** re-arms it (and also clears the
+  durable `firstWorkoutCompleted` flag. **Bug fix, 2026-07-16:** `workout-complete.tsx`'s celebration
+  no longer trusts that local flag alone — it's device-local storage, so a reinstall, a new device, or
+  an account that already had real workout history before this flag existed all read it as unset,
+  which wrongly showed "First workout complete" (day-one messaging + its own paywall trigger) to an
+  established user (reported: completed an ad-hoc workout outside their regular split and got the
+  day-one celebration). Now defaults to false and only flips true once the real completed-workout
+  count (`useProgressStats`, already fetched for this screen) confirms `totalWorkouts <= 1` — the same
+  "never trust a device-local fire-once flag for a factual claim, check the real count" principle
+  already applied to B3.2's progressive disclosure. `plan.tsx`'s `first_workout_started`/
+  `first_set_logged` analytics still key off the same local flag (lower stakes — no user-visible text,
+  just funnel accuracy) and weren't changed in this pass; a future cleanup could align them too.
+  **Profile → Replay App Tour** re-arms it (and also clears the
   `how_tempo_works` one-off tip below, via its localStorage key directly). Analytics:
   `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
   (experience-tagged; platform/app_version are auto super-props). **`how-tempo-works`** (new screen,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -45,7 +45,7 @@ export default function WorkoutCompleteScreen() {
   const isQuick = quick === '1'
   const mins = Number(minutes) || 0
 
-  const { stats, refetch } = useProgressStats(userId)
+  const { stats, isLoading: statsLoading, refetch } = useProgressStats(userId)
   const unit = useWeightUnit()
   const [feel, setFeel] = useState<WorkoutFeel | null>(null)
   const [cards, setCards] = useState<WrappedCard[]>([])
@@ -62,24 +62,42 @@ export default function WorkoutCompleteScreen() {
   // see the matching note on Profile's Social section.
   const activated = stats.totalWorkouts >= ACTIVATION_SESSIONS
 
-  // Is this the account's FIRST completed session? Captured once on mount, before
-  // we flip the flag — the most important retention moment, so it gets a bigger
-  // celebration and its own card.
-  const [isFirstSession] = useState(() => !useTutorialStore.getState().data.firstWorkoutCompleted)
+  // Is this the account's FIRST completed session? NEVER trust the local
+  // "firstWorkoutCompleted" flag alone for something this visible — it's
+  // device-local storage, so a reinstall, a new device, or an account that
+  // already had real workout history before this flag existed all read it as
+  // unset, which wrongly shows "First workout complete" (with its own paywall
+  // trigger) to an established user (reported: added an ad-hoc workout outside
+  // a regular split and got the day-one celebration). Defaults to false and
+  // only flips true once the real completed-workout count — already being
+  // fetched for this screen anyway — confirms it; briefly delaying the
+  // celebration for a genuinely-new user costs far less than wrongly claiming
+  // "day one" for a veteran.
+  const [isFirstSession, setIsFirstSession] = useState(false)
+  const firstSessionChecked = useRef(false)
 
   // The session is logged by the time this screen mounts — record it once.
   useEffect(() => {
     track('session_end', { type: isQuick ? 'quick' : 'planned', duration_min: mins || undefined })
-    if (isFirstSession) {
-      const tut = useTutorialStore.getState()
-      tut.setFirstWorkoutCompleted()
-      track('first_workout_completed', { experience: profile?.experience, duration_min: mins || undefined })
-    }
     // This session is already banked (see above), so the "activated" check counts it.
     // Fires the one-time activation event once the core loop is proven (2nd completed
     // session); guarded + best-effort inside, so it never blocks this screen.
     void maybeTrackActivation(userId)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Resolve the first-session celebration against real history once stats load
+  // (they're already being fetched above) — this is the correction described
+  // in the comment on isFirstSession.
+  useEffect(() => {
+    if (firstSessionChecked.current || statsLoading) return
+    firstSessionChecked.current = true
+    const reallyFirst = stats.totalWorkouts <= 1 && !useTutorialStore.getState().data.firstWorkoutCompleted
+    setIsFirstSession(reallyFirst)
+    if (reallyFirst) {
+      useTutorialStore.getState().setFirstWorkoutCompleted()
+      track('first_workout_completed', { experience: profile?.experience, duration_min: mins || undefined })
+    }
+  }, [statsLoading, stats.totalWorkouts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A PR deserves a second, firmer buzz on top of the completion haptic.
   useEffect(() => {
