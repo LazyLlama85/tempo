@@ -1298,13 +1298,27 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - Free-time-gap push uses a daytime heuristic (true calendar free/busy needs backend calendar sync).
 - Progress-photo gallery / before-after compare (capture + storage exist; no timeline UI yet).
 - HealthKit / Google Fit import; Apple Watch.
-- ~~No automated test suite yet~~ **Started (§4.2/§11.2)**: Jest + ts-jest cover the deterministic
-  core — `src/lib/__tests__/` has 82 tests over periodization (one deload / 4 weeks), progression
-  autoregulation + duration math, the exercise classifier (~30-exercise fixture), streak continuity,
-  goal-projection ETAs, and the **`planRollover`** cliff regression (horizon never < 7 days, no
-  duplicated/dropped `week_index`). `npm test`. Config: `jest.config.js` + `tsconfig.jest.json`
-  (transpile-only via ts-jest; the app's own `tsconfig.json` excludes `src/**/__tests__`). No RN/
-  Supabase in the suite — pure logic only.
+- ~~No automated test suite yet~~ **Started (§4.2/§11.2), extended into integration coverage (B5.5,
+  2026-07-16)**: Jest + ts-jest, 161 tests across 15 suites. `src/lib/__tests__/` covers the
+  deterministic core (periodization — one deload/4 weeks; progression autoregulation + duration math;
+  the exercise classifier; streak continuity; goal-projection ETAs) and the **`planRollover`** cliff
+  regression (horizon never < 7 days, no duplicated/dropped `week_index` — the "4-week plan cliff,"
+  one of the audit's three named recurring bug classes). `npm test`. Config: `jest.config.js` +
+  `tsconfig.jest.json` (transpile-only via ts-jest; the app's own `tsconfig.json` excludes
+  `src/**/__tests__`). **B5.5 added integration-style coverage for the other two named bug classes**,
+  via a small purpose-built in-memory fake Supabase client (`lib/__tests__/fakeSupabase.ts` — eq/
+  gte/lt/in/or filters + delete/update, NOT a general Postgrest mock) plus `jest.mock()` on any
+  native-module import (`expo-notifications`, `expo-web-browser`/`expo-auth-session`, Sentry) so
+  these files can load under plain Node: **`retireWorkouts.test.ts`** + **`missedWorkouts.test.ts`**
+  lock the "poisoned Change Plan" bug (a stranded `scheduled` row blocking the next plan's insert —
+  the delete-fails-fall-back-to-mark path, the FK-safe log-referenced partition, and the ONE shared
+  commitment predicate both plan-generation and split-activation must never drift apart on) and
+  **`services/googleCalendar/__tests__/CalendarApiService.test.ts`** locks "silent Google vanish"
+  (every read-failure reason correctly maps to its fix hint via `describeReadError`, the 401-retry-
+  once-then-give-up flow, and the no-token `not_connected` short-circuit). Still no real network/DB —
+  these are fakes/mocks, not live integration tests — but they exercise the actual Supabase-glue
+  code paths the pure-logic suite above deliberately excluded, which is exactly where the named bugs
+  actually lived.
 - ~~Progress tab rings/bars are hand-rolled `Animated.View`s, not real SVG~~ **Done**: `SvgProgressRing`
   (gradient stroke-dashoffset ring), `SvgLineChart` (the weight-trend math in `bodyMeasurements.ts`
   now actually has a chart, not just text numbers on Profile), and `SvgGrowBar` (gradient volume
