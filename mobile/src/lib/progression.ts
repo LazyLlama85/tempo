@@ -3,9 +3,10 @@
 // the next session (go up / hold / back off), so the app answers the one
 // question that matters: "what should I do next workout?"
 
-import type { Goal } from '@/types'
+import type { Goal, Experience } from '@/types'
 import type { WeekProgression } from '@/lib/periodization'
 import { roleRepMod, type Role } from '@/lib/exerciseProgramming'
+import { titrateForWeeklyVolume, isLandmarkMuscleGroup } from '@/lib/volumeLandmarks'
 
 export interface SetPerformance {
   weight_lbs: number | null
@@ -99,6 +100,9 @@ function roundToIncrement(weight: number, inc: number): number {
  *   2. Periodization (`period`, optional — the week's place in the mesocycle):
  *      adds/removes a planned set, shifts the rep target, and on a deload week
  *      explicitly lightens the load and overrides the call to "back off".
+ *   3. Volume landmarks (`weeklyVolume`, optional, B5.4): caps this exercise's
+ *      sets so the muscle group's REAL completed volume this week never blows
+ *      past its weekly MRV — a safety ceiling only; omit it and nothing changes.
  */
 export function buildPrescription(
   last: SetPerformance[],
@@ -108,6 +112,7 @@ export function buildPrescription(
   bias: -1 | 0 | 1 = 0,
   period?: WeekProgression | null,
   role?: Role | null,
+  weeklyVolume?: { group: string | null; setsThisWeek: number; experience?: Experience } | null,
 ): ExercisePrescription {
   const scheme = GOAL_SCHEME[goal] ?? GOAL_SCHEME.general_fitness
   const inc = weightIncrement(pattern)
@@ -124,6 +129,16 @@ export function buildPrescription(
   // Periodized volume wave (peak week adds a set, deload removes one).
   if (period) sets += period.setsDelta
   sets = Math.max(2, Math.min(6, sets))
+
+  // Volume-landmark cap (B5.4) — a safety ceiling on top of everything above,
+  // never a floor: it can only reduce sets, and only when the weekly total
+  // would otherwise exceed this muscle group's MRV.
+  let volumeNote: string | undefined
+  if (weeklyVolume && isLandmarkMuscleGroup(weeklyVolume.group)) {
+    const t = titrateForWeeklyVolume(sets, weeklyVolume.group, weeklyVolume.setsThisWeek, weeklyVolume.experience)
+    sets = t.sets
+    if (t.capped) volumeNote = t.note
+  }
 
   // Role- then periodization-adjusted rep target (deload trims the range).
   let repLow = Math.max(1, scheme.repLow + mod.repLowDelta)
@@ -189,10 +204,16 @@ export function buildPrescription(
       ...base,
       suggestedWeight: scaleLoad(suggestedWeight),
       direction: 'down',
-      reason: period.note,
+      reason: volumeNote ? `${period.note} ${volumeNote}` : period.note,
       lastSummary,
     }
   }
 
-  return { ...base, suggestedWeight: scaleLoad(suggestedWeight), direction, reason, lastSummary }
+  return {
+    ...base,
+    suggestedWeight: scaleLoad(suggestedWeight),
+    direction,
+    reason: volumeNote ? `${reason} ${volumeNote}` : reason,
+    lastSummary,
+  }
 }

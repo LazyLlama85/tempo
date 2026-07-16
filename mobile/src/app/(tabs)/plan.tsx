@@ -30,6 +30,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
 import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
+import { mondayStr } from '@/lib/schedulingImpact'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
 import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
@@ -48,7 +49,7 @@ import { classifyExercise } from '@/lib/exerciseProgramming'
 import { describeSession } from '@/lib/sessionRationale'
 import { expandEquipment } from '@/lib/equipmentMatch'
 import { useUnitStore, unitLabel, displayWeight, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
-import type { Exercise, Goal, Split, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
+import type { Exercise, Goal, Experience, Split, TravelMode, MetricKey, WorkoutExerciseConfig, WorkoutSource } from '@/types'
 import { workoutOrigin } from '@/lib/workoutOrigin'
 
 
@@ -75,6 +76,7 @@ interface ExerciseRow {
   id: string
   name: string
   movement_pattern: string
+  muscle_group?: string | null
   primary_muscles: string[]
   secondary_muscles: string[]
   required_equipment: string[]
@@ -148,7 +150,7 @@ async function adaptToTravelEquipment(list: ExerciseRow[], equipment: string[]):
   const patterns = [...new Set(undoable.map(e => e.movement_pattern))]
   const { data: cands } = await supabase
     .from('exercises')
-    .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
+    .select('id, name, movement_pattern, muscle_group, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
     .in('movement_pattern', patterns)
   const all = (cands ?? []) as ExerciseRow[]
 
@@ -214,6 +216,19 @@ export default function WorkoutsScreen() {
     const r = readinessFromHistory(histWorkouts, logTimes, new Date())
     return { readiness: r, intensity: intensityFromReadiness(r.score), muscle: muscleRecovery(muscleTimeline, new Date()) }
   }, [histWorkouts, logTimes, muscleTimeline])
+  // B5.4 — real completed sets this week, per muscle group, from the SAME
+  // already-fetched muscleTimeline the readiness card uses (no new query).
+  // Feeds buildPrescription's weekly-volume MRV cap below.
+  const weeklySetsByGroup = useMemo(() => {
+    const monday = mondayStr()
+    const counts = new Map<string, number>()
+    for (const s of muscleTimeline) {
+      if (!s.group || !s.at) continue
+      if (s.at.slice(0, 10) < monday) continue
+      counts.set(s.group, (counts.get(s.group) ?? 0) + 1)
+    }
+    return counts
+  }, [muscleTimeline])
   const { data: hubSplits = [], isLoading: splitsLoading } = useQuery({
     queryKey: ['train_splits', userId],
     queryFn: () => fetchSplits(supabase, userId),
@@ -461,7 +476,7 @@ export default function WorkoutsScreen() {
     const { data: exRows } = exerciseIds.length
       ? await supabase
           .from('exercises')
-          .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids, tracking_metrics')
+          .select('id, name, movement_pattern, muscle_group, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids, tracking_metrics')
           .in('id', exerciseIds)
       : { data: [] }
 
@@ -544,7 +559,7 @@ export default function WorkoutsScreen() {
               restSeconds: 90, suggestedWeight: cfg.weight_lbs, direction: 'new',
               reason: 'Your target for this workout.', lastSummary: null,
             }
-          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression, classifyExercise(ex).role)
+          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience })
       }
     } else {
       for (const ex of ordered) {
@@ -890,7 +905,7 @@ export default function WorkoutsScreen() {
   // the scheduled row (so an app restart keeps it) and — when the session came
   // from a split — into the split day itself, so every future week has it.
   const addExerciseToSession = async (ex: ExerciseRow, permanent: boolean) => {
-    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role)
+    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience })
     restDefaults.current[ex.id] = prescription.restSeconds
     if (!reduceMotion) {
       LayoutAnimation.configureNext(
@@ -1013,7 +1028,7 @@ export default function WorkoutsScreen() {
       // Prefer curated substitutes; fall back to same-pattern lifts the user can do.
       const { data: subs } = await supabase
         .from('exercises')
-        .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
+        .select('id, name, movement_pattern, muscle_group, primary_muscles, secondary_muscles, required_equipment, experience_level, instructions, video_url, substitute_ids')
         .eq('movement_pattern', ex.movement_pattern)
         .neq('id', ex.id)
 
@@ -1045,7 +1060,7 @@ export default function WorkoutsScreen() {
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role)
+    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role, { group: next.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(next.muscle_group ?? '') ?? 0, experience })
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))

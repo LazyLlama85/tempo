@@ -692,7 +692,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Prescriptions are **role-aware** (`buildPrescription` takes the classified role: primary compounds
   heavier/lower-rep + full rest, isolations higher-rep + short rest — within the goal, so
   autoregulation + periodization stay live), and the runner hub shows a **"Why this workout?"**
-  sheet (`lib/sessionRationale.ts`) explaining the order in plain language.
+  sheet (`lib/sessionRationale.ts`) explaining the order in plain language. **Volume landmarks (B5.4,
+  `lib/volumeLandmarks.ts`, new):** MEV/MRV weekly-set ranges per coarse muscle group (`exercises.
+  muscle_group` — chest/back/shoulders/arms/legs/core), MRV scaled by experience (beginners lower,
+  advanced higher; MEV holds steady). `buildPrescription` takes an 8th **optional** `weeklyVolume`
+  arg — omit it and behavior is byte-for-byte unchanged (tested) — that CAPS (never floors) this
+  exercise's sets so the muscle group's real completed volume this week can't exceed its weekly MRV,
+  appending an honest note to the prescription's `reason` only when it actually changes something.
+  `(tabs)/plan.tsx` feeds it from `muscleTimeline` (already fetched for the readiness card — **zero
+  new queries**) filtered to the current week, plus the signed-in profile's `experience`. Deliberately
+  a CAP only, not full two-way titration (auto-adding sets under MEV would silently inflate session
+  length in ways the duration model doesn't expect) — the scientifically urgent half (protect against
+  overtraining) without the cross-workout live-aggregation complexity the floor direction would need.
   **Duration is goal-accurate**: `progression.estimateSessionMinutes` computes real
   wall-clock time = warm-up + Σ sets×(work + rest) using the goal's actual inter-set rest (strength
   a full 3 min, athletic ~2.5, hypertrophy ~90 s), and `exerciseCountForDuration` inverts it to pick

@@ -109,3 +109,64 @@ describe('progression — buildPrescription autoregulation', () => {
     expect(p.sets).toBeLessThanOrEqual(6)
   })
 })
+
+describe('progression — volume-landmark cap (B5.4)', () => {
+  const clean = (w: number, r: number, rpe: number | null = null): SetPerformance =>
+    ({ weight_lbs: w, reps: r, rpe })
+
+  it('omitting weeklyVolume changes nothing — fully backward compatible', () => {
+    const withArg = buildPrescription([clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0, null, null, undefined)
+    const without = buildPrescription([clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0)
+    expect(withArg).toEqual(without)
+  })
+
+  it('caps sets and appends an honest note when the muscle group is already near its weekly MRV', () => {
+    const p = buildPrescription(
+      [clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0, null, null,
+      { group: 'chest', setsThisWeek: 19, experience: 'intermediate' }, // MRV 20, room = 1 -> floor wins at 2
+    )
+    expect(p.sets).toBe(2)
+    expect(p.reason).toMatch(/protect recovery/i)
+  })
+
+  it('is a no-op when there is plenty of room left this week', () => {
+    const capped = buildPrescription(
+      [clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0, null, null,
+      { group: 'chest', setsThisWeek: 2, experience: 'intermediate' },
+    )
+    const uncapped = buildPrescription([clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0)
+    expect(capped).toEqual(uncapped)
+  })
+
+  it('ignores an unrecognized/cardio/null muscle group rather than throwing', () => {
+    const p = buildPrescription(
+      [clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0, null, null,
+      { group: 'cardio', setsThisWeek: 999, experience: 'intermediate' },
+    )
+    const without = buildPrescription([clean(100, 10, 8)], 'muscle_gain', 'h_push', false, 0)
+    expect(p).toEqual(without)
+  })
+
+  it('a deload week is already at the sane 2-set floor, so the volume cap correctly has nothing left to trim', () => {
+    const deload = weekProgression(3, 'intermediate', 'normal') // isDeload -> sets already clamped to 2
+    const p = buildPrescription(
+      [clean(100, 12, 7)], 'muscle_gain', 'h_push', false, 0, deload, null,
+      { group: 'chest', setsThisWeek: 19, experience: 'intermediate' }, // would cap a normal week to 2 as well
+    )
+    expect(p.direction).toBe('down')
+    expect(p.sets).toBe(2)
+    // No volume note: the cap and the deload's own floor coincide at 2, so nothing
+    // actually changed — `capped` correctly reports false rather than a fake note.
+    expect(p.reason).toBe(deload.note)
+  })
+
+  it('the cap DOES apply on a non-deload week that would otherwise sit above the floor', () => {
+    const build = weekProgression(1, 'intermediate', 'normal') // 'build' phase, no volume delta
+    const p = buildPrescription(
+      [clean(100, 12, 7)], 'muscle_gain', 'h_push', false, 0, build, null,
+      { group: 'chest', setsThisWeek: 19, experience: 'intermediate' }, // room = 1, requested = 3 -> floor wins at 2
+    )
+    expect(p.sets).toBe(2)
+    expect(p.reason).toMatch(/protect recovery/i)
+  })
+})
