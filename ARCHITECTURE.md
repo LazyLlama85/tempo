@@ -731,7 +731,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   running even in `manual` mode since it's an explicit request), **`weekReschedule`** (the pure,
   unit-tested planner behind it — `planWeekReschedule` composes `scoreDay`+`findVariedSlot` to
   assign one recovery-spaced workout per day, never dropping a session), `dedupeSchedule`,
-  `unavailability`, `ignoredEvents`.
+  `unavailability`, `ignoredEvents`. **UI (B1.3b):** a header icon button on Home
+  (`(tabs)/index.tsx`, next to the readiness ring) opens a 2-tap `OptionSheet` confirm, then calls
+  `rescheduleWholeWeek` behind a single-flight guard; success/empty/error all resolve to a plain
+  `Alert` (moved-of-total count, "nothing to reschedule", or `describeSaveError`'s offline/auth/
+  server copy on failure) and invalidates the `scheduled_workouts`/`missed_workouts` queries so the
+  calendar reflects the new slots immediately. Fires `week_reschedule_used` (moved, total) — the
+  payable-moment event B2.2 will hang the paywall trigger on.
 - **Program / Split layer:** `splits` (split CRUD + active-split management + day hydration +
   **`ensureAutoSplit`** — mirrors the auto-generated program into My Splits as a `kind='auto'`
   split so every user, even on an auto plan, has an activatable split; its `days` are a read-only

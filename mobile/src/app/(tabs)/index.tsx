@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback, type ReactNode } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, type LayoutChangeEvent } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, ActivityIndicator, type LayoutChangeEvent } from 'react-native'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,8 +39,9 @@ import {
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
-import { suggestNextSlot, rescheduleWorkout, type SlotSuggestion } from '@/lib/reschedule'
+import { suggestNextSlot, rescheduleWorkout, rescheduleWholeWeek, type SlotSuggestion } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
+import { track } from '@/lib/analytics'
 import { trackCalendarConnected } from '@/lib/activation'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
@@ -234,6 +235,9 @@ export default function ScheduleScreen() {
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
   const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
   const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
+  // B1.3b — "Reschedule my whole week" UI over the B1.3a engine.
+  const [weekRescheduleConfirm, setWeekRescheduleConfirm] = useState(false)
+  const [weekRescheduling, setWeekRescheduling] = useState(false)
   // Ticks every minute so a workout flips to "overdue" an hour after its start
   // without needing a manual refresh.
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -762,6 +766,41 @@ export default function ScheduleScreen() {
       queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
     } catch {
       Alert.alert('Could not reschedule', 'Something went wrong moving that workout. Please try again.')
+    }
+  }
+
+  // "Reschedule my whole week" (B1.3b) — one tap re-lays every upcoming session via
+  // the B1.3a engine. Single-flight (can't double-tap into two concurrent passes)
+  // and an explicit offline/error path, since this rewrites the whole week at once.
+  const handleWeekReschedule = () => {
+    if (weekRescheduling) return
+    setWeekRescheduleConfirm(true)
+  }
+
+  const confirmWeekReschedule = async () => {
+    setWeekRescheduleConfirm(false)
+    if (weekRescheduling) return
+    setWeekRescheduling(true)
+    try {
+      const { moved, total } = await rescheduleWholeWeek(supabase, userId)
+      track('week_reschedule_used', { moved, total })
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+      if (total === 0) {
+        Alert.alert('Nothing to reschedule', 'Your week is already clear of upcoming workouts.')
+      } else if (moved === 0) {
+        Alert.alert('Week already fits', 'Every upcoming workout already has its best slot — nothing needed to move.')
+      } else {
+        Alert.alert(
+          'Week rescheduled',
+          `Tempo moved ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} to a better time and re-synced your calendar.`,
+        )
+      }
+    } catch (err) {
+      const info = describeSaveError(err, 'reschedule your week')
+      Alert.alert(info.title, info.message)
+    } finally {
+      setWeekRescheduling(false)
     }
   }
 
@@ -1323,6 +1362,21 @@ export default function ScheduleScreen() {
         right={
           <HeaderActions>
             <TouchableOpacity
+              style={[styles.weekRescheduleBtn, { backgroundColor: C.primarySoft }, weekRescheduling && { opacity: 0.5 }]}
+              onPress={handleWeekReschedule}
+              disabled={weekRescheduling}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Reschedule my whole week"
+            >
+              {weekRescheduling ? (
+                <ActivityIndicator size="small" color={C.primary} />
+              ) : (
+                <Ionicons name="repeat-outline" size={18} color={C.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
               onPress={() => setShowRecovery(true)}
               activeOpacity={0.85}
@@ -1669,6 +1723,15 @@ export default function ScheduleScreen() {
       />
 
       <OptionSheet
+        visible={weekRescheduleConfirm}
+        title="Reschedule your week"
+        subtitle="Tempo will re-lay every upcoming workout onto its best day and time this week — recovery-aware and around your calendar. Nothing gets dropped, and your calendar stays in sync."
+        options={[{ key: 'reschedule', label: 'Reschedule my week', icon: 'repeat-outline' }]}
+        onSelect={confirmWeekReschedule}
+        onClose={() => setWeekRescheduleConfirm(false)}
+      />
+
+      <OptionSheet
         visible={removeCalWorkout !== null}
         title="Remove from Calendar?"
         subtitle={`This will delete the event from ${removeCalWorkout?.calendar_provider === 'google' ? 'Google Calendar' : 'your calendar'}.`}
@@ -1686,6 +1749,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingBottom: 140 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
+  weekRescheduleBtn: {
+    width: 40, height: 40, borderRadius: Radius.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
   ring: {
     width: 40, height: 40, borderRadius: Radius.full,
     borderWidth: 2.5, alignItems: 'center', justifyContent: 'center',
