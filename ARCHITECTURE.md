@@ -229,8 +229,20 @@ you moving."*
   workout re-triggers cleanly, and finishing resets the tab behind the summary so returning shows
   a fresh hub.
   The live session builds per-exercise **prescriptions** (autoregulation + periodization + readiness
-  + feedback bias), pre-fills sets, smart exercise swaps, form guide +
-  exercise GIFs, and a **first-time hint** (start light + warm up) on never-trained lifts.
+  + feedback bias), pre-fills sets, smart exercise swaps, form guide + exercise GIFs. **Coach card
+  decluttered (bug fix, 2026-07-16):** the set rows are already pre-filled with the exact target
+  reps/weight (`initialSets` seeds `reps` from `p.repHigh`, `lbs` from `p.suggestedWeight`), so the
+  card above them no longer repeats a redundant "N reps × M sets" line — it now shows only when
+  there's a genuine trend to report (`p.direction !== 'new'`: GO UP/HOLD/BACK OFF + the specific
+  reason, e.g. "You cleared 12 reps last time — add 5 lbs."), which is exactly the "final-set,
+  improved-from-last-time" signal worth surfacing. A brand-new exercise (no logged history for that
+  exact `exercise_id`) shows no card at all now — removed the boilerplate "First time on this lift?"
+  paragraph that repeated on every such exercise; the pre-filled rep target is already visible in the
+  first set row. (Note: exercise-selection **rotation** for week-to-week variety means a specific
+  `exercise_id` often really is new even for an experienced user on a long-running split — the card
+  reflects that honestly rather than fabricating a trend that doesn't exist; a future iteration could
+  track progression per movement-pattern/slot instead of exact exercise id to reduce how often that
+  happens, not attempted here.)
   **Set logging is instant:** tapping ✓ logs the set immediately (light haptic, rest timer
   auto-starts at the workout's effective rest); **RPE is an optional post-log follow-up bar**
   that updates the `set_logs` row — it never gates logging or the timer. Each set row has a
@@ -768,7 +780,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   re-lays every upcoming session across the best DAYS+times at once, resyncing each moved event,
   running even in `manual` mode since it's an explicit request), **`weekReschedule`** (the pure,
   unit-tested planner behind it — `planWeekReschedule` composes `scoreDay`+`findVariedSlot` to
-  assign one recovery-spaced workout per day, never dropping a session), `dedupeSchedule`,
+  assign one recovery-spaced workout per day, never dropping a session. **Preserves split order
+  (bug fix, 2026-07-16):** workouts are processed in original chronological order and a `minDay`
+  floor prevents a LATER workout from ever landing BEFORE an EARLIER one — without this, two
+  workouts with different muscle regions could leapfrog each other purely because one scored
+  marginally better for an earlier day (reported: Pull grabbed today's slot while Push, actually due
+  today, got pushed to Saturday) — recovery scoring still picks the best day among what's left, it
+  just can't reorder which specific workout gets which day anymore), `dedupeSchedule`,
   `unavailability`, `ignoredEvents`. **UI (B1.3b):** a header icon button on Home
   (`(tabs)/index.tsx`, next to the readiness ring) opens a 2-tap `OptionSheet` confirm, then calls
   `rescheduleWholeWeek` behind a single-flight guard; success/empty/error all resolve to a plain

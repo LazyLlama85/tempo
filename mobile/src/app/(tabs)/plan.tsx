@@ -111,20 +111,6 @@ function columnsFor(metrics: MetricKey[] | undefined): typeof METRIC_COLS {
   return cols.length ? cols : [METRIC_COLS[0], METRIC_COLS[1]]
 }
 
-// A readable "today's target" line that matches what the exercise actually tracks —
-// so a run reads "400 m · 60s × 3", not "0–0 reps × 3", and a fixed-rep target reads
-// "10 reps" rather than "10–10 reps". Weights render in the user's unit.
-function formatTarget(p: ExercisePrescription, metrics: MetricKey[] | undefined, firstSet: SetState | undefined, unit: WeightUnit): string {
-  const m = metrics?.length ? metrics : ['weight', 'reps']
-  const parts: string[] = []
-  if (m.includes('weight') && p.suggestedWeight != null) parts.push(`${displayWeight(p.suggestedWeight, unit)} ${unitLabel(unit)}`)
-  if (m.includes('reps')) parts.push(p.repLow === p.repHigh ? `${p.repHigh} reps` : `${p.repLow}–${p.repHigh} reps`)
-  if (m.includes('duration') && firstSet?.durationSec) parts.push(`${firstSet.durationSec}s`)
-  if (m.includes('distance') && firstSet?.distanceM) parts.push(`${firstSet.distanceM} m`)
-  const main = parts.join(' · ')
-  return main ? `${main} × ${p.sets}` : `${p.sets} set${p.sets === 1 ? '' : 's'}`
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
@@ -1690,43 +1676,34 @@ export default function WorkoutsScreen() {
 
               {isExpanded && (
                 <>
-                  {/* Coach prescription: what to do this session */}
-                  {p && (
+                  {/* Coach prescription — only shown when there's something real to
+                      say (a direction change from last time + why). The exact
+                      numbers are pre-filled into the set rows below already, so
+                      repeating them here was pure duplication; a brand-new exercise
+                      has no trend yet, so there's nothing useful to add over the
+                      pre-filled rep target already visible in the first set row. */}
+                  {p && p.direction !== 'new' && (
                     <View style={styles.targetCard}>
                       <View style={styles.targetRow}>
-                        <View style={styles.targetLeft}>
-                          <Text style={styles.targetEyebrow}>TODAY'S TARGET</Text>
-                          <Text style={styles.targetValue}>
-                            {formatTarget(p, exMetrics[ex.id], exSets[0], unit)}
+                        <Text style={[styles.targetReason, { flex: 1 }]}>{p.reason}</Text>
+                        <View style={[
+                          styles.dirBadge,
+                          p.direction === 'up' && { backgroundColor: C.successSoft },
+                          p.direction === 'down' && { backgroundColor: C.dangerSoft },
+                        ]}>
+                          <Ionicons
+                            name={p.direction === 'up' ? 'trending-up' : p.direction === 'down' ? 'trending-down' : 'remove'}
+                            size={13}
+                            color={p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary}
+                          />
+                          <Text style={[
+                            styles.dirBadgeText,
+                            { color: p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary },
+                          ]}>
+                            {p.direction === 'up' ? 'GO UP' : p.direction === 'down' ? 'BACK OFF' : 'HOLD'}
                           </Text>
                         </View>
-                        {p.direction !== 'new' && (
-                          <View style={[
-                            styles.dirBadge,
-                            p.direction === 'up' && { backgroundColor: C.successSoft },
-                            p.direction === 'down' && { backgroundColor: C.dangerSoft },
-                          ]}>
-                            <Ionicons
-                              name={p.direction === 'up' ? 'trending-up' : p.direction === 'down' ? 'trending-down' : 'remove'}
-                              size={13}
-                              color={p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary}
-                            />
-                            <Text style={[
-                              styles.dirBadgeText,
-                              { color: p.direction === 'up' ? C.success : p.direction === 'down' ? C.error : C.textSecondary },
-                            ]}>
-                              {p.direction === 'up' ? 'GO UP' : p.direction === 'down' ? 'BACK OFF' : 'HOLD'}
-                            </Text>
-                          </View>
-                        )}
                       </View>
-                      <Text style={styles.targetReason}>{p.reason}</Text>
-                      {p.direction === 'new' && p.suggestedWeight == null && (exMetrics[ex.id]?.includes('weight') ?? true) && (
-                        <Text style={styles.firstTimeHint}>
-                          First time on this lift? Start light — a weight you could do ~15 times —
-                          and treat your first set or two as warm-ups. Tempo calibrates from what you log.
-                        </Text>
-                      )}
                     </View>
                   )}
 
@@ -2330,9 +2307,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     gap: 6,
   },
   targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  targetLeft: { flex: 1, gap: 2 },
-  targetEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
-  targetValue: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   dirBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
@@ -2340,7 +2314,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   dirBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
   targetReason: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-  firstTimeHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, lineHeight: 17, fontStyle: 'italic' },
   exActions: { flexDirection: 'row', gap: Spacing.sm },
   exActionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

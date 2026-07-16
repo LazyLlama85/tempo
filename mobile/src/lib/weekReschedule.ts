@@ -63,12 +63,22 @@ export function planWeekReschedule(
   const loads: DayLoad[] = [...priorLoads]
   const occupied: BusySlot[] = [...busy]
   const out: WeekAssignment[] = []
+  // Preserve the split's sequence: a workout can never land BEFORE the one that
+  // was scheduled ahead of it. Recovery scoring still picks the best day among
+  // what's left, but it can't reorder WHICH workout gets which day — left
+  // unconstrained, two workouts with different muscle regions can leapfrog each
+  // other purely because one scores marginally better for an earlier day (e.g.
+  // Pull grabbing today's slot while Push, which was actually due today, gets
+  // pushed out to Saturday) — which reads as broken to anyone following a
+  // deliberate Push/Pull/Legs-style rotation, regardless of the recovery math.
+  let minDay: Date | null = null
 
   for (const w of workouts) {
     // Rank the open days (today … horizon) by recovery score, then soonest.
     const candidates: { day: Date; ds: string; score: number; reason: string }[] = []
     for (let off = 0; off < horizon; off++) {
       const day = new Date(today); day.setDate(today.getDate() + off)
+      if (minDay && day.getTime() < minDay.getTime()) continue
       const ds = toDateStr(day)
       if (takenDays.has(ds)) continue
       if (allowDays.size && !allowDays.has(isoWeekday(day))) continue
@@ -99,6 +109,7 @@ export function planWeekReschedule(
       takenDays.add(c.ds)
       loads.push({ date: c.ds, regions: w.regions })
       occupied.push({ start, end: new Date(start.getTime() + w.durationMin * 60_000) })
+      minDay = c.day
       break
     }
 
@@ -110,6 +121,8 @@ export function planWeekReschedule(
       takenDays.add(w.date)
       loads.push({ date: w.date, regions: w.regions })
       out.push({ id: w.id, date: w.date, start_time: w.startTime, reason: 'Kept — no better slot this week', changed: false })
+      const keptDay = new Date(`${w.date}T00:00:00`)
+      if (!minDay || keptDay.getTime() > minDay.getTime()) minDay = keptDay
     }
   }
 
