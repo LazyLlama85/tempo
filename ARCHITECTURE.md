@@ -1191,11 +1191,20 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **Bundle identifiers:** iOS `com.fittempo.app`, Android `com.fittempo.app` (the original
   `com.tempo.app` was unavailable on Apple).
 - **OTA updates (EAS Update):** `expo-updates` configured — `app.json` has `updates.url`
-  (`https://u.expo.dev/<projectId>`) + `runtimeVersion.policy: appVersion`; each `eas.json` build
+  (`https://u.expo.dev/<projectId>`) + `runtimeVersion.policy: fingerprint`; each `eas.json` build
   profile declares a matching `channel` (`development` / `preview` / `production`). JS/asset-only
   changes ship with `npx eas update --branch <channel> --message "…"` (no rebuild). Native/config
-  changes (new modules, plugins, permissions, SDK bumps, or a `version` change — runtimeVersion is
-  tied to app version) still require a full `eas build` + TestFlight submit.
+  changes (new modules, plugins, permissions, SDK bumps) still require a full `eas build` + submit.
+  - **Why `fingerprint`, not `appVersion` (changed 2026-07-15 after an Android beta crash):** with
+    the old `appVersion` policy, runtimeVersion was frozen at `1.0.0`, so an `eas update` that used a
+    **native module added after a build** was still delivered to that older binary → it referenced a
+    native module that wasn't linked and **crashed on launch** (this is exactly what took down the
+    Android closed-test build while iOS — built more recently — was fine). `fingerprint` derives the
+    runtimeVersion from a hash of the native project, so an OTA update **only reaches binaries whose
+    native layer actually matches** — a native drift now simply means "no update delivered" instead of
+    a crash. Trade-off: existing `1.0.0` binaries won't receive fingerprint-targeted updates, so the
+    fix is to rebuild + redistribute (which also carries the crash fix). Takes effect on the **next**
+    build; in-flight builds are unaffected.
 
 ---
 
