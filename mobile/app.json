@@ -11,7 +11,7 @@
       "url": "https://u.expo.dev/bdb2dc2b-4340-4191-8a7f-4411fb56734f"
     },
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "ios": {
       "bundleIdentifier": "com.fittempo.app",
