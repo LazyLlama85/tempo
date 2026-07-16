@@ -49,7 +49,7 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   long_horizon_planning: {
     id: 'long_horizon_planning',
     title: 'Long-Term Planning',
-    benefit: 'Goal-date programs, periodization blocks, and your plan months ahead.',
+    benefit: 'Goal-date programs, structured training blocks, and your plan months ahead.',
     icon: 'map',
   },
   premium_personalization: {

@@ -39,7 +39,7 @@ const COMPARE: { label: string; free: boolean }[] = [
   { label: 'Advanced analytics', free: false },
   { label: 'Smart scheduling around your week', free: false },
   { label: 'Readiness & recovery insights', free: false },
-  { label: 'Long-term & periodized planning', free: false },
+  { label: 'Long-term & structured planning', free: false },
   { label: 'Premium themes & app icons', free: false },
 ]
 

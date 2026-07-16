@@ -59,8 +59,8 @@ const LEVELS: {
   {
     id: 'intermediate',
     label: 'Intermediate',
-    tagline: 'Drive progressive overload',
-    sub: 'Compound lifts, volume waves, and planned deloads.',
+    tagline: 'Push past plateaus',
+    sub: 'Barbell lifts, steady weekly increases, and built-in recovery weeks.',
     icon: 'barbell-outline',
     intensity: 2,
     lifts: [
@@ -73,7 +73,7 @@ const LEVELS: {
     id: 'advanced',
     label: 'Advanced',
     tagline: 'Chase peak performance',
-    sub: 'Periodized intensity with autoregulated heavy work.',
+    sub: 'Heavier work that adapts to your performance.',
     icon: 'flash-outline',
     intensity: 3,
     lifts: [
