@@ -1603,16 +1603,17 @@ export default function WorkoutsScreen() {
         {workout.progression?.isDeload ? (
           <View style={[styles.travelBanner, styles.deloadBanner]}>
             <Ionicons name="leaf" size={15} color={C.success} />
-            <Text style={styles.travelBannerText}>
-              Deload week — weights and volume are intentionally lighter so you recover and come back stronger.
-            </Text>
+            {/* Makes adaptation legible (audit: "personalization you can't perceive
+                doesn't retain"): period.note already distinguishes a scheduled
+                deload from a reactive one triggered by missed sessions / "too
+                hard" feedback — surface that real reason instead of one flat
+                generic line for every deload regardless of why it happened. */}
+            <Text style={styles.travelBannerText}>{workout.progression.note}</Text>
           </View>
         ) : workout.progression?.phase === 'peak' ? (
           <View style={styles.travelBanner}>
             <Ionicons name="trending-up" size={15} color={C.primary} />
-            <Text style={styles.travelBannerText}>
-              Peak week — an extra set per lift to push this block's overload. Bring it.
-            </Text>
+            <Text style={styles.travelBannerText}>{workout.progression.note}</Text>
           </View>
         ) : null}
         {exercises.map((ex) => {

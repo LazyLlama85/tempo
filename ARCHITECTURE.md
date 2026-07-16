@@ -692,7 +692,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Prescriptions are **role-aware** (`buildPrescription` takes the classified role: primary compounds
   heavier/lower-rep + full rest, isolations higher-rep + short rest — within the goal, so
   autoregulation + periodization stay live), and the runner hub shows a **"Why this workout?"**
-  sheet (`lib/sessionRationale.ts`) explaining the order in plain language. **Volume landmarks (B5.4,
+  sheet (`lib/sessionRationale.ts`) explaining the order in plain language. **Adaptation legible in
+  the runner (audit §12 Personalization):** the deload/peak-week banner now renders
+  `workout.progression.note` — the real, phase-specific coaching line from `periodization.ts`'s
+  per-mode tables — instead of one flat hardcoded string for every deload. A *scheduled* deload
+  ("Planned recovery — lighter with less volume so you supercompensate") now reads differently from
+  a *reactive* one `refreshAdaptation` triggered by missed sessions / "too hard" feedback ("You've
+  been grinding — this week is a deliberate step back to recover"), which is exactly the audit's own
+  complaint that "personalization you can't perceive doesn't retain." **Volume landmarks (B5.4,
   `lib/volumeLandmarks.ts`, new):** MEV/MRV weekly-set ranges per coarse muscle group (`exercises.
   muscle_group` — chest/back/shoulders/arms/legs/core), MRV scaled by experience (beginners lower,
   advanced higher; MEV holds steady). `buildPrescription` takes an 8th **optional** `weeklyVolume`
