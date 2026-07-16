@@ -635,6 +635,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   in later). All purchase/restore/offering logic unchanged. Everything ships DORMANT — flip
   `app_config.pro_enabled` (or allow-list a uid) to go live with no rebuild. On Profile, the Pro
   upgrade/manage rows now live in their own **Subscription** section (shown only while Pro is live).
+  **Tester Tools (Pro on/off switch):** the store also holds `tester` (may this account use the
+  switch) + `devProOverride` (`null` real · `true` force-Pro · `false` force-free, persisted via the
+  `localStorage` idiom, survives the RevenueCat listener). `useProAccess()` honors the override
+  **only while `tester` is true**, forcing `proEnabled` on so a tester previews BOTH the free/paywall
+  and unlocked experiences without a purchase — and so any lingering override goes inert the moment
+  tester access is revoked (no ex-tester stuck paywalled-after-paying, or comped forever). `tester`
+  is remote-gated by `proConfig` — `app_config.pro_enabled.tester_tools: true` (beta), or membership
+  in `test_user_ids`/`pro_user_ids` — and is **not** tied to the global `enabled` flag, so turning
+  Pro live for the public at launch never exposes the switch. UI: a **Tester Tools** section on
+  Profile (only when `tester`) with the Pro switch + a "use real subscription state" reset. Ships
+  OTA — no rebuild — but appears only once the founder flips `tester_tools` on.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;

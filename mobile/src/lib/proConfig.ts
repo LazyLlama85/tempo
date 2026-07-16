@@ -11,7 +11,10 @@
 //                    value (jsonb) = {
 //                      "enabled": false,           // Pro system LIVE for everyone
 //                      "test_user_ids": ["<uuid>"],// system live for just these (paywall testing)
-//                      "pro_user_ids":  ["<uuid>"] // GRANTED Pro (unlocked, no purchase) — comps
+//                      "pro_user_ids":  ["<uuid>"],// GRANTED Pro (unlocked, no purchase) — comps
+//                      "tester_tools": false       // show the in-app Pro on/off switch (Profile →
+//                                                  // Tester Tools) to beta testers; flip false at
+//                                                  // public launch so the public never sees it
 //                    }
 //
 // `pro_user_ids` is the comp/grant list: a way to hand a tester or reviewer the full
@@ -24,6 +27,7 @@ interface ProFlagValue {
   enabled?: boolean
   test_user_ids?: string[]
   pro_user_ids?: string[]
+  tester_tools?: boolean
 }
 
 export interface ProConfigState {
@@ -31,6 +35,8 @@ export interface ProConfigState {
   proEnabled: boolean
   /** This user is comped Pro (unlocked without paying). */
   proGranted: boolean
+  /** This user may use the in-app Pro on/off switch (Profile → Tester Tools). */
+  isTester: boolean
 }
 
 function inList(list: unknown, userId: string): boolean {
@@ -52,9 +58,13 @@ export async function fetchProState(client: SupabaseClient, userId: string): Pro
     const v = (data?.value ?? {}) as ProFlagValue
     const granted = inList(v.pro_user_ids, userId)
     const enabled = v.enabled === true || inList(v.test_user_ids, userId) || granted
-    return { proEnabled: enabled, proGranted: granted }
+    // Tester tools show for an explicit test/comp account, or for everyone while the
+    // remote `tester_tools` flag is on (beta). NOT tied to the global `enabled` flag,
+    // so turning Pro live for the public at launch does NOT expose the switch.
+    const isTester = v.tester_tools === true || inList(v.test_user_ids, userId) || granted
+    return { proEnabled: enabled, proGranted: granted, isTester }
   } catch {
-    return { proEnabled: false, proGranted: false }
+    return { proEnabled: false, proGranted: false, isTester: false }
   }
 }
 

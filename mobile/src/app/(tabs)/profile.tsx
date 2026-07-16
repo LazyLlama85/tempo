@@ -43,7 +43,7 @@ import {
   DEFAULT_PREFS, type NotificationPrefs, type ServerRule,
 } from '@/lib/notificationPrefs'
 import { scheduleWorkoutReminders, cancelAllReminders, hasReminderPermission } from '@/lib/notifications'
-import { useProAccess } from '@/stores/entitlements'
+import { useProAccess, useEntitlementStore } from '@/stores/entitlements'
 import { presentCustomerCenter } from '@/lib/purchases'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
 import { updateUsername } from '@/lib/social'
@@ -389,6 +389,11 @@ export default function ProfileScreen() {
   // Tempo Pro (§10). Both rows stay hidden while Pro is dormant (proEnabled false),
   // so Profile is visually unchanged until the flag is flipped on.
   const { isPro, proEnabled } = useProAccess()
+  // Tester tools (remote-gated; never shown to the public). Lets a beta tester flip
+  // Pro on/off on-device to preview both the free/paywall and unlocked experiences.
+  const tester = useEntitlementStore((s) => s.tester)
+  const devProOverride = useEntitlementStore((s) => s.devProOverride)
+  const setDevProOverride = useEntitlementStore((s) => s.setDevProOverride)
   const openPaywall = () => { track('paywall_shown', { context: 'profile' }); router.push({ pathname: '/paywall', params: { context: 'profile' } } as never) }
   const [saveSheetVisible, setSaveSheetVisible] = useState(false)
   const openSaveProgress = () => { track('guest_save_prompt_shown', { context: 'profile' }); setSaveSheetVisible(true) }
@@ -1041,6 +1046,46 @@ export default function ProfileScreen() {
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={C.outlineVariant} />
                 </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── Tester Tools — remote-gated (app_config `tester_tools`); never shown to
+            the public. Flips Pro on/off ON THIS DEVICE so a beta tester can preview
+            both the free/paywall experience and the fully-unlocked one — without a
+            real purchase and without editing the database each time. ─ */}
+        {tester && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tester Tools</Text>
+            <View style={styles.card}>
+              <View style={styles.settingRow}>
+                <View style={[styles.settingIcon, { backgroundColor: C.primarySoft }]}>
+                  <Ionicons name="flask-outline" size={18} color={C.primary} />
+                </View>
+                <View style={styles.settingInfo}>
+                  <Text style={styles.settingLabel}>TEMPO PRO (TESTER)</Text>
+                  <Text style={styles.settingValue}>
+                    {isPro ? 'On — Pro features unlocked' : 'Off — paywalls & free limits show'}
+                  </Text>
+                </View>
+                <Switch
+                  value={isPro}
+                  onValueChange={(v) => setDevProOverride(v)}
+                  trackColor={{ true: C.primary, false: C.outlineVariant }}
+                  thumbColor="#fff"
+                />
+              </View>
+              {devProOverride !== null && (
+                <>
+                  <View style={styles.divider} />
+                  <SettingRow
+                    icon="refresh-outline"
+                    label="USE REAL SUBSCRIPTION STATE"
+                    value="Clear the tester override"
+                    onPress={() => setDevProOverride(null)}
+                  />
+                </>
               )}
             </View>
           </View>

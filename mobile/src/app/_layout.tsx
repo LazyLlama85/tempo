@@ -125,6 +125,7 @@ function RootLayout() {
       if (cancelled) return
       store.setProEnabled(proState.proEnabled)
       store.setGranted(proState.proGranted)
+      store.setTester(proState.isTester)
       store.setIsPro(isPro)
       store.setReady(true)
 
