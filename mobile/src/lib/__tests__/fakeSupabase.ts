@@ -5,9 +5,10 @@
 // This is NOT a general Postgrest mock. It supports exactly the filter/write
 // shapes the modules under test actually use (eq/gte/lt/in, the one .or()
 // shape shared by retireWorkouts.ts + missedWorkouts.ts, delete, update,
-// select-after-update). Extend it only when a new integration test needs a
-// new shape — a bigger mock than the tests require is exactly the kind of
-// unrequested abstraction CLAUDE.md's guardrails warn against.
+// insert, maybeSingle, select-after-update). Extend it only when a new
+// integration test needs a new shape — a bigger mock than the tests require
+// is exactly the kind of unrequested abstraction CLAUDE.md's guardrails warn
+// against.
 
 type Row = Record<string, any>
 type Table = Row[]
@@ -44,17 +45,21 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
 
   function makeBuilder(table: string) {
     const filters: ((r: Row) => boolean)[] = []
-    let op: { kind: 'select' } | { kind: 'delete' } | { kind: 'update'; patch: Row } = { kind: 'select' }
+    let op: { kind: 'select' } | { kind: 'delete' } | { kind: 'update'; patch: Row } | { kind: 'insert'; rows: Row[] } = { kind: 'select' }
+    let single = false
 
     const api: any = {
       select: () => api,
       eq: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
       gte: (col: string, val: any) => { filters.push((r) => r[col] >= val); return api },
+      lte: (col: string, val: any) => { filters.push((r) => r[col] <= val); return api },
       lt: (col: string, val: any) => { filters.push((r) => r[col] < val); return api },
       in: (col: string, vals: any[]) => { filters.push((r) => vals.includes(r[col])); return api },
       or: (expr: string) => { filters.push(parseOrClause(expr)); return api },
       delete: () => { op = { kind: 'delete' }; return api },
       update: (patch: Row) => { op = { kind: 'update', patch }; return api },
+      insert: (rows: Row | Row[]) => { op = { kind: 'insert', rows: Array.isArray(rows) ? rows : [rows] }; return api },
+      maybeSingle: () => { single = true; return api },
       then: (resolve: (v: { data: any; error: any }) => void, reject?: (e: any) => void) => {
         try {
           const opKey = `${table}.${op.kind}`
@@ -62,17 +67,24 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
             resolve({ data: null, error: fakeError(`simulated failure: ${opKey}`) })
             return
           }
+          if (op.kind === 'insert') {
+            tables[table] = [...(tables[table] ?? []), ...op.rows]
+            resolve({ data: op.rows, error: null })
+            return
+          }
           const all = tables[table] ?? []
           const matched = all.filter((r) => filters.every((f) => f(r)))
+          let result: any
           if (op.kind === 'select') {
-            resolve({ data: matched, error: null })
+            result = matched
           } else if (op.kind === 'delete') {
             tables[table] = all.filter((r) => !matched.includes(r))
-            resolve({ data: matched, error: null })
+            result = matched
           } else {
             for (const r of matched) Object.assign(r, op.patch)
-            resolve({ data: matched, error: null })
+            result = matched
           }
+          resolve({ data: single ? (result[0] ?? null) : result, error: null })
         } catch (e) {
           if (reject) reject(e); else throw e
         }
