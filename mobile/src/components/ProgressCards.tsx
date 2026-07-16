@@ -114,6 +114,10 @@ export function ReadinessCard({ readiness, delay = 0 }: { readiness: Readiness; 
           <ReadyComponentRow label="Load" comp={readiness.load} />
         </View>
       </View>
+      {/* B5.1 — honest, not a vanity ring: this is estimated from training
+          patterns (rest time + recent load), never a wearable/biometric signal,
+          and it never gates anything — same disclosure as Train's readiness view. */}
+      <Text style={s.readyFoot}>Estimated from your recent training and rest time — not a wearable measurement.</Text>
     </FadeInView>
   )
 }
@@ -506,6 +510,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   readyDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
   readyCompHead: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.text },
   readyCompDetail: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary, lineHeight: 15 },
+  readyFoot: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary, lineHeight: 16, marginTop: Spacing.sm },
 
   // Momentum
   momentumCard: { backgroundColor: C.primaryContainer },

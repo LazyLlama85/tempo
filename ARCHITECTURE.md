@@ -820,7 +820,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `muscleRecovery` (Train tab readiness), and **`muscleIntelligence`** (Body Map: per-group status/
   recovery/volume-trend + an overall balance score, over the coarse `muscle_group` only — no
   fabricated per-fine-muscle stats). Every output ships a human message and honest empty states; no
-  invented numbers. 19 unit tests (`__tests__/fitnessInsights.test.ts`).
+  invented numbers. 19 unit tests (`__tests__/fitnessInsights.test.ts`). **B5.1:** Progress's
+  `ReadinessCard` now carries the same honest disclosure Train's readiness view already had ("Recovery
+  is estimated from your recent sessions...") — "Estimated from your recent training and rest time —
+  not a wearable measurement." The WHOOP-style ring UI otherwise implies a physiological signal
+  (sleep/HRV/resting HR) this heuristic doesn't have; the caption makes the actual input honest
+  without needing HealthKit (B5.2) to say something true today.
 - **Body Intelligence / Muscle Map** (`app/muscle-map.tsx` + `components/MuscleMap.tsx`): a signature,
   **Pro-gated** feature reached from a card in Progress → Coaching. An **anatomically-real** muscular
   figure rendered from `react-native-body-highlighter` (MIT, SVG-only, on top of the already-installed
