@@ -18,6 +18,8 @@ import { PressableScale, FadeInView, ScreenTransition } from '@/components/motio
 import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { AnimatedRing } from '@/components/AnimatedRing'
 import { EmptyState } from '@/components/EmptyState'
+import { DayTimelineStrip } from '@/components/DayTimeline'
+import { buildDayTimeline, resolveBounds, type TimelineItem } from '@/lib/dayTimeline'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProGate } from '@/stores/entitlements'
@@ -639,6 +641,23 @@ export default function ScheduleScreen() {
   }, [feedDays, workoutsByDate, eventsByDate, todayStr])
 
   const feedHasItems = dayGroups.some(g => g.items.length > 0)
+
+  // Day-timeline hero (approved plan, 2026-07-16): a glanceable strip showing
+  // today's real calendar shape, fed entirely from the SAME today group above
+  // — no new fetches. `FeedItem` is structurally compatible with `TimelineItem`
+  // (a superset of fields), so today's items pass straight through unchanged.
+  const todayTimelineBounds = useMemo(
+    () => resolveBounds(
+      (dayGroups.find(g => g.isToday)?.items ?? []) as TimelineItem[],
+      profile?.wake_time ?? null,
+      profile?.bedtime ?? null,
+    ),
+    [dayGroups, profile?.wake_time, profile?.bedtime],
+  )
+  const todayTimelineBlocks = useMemo(
+    () => buildDayTimeline((dayGroups.find(g => g.isToday)?.items ?? []) as TimelineItem[], todayTimelineBounds),
+    [dayGroups, todayTimelineBounds],
+  )
 
   // ── Actions ──────────────────────────────────────────────────────────────--
   const handleRefresh = async () => {
@@ -1528,6 +1547,16 @@ export default function ScheduleScreen() {
               </View>
             </View>
           </View>
+        )}
+
+        {/* Day-timeline hero (approved plan, 2026-07-16) — "your real calendar
+            gaps with the workout dropped in place," felt in a glance. Only
+            when today is actually in the visible range (day/week, not month —
+            a single-day ruler has no month-grid equivalent) and there's real
+            data to show; an empty result renders nothing (DayTimelineStrip's
+            own guard), never a broken-looking empty box. */}
+        {viewMode !== 'month' && isThisRange && !isLoading && !isError && (
+          <DayTimelineStrip blocks={todayTimelineBlocks} bounds={todayTimelineBounds} />
         )}
 
         {/* Unified feed — workouts (emphasised) + events (muted), one timeline */}

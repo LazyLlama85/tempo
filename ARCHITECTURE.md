@@ -212,6 +212,19 @@ you moving."*
   backgrounded across midnight was never flipped until the next cold start. A lightweight `AppState`
   listener now re-runs just that cheap check (not the whole entry sweep) whenever the app foregrounds
   on a new calendar day. A "Google Calendar needs reconnecting" banner (see §5) can also appear here.
+  **Day-timeline hero** (plan approved 2026-07-16, addresses the audit's #1 Home finding —
+  "make the hero a day-timeline, not a to-do card"): `lib/dayTimeline.ts` (pure, unit-tested
+  selector — `resolveBounds` + `buildDayTimeline`, with a greedy interval-overlap lane layout) +
+  `components/DayTimeline.tsx` (`DayTimelineStrip`) render a compact, non-interactive glanceable
+  ruler above today's card list in day/week view (month view unchanged), fed entirely from the
+  already-merged `dayGroups` items and `profile.wake_time`/`bedtime` — **zero new fetches, zero new
+  state.** Deliberately additive, not a replacement: a design fork (full absolute-position card
+  replacement vs. a glanceable ruler above the untouched list) was raised and the lower-risk ruler
+  was the explicit choice, so `renderWorkout`/`renderEvent` and the home-tour's `todayCardTarget`
+  anchor keep every bit of their existing behavior completely untouched. The strip renders `null`
+  on an empty day rather than an empty box, and is hidden from screen readers
+  (`accessibilityElementsHidden` / `importantForAccessibility="no-hide-descendants"`) since the
+  real, accessible content remains the card list below it.
 - **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
   Tapping the tab (no `workoutId` param) lands on the **hub**. **Training redesign:** the hub is now a
   four-way **segmented control** (`components/TrainSegments.tsx`) — kept strictly to Training (no
