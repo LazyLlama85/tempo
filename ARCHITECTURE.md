@@ -1205,6 +1205,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
     a crash. Trade-off: existing `1.0.0` binaries won't receive fingerprint-targeted updates, so the
     fix is to rebuild + redistribute (which also carries the crash fix). Takes effect on the **next**
     build; in-flight builds are unaffected.
+  - **Windows gotcha (`mobile/.gitattributes`, added 2026-07-15):** `@expo/fingerprint` hashes **raw
+    file bytes**, so with Git `core.autocrlf=true` on Windows the local working tree (CRLF) hashes
+    differently from the committed LF blobs the Linux EAS builder checks out. The two tracked files
+    that feed the fingerprint — `.gitignore` and `eas.json` — must stay LF, or `eas build` fails the
+    "Configure expo-updates" phase with *"Runtime version calculated on local machine not equal to
+    runtime version calculated during build."* `mobile/.gitattributes` pins `eol=lf` on them (and on
+    itself) so the hash is identical on both sides. If a **new** tracked file ever starts feeding the
+    fingerprint, add it there too.
 
 ---
 
