@@ -342,7 +342,26 @@ you moving."*
   resets when a PRIOR day is truly missed, never just because today hasn't happened yet) now shows
   in a **muted/outlined style** whenever this branch renders (which only happens before today's
   session is done), and in the **hot ember color** in the `dayComplete` branch — "keep the number,
-  just make it look paused-not-broken until it's earned." **Today's-context strip** (`contextItems` array, unchanged from before this redesign): the
+  just make it look paused-not-broken until it's earned."
+  **Phase 8 — Feed button (2026-07-17):** the header's recovery-check-in ring is gone, replaced by a
+  **Feed button** (`notifications-outline` + a red count badge) — the founder's original ask
+  ("instead of recovery button, have a feed button that shows notifications, progress, friend
+  requests"), scoped down per the plan's own "no new backend" constraint: the badge count is
+  `eligibleContext.length + socialNotifs` — literally today's already-computed `contextItems`
+  eligibility (missed workout, calendar reconnect, rest day, travel mode, goal ETA, weekly report,
+  quick-workout suggestion) plus the same pending-requests/invites count Profile's Friends badge
+  already showed, now shared via a new `lib/social.ts` export, `fetchSocialNotifCount` (one query,
+  reused by both screens instead of two separate implementations of the same two count queries).
+  Tapping Feed opens an `OptionSheet` listing every eligible item (reusing each `contextItems` entry's
+  own `chip.label`/`chip.icon`/`chip.onPress` — selecting one does exactly what its chip already did)
+  plus a "Friends — N new" row that routes to `/social`. **No new table, no new screen for the list
+  itself** — genuinely just an aggregator over signals that already existed. The recovery check-in
+  itself (still the same `RecoveryCheckIn` sheet, untouched) relocated into the hero's `heroMetaRow`
+  next to the readiness chip — reachable in the 3 most common Home states (a scheduled day not yet
+  done, a completed day, and a rest day with a real next session ahead) via a small "Daily check-in" /
+  "Checked in · N" chip; the one narrower remaining case (a genuinely empty plan, no session today or
+  ahead) has no dedicated entry point yet — a real, documented gap, not silently dropped.
+  **Today's-context strip** (`contextItems` array, unchanged from before this redesign): the
   contextual banners — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
   block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), Quick Workout
   suggestion (`lib/quickSuggestion`) — stay priority-resolved so at most one shows as a full banner,
@@ -367,9 +386,9 @@ you moving."*
   the existing "YOUR PLAN / next workout" card; a genuinely empty plan (no session today or ahead)
   shows one "Add a workout" prompt — the old third branch (rest day within an otherwise-populated
   *week* range) no longer applies now that Home has no week range to compare against.
-  **Add Workout** FAB (opens `AddWorkoutSheet`, defaults to today); "ignore event" to free time;
-  recovery check-in entry (the header ring — separate from the readiness chip above, this is where
-  you *log* a check-in). On open, Home still runs plan rollover, split-horizon refresh, conflict
+  **Add Workout** FAB (opens `AddWorkoutSheet`, defaults to today); recovery check-in entry (this is
+  where you *log* a check-in — **relocated 2026-07-17, Phase 8**, see the Feed-button paragraph
+  below); "ignore event" to free time. On open, Home still runs plan rollover, split-horizon refresh, conflict
   resolution, and the 14-day reminder reconciliation sweep, and the `AppState`-driven missed-workout
   re-check on a new calendar day — none of that changed. **Home tour**: the old two-step "this is
   your calendar" + "your next session" pair collapsed into one step (`lib/tutorial.ts`

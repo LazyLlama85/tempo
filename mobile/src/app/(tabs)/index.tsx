@@ -49,6 +49,7 @@ import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
 import { getTodayCheckin } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
+import { fetchSocialNotifCount } from '@/lib/social'
 import { parseAvatar } from '@/lib/avatar'
 import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
 import { restDayAdvice, consecutiveTrainingDays } from '@/lib/trainingLoad'
@@ -58,7 +59,7 @@ import type { WorkoutSource } from '@/types'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
-import { OptionSheet } from '@/components/OptionSheet'
+import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
 const GOAL_LABELS: Record<string, string> = {
@@ -232,6 +233,7 @@ export default function ScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [rescheduling, setRescheduling] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
+  const [feedOpen, setFeedOpen] = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<ScheduledWorkout | null>(null)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
@@ -277,6 +279,7 @@ export default function ScheduleScreen() {
     ['scheduled_workouts'], ['missed_workouts'], ['next_workout'], ['block_phase'],
     ['recovery_today'], ['quick_suggestion'], ['rest_advice'], ['range_events'],
     ['progress_workouts'], ['progress_set_logs'], ['goal_projection'], ['travel_mode'],
+    ['social_notifs'],
   )
 
   // First-run Home tour: spotlight targets (calendar + today's card here; the GO/
@@ -346,6 +349,16 @@ export default function ScheduleScreen() {
   const { data: checkin } = useQuery({
     queryKey: ['recovery_today', userId],
     queryFn: () => getTodayCheckin(userId),
+    enabled: !!userId,
+  })
+
+  // Feed badge (Phase 8) — the same pending-requests/invites count Profile's
+  // Friends badge already computes, shared via lib/social.ts so it's one
+  // definition, not two. Refetches on focus so accepting/declining on /social
+  // and coming back updates the count without a manual pull-to-refresh.
+  const { data: socialNotifs = 0 } = useQuery({
+    queryKey: ['social_notifs', userId],
+    queryFn: () => fetchSocialNotifCount(supabase, userId),
     enabled: !!userId,
   })
 
@@ -1406,26 +1419,49 @@ export default function ScheduleScreen() {
   const primaryContext = eligibleContext.find(i => !i.chipOnly)
   const overflowContext = eligibleContext.filter(i => i !== primaryContext)
 
+  // Feed button (Phase 8) — aggregates today's eligible context items (every one
+  // of them, not just the overflow chips, so the Feed is a single consolidated
+  // view) + social's pending count. No new backend: both are already computed.
+  const feedCount = eligibleContext.length + socialNotifs
+  const feedOptions: OptionSheetItem[] = [
+    ...eligibleContext.map((i): OptionSheetItem => ({ key: i.id, label: i.chip.label, icon: i.chip.icon })),
+    ...(socialNotifs > 0 ? [{ key: 'friends', label: `Friends — ${socialNotifs} new`, icon: 'people-outline' }] : []),
+  ]
+  const onSelectFeed = (key: string) => {
+    setFeedOpen(false)
+    if (key === 'friends') { router.push('/social' as any); return }
+    contextItems.find(i => i.id === key)?.chip.onPress()
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
-      {/* Header — Tempo wordmark + date, readiness ring, profile avatar. The
-          signature amber tick + hairline rule is baked into ScreenHeader. */}
+      {/* Header — Tempo wordmark + date, Feed button, profile avatar. The
+          signature amber tick + hairline rule is baked into ScreenHeader.
+          Phase 8 (2026-07-17): the recovery check-in ring used to live here;
+          replaced with a Feed button aggregating EXISTING computed signals —
+          today's eligible context items (missed workout, calendar reconnect,
+          rest day, etc.) + social's pending-requests/invites count — no new
+          backend, matching the founder's original ask ("notifications,
+          progress, friend requests"). The check-in itself relocated into the
+          hero's readiness row (below) and a Settings quick action, so it's
+          never lost, just no longer the loudest thing in the header. */}
       <ScreenHeader
         subtitle={todayDateLabel}
         right={
           <HeaderActions>
             <TouchableOpacity
-              style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
-              onPress={() => setShowRecovery(true)}
+              style={styles.feedBtn}
+              onPress={() => setFeedOpen(true)}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={checkin ? `Recovery readiness ${checkin.readiness} of 100. Tap to check in.` : 'Daily recovery check-in'}
+              accessibilityLabel={feedCount > 0 ? `Feed — ${feedCount} new` : 'Feed'}
             >
-              {checkin ? (
-                <Text style={[styles.ringValue, { color: readinessColor(checkin.readiness, C) }]}>{checkin.readiness}</Text>
-              ) : (
-                <Ionicons name="pulse" size={16} color={C.primary} />
+              <Ionicons name="notifications-outline" size={19} color={C.text} />
+              {feedCount > 0 && (
+                <View style={styles.feedBadge}>
+                  <Text style={styles.feedBadgeText}>{feedCount > 9 ? '9+' : feedCount}</Text>
+                </View>
               )}
             </TouchableOpacity>
 
@@ -1525,6 +1561,12 @@ export default function ScheduleScreen() {
                       <Text style={styles.planChipText}>{stats.streak}-session streak</Text>
                     </View>
                   )}
+                  {/* Check-in stays reachable on a rest day too (Phase 8) — a
+                      rest day is exactly when recovery tracking matters most. */}
+                  <TouchableOpacity style={styles.planChip} onPress={() => setShowRecovery(true)} activeOpacity={0.8}>
+                    <Ionicons name="pulse" size={13} color={C.primary} />
+                    <Text style={styles.planChipText}>{checkin ? `Checked in · ${checkin.readiness}` : 'Daily check-in'}</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.planNext}>
                   <Text style={styles.planNextLabel}>NEXT WORKOUT · {relativeDayLabel(nextWorkout.planned_date).toUpperCase()}</Text>
@@ -1556,13 +1598,30 @@ export default function ScheduleScreen() {
               <Text style={styles.eyebrow}>TODAY</Text>
               <Text style={styles.headline}>{heroHeadline}</Text>
 
-              {/* Today counted — the streak reads hot/active here, not muted. */}
-              {stats.streak > 0 && (
-                <View style={[styles.heroReadyChip, { alignSelf: 'flex-start' }]}>
-                  <Ionicons name="flame" size={12} color={C.ember} />
-                  <Text style={[styles.heroReadyText, { color: C.ember }]}>{stats.streak}-session streak</Text>
-                </View>
-              )}
+              {/* Today counted — the streak reads hot/active here, not muted.
+                  Check-in stays reachable here too (Phase 8) — a finished day
+                  is exactly when someone might want to log how it felt. */}
+              <View style={styles.heroMetaRow}>
+                {stats.streak > 0 && (
+                  <View style={styles.heroReadyChip}>
+                    <Ionicons name="flame" size={12} color={C.ember} />
+                    <Text style={[styles.heroReadyText, { color: C.ember }]}>{stats.streak}-session streak</Text>
+                  </View>
+                )}
+                <PressableScale style={styles.heroReadyChip} onPress={() => setShowRecovery(true)} scaleTo={0.95}>
+                  {checkin ? (
+                    <>
+                      <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(checkin.readiness, C) }]} />
+                      <Text style={styles.heroReadyText}>Checked in · {checkin.readiness}</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="pulse" size={12} color={C.primary} />
+                      <Text style={styles.heroReadyText}>Daily check-in</Text>
+                    </>
+                  )}
+                </PressableScale>
+              </View>
 
               <FadeInView style={styles.completeCard}>
                 <View style={styles.completeCheck}>
@@ -1629,6 +1688,21 @@ export default function ScheduleScreen() {
                 <PressableScale style={styles.heroReadyChip} onPress={() => router.push('/(tabs)/progress')} scaleTo={0.95}>
                   <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(readiness.score, C) }]} />
                   <Text style={styles.heroReadyText}>{readiness.score}% ready · {intensity.label.toLowerCase()}</Text>
+                </PressableScale>
+                {/* Recovery check-in relocated here (Phase 8, was the header
+                    ring) — still the exact same RecoveryCheckIn sheet. */}
+                <PressableScale style={styles.heroReadyChip} onPress={() => setShowRecovery(true)} scaleTo={0.95}>
+                  {checkin ? (
+                    <>
+                      <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(checkin.readiness, C) }]} />
+                      <Text style={styles.heroReadyText}>Checked in · {checkin.readiness}</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="pulse" size={12} color={C.primary} />
+                      <Text style={styles.heroReadyText}>Daily check-in</Text>
+                    </>
+                  )}
                 </PressableScale>
                 {stats.streak > 0 && (
                   <View style={[styles.heroReadyChip, styles.heroStreakChipMuted]}>
@@ -1767,6 +1841,15 @@ export default function ScheduleScreen() {
         }}
       />
 
+      <OptionSheet
+        visible={feedOpen}
+        title="Feed"
+        subtitle={feedOptions.length ? "What's new today." : "Nothing new right now."}
+        options={feedOptions}
+        onSelect={onSelectFeed}
+        onClose={() => setFeedOpen(false)}
+      />
+
       <EditWorkoutSheet
         visible={editingWorkout !== null}
         workout={editingWorkout}
@@ -1828,11 +1911,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingBottom: 140 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
-  ring: {
-    width: 40, height: 40, borderRadius: Radius.full,
-    borderWidth: 2.5, alignItems: 'center', justifyContent: 'center',
+  feedBtn: {
+    width: 40, height: 40, borderRadius: Radius.full, backgroundColor: C.surfaceContainerLow,
+    alignItems: 'center', justifyContent: 'center',
   },
-  ringValue: { fontFamily: C.fontDisplay, fontSize: 14, letterSpacing: -0.3 },
+  feedBadge: {
+    position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: Radius.full,
+    backgroundColor: C.error, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: C.surface,
+  },
+  feedBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: '#fff' },
   avatar: {
     width: 40, height: 40, borderRadius: Radius.full,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',

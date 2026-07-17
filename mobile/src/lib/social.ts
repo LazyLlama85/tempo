@@ -67,6 +67,20 @@ export async function fetchMyIdentity(client: SupabaseClient, userId: string): P
   return { username: data?.username ?? null, friend_code: data?.friend_code ?? null }
 }
 
+/**
+ * How many incoming friend requests + workout invites are pending — the same
+ * count Profile's Friends header badge already computes. Shared here (Phase 8,
+ * 2026-07-17) so Home's Feed button can aggregate the identical signal instead
+ * of re-deriving it, without a new backend/table.
+ */
+export async function fetchSocialNotifCount(client: SupabaseClient, userId: string): Promise<number> {
+  const [{ count: requests }, { count: invites }] = await Promise.all([
+    client.from('friendships').select('id', { count: 'exact', head: true }).eq('addressee_id', userId).eq('status', 'pending'),
+    client.from('workout_invites').select('id', { count: 'exact', head: true }).eq('to_user', userId).eq('status', 'pending'),
+  ])
+  return (requests ?? 0) + (invites ?? 0)
+}
+
 export const USERNAME_RULE = /^[a-z0-9_]{3,20}$/
 
 /** Update the user's @username. Returns 'ok' | 'invalid' | 'taken' | 'failed'. */
