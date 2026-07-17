@@ -57,14 +57,37 @@
   "Tempo — Activation & Retention" dashboard (id 1865254), empty until the next real build ships.
   Also added Focus Mode weight/reps logging during rest (founder ask) — see `ARCHITECTURE.md`.
 
+- **2026-07-17: full "First-Launch Perfection" plan executed (8 batches) — onboarding + first
+  experience, audit-driven, M4 freeze respected throughout (no new feature surfaces; monetization
+  config deliberately untouched per the founder's own instruction to wait a month).** (1) Per-step
+  onboarding funnel analytics — previously only `onboarding_complete` fired, zero visibility into
+  drop-off. (2) Removed the redundant `/welcome` screen — the plan used to get "revealed" twice in a
+  row. (3) **The core fix**: the reveal's "Already on your calendar" title was literally untrue for
+  anyone who hadn't connected one (calendar connect isn't in onboarding's required path) — now
+  honest, conditional copy plus an optional, skippable calendar tap-in right at the aha moment
+  (reuses `calendar-setup.tsx`'s exact connect/error code, now shared via
+  `services/googleCalendar/connectErrors.ts`). Also fixed sign-in's generic tagline to state the
+  actual differentiator. (4) Badges + Progress's full dashboard now gate on `ACTIVATION_SESSIONS`
+  (two named first-week-overwhelm residuals the earlier B3.2 batch missed). (5) Accessibility pass
+  (RPE chips, onboarding chips, Focus Mode's rest ring, Dynamic Type caps) + `BottomTabInset`
+  consistency; contrast-checked `outline`'s token (fails strict body-text AA, documented not
+  changed). (6) A Home chip surfaces recent adaptation mode changes (missing-feature #15, was
+  "partial"). (7) Drafted `APP_STORE_LISTING.md` + `ACTIVATION_DEFINITION.md` — founder-unblock
+  documents executing the audit's own §16 prescription and B0.3's missing written definition.
+  (8) This entry. `tsc` clean, full suite green (211/211) after every single batch, 7 scoped commits.
+  **All held at code-verified** — none of this has touched a real device yet, same discipline as
+  every other batch this session.
+
 - **Founder's critical path this week:**
   1. **Ship a build with the new PostHog key** (preview or production — either wires up real data)
      — the single fastest way to unblock every M4 decision now that the funnel/retention insights
-     are already waiting. Also still owed: a WRITTEN activation definition (why 2 sessions specifically).
-  2. **On-device test the built-but-unverified backlog** (below) — this is now the bigger blocker
-     than any remaining code.
-  3. **B2.3** (pricing/trial in RevenueCat) and **B6.1/B6.2** (App Store listing + one acquisition
-     channel) — founder-only, unblocked, real ROI, not started.
+     are already waiting. `ACTIVATION_DEFINITION.md` is drafted for sign-off — the one open call in
+     it (should activation gain a time window) is genuinely the founder's to make.
+  2. **On-device test the built-but-unverified backlog** (below, now larger by one more batch) —
+     this is the bigger blocker than any remaining code.
+  3. **B2.3** (pricing/trial in RevenueCat, deliberately not touched this session per explicit
+     instruction) and **B6.1** (App Store listing — `APP_STORE_LISTING.md` is drafted and ready to
+     paste; someone still needs to take the actual screenshots) — founder-only, unblocked.
 
 - **✅ Confirmed on-device (founder-tested, 2026-07-17):** Home (hierarchy pass, timeline rail fade,
   Session Complete screen, bottom stats), Settings/Profile split, editable completed sets +
@@ -77,7 +100,10 @@
   - **Onboarding rebuild** — 6 lighter screens (`goal→schedule→sleep→work-school→train-time→
     plan-preview`), vertical experience picker (no preview card), a real progress-ring "Personalizing
     your plan…" screen, an optional cardio question, a build-your-own-vs-guided branch, a real
-    drag-to-set weight slider.
+    drag-to-set weight slider. **Extended 2026-07-17:** single reveal (no more duplicate `/welcome`
+    screen), honest reveal copy + optional calendar tap-in, per-step funnel analytics, badges/Progress
+    activation gating, an accessibility pass, and a Home adaptation chip — see the same day's Update
+    Log entry in `PRODUCT_AUDIT.html` for the full breakdown.
   - **Interactive Plan tour** (`plan_tour`, the second spotlight tutorial).
   - **Feed button** (Phase 8 — replaces Home's recovery-check-in ring; recovery check-in relocated
     into the hero's readiness row).
@@ -121,7 +147,7 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 |---|---|---|---|---|---|
 | B0.1 | Retention instrumentation (`activation_reached` + `calendar_connected`) | 🔍 | Measurability | `lib/activation.ts`, `analytics.ts` | **Correction 2026-07-17:** the ✅ here was wrong — `EXPO_PUBLIC_POSTHOG_KEY` had never been set anywhere (not `eas.json`, not `.env.local`), so every `track()` call, including these, had been a silent no-op in every build ever shipped. Fixed: real key wired into both EAS profiles + `.env.local`. Events fire correctly in code (unchanged); held at 🔍 until a real build actually ships and PostHog shows a non-zero event count |
 | B0.2 | Google OAuth → Production + fix "connects but no events" | ✅ | Reliability, Trust | `CalendarApiService.describeReadError` (in-app diagnostic) | **Done 2026-07-17** — Google approved the app for production, removing the Testing-mode 7-day token-expiry root cause. 🔍 needs a real >7-day on-device confirmation to fully close M0's own criterion |
-| B0.3 | PostHog funnel + written activation definition | 🔍 | Measurability | PostHog dashboard "Tempo — Activation & Retention" (id 1865254) | **Funnel + retention insights built 2026-07-17** (onboarding_complete→activation_reached funnel; D-by-D retention anchored on activation_reached→app_open) — both currently empty pending B0.1's fix actually shipping in a build. Founder still owes a WRITTEN activation definition (why 2 sessions, not 1 or 3) — that's a product-judgment call, not a code/config task |
+| B0.3 | PostHog funnel + written activation definition | 🔍 | Measurability | PostHog dashboard "Tempo — Activation & Retention" (id 1865254); `ACTIVATION_DEFINITION.md` | **Funnel + retention insights built 2026-07-17** (onboarding_complete→activation_reached funnel; D-by-D retention anchored on activation_reached→app_open) — both currently empty pending B0.1's fix actually shipping in a build. Per-step onboarding funnel analytics added same day (`onboarding_step_completed`). `ACTIVATION_DEFINITION.md` drafted 2026-07-17 (proposes keeping the existing 2-session, no-time-window definition + tracking calendar-connected as a cohort split, not a gate) — awaiting founder sign-off, one open decision named in the doc |
 | B0.4 | Feature-freeze policy (no new surfaces until M4) | ✅ | Focus | `EXECUTION.md` §1/§9 | Written + in effect; re-affirmed 2026-07-17 |
 | B0.5 | Device-matrix QA of redesign; fix any blank-render | 🔍 partial | Reliability, Polish | Real device *(founder)* | Home/Settings/editable-sets confirmed; Focus Mode/onboarding/Plan-tour/Feed button not yet |
 
@@ -175,7 +201,7 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔲 | Install→page conv. | App Store Connect *(founder + copy)* | Screenshot 1 = calendar with slotted workout |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | `APP_STORE_LISTING.md`; App Store Connect *(founder to paste + shoot screenshots)* | **Copy drafted 2026-07-17** — name/subtitle/keywords/promo text/description/5-screenshot narrative, ready to paste. Founder still needs to take the actual screenshots and submit |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, superset, plate calc, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies |

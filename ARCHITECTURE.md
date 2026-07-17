@@ -132,11 +132,17 @@ you moving."*
   persists to localStorage per user — steps complete offline, a failed API can't mark them done, and
   an app upgrade never resets them (a `version` retires steps without wiping progress). Tutorials are
   **armed only at the new-user moment** (`plan-preview`, non-replan), so existing users / re-planners /
-  reinstalls never see them. **`welcome`** (`app/welcome.tsx`, fullScreen) is gated by `(tabs)/_layout`
-  — a fresh account is routed through it before the app and **re-shown on reopen until completed**
-  (force-close-proof). To avoid a double celebration, `plan-preview`'s **new-user** copy is now
-  anticipatory ("Here's your plan" → *we'll build it*) and **`welcome` owns the single "your plan is
-  ready" reveal**; the replan branch (no `welcome`) keeps its own "Your new plan is ready" copy. **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
+  reinstalls never see them.
+  **Single reveal (fixed 2026-07-17 — `app/welcome.tsx` deleted):** a fresh account used to see the
+  plan summarized TWICE in a row — `plan-preview`'s own 7-day animated reveal, then a separate
+  `/welcome` screen repeating Goal/Schedule/Program/First-workout with its own "Explore My Plan" CTA,
+  gated by `(tabs)/_layout` and re-shown on reopen until completed. Genuine, felt redundancy, not a
+  taste call. Now there's exactly one reveal (`plan-preview`'s), and its own "Enter Tempo →" tap calls
+  `completeStep('welcome_done')` directly — same force-close-proof completion flag several other
+  screens gate their own first-run tours on (Home/Plan spotlight tours, `how-tempo-works`), just
+  satisfied one screen earlier instead of via a second screen. `T.welcome` is no longer armed at all;
+  the constant stays defined (existing persisted state safely deserializes) but nothing arms or reads
+  it anymore. **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
   Profile) that dims the screen + cuts a hole around a measured target + floats a tooltip, without
   freezing the UI; auto-starts once on first Home focus after Welcome. (Step 2's `home.today` target
   is anchored to the stable "today" day-group, which always renders in week/day view — not just the
@@ -171,7 +177,7 @@ you moving."*
   their first Change Plan), then routes through `profile-setup` into
   `/split-editor` — pushed on top of `(tabs)` (not `replace`d), the exact same
   push-while-in-tabs pattern `my-splits.tsx` already uses, so its own Close button
-  lands correctly on `/welcome`/`(tabs)` with no new navigation behavior. `schedule.tsx`
+  lands correctly on `(tabs)` with no new navigation behavior. `schedule.tsx`
   also gained an **optional cardio-finisher toggle**, shown only for
   `muscle_gain`/`strength` (the two goals whose templates carry zero cardio by
   design — asking elsewhere would be a question that does nothing).
@@ -185,6 +191,27 @@ you moving."*
   drag-to-set control (big number + slider, "type an exact number" fallback for
   precision) — an untouched slider never writes a value, so leaving it alone
   still skips the optional weigh-in exactly like before.
+  **The wedge, made honest and felt at the reveal (2026-07-17):** the reveal's title
+  used to read *"Already on your calendar"* unconditionally — literally untrue for
+  the common case, since calendar connection isn't part of onboarding's required
+  path. `plan-preview.tsx` now checks `isGoogleCalendarConnected()` /
+  `getCalendarPermissionStatus()` when the reveal mounts: connected → keeps that
+  copy; not connected (most new users) → **"Your first week, planned."** with a
+  subtitle carrying forward the concept `how-tempo-works` previously only
+  explained several screens later ("Tempo schedules every session around your
+  real life..."). Underneath the 7-day list, an **optional, skippable calendar
+  tap-in** ("See it with your real calendar") offers Google or device connect
+  right there — reusing `connectGoogleCalendar`/`requestCalendarPermissions`
+  and the SAME error-copy mapping `calendar-setup.tsx` uses (extracted to
+  `services/googleCalendar/connectErrors.ts` so the two call sites can't drift
+  apart). A successful connect re-runs `autoScheduleUpcoming` and re-fetches the
+  reveal list live, so the magic is felt immediately, not just promised — never
+  blocks "Enter Tempo →". New `onboarding_calendar_prompt` analytics event
+  (`connected_google`/`connected_device`/`failed`/`skipped`) tracks the offer's
+  real conversion once a build ships. **Per-step funnel analytics (B0.3):** each
+  of the 6 onboarding screens now fires `onboarding_step_completed` on advance —
+  previously only `onboarding_complete` (the very end) existed, so there was zero
+  visibility into where users actually dropped off.
   **Profile → Replay App Tour** re-arms it (and also clears the
   `how_tempo_works` one-off tip below, via its localStorage key directly). Analytics:
   `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
@@ -210,7 +237,7 @@ you moving."*
   **`settings`** (new, 2026-07-16/17 — every "how the app behaves" row moved off Profile: Calendar &
   Scheduling, Notifications, Subscription, Tester Tools, App, Account, sign-out/delete; reached via
   Profile's header gear icon, registered in `_layout.tsx` as a `slide_from_bottom` modal),
-  `travel-mode` (now Pro-gated-but-teased — see §10), `legal` (Privacy + Terms), `workout-complete`, `welcome` (post-onboarding reveal),
+  `travel-mode` (now Pro-gated-but-teased — see §10), `legal` (Privacy + Terms), `workout-complete`
   `weekly-report` (Sunday progress recap), `plan-explainer` ("why this week" periodization explanation),
   **`workout-builder`** (two modes: **create/edit** a saved workout = name + exercises → library,
   with no scheduling UI; **schedule** = opened with a `date` param from Add Workout, adds date/time +
@@ -1670,6 +1697,39 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   activation — hiding an actual notification would be a regression, not disclosure. Deep links (a
   notification tap routing to `/social`, a group-invite link) are untouched — only the discoverable
   entry points are gated, never the routes themselves.
+  **Two more residuals closed (2026-07-17):** badges were still visible from session one — Profile's
+  header ribbon icon now gates on `activated || newBadges > 0` (same pattern as Friends: anyone who's
+  already earned a badge keeps seeing the icon even pre-activation). Progress's full Fitness
+  Intelligence dashboard (Tempo Score, momentum, heatmap, muscle balance, journey timeline) also hit a
+  user with a single logged session — `(tabs)/progress.tsx` now has a third branch (between the
+  zero-session `EmptyState` and the full dashboard) for `!activated`: consistency ring, streak card,
+  and the volume trend chart only, plus one quiet teaser row ("More unlocks as you train...") — no
+  lock icons, no upsell voice, pure pacing. The full dashboard branch is untouched, byte-for-byte.
+  **Adaptation made visible outside the runner (missing-feature #15, previously "partial"):** the
+  adaptation engine (`lib/adaptation.ts`) already re-stamps future plan weeks on a mode change, but
+  nothing outside the runner ever announced it. A new Home context item (`adaptation`, between
+  `report` and `quick` in priority) reads the most recent `adaptation_events` row where
+  `trigger='auto_periodization'` (`['adaptation_recent', userId]`, 5-min staleTime, in
+  `useRefreshOnFocus`) and shows "Recovery week" / "Deload week" / "Back to full intensity" for events
+  ≤7 days old. Suppressed whenever `blockPhase.mode` is `'recovery'`/`'deload'` — that chip already
+  appends "· auto-adjusted" for the current week, so the new chip's real value is specifically the
+  "we're back to normal" transition, which nothing else surfaces.
+- **Accessibility + inset-consistency pass (2026-07-17, pre-launch per audit §06):** RPE rating chips
+  (`(tabs)/plan.tsx`) previously read as bare numbers ("1".."10") to a screen reader — now
+  `accessibilityLabel="Rate this set RPE {n}"`. Onboarding's day/minute/off-day/time-of-day chips
+  (`schedule.tsx`, `train-time.tsx`) gained labels + `accessibilityState={{selected}}`. Focus Mode's
+  rest ring (`FocusMode.tsx`) had no accessible label at all (its only info lived inside an SVG
+  overlay) — the ring wrapper now carries a live `accessibilityLabel` ("Resting, M:SS remaining" /
+  the target-reps label). Fixed-size ring text (Focus Mode, Progress's consistency ring) got
+  `maxFontSizeMultiplier` caps so Dynamic Type can't visually overflow a circle — everything else
+  stays uncapped by design. All four tabs' hardcoded scroll `paddingBottom` (120/140/150) now
+  reference the shared `BottomTabInset` constant (`+44`/`+54`/`+24`/`+24` respectively) — identical
+  rendered values, now drift-proof against a future dock height change. **Contrast checked, not
+  changed:** `outline` (#6E7480 dark / #8A8089 light) on `surface` computes to ~4.06:1 / ~3.6:1 —
+  passes WCAG AA for large/bold text (3:1) but fails strict body-text AA (4.5:1). Left the token
+  alone — it's load-bearing for the whole visual identity across 60+ files, and nudging a global
+  color with no way to eyeball the result on a real device is exactly the kind of change this
+  session's "verify, don't guess" discipline argues against. Documented for the founder instead.
 - **Privacy/compliance:** in-app Privacy Policy + Terms (`legal.tsx`, opened from the sign-in footer
   **and** Profile → Privacy & Terms — the sign-in links were previously dead text, now wired),
   in-app **account deletion** (App Store Guideline 5.1.1(v)), per-user RLS everywhere, Google token
