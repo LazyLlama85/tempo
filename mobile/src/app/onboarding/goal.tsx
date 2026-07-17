@@ -12,7 +12,7 @@ import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-nati
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
@@ -32,63 +32,14 @@ const GOALS: { id: Goal; label: string; description: string; icon: string }[] = 
   { id: 'general_fitness', label: 'General Fitness', description: 'Feel good and stay healthy.', icon: 'pulse-outline' },
 ]
 
-// Each level previews a real slice of the program it unlocks — sample lifts with
-// honest set×rep prescriptions — so the choice communicates consequences, not vibes.
 // Years-training is the simplest, least-ambiguous way to self-place (no jargon
 // judgment call like "how advanced are you") — matches the founder's explicit ask
-// for Heavy-style, plain-language level picking.
-const LEVELS: {
-  id: Experience
-  label: string
-  years: string
-  tagline: string
-  sub: string
-  icon: string
-  intensity: 1 | 2 | 3
-  lifts: { name: string; rx: string }[]
-}[] = [
-  {
-    id: 'beginner',
-    label: 'Beginner',
-    years: '0–1 year',
-    tagline: 'Build the foundation',
-    sub: 'Form-first coaching and steady, confident progress.',
-    icon: 'leaf-outline',
-    intensity: 1,
-    lifts: [
-      { name: 'Goblet Squat', rx: '3 × 10' },
-      { name: 'Push-Up', rx: '3 × 8' },
-      { name: 'Dumbbell Row', rx: '3 × 10' },
-    ],
-  },
-  {
-    id: 'intermediate',
-    label: 'Intermediate',
-    years: '1–3 years',
-    tagline: 'Push past plateaus',
-    sub: 'Barbell lifts, steady weekly increases, and built-in recovery weeks.',
-    icon: 'barbell-outline',
-    intensity: 2,
-    lifts: [
-      { name: 'Barbell Squat', rx: '4 × 8' },
-      { name: 'Bench Press', rx: '4 × 8' },
-      { name: 'Romanian Deadlift', rx: '3 × 10' },
-    ],
-  },
-  {
-    id: 'advanced',
-    label: 'Advanced',
-    years: '3+ years',
-    tagline: 'Chase peak performance',
-    sub: 'Heavier work that adapts to your performance.',
-    icon: 'flash-outline',
-    intensity: 3,
-    lifts: [
-      { name: 'Back Squat', rx: '5 × 5' },
-      { name: 'Weighted Pull-Up', rx: '4 × 6' },
-      { name: 'Barbell RDL', rx: '4 × 8' },
-    ],
-  },
+// for Heavy-style, plain-language level picking. A vertical list, not a preview
+// card — the founder's ask: no sample-lifts/intensity-meter glimpse, just pick one.
+const LEVELS: { id: Experience; label: string; years: string; sub: string; icon: string }[] = [
+  { id: 'beginner', label: 'Beginner', years: '0–1 year', sub: 'Form-first coaching and steady, confident progress.', icon: 'leaf-outline' },
+  { id: 'intermediate', label: 'Intermediate', years: '1–3 years', sub: 'Barbell lifts, steady weekly increases, and built-in recovery weeks.', icon: 'barbell-outline' },
+  { id: 'advanced', label: 'Advanced', years: '3+ years', sub: 'Heavier work that adapts to your performance.', icon: 'flash-outline' },
 ]
 
 const EQUIPMENT: { id: Equipment; label: string; description: string; icon: string }[] = [
@@ -151,7 +102,6 @@ export default function BasicsScreen() {
     })
   }
 
-  const current = LEVELS.find((l) => l.id === expSel)!
   // Step 1 of 4 overall; fill that first quarter across however many basics cards
   // this account gets (4 for a new user, 3 for a replan — no build-mode card).
   const progressPct = `${((cardIndex + 1) * 25) / cardCount}%` as `${number}%`
@@ -219,66 +169,33 @@ export default function BasicsScreen() {
               <Text style={styles.title}>How much experience do you have?</Text>
               <Text style={styles.subtitle}>This sets your exercises, starting weights, and how hard we push from day one.</Text>
 
-              {/* Segmented control */}
-              <View style={styles.segmented}>
-                {LEVELS.map((level) => (
-                  <PressableScale
-                    key={level.id}
-                    style={[styles.segment, expSel === level.id && styles.segmentActive]}
-                    onPress={() => setExpSel(level.id)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: expSel === level.id }}
-                  >
-                    <Text style={[styles.segmentText, expSel === level.id && styles.segmentTextActive]}>
-                      {level.label}
-                    </Text>
-                    <Text style={[styles.segmentYears, expSel === level.id && styles.segmentYearsActive]}>
-                      {level.years}
-                    </Text>
-                  </PressableScale>
-                ))}
-              </View>
-
-              {/* Preview card — a real glimpse of training at this level, crossfading as
-                  the selection changes so the choice feels alive. */}
-              <FadeInView key={expSel} duration={220}>
-                <View style={styles.previewCard}>
-                  <View style={styles.previewHead}>
-                    <View style={styles.previewIconChip}>
-                      <Ionicons name={current.icon as any} size={20} color={C.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.previewYears}>{current.label.toUpperCase()} · {current.years} TRAINING</Text>
-                      <Text style={styles.previewTagline}>{current.tagline}</Text>
-                      <Text style={styles.previewSub}>{current.sub}</Text>
-                    </View>
-                    <View
-                      style={styles.meter}
-                      accessible
-                      accessibilityLabel={`Training intensity ${current.intensity} of 3`}
+              {/* Vertical option list, matching the Goal/Equipment cards — no preview,
+                  no intensity meter/sample lifts; years-training is the whole answer. */}
+              <View style={styles.options}>
+                {LEVELS.map((level) => {
+                  const isSelected = expSel === level.id
+                  return (
+                    <PressableScale
+                      key={level.id}
+                      style={[styles.option, isSelected && styles.optionSelected]}
+                      onPress={() => setExpSel(level.id)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                     >
-                      {[1, 2, 3].map((i) => (
-                        <View
-                          key={i}
-                          style={[styles.meterBar, { height: 8 + i * 5 }, i <= current.intensity && styles.meterBarOn]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.previewDivider} />
-
-                  <Text style={styles.previewEyebrow}>A SESSION AT THIS LEVEL</Text>
-                  {current.lifts.map((l) => (
-                    <View key={l.name} style={styles.liftRow}>
-                      <Ionicons name="checkmark-circle" size={16} color={C.primary} />
-                      <Text style={styles.liftName}>{l.name}</Text>
-                      <Text style={styles.liftRx}>{l.rx}</Text>
-                    </View>
-                  ))}
-                </View>
-              </FadeInView>
+                      <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
+                        <Ionicons name={level.icon as any} size={22} color={isSelected ? C.onPrimary : C.primary} />
+                      </View>
+                      <View style={styles.optionText}>
+                        <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                          {level.label} · {level.years}
+                        </Text>
+                        <Text style={styles.optionDesc}>{level.sub}</Text>
+                      </View>
+                    </PressableScale>
+                  )
+                })}
+              </View>
 
               {/* Reassurance: this isn't a permanent label. */}
               <View style={styles.hintRow}>
@@ -410,37 +327,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   checkOn: { backgroundColor: C.primary, borderColor: C.primary },
 
-  // Experience segmented + preview
-  segmented: {
-    flexDirection: 'row', backgroundColor: C.surfaceContainerLow,
-    borderRadius: Radius.lg, padding: 4, gap: 4,
-  },
-  segment: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center' },
-  segmentActive: { backgroundColor: C.background, shadowColor: C.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  segmentText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
-  segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
-  segmentYears: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, marginTop: 1 },
-  segmentYearsActive: { color: C.primary },
-  previewCard: {
-    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
-    borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, gap: Spacing.sm,
-  },
-  previewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  previewIconChip: {
-    width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  previewYears: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.primary, letterSpacing: 0.5, marginBottom: 2 },
-  previewTagline: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
-  previewSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
-  meter: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 23 },
-  meterBar: { width: 5, borderRadius: Radius.full, backgroundColor: C.surfaceContainerHigh },
-  meterBarOn: { backgroundColor: C.primary },
-  previewDivider: { height: 1, backgroundColor: C.surfaceContainerHigh },
-  previewEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6 },
-  liftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: 2 },
-  liftName: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14.5, color: C.text },
-  liftRx: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.xs },
   hintText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
 

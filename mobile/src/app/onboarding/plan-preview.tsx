@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
+import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -358,7 +359,30 @@ export default function PlanPreviewScreen() {
         <View style={[styles.progressFill, { width: '100%' }]} />
       </View>
 
-      {status === 'revealing' ? (
+      {status === 'generating' ? (
+        // A real, dedicated "personalizing your plan" screen (founder ask) — was
+        // just a footer text row before, which read as "stuck" on a slow chain
+        // (profile save → generate → auto-schedule → reminders, all real network
+        // round-trips). The ring's value tracks BUILD_STEPS' progress through that
+        // chain — not fake, each step really is a phase of it — so it never looks
+        // frozen even on a slow connection.
+        <View style={styles.generatingWrap}>
+          <SvgProgressRing
+            value={((buildStep + 1) / BUILD_STEPS.length) * 100}
+            size={180}
+            stroke={12}
+            gradientFrom={C.primary}
+            gradientTo={C.primary}
+          >
+            <TempoPulse size={22} />
+          </SvgProgressRing>
+          {/* isCustomBuild never reaches 'generating' — it skips generatePlan entirely */}
+          <Text style={styles.generatingTitle}>Personalizing your plan…</Text>
+          <FadeInView key={buildStep} duration={220}>
+            <Text style={styles.generatingStep}>{BUILD_STEPS[buildStep]}</Text>
+          </FadeInView>
+        </View>
+      ) : status === 'revealing' ? (
         // The onboarding aha (B3.3): the REAL week Tempo just built, dropping into
         // place one day at a time — the payoff, with the lights on, not a mockup.
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -447,13 +471,8 @@ export default function PlanPreviewScreen() {
       </ScrollView>
       )}
 
+      {status !== 'generating' && (
       <View style={styles.footer}>
-        {status === 'generating' && (
-          <View style={styles.buildingRow}>
-            <TempoPulse size={18} />
-            <Text style={styles.buildingText}>{BUILD_STEPS[buildStep]}</Text>
-          </View>
-        )}
         {status === 'revealing' ? (
           <PressableScale style={styles.confirmBtn} onPress={enterApp} activeOpacity={0.85}>
             <Text style={styles.confirmText}>Enter Tempo →</Text>
@@ -475,6 +494,7 @@ export default function PlanPreviewScreen() {
         </PressableScale>
         )}
       </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -507,8 +527,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   adaptNote: { flexDirection: 'row', gap: 8, backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md },
   adaptNoteText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.xs },
-  buildingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: 4 },
-  buildingText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary, textAlign: 'center' },
+  generatingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, paddingHorizontal: Spacing.xl },
+  generatingTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.2 },
+  generatingStep: { fontFamily: 'Inter_500Medium', fontSize: 14.5, color: C.textSecondary, textAlign: 'center' },
   confirmBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
   // ── Onboarding aha reveal (B3.3) ──────────────────────────────────────────
