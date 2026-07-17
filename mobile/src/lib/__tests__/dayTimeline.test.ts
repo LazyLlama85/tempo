@@ -1,4 +1,4 @@
-import { buildDayTimeline, resolveBounds, type TimelineItem, type TimelineWorkout } from '@/lib/dayTimeline'
+import { buildDayGaps, buildDayTimeline, resolveBounds, type TimelineItem, type TimelineWorkout } from '@/lib/dayTimeline'
 
 const workout = (over: Partial<TimelineWorkout> = {}, hero = false): TimelineItem => ({
   kind: 'workout',
@@ -128,5 +128,69 @@ describe('buildDayTimeline', () => {
     const blocks = buildDayTimeline(items, bounds)
     expect(blocks[0].item).toBe(items[0])
     expect(blocks[1].item).toBe(items[1])
+  })
+})
+
+describe('buildDayGaps', () => {
+  it('returns no gaps for an empty day or a single item', () => {
+    expect(buildDayGaps([])).toEqual([])
+    expect(buildDayGaps([event({ start: new Date(2026, 0, 5, 8, 0), end: new Date(2026, 0, 5, 8, 30) })])).toEqual([])
+  })
+
+  it('finds a real gap between two items', () => {
+    const items = [
+      event({ start: new Date(2026, 0, 5, 8, 0), end: new Date(2026, 0, 5, 8, 30) }),
+      workout({ planned_start_time: '10:00:00', planned_duration_min: 45 }), // 90-min gap
+    ]
+    const gaps = buildDayGaps(items)
+    expect(gaps).toEqual([{ startMin: 510, endMin: 600, beforeIndex: 1 }]) // 8:30am-10:00am
+  })
+
+  it('drops a gap shorter than the minimum meaningful length', () => {
+    const items = [
+      event({ start: new Date(2026, 0, 5, 8, 0), end: new Date(2026, 0, 5, 8, 30) }),
+      workout({ planned_start_time: '08:35:00', planned_duration_min: 45 }), // only 5 min gap
+    ]
+    expect(buildDayGaps(items)).toEqual([])
+  })
+
+  it('produces no gap for back-to-back items', () => {
+    const items = [
+      event({ start: new Date(2026, 0, 5, 8, 0), end: new Date(2026, 0, 5, 9, 0) }),
+      workout({ planned_start_time: '09:00:00', planned_duration_min: 45 }),
+    ]
+    expect(buildDayGaps(items)).toEqual([])
+  })
+
+  it('an item fully nested inside an earlier item never produces a spurious gap', () => {
+    const items = [
+      event({ id: 'a', start: new Date(2026, 0, 5, 9, 0), end: new Date(2026, 0, 5, 11, 0) }),
+      workout({ planned_start_time: '09:30:00', planned_duration_min: 30 }), // fully inside the event
+      event({ id: 'b', start: new Date(2026, 0, 5, 11, 15), end: new Date(2026, 0, 5, 11, 45) }), // 15-min gap: under threshold
+    ]
+    expect(buildDayGaps(items)).toEqual([])
+  })
+
+  it('finds only the gap after the overlap cluster ends, not a false one mid-overlap', () => {
+    const items = [
+      event({ id: 'a', start: new Date(2026, 0, 5, 9, 0), end: new Date(2026, 0, 5, 11, 0) }),
+      workout({ planned_start_time: '09:30:00', planned_duration_min: 30 }), // fully inside the event
+      event({ id: 'b', start: new Date(2026, 0, 5, 11, 45), end: new Date(2026, 0, 5, 12, 0) }), // 45-min gap after
+    ]
+    const gaps = buildDayGaps(items)
+    expect(gaps).toEqual([{ startMin: 660, endMin: 705, beforeIndex: 2 }]) // 11:00am-11:45am
+  })
+
+  it('multiple gaps in one day all report the correct beforeIndex', () => {
+    const items = [
+      workout({ planned_start_time: '07:00:00', planned_duration_min: 30 }), // ends 7:30
+      event({ start: new Date(2026, 0, 5, 9, 0), end: new Date(2026, 0, 5, 9, 30) }), // gap 7:30-9:00
+      event({ id: 'e2', start: new Date(2026, 0, 5, 12, 0), end: new Date(2026, 0, 5, 12, 30) }), // gap 9:30-12:00
+    ]
+    const gaps = buildDayGaps(items)
+    expect(gaps).toEqual([
+      { startMin: 450, endMin: 540, beforeIndex: 1 },
+      { startMin: 570, endMin: 720, beforeIndex: 2 },
+    ])
   })
 })

@@ -1,101 +1,89 @@
-// Tempo — the day-timeline hero glance (Home redesign, plan approved 2026-07-16).
+// Tempo — the day-timeline vertical rail (Home IA redesign, plan approved
+// 2026-07-16, superseding the horizontal ruler from the first day-timeline pass
+// the same day). Home's founder-reviewed feedback: the horizontal strip read as
+// a weak afterthought above the real cards. This version makes the existing
+// card list itself feel like a timeline instead — a continuous rail line behind
+// the naturally-flowing `renderWorkout`/`renderEvent` cards (still rendered by
+// `(tabs)/index.tsx`, still completely unchanged), plus a `GapRow` between
+// items so "your real calendar gaps with the workout dropped in place" is
+// visible, not just implied.
 //
-// A compact, NON-INTERACTIVE visual strip showing today's real calendar shape —
-// busy blocks + the Tempo workout dropped into its actual gap — so the
-// scheduling intelligence is *felt* in a glance ("your real calendar gaps with
-// the workout dropped in place"), not just implied by a time label buried in a
-// card. Deliberately does NOT replace or modify the existing interactive cards
-// below it (`renderWorkout`/`renderEvent` in `(tabs)/index.tsx`) — those keep
-// every bit of their existing badge/reschedule/conflict logic completely
-// untouched. This is a new, additive element that sits above them; a design
-// fork was raised and this (over a full absolute-position replacement of the
-// card list) was the explicitly chosen lower-risk option.
-//
-// No new data: fed entirely by `lib/dayTimeline.ts`'s pure layout over Home's
-// already-merged, already-sorted today feed — no new fetches, no new state.
+// Deliberately NOT time-proportional (no absolute positioning by minute): card
+// heights vary a lot (a conflict note, a MISSED badge, an overdue prompt all
+// add height), and this RN0.85/React19/new-arch stack has already produced
+// several silent-rendering bugs this session — position-by-time risks visually
+// overlapping cards. The rail line is a single decorative absolutely-positioned
+// element spanning the whole (naturally-flowing) list, which carries none of
+// that per-item risk.
 
 import { View, Text, StyleSheet } from 'react-native'
 import { Spacing, Radius } from '@/constants/theme'
 import { useThemedStyles, type Palette } from '@/theme'
-import type { TimelineBlock, TimelineBounds } from '@/lib/dayTimeline'
 
-const ROW_HEIGHT = 20
-const AXIS_TOP_OFFSET = 18
+// Must match `index.tsx`'s `railTime` column width exactly so the rail line
+// (drawn here) lines up with the time labels (drawn there) — imported by both
+// rather than duplicated as two magic numbers that could quietly drift apart.
+export const RAIL_COLUMN_WIDTH = 52
 
-function hourLabel(min: number): string {
-  const h24 = Math.floor((((min % 1440) + 1440) % 1440) / 60)
-  const h = h24 % 12 || 12
-  return `${h}${h24 >= 12 ? 'p' : 'a'}`
+interface RailProps {
+  children: React.ReactNode
 }
 
-interface Props {
-  blocks: TimelineBlock[]
-  bounds: TimelineBounds
-}
-
-export function DayTimelineStrip({ blocks, bounds }: Props) {
+/** Wraps a vertically-flowing list of timeline rows with one continuous rail
+ * line behind them, centered in the time-label column. Purely decorative. */
+export function TimelineRail({ children }: RailProps) {
   const styles = useThemedStyles(makeStyles)
-  // Honest empty state: nothing to glance at (no calendar connected, no
-  // workout, no events) means no ruler — never an empty box that looks broken.
-  if (!blocks.length) return null
-
-  const rows = Math.max(...blocks.map((b) => b.lane)) + 1
-  const height = AXIS_TOP_OFFSET + rows * ROW_HEIGHT + 6
-
   return (
-    // Purely decorative/supplementary — the real, accessible content is the
-    // card list below. Screen readers skip this entirely rather than trying
-    // to make sense of a wall of positioned Views (the exact "custom visual =
-    // screen-reader dead zone" risk called out for this app's other rings).
-    <View
-      style={[styles.wrap, { height }]}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <View style={styles.axisLine} />
-      <Text style={[styles.axisLabel, styles.axisLabelStart]}>{hourLabel(bounds.startMin)}</Text>
-      <Text style={[styles.axisLabel, styles.axisLabelEnd]}>{hourLabel(bounds.endMin)}</Text>
-      {blocks.map((b) => {
-        const isHero = b.item.kind === 'workout' && b.item.hero
-        const left = Math.max(0, Math.min(100, b.topPct))
-        const width = Math.max(2, Math.min(100 - left, b.heightPct))
-        return (
-          <View
-            key={b.item.kind === 'workout' ? `w-${b.item.workout.id}` : `e-${b.item.event.id}`}
-            style={[
-              styles.block,
-              isHero ? styles.blockHero : styles.blockEvent,
-              { left: `${left}%` as `${number}%`, width: `${width}%` as `${number}%`, top: AXIS_TOP_OFFSET + b.lane * ROW_HEIGHT },
-            ]}
-          >
-            {b.item.kind === 'workout' && b.item.hero && (
-              <Text style={styles.blockLabel} numberOfLines={1}>{b.item.workout.focus}</Text>
-            )}
-          </View>
-        )
-      })}
+    <View style={styles.railWrap}>
+      <View pointerEvents="none" style={styles.railLine} />
+      {children}
+    </View>
+  )
+}
+
+function formatGapDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m} min`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
+interface GapRowProps {
+  minutes: number
+}
+
+/** A single "N free" row between two timeline items — the visible proof of
+ * "Tempo found the space in your real day," not just an asserted claim. */
+export function GapRow({ minutes }: GapRowProps) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={styles.gapRow}>
+      {/* Centered in a column the same width as `railTime` so the dot sits
+          exactly on the rail line, like a marker along it. */}
+      <View style={styles.gapRailCell}>
+        <View style={styles.gapDot} />
+      </View>
+      <Text style={styles.gapText}>{formatGapDuration(minutes)} free</Text>
     </View>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  wrap: {
-    position: 'relative',
-    backgroundColor: C.surfaceContainerLow,
-    borderRadius: Radius.lg,
-    marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    overflow: 'hidden',
+  railWrap: { position: 'relative' },
+  railLine: {
+    position: 'absolute',
+    left: RAIL_COLUMN_WIDTH / 2 - 1,
+    top: 6, bottom: 6,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: C.outlineVariant,
   },
-  axisLine: {
-    position: 'absolute', left: Spacing.sm, right: Spacing.sm, top: AXIS_TOP_OFFSET - 1,
-    height: 1, backgroundColor: C.outlineVariant,
+  gapRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: 6,
   },
-  axisLabel: { position: 'absolute', top: 2, fontFamily: 'Inter_500Medium', fontSize: 10, color: C.outline },
-  axisLabelStart: { left: Spacing.sm },
-  axisLabelEnd: { right: Spacing.sm },
-  block: { position: 'absolute', height: ROW_HEIGHT - 6, borderRadius: Radius.sm, justifyContent: 'center', paddingHorizontal: 4 },
-  blockEvent: { backgroundColor: C.surfaceContainerHigh },
-  blockHero: { backgroundColor: C.primary },
-  blockLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.onPrimary },
+  gapRailCell: { width: RAIL_COLUMN_WIDTH, alignItems: 'center', justifyContent: 'center' },
+  gapDot: { width: 6, height: 6, borderRadius: Radius.full, backgroundColor: C.outlineVariant },
+  gapText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, fontStyle: 'italic' },
 })

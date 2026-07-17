@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback, type ReactNode } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, ActivityIndicator, type LayoutChangeEvent } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, ActivityIndicator } from 'react-native'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -18,11 +18,10 @@ import { PressableScale, FadeInView, ScreenTransition } from '@/components/motio
 import { ScreenHeader, HeaderActions } from '@/components/brand'
 import { AnimatedRing } from '@/components/AnimatedRing'
 import { EmptyState } from '@/components/EmptyState'
-import { DayTimelineStrip } from '@/components/DayTimeline'
-import { buildDayTimeline, resolveBounds, type TimelineItem } from '@/lib/dayTimeline'
+import { TimelineRail, GapRow, RAIL_COLUMN_WIDTH } from '@/components/DayTimeline'
+import { buildDayGaps, type TimelineItem } from '@/lib/dayTimeline'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { useProGate } from '@/stores/entitlements'
 import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
 import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/CalendarAuthService'
@@ -42,9 +41,10 @@ import {
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
-import { suggestNextSlot, rescheduleWorkout, rescheduleWholeWeek, type SlotSuggestion } from '@/lib/reschedule'
+import { suggestNextSlot, rescheduleWorkout, type SlotSuggestion } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
-import { track } from '@/lib/analytics'
+import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
+import { describeSession } from '@/lib/sessionRationale'
 import { trackCalendarConnected } from '@/lib/activation'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
@@ -62,8 +62,6 @@ import { projectGoal } from '@/lib/goalProjection'
 import { OptionSheet } from '@/components/OptionSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
-const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
   fat_loss: 'Lose Fat',
@@ -72,7 +70,6 @@ const GOAL_LABELS: Record<string, string> = {
   athletic: 'Athletic Performance',
 }
 type IconName = keyof typeof Ionicons.glyphMap
-type ViewMode = 'day' | 'week' | 'month'
 
 // ── Date helpers (local time, no UTC shift) ───────────────────────────────────
 
@@ -92,33 +89,12 @@ function addDays(d: Date, n: number): Date {
   return x
 }
 
-// Sunday as the first day of the week (matches US calendars + the S M T … strip).
-function startOfWeek(d: Date): Date {
-  const x = new Date(d)
-  x.setHours(0, 0, 0, 0)
-  x.setDate(x.getDate() - x.getDay())
-  return x
-}
-
-function getWeekDays(d: Date): Date[] {
-  const s = startOfWeek(d)
-  return Array.from({ length: 7 }, (_, i) => addDays(s, i))
-}
-
 // 'YYYY-MM-DD' → 'Today' / 'Tomorrow' / weekday, for the next-workout card.
 function relativeDayLabel(dateStr: string): string {
   const today = new Date()
   if (dateStr === toDateStr(today)) return 'Today'
   if (dateStr === toDateStr(addDays(today, 1))) return 'Tomorrow'
   return parseLocal(dateStr).toLocaleDateString('en-US', { weekday: 'long' })
-}
-
-// 6-row month grid (42 cells) starting on the Sunday on/before the 1st, so the
-// grid always aligns to weekday columns and never reflows between months.
-function getMonthGrid(d: Date): Date[] {
-  const first = new Date(d.getFullYear(), d.getMonth(), 1)
-  const s = startOfWeek(first)
-  return Array.from({ length: 42 }, (_, i) => addDays(s, i))
 }
 
 const minOfTime = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -193,11 +169,16 @@ type FeedItem =
   | { kind: 'workout'; sort: number; workout: ScheduledWorkout; hero: boolean }
   | { kind: 'event'; sort: number; event: DayEvent }
 
-interface DayGroup {
-  dateStr: string
-  date: Date
-  isToday: boolean
-  items: FeedItem[]
+// A lightweight exercise "peek" for the hero card's tap-to-expand — just enough
+// for a numbered name list + `describeSession()`'s reasoning, NOT the full
+// prescription/warmup/log-resuming load `(tabs)/plan.tsx`'s runner does when it
+// actually loads a session. Fetched lazily (only once expanded), zero query
+// weight until the user asks for it.
+interface HeroPreviewExercise {
+  id: string
+  name: string
+  movement_pattern: string
+  primary_muscles: string[] | null
 }
 
 // A single "today's context" item. The whole Home feed used to stack up to eight of
@@ -228,8 +209,10 @@ export default function ScheduleScreen() {
   const todayStr = toDateStr(today)
   const avatar = parseAvatar(profile?.avatar_url)
 
-  const [viewMode, setViewMode] = useState<ViewMode>('week')
-  const [selectedDate, setSelectedDate] = useState(todayStr)
+  // Home = today only (IA redesign, 2026-07-16) — the Day/Week/Month calendar
+  // (and "Reschedule my whole week") moved to the Plan tab, which now owns all
+  // multi-day scheduling. `selectedDate`/`viewMode` no longer exist here: there
+  // is only ever one day to show.
   const [refreshing, setRefreshing] = useState(false)
   const [rescheduling, setRescheduling] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
@@ -238,11 +221,10 @@ export default function ScheduleScreen() {
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
   const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
   const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
-  // B1.3b — "Reschedule my whole week" UI over the B1.3a engine.
-  const [weekRescheduleConfirm, setWeekRescheduleConfirm] = useState(false)
-  const [weekRescheduling, setWeekRescheduling] = useState(false)
-  // B2.1 — the payable moment: gates the reschedule-week action, dormant-safe.
-  const { requirePro: requireProForSchedule } = useProGate()
+  // Hero card tap-to-expand (exercise list + "why this workout") + the "lacking
+  // time? swap to a quick workout instead" escape hatch.
+  const [heroExpanded, setHeroExpanded] = useState(false)
+  const [swapConfirmWorkout, setSwapConfirmWorkout] = useState<ScheduledWorkout | null>(null)
   // Ticks every minute so a workout flips to "overdue" an hour after its start
   // without needing a manual refresh.
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -251,30 +233,10 @@ export default function ScheduleScreen() {
     return () => clearInterval(t)
   }, [])
 
-  const scrollRef = useRef<ScrollView>(null)
-  const sectionY = useRef<Record<string, number>>({})
   const queryClient = useQueryClient()
 
-  const selDate = useMemo(() => parseLocal(selectedDate), [selectedDate])
-
-  // ── Visible ranges ──────────────────────────────────────────────────────────
-  // Calendar range = what the strip/grid shows (and therefore which days need
-  // workout dots). Feed range = which days the list below renders.
-  const weekDays = useMemo(() => getWeekDays(selDate), [selDate])
-  const monthGrid = useMemo(() => getMonthGrid(selDate), [selDate])
-
-  const calRange = useMemo(() => {
-    const cells = viewMode === 'month' ? monthGrid : weekDays
-    return { start: toDateStr(cells[0]), end: toDateStr(cells[cells.length - 1]) }
-  }, [viewMode, weekDays, monthGrid])
-
-  const feedRange = useMemo(() => {
-    if (viewMode === 'week') return { start: toDateStr(weekDays[0]), end: toDateStr(weekDays[6]) }
-    return { start: selectedDate, end: selectedDate }
-  }, [viewMode, weekDays, selectedDate])
-
   // ── Data ──────────────────────────────────────────────────────────────────--
-  const workoutsKey = ['scheduled_workouts', userId, calRange.start, calRange.end]
+  const workoutsKey = ['scheduled_workouts', userId, todayStr]
 
   const { data: workouts = [], isLoading, isFetching, isError, refetch } = useQuery<ScheduledWorkout[]>({
     queryKey: workoutsKey,
@@ -283,16 +245,12 @@ export default function ScheduleScreen() {
         .from('scheduled_workouts')
         .select('*')
         .eq('user_id', userId)
-        .gte('planned_date', calRange.start)
-        .lte('planned_date', calRange.end)
-        .order('planned_date')
+        .eq('planned_date', todayStr)
         .order('planned_start_time')
       if (error) throw error
       return (data ?? []) as ScheduledWorkout[]
     },
     enabled: !!userId,
-    // Paging the visible week/month keeps the previous range on screen instead
-    // of flashing a skeleton while the new range loads.
     placeholderData: keepPreviousData,
   })
 
@@ -308,7 +266,9 @@ export default function ScheduleScreen() {
   // First-run Home tour: spotlight targets (calendar + today's card here; the GO/
   // Progress/Profile targets live in the tab bar). Starts once, on first Home focus
   // after Welcome, only if armed — then never again.
-  const calendarTarget = useTutorialTarget(TARGET.homeCalendar)
+  // Anchors the merged "your day, in real time" tour step to the timeline
+  // itself — the old separate "this is your calendar" step (a different
+  // target) was folded into this one when the multi-day calendar left Home.
   const todayCardTarget = useTutorialTarget(TARGET.homeToday)
   useFocusEffect(
     useCallback(() => {
@@ -338,8 +298,8 @@ export default function ScheduleScreen() {
   // connected in-app rather than mirrored into iOS. Tempo's own synced workouts
   // are filtered out (they render from scheduled_workouts).
   const { data: events = [] } = useQuery<DayEvent[]>({
-    queryKey: ['range_events', userId, feedRange.start, feedRange.end],
-    queryFn: () => getCalendarEventsForRange(parseLocal(feedRange.start), parseLocal(feedRange.end)),
+    queryKey: ['range_events', userId, todayStr],
+    queryFn: () => getCalendarEventsForRange(parseLocal(todayStr), parseLocal(todayStr)),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
@@ -405,8 +365,15 @@ export default function ScheduleScreen() {
   })
 
   // Aggregate stats (streak, benchMax, totals) — powers the rich empty state and
-  // the goal countdown.
-  const { stats } = useProgressStats(userId)
+  // the goal countdown. `workouts`/`logTimes` are the SAME inputs Progress and
+  // (previously) Train's Readiness segment feed into `readinessFromHistory` —
+  // reused here for the hero's readiness chip so it needed zero new queries.
+  const { stats, workouts: histWorkouts, logTimes } = useProgressStats(userId)
+  const readiness = useMemo(
+    () => readinessFromHistory(histWorkouts, logTimes, new Date()),
+    [histWorkouts, logTimes],
+  )
+  const intensity = useMemo(() => intensityFromReadiness(readiness.score), [readiness.score])
 
   // The very next workout regardless of the visible range, so an empty current week
   // never reads as "nothing here" — there's always a next step to show.
@@ -602,61 +569,55 @@ export default function ScheduleScreen() {
     return () => sub.remove()
   }, [userId, queryClient])
 
-  // ── Derived feed ──────────────────────────────────────────────────────────--
-  const workoutsByDate = useMemo(() => {
-    const map: Record<string, ScheduledWorkout[]> = {}
-    for (const w of workouts) {
-      if (w.status === 'rescheduled' || w.status === 'skipped') continue
-      ;(map[w.planned_date] ||= []).push(w)
-    }
-    return map
-  }, [workouts])
+  // ── Derived feed (today only) ─────────────────────────────────────────────--
+  // `workouts`/`events` are already scoped to just today by the queries above,
+  // so this is a straight merge + sort — no more per-date grouping now that
+  // there's only ever one day on screen.
+  const todayItems = useMemo<FeedItem[]>(() => {
+    const ws = workouts.filter(w => w.status !== 'rescheduled' && w.status !== 'skipped')
+    // The single most prominent item on the screen: the next not-yet-done
+    // workout, or the first one if today's already all done.
+    const heroId = ws.length ? (ws.find(w => w.status !== 'completed') ?? ws[0]).id : null
+    return [
+      ...ws.map(w => ({ kind: 'workout' as const, sort: minOfTime(w.planned_start_time), workout: w, hero: w.id === heroId })),
+      ...events.map(e => ({ kind: 'event' as const, sort: minOfDate(e.start), event: e })),
+    ].sort((a, b) => a.sort - b.sort)
+  }, [workouts, events])
 
-  const eventsByDate = useMemo(() => {
-    const map: Record<string, DayEvent[]> = {}
-    for (const e of events) (map[toDateStr(e.start)] ||= []).push(e)
-    return map
-  }, [events])
+  const feedHasItems = todayItems.length > 0
 
-  const feedDays = useMemo(
-    () => (viewMode === 'week' ? weekDays.map(toDateStr) : [selectedDate]),
-    [viewMode, weekDays, selectedDate],
+  // The gaps between today's items — "your real calendar gaps," made visible
+  // on the vertical rail. `FeedItem` is structurally compatible with
+  // `TimelineItem` (a superset of fields), so today's items pass straight
+  // through unchanged; zero new fetches.
+  const todayGaps = useMemo(() => buildDayGaps(todayItems as TimelineItem[]), [todayItems])
+
+  const heroWorkout = useMemo(
+    () => (todayItems.find((i): i is Extract<FeedItem, { kind: 'workout' }> => i.kind === 'workout' && i.hero)?.workout) ?? null,
+    [todayItems],
   )
 
-  const dayGroups = useMemo<DayGroup[]>(() => {
-    return feedDays.map((ds) => {
-      const isToday = ds === todayStr
-      const ws = workoutsByDate[ds] ?? []
-      const es = eventsByDate[ds] ?? []
-      // The single most prominent item is TODAY's next workout (or today's first
-      // if all are done). Only one hero on the whole screen.
-      let heroId: string | null = null
-      if (isToday && ws.length) heroId = (ws.find(w => w.status !== 'completed') ?? ws[0]).id
-      const items: FeedItem[] = [
-        ...ws.map(w => ({ kind: 'workout' as const, sort: minOfTime(w.planned_start_time), workout: w, hero: w.id === heroId })),
-        ...es.map(e => ({ kind: 'event' as const, sort: minOfDate(e.start), event: e })),
-      ].sort((a, b) => a.sort - b.sort)
-      return { dateStr: ds, date: parseLocal(ds), isToday, items }
-    })
-  }, [feedDays, workoutsByDate, eventsByDate, todayStr])
+  // Hero tap-to-expand: a lightweight exercise-name "peek" (NOT the full
+  // prescription/warmup load `(tabs)/plan.tsx`'s runner does) — fetched only
+  // once the user actually expands the card, so it costs nothing until asked.
+  const { data: heroPreviewExercises = [] } = useQuery<HeroPreviewExercise[]>({
+    queryKey: ['hero_preview_exercises', heroWorkout?.id],
+    queryFn: async () => {
+      if (!heroWorkout || !heroWorkout.exercise_ids.length) return []
+      const { data } = await supabase
+        .from('exercises')
+        .select('id, name, movement_pattern, primary_muscles')
+        .in('id', heroWorkout.exercise_ids)
+      const byId = new Map((data ?? []).map((e: any) => [e.id as string, e as HeroPreviewExercise]))
+      return heroWorkout.exercise_ids.map(id => byId.get(id)).filter((e): e is HeroPreviewExercise => !!e)
+    },
+    enabled: heroExpanded && !!heroWorkout && heroWorkout.exercise_ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  })
 
-  const feedHasItems = dayGroups.some(g => g.items.length > 0)
-
-  // Day-timeline hero (approved plan, 2026-07-16): a glanceable strip showing
-  // today's real calendar shape, fed entirely from the SAME today group above
-  // — no new fetches. `FeedItem` is structurally compatible with `TimelineItem`
-  // (a superset of fields), so today's items pass straight through unchanged.
-  const todayTimelineBounds = useMemo(
-    () => resolveBounds(
-      (dayGroups.find(g => g.isToday)?.items ?? []) as TimelineItem[],
-      profile?.wake_time ?? null,
-      profile?.bedtime ?? null,
-    ),
-    [dayGroups, profile?.wake_time, profile?.bedtime],
-  )
-  const todayTimelineBlocks = useMemo(
-    () => buildDayTimeline((dayGroups.find(g => g.isToday)?.items ?? []) as TimelineItem[], todayTimelineBounds),
-    [dayGroups, todayTimelineBounds],
+  const heroRationale = useMemo(
+    () => (heroPreviewExercises.length >= 2 ? describeSession(heroPreviewExercises, heroWorkout?.focus) : null),
+    [heroPreviewExercises, heroWorkout?.focus],
   )
 
   // ── Actions ──────────────────────────────────────────────────────────────--
@@ -749,6 +710,19 @@ export default function ScheduleScreen() {
     else if (key === 'skip') skipWorkout(workout)
   }
 
+  // "Lacking time?" escape hatch on the hero card (audit: "add a lacking-time
+  // escape hatch inline"). Marks today's real session skipped (reusing the
+  // existing skip path, not a new abbreviation engine) and sends the user to
+  // the existing Quick Workout generator for a real 15-minute session — the
+  // day still ends with something done, just not the full planned one.
+  const confirmSwapToQuick = async () => {
+    const workout = swapConfirmWorkout
+    setSwapConfirmWorkout(null)
+    if (!workout) return
+    await skipWorkout(workout)
+    router.push({ pathname: '/quick-workout', params: { minutes: '15' } })
+  }
+
   const handleReschedule = async (workout: ScheduledWorkout) => {
     if (rescheduling) return
     setRescheduling(true)
@@ -791,44 +765,6 @@ export default function ScheduleScreen() {
     }
   }
 
-  // "Reschedule my whole week" (B1.3b) — one tap re-lays every upcoming session via
-  // the B1.3a engine. Single-flight (can't double-tap into two concurrent passes)
-  // and an explicit offline/error path, since this rewrites the whole week at once.
-  // B2.1: the Pro gate. While dormant (proEnabled false) requirePro() always
-  // returns true, so nothing changes until Pro actually goes live.
-  const handleWeekReschedule = () => {
-    if (weekRescheduling) return
-    if (!requireProForSchedule('schedule_optimization')) return
-    setWeekRescheduleConfirm(true)
-  }
-
-  const confirmWeekReschedule = async () => {
-    setWeekRescheduleConfirm(false)
-    if (weekRescheduling) return
-    setWeekRescheduling(true)
-    try {
-      const { moved, total } = await rescheduleWholeWeek(supabase, userId)
-      track('week_reschedule_used', { moved, total })
-      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
-      if (total === 0) {
-        Alert.alert('Nothing to reschedule', 'Your week is already clear of upcoming workouts.')
-      } else if (moved === 0) {
-        Alert.alert('Week already fits', 'Every upcoming workout already has its best slot — nothing needed to move.')
-      } else {
-        Alert.alert(
-          'Week rescheduled',
-          `Tempo moved ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} to a better time and re-synced your calendar.`,
-        )
-      }
-    } catch (err) {
-      const info = describeSaveError(err, 'reschedule your week')
-      Alert.alert(info.title, info.message)
-    } finally {
-      setWeekRescheduling(false)
-    }
-  }
-
   // Cross an event off (or restore it). Ignoring frees that time so Tempo MAY place a
   // workout there; the event still shows, struck through, with an Undo. Optimistic so
   // the toggle feels instant, then persisted; scheduled workouts refresh so a later
@@ -849,102 +785,10 @@ export default function ScheduleScreen() {
     }
   }
 
-  // Tapping a day: in Week mode the whole week is on screen, so scroll to that
-  // day's section; in Day/Month mode it filters the feed to that day.
-  const selectDay = (ds: string) => {
-    setSelectedDate(ds)
-    if (viewMode === 'week') {
-      const y = sectionY.current[ds]
-      if (y != null) setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true }), 0)
-    }
-  }
-
-  const shiftRange = (delta: number) => {
-    if (viewMode === 'month') {
-      const d = new Date(selDate.getFullYear(), selDate.getMonth() + delta, 1)
-      const sameMonth = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth()
-      setSelectedDate(sameMonth ? todayStr : toDateStr(d))
-    } else {
-      setSelectedDate(toDateStr(addDays(selDate, delta * (viewMode === 'week' ? 7 : 1))))
-    }
-  }
-
-  const rangeLabel = useMemo(() => {
-    if (viewMode === 'month') return selDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    if (viewMode === 'day') return selDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-    const a = weekDays[0], b = weekDays[6]
-    const sameMonth = a.getMonth() === b.getMonth()
-    const left = a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const right = b.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })
-    return `${left} – ${right}`
-  }, [viewMode, selDate, weekDays])
-
-  const isThisRange = useMemo(() => {
-    if (viewMode === 'month') return selDate.getFullYear() === today.getFullYear() && selDate.getMonth() === today.getMonth()
-    if (viewMode === 'day') return selectedDate === todayStr
-    return weekDays.some(d => toDateStr(d) === todayStr)
-  }, [viewMode, selDate, selectedDate, weekDays, todayStr])
-
   const todayDateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-
-  // Auto-scroll to today's section when the week feed first shows the current week.
-  useEffect(() => {
-    if (viewMode !== 'week' || !isThisRange) return
-    const t = setTimeout(() => {
-      const y = sectionY.current[todayStr]
-      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: false })
-    }, 80)
-    return () => clearTimeout(t)
-  }, [viewMode, feedRange.start])
 
   // ── Render helpers ──────────────────────────────────────────────────────────
   const onboardingIncomplete = profile?.onboarding_complete === false
-
-  function renderDayCell(day: Date, compact: boolean) {
-    const ds = toDateStr(day)
-    const dayWorkouts = workoutsByDate[ds] ?? []
-    const isSelected = ds === selectedDate
-    const isToday = ds === todayStr
-    const inMonth = day.getMonth() === selDate.getMonth()
-    const hasWorkout = dayWorkouts.length > 0
-    const allDone = hasWorkout && dayWorkouts.every(w => w.status === 'completed')
-    const anyMissed = hasWorkout && !allDone && dayWorkouts.some(w => w.status === 'missed')
-
-    return (
-      <PressableScale
-        key={ds}
-        style={compact ? styles.gridCell : styles.weekCell}
-        onPress={() => selectDay(ds)}
-        scaleTo={0.88}
-      >
-        {!compact && <Text style={[styles.weekDow, isSelected && styles.weekDowActive]}>{DOW[day.getDay()]}</Text>}
-        <View
-          style={[
-            styles.dayPill,
-            compact && styles.dayPillGrid,
-            isToday && !isSelected && styles.dayPillToday,
-            isSelected && styles.dayPillSelected,
-          ]}
-        >
-          <Text
-            style={[
-              styles.dayNum,
-              compact && !inMonth && styles.dayNumMuted,
-              isToday && !isSelected && styles.dayNumToday,
-              isSelected && styles.dayNumSelected,
-            ]}
-          >
-            {day.getDate()}
-          </Text>
-        </View>
-        {hasWorkout ? (
-          <View style={[styles.dayDot, allDone ? styles.dotDone : anyMissed ? styles.dotMissed : styles.dotWorkout, isSelected && styles.dotOnSelected]} />
-        ) : (
-          <View style={styles.dayDotPlaceholder} />
-        )}
-      </PressableScale>
-    )
-  }
 
   function renderEvent(e: DayEvent) {
     const ignored = ignoredKeys.has(eventKey(e.start, e.end))
@@ -979,7 +823,7 @@ export default function ScheduleScreen() {
     const done = w.status === 'completed'
     const missed = w.status === 'missed'
     const overdue = isOverdueWorkout(w, nowMs, todayStr)
-    const conflict = !done && !overdue ? conflictingEvent(w, eventsByDate[w.planned_date] ?? []) : null
+    const conflict = !done && !overdue ? conflictingEvent(w, events) : null
     const attention = overdue || missed || !!conflict
     // "Early" = the scheduled time is still more than ~45 min away (or it's a future
     // day). You can still train now, but the button says "Do it now instead" so it
@@ -1010,7 +854,52 @@ export default function ScheduleScreen() {
             </View>
           </View>
 
-          <Text style={[hero ? styles.heroTitle : styles.workoutTitle, (done || missed) && styles.workoutTitleDone]}>{w.focus}</Text>
+          {/* Readiness — the point-of-decision chip the audit asks for, not a
+              full tab. Tapping deep-links to Progress, which already owns the
+              full readiness card + muscle recovery detail. */}
+          {hero && (
+            <PressableScale style={styles.heroReadyChip} scaleTo={0.96} onPress={() => router.push('/(tabs)/progress')}>
+              <View style={[styles.heroReadyDot, { backgroundColor: readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow }]} />
+              <Text style={styles.heroReadyText}>{readiness.score}% ready · go {intensity.label.toLowerCase()}</Text>
+              <Ionicons name="chevron-forward" size={13} color={C.outline} />
+            </PressableScale>
+          )}
+
+          {hero ? (
+            <PressableScale
+              style={styles.heroTitleRow}
+              scaleTo={0.98}
+              onPress={() => setHeroExpanded(v => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={heroExpanded ? 'Collapse workout details' : 'Show exercise list and why this workout'}
+            >
+              <Text style={[styles.heroTitle, (done || missed) && styles.workoutTitleDone, { flex: 1 }]}>{w.focus}</Text>
+              <Ionicons name={heroExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={C.outline} />
+            </PressableScale>
+          ) : (
+            <Text style={[styles.workoutTitle, (done || missed) && styles.workoutTitleDone]}>{w.focus}</Text>
+          )}
+
+          {hero && heroExpanded && (
+            <View style={styles.heroExpandWrap}>
+              {heroPreviewExercises.length === 0 ? (
+                <ActivityIndicator size="small" color={C.primary} style={{ marginVertical: Spacing.sm }} />
+              ) : (
+                heroPreviewExercises.map((ex, i) => (
+                  <View key={ex.id} style={[styles.heroExRow, i > 0 && styles.heroExRowDivider]}>
+                    <Text style={styles.heroExNum}>{i + 1}</Text>
+                    <Text style={styles.heroExName} numberOfLines={1}>{ex.name}</Text>
+                  </View>
+                ))
+              )}
+              {heroRationale && (
+                <View style={styles.heroWhyBox}>
+                  <Ionicons name="bulb-outline" size={14} color={C.primary} />
+                  <Text style={styles.heroWhyText}>{heroRationale.headline}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {missed && (
             <Text style={styles.attnNote}>This workout was missed. Reschedule it to get back on track, or skip it and move on.</Text>
@@ -1066,6 +955,15 @@ export default function ScheduleScreen() {
             </PressableScale>
           )}
 
+          {/* "Lacking time?" escape hatch (audit: add this inline) — swaps
+              today's real session for a genuine 15-min Quick Workout rather
+              than silently shrinking it, so nothing gets misrepresented. */}
+          {hero && !done && !attention && (
+            <TouchableOpacity onPress={() => setSwapConfirmWorkout(w)} activeOpacity={0.7}>
+              <Text style={styles.swapLinkText}>Lacking time? Swap to a 15-min workout instead</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.cardActions}>
             {w.calendar_event_id ? (
               <TouchableOpacity style={styles.actionBtn} onPress={() => handleRemoveFromCalendar(w)}>
@@ -1103,12 +1001,6 @@ export default function ScheduleScreen() {
         </View>
       </View>
     )
-  }
-
-  function groupHeaderLabel(g: DayGroup): string {
-    if (g.isToday) return 'Today'
-    if (g.dateStr === toDateStr(addDays(today, 1))) return 'Tomorrow'
-    return g.date.toLocaleDateString('en-US', { weekday: 'long' })
   }
 
   // ── Today's-context strip ─────────────────────────────────────────────────────
@@ -1387,21 +1279,6 @@ export default function ScheduleScreen() {
         right={
           <HeaderActions>
             <TouchableOpacity
-              style={[styles.weekRescheduleBtn, { backgroundColor: C.primarySoft }, weekRescheduling && { opacity: 0.5 }]}
-              onPress={handleWeekReschedule}
-              disabled={weekRescheduling}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Reschedule my whole week"
-            >
-              {weekRescheduling ? (
-                <ActivityIndicator size="small" color={C.primary} />
-              ) : (
-                <Ionicons name="repeat-outline" size={18} color={C.primary} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[styles.ring, { borderColor: checkin ? readinessColor(checkin.readiness, C) : C.outlineVariant }]}
               onPress={() => setShowRecovery(true)}
               activeOpacity={0.85}
@@ -1432,67 +1309,11 @@ export default function ScheduleScreen() {
         }
       />
 
-      {/* Day / Week / Month filter */}
-      <View style={styles.segment}>
-        {(['day', 'week', 'month'] as ViewMode[]).map((m) => (
-          <PressableScale
-            key={m}
-            style={[styles.segmentBtn, viewMode === m && styles.segmentBtnActive]}
-            onPress={() => setViewMode(m)}
-            scaleTo={0.94}
-          >
-            <Text style={[styles.segmentText, viewMode === m && styles.segmentTextActive]}>
-              {m === 'day' ? 'Day' : m === 'week' ? 'Week' : 'Month'}
-            </Text>
-          </PressableScale>
-        ))}
-      </View>
-
       <ScrollView
-        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
       >
-        {/* Range header + navigation */}
-        <View style={styles.rangeRow}>
-          <Text style={styles.rangeText}>{rangeLabel}</Text>
-          <View style={styles.rangeNav}>
-            {!isThisRange && (
-              <TouchableOpacity style={styles.todayChip} onPress={() => setSelectedDate(todayStr)}>
-                <Text style={styles.todayChipText}>Today</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => shiftRange(-1)} hitSlop={8}>
-              <Ionicons name="chevron-back" size={22} color={C.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => shiftRange(1)} hitSlop={8}>
-              <Ionicons name="chevron-forward" size={22} color={C.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Calendar — weekly strip (day/week) or month grid (month). Keyed by view
-            so switching Day/Week/Month crossfades instead of snapping. */}
-        <View ref={calendarTarget} collapsable={false}>
-        <FadeInView key={viewMode} duration={240}>
-          {viewMode === 'month' ? (
-            <View style={styles.grid}>
-              <View style={styles.gridDowRow}>
-                {DOW.map((d, i) => <Text key={i} style={styles.gridDowLabel}>{d}</Text>)}
-              </View>
-              <View style={styles.gridBody}>
-                {monthGrid.map(day => renderDayCell(day, true))}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.weekStrip}>
-              {weekDays.map(day => renderDayCell(day, false))}
-            </View>
-          )}
-        </FadeInView>
-        </View>
-
         {/* Today's-context strip — at most ONE full banner (the top-priority eligible
             item) plus a swipeable chip row for the rest. Replaces the old stack of up
             to eight independently-rendered banners. */}
@@ -1516,8 +1337,99 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* Weekly target — the winnable loop for a 3×/week plan: rest days can't
-            break it, and hitting it is a real achievement (unlike a daily streak). */}
+        {/* Today's timeline — a continuous rail behind the naturally-flowing cards
+            (still `renderWorkout`/`renderEvent`, completely unchanged) with a
+            `GapRow` between items so "your real calendar gaps with the workout
+            dropped in place" is visible, not just implied. Wrapped in one
+            always-rendered View so the home-tour target has a stable anchor
+            regardless of which branch below actually renders (rest day, empty
+            plan, or a real day) — matches the invariant the previous per-day
+            anchor relied on. */}
+        <View ref={todayCardTarget} collapsable={false}>
+          {isLoading ? (
+            <View style={styles.feed}><LoadingCard /></View>
+          ) : isError ? (
+            <View style={styles.feed}><ErrorBanner message="Failed to load your schedule." onRetry={refetch} /></View>
+          ) : onboardingIncomplete ? (
+            <View style={styles.emptyState}>
+              <TouchableOpacity style={styles.setupBtn} onPress={() => router.push('/onboarding/goal')}>
+                <Text style={styles.setupBtnText}>Complete setup to get your plan →</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !feedHasItems ? (
+            isFetching ? (
+              // Looks empty but a fresh fetch is in flight (e.g. right after Change
+              // Plan cleared the old schedule) — say "loading", never show a
+              // rest-day/empty state that's about to be wrong.
+              <View style={styles.feed}><LoadingCard /></View>
+            ) : nextWorkout ? (
+              // Rest day today, but there's a real session ahead — never a dead
+              // screen, always something concrete to look at.
+              <View style={styles.planCard}>
+                <View style={styles.planTopRow}>
+                  <Text style={styles.planEyebrow}>YOUR PLAN</Text>
+                  {profile?.goal ? <Text style={styles.planGoal}>{GOAL_LABELS[profile.goal] ?? 'Training'}</Text> : null}
+                </View>
+                <View style={styles.planChips}>
+                  {blockPhase?.progression && (
+                    <View style={styles.planChip}>
+                      <Ionicons name="podium-outline" size={13} color={C.primary} />
+                      <Text style={styles.planChipText}>{blockPhase.progression.label} week</Text>
+                    </View>
+                  )}
+                  {stats.streak > 0 && (
+                    <View style={styles.planChip}>
+                      <Ionicons name="flame" size={13} color={C.primary} />
+                      <Text style={styles.planChipText}>{stats.streak}-session streak</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.planNext}>
+                  <Text style={styles.planNextLabel}>NEXT WORKOUT · {relativeDayLabel(nextWorkout.planned_date).toUpperCase()}</Text>
+                  <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
+                  <Text style={styles.planNextMeta}>{formatTime(nextWorkout.planned_start_time)} · {nextWorkout.planned_duration_min} min</Text>
+                </View>
+                <View style={styles.planLockedBtn}>
+                  <Ionicons name="lock-closed" size={14} color={C.textSecondary} />
+                  <Text style={styles.planLockedText}>Scheduled for {relativeDayLabel(nextWorkout.planned_date)}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                  <Text style={styles.planQuickText}>Want to train today? Add a workout →</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <EmptyState
+                kind="calendar"
+                title="Nothing on your plan yet"
+                body="Add a workout, or update your plan from Profile — Tempo schedules it around your real life."
+                actionLabel="Add a workout"
+                onAction={() => setAddWorkoutOpen(true)}
+              />
+            )
+          ) : (
+            <View style={styles.feed}>
+              <TimelineRail>
+                {todayItems.map((item, idx) => {
+                  const gapBefore = todayGaps.find(g => g.beforeIndex === idx)
+                  const key = item.kind === 'workout' ? `w-${item.workout.id}` : `e-${item.event.id}`
+                  return (
+                    <View key={key} style={styles.groupItems}>
+                      {gapBefore && <GapRow minutes={gapBefore.endMin - gapBefore.startMin} />}
+                      <FadeInView delay={Math.min(idx * 45, 270)}>
+                        {item.kind === 'workout' ? renderWorkout(item.workout, item.hero) : renderEvent(item.event)}
+                      </FadeInView>
+                    </View>
+                  )
+                })}
+              </TimelineRail>
+            </View>
+          )}
+        </View>
+
+        {/* Weekly target — directly under today's session, not buried below a
+            stack of other cards. The audit: "the single best retention
+            mechanic on the screen — keep it prominent." Rest days can't break
+            it, and hitting it is a real achievement (unlike a daily streak). */}
         {!!profile?.days_per_week && (
           <View style={styles.weekTargetCard}>
             {/* The weekly ring — fills as sessions land, flips sage on target */}
@@ -1549,145 +1461,6 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* Day-timeline hero (approved plan, 2026-07-16) — "your real calendar
-            gaps with the workout dropped in place," felt in a glance. Only
-            when today is actually in the visible range (day/week, not month —
-            a single-day ruler has no month-grid equivalent) and there's real
-            data to show; an empty result renders nothing (DayTimelineStrip's
-            own guard), never a broken-looking empty box. */}
-        {viewMode !== 'month' && isThisRange && !isLoading && !isError && (
-          <DayTimelineStrip blocks={todayTimelineBlocks} bounds={todayTimelineBounds} />
-        )}
-
-        {/* Unified feed — workouts (emphasised) + events (muted), one timeline */}
-        {isLoading ? (
-          <View style={styles.feed}><LoadingCard /></View>
-        ) : isError ? (
-          <View style={styles.feed}><ErrorBanner message="Failed to load your schedule." onRetry={refetch} /></View>
-        ) : onboardingIncomplete ? (
-          <View style={styles.emptyState}>
-            <TouchableOpacity style={styles.setupBtn} onPress={() => router.push('/onboarding/goal')}>
-              <Text style={styles.setupBtnText}>Complete setup to get your plan →</Text>
-            </TouchableOpacity>
-          </View>
-        ) : !feedHasItems ? (
-          isFetching ? (
-            // The range LOOKS empty but a fresh fetch is in flight (e.g. right
-            // after Change Plan cleared the old schedule) — say "loading", never
-            // show a rest-day/empty state that's about to be wrong.
-            <View style={styles.feed}><LoadingCard /></View>
-          ) : nextWorkout ? (
-            // Never a dead screen: show the plan at a glance + one clear action.
-            <View style={styles.planCard}>
-              <View style={styles.planTopRow}>
-                <Text style={styles.planEyebrow}>YOUR PLAN</Text>
-                {profile?.goal ? <Text style={styles.planGoal}>{GOAL_LABELS[profile.goal] ?? 'Training'}</Text> : null}
-              </View>
-              <View style={styles.planChips}>
-                {blockPhase?.progression && (
-                  <View style={styles.planChip}>
-                    <Ionicons name="podium-outline" size={13} color={C.primary} />
-                    <Text style={styles.planChipText}>{blockPhase.progression.label} week</Text>
-                  </View>
-                )}
-                {stats.streak > 0 && (
-                  <View style={styles.planChip}>
-                    <Ionicons name="flame" size={13} color={C.primary} />
-                    <Text style={styles.planChipText}>{stats.streak}-session streak</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.planNext}>
-                <Text style={styles.planNextLabel}>NEXT WORKOUT · {relativeDayLabel(nextWorkout.planned_date).toUpperCase()}</Text>
-                <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
-                <Text style={styles.planNextMeta}>{formatTime(nextWorkout.planned_start_time)} · {nextWorkout.planned_duration_min} min</Text>
-              </View>
-              {relativeDayLabel(nextWorkout.planned_date) === 'Today' ? (
-                <PressableScale
-                  style={styles.planStartBtn}
-                  onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
-                >
-                  <Ionicons name="play" size={15} color={C.onPrimary} />
-                  <Text style={styles.planStartText}>Start now</Text>
-                </PressableScale>
-              ) : (
-                // Nothing scheduled today — the next session is on another day, so show
-                // it as upcoming/locked rather than a Start button that misleads.
-                <View style={styles.planLockedBtn}>
-                  <Ionicons name="lock-closed" size={14} color={C.textSecondary} />
-                  <Text style={styles.planLockedText}>Scheduled for {relativeDayLabel(nextWorkout.planned_date)}</Text>
-                </View>
-              )}
-              <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
-                <Text style={styles.planQuickText}>Want to train today? Add a workout →</Text>
-              </TouchableOpacity>
-            </View>
-          ) : workouts.length === 0 ? (
-            <EmptyState
-              kind="calendar"
-              title="Your week is a blank page"
-              body="Add a workout to this day, or update your plan from Profile — Tempo schedules it around your real life."
-              actionLabel="Add a workout"
-              onAction={() => setAddWorkoutOpen(true)}
-            />
-          ) : (
-            <EmptyState
-              kind="moon"
-              title="Nothing scheduled here"
-              body="Enjoy the recovery — rest days are part of the plan, not a break from it."
-              compact
-            />
-          )
-        ) : (
-          dayGroups.map((g) => {
-            // Day mode already names the day in the range row; week/month show a per-day header.
-            const single = viewMode === 'day'
-            return (
-              <View
-                key={g.dateStr}
-                // Step 2 of the Home tour anchors here (the stable "today" group, which
-                // always renders in week/day view — even on a rest day). Previously the
-                // target lived only on the hero card, so a new user whose first session
-                // wasn't today had no measurable target and the spotlight fell back to a
-                // generic centered card.
-                ref={g.isToday ? todayCardTarget : undefined}
-                collapsable={false}
-                style={styles.dayGroup}
-                onLayout={(e: LayoutChangeEvent) => { sectionY.current[g.dateStr] = e.nativeEvent.layout.y }}
-              >
-                {/* Day header — omitted in single-day modes (the range row already says the day) */}
-                {!single && (
-                  <View style={styles.groupHeader}>
-                    <Text style={[styles.groupTitle, g.isToday && styles.groupTitleToday]}>{groupHeaderLabel(g)}</Text>
-                    <Text style={styles.groupDate}>{g.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-                    {g.isToday && <View style={styles.liveDot} />}
-                  </View>
-                )}
-
-                {g.items.length === 0 ? (
-                  <View style={styles.restRow}>
-                    <Ionicons name="moon-outline" size={15} color={C.outline} />
-                    <Text style={styles.restText}>Rest day — recovery is part of the plan.</Text>
-                  </View>
-                ) : (
-                  <View style={styles.groupItems}>
-                    {g.items.map((item, idx) => (
-                      <FadeInView
-                        key={item.kind === 'workout' ? `w-${item.workout.id}` : `e-${item.event.id}`}
-                        delay={Math.min(idx * 45, 270)}
-                      >
-                        {item.kind === 'workout'
-                          ? renderWorkout(item.workout, item.hero)
-                          : renderEvent(item.event)}
-                      </FadeInView>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )
-          })
-        )}
-
       </ScrollView>
 
       {/* FAB — one-tap Add Workout from anywhere on the schedule. Bottom offset is
@@ -1709,7 +1482,7 @@ export default function ScheduleScreen() {
         visible={addWorkoutOpen}
         userId={userId}
         client={supabase}
-        date={selectedDate}
+        date={todayStr}
         onClose={() => setAddWorkoutOpen(false)}
       />
 
@@ -1758,12 +1531,12 @@ export default function ScheduleScreen() {
       />
 
       <OptionSheet
-        visible={weekRescheduleConfirm}
-        title="Reschedule your week"
-        subtitle="Tempo will re-lay every upcoming workout onto its best day and time this week — recovery-aware and around your calendar. Nothing gets dropped, and your calendar stays in sync."
-        options={[{ key: 'reschedule', label: 'Reschedule my week', icon: 'repeat-outline' }]}
-        onSelect={confirmWeekReschedule}
-        onClose={() => setWeekRescheduleConfirm(false)}
+        visible={swapConfirmWorkout !== null}
+        title="Swap to a quick workout?"
+        subtitle={`"${swapConfirmWorkout?.focus ?? ''}" will be marked skipped, and Tempo will build you a real 15-minute session instead.`}
+        options={[{ key: 'swap', label: 'Swap it', icon: 'flash-outline' }]}
+        onSelect={confirmSwapToQuick}
+        onClose={() => setSwapConfirmWorkout(null)}
       />
 
       <OptionSheet
@@ -1784,10 +1557,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingBottom: 140 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
-  weekRescheduleBtn: {
-    width: 40, height: 40, borderRadius: Radius.full,
-    alignItems: 'center', justifyContent: 'center',
-  },
   ring: {
     width: 40, height: 40, borderRadius: Radius.full,
     borderWidth: 2.5, alignItems: 'center', justifyContent: 'center',
@@ -1798,21 +1567,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-
-  // ── Segmented filter ──────────────────────────────────────────────────────--
-  segment: {
-    flexDirection: 'row',
-    marginHorizontal: Spacing.containerPadding,
-    marginBottom: Spacing.xs,
-    backgroundColor: C.surfaceContainerLow,
-    borderRadius: Radius.md,
-    padding: 4,
-    gap: 4,
-  },
-  segmentBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.sm + 4 },
-  segmentBtnActive: { backgroundColor: C.primary },
-  segmentText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
-  segmentTextActive: { color: C.onPrimary },
 
   // ── Today's-context strip ─────────────────────────────────────────────────────
   // Container for the single priority banner + the swipeable overflow chips.
@@ -1829,7 +1583,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   contextChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, letterSpacing: -0.1, maxWidth: 180 },
 
-  // ── Range row ──────────────────────────────────────────────────────────────
   // Travel banner is one of the context-strip banners; no top margin (it's never the
   // first element now) and a bottom margin to separate it from the overflow chips.
   travelBanner: {
@@ -1840,58 +1593,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   travelBannerText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
   travelBannerSub: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary, marginTop: 1 },
-  rangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  rangeText: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
-  rangeNav: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  todayChip: {
-    backgroundColor: C.primarySoft,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-  },
-  todayChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
-
-  // ── Weekly strip ──────────────────────────────────────────────────────────--
-  weekStrip: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.containerPadding,
-    marginBottom: Spacing.md,
-  },
-  weekCell: { flex: 1, alignItems: 'center', gap: 5 },
-  weekDow: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
-  weekDowActive: { color: C.primary },
-  dayPill: {
-    width: 38, height: 38, borderRadius: Radius.full,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: 'transparent',
-  },
-  dayPillToday: { borderColor: C.primary },
-  dayPillSelected: { backgroundColor: C.primary, borderColor: C.primary },
-  dayNum: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
-  dayNumToday: { color: C.primary },
-  dayNumSelected: { color: C.onPrimary },
-  dayNumMuted: { color: C.outline },
-  dayDot: { width: 5, height: 5, borderRadius: Radius.full },
-  dotWorkout: { backgroundColor: C.primary },
-  dotDone: { backgroundColor: C.success },
-  dotMissed: { backgroundColor: C.error },
-  dotOnSelected: { backgroundColor: '#FFFFFF' },
-  dayDotPlaceholder: { width: 5, height: 5 },
-
-  // ── Month grid ──────────────────────────────────────────────────────────────
-  grid: { paddingHorizontal: Spacing.containerPadding, marginBottom: Spacing.md },
-  gridDowRow: { flexDirection: 'row', marginBottom: Spacing.xs },
-  gridDowLabel: { flex: 1, textAlign: 'center', fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline },
-  gridBody: { flexDirection: 'row', flexWrap: 'wrap' },
-  gridCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, gap: 3 },
-  dayPillGrid: { width: 34, height: 34 },
 
   // ── Quick Workout ──────────────────────────────────────────────────────────
   quickRow: {
@@ -2038,26 +1739,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   restTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.success, letterSpacing: -0.1 },
   restBody: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
 
-  // ── Feed / day groups ──────────────────────────────────────────────────────
+  // ── Feed / timeline ──────────────────────────────────────────────────────
   feed: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm },
-  dayGroup: { paddingHorizontal: Spacing.containerPadding, marginTop: Spacing.sm },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm, marginTop: Spacing.xs },
-  groupTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.textSecondary, letterSpacing: 0.2 },
-  groupTitleToday: { color: C.text },
-  groupDate: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline },
-  liveDot: { width: 7, height: 7, borderRadius: Radius.full, backgroundColor: C.success },
   groupItems: { gap: Spacing.sm },
-
-  restRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
-  },
-  restText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline },
 
   // ── Timeline rows (shared rail) ──────────────────────────────────────────────
   row: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
-  railTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: 52, paddingTop: 13 },
+  railTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: RAIL_COLUMN_WIDTH, paddingTop: 13 },
   railTimeActive: { fontFamily: 'Inter_700Bold' },
 
   // ── Muted event card ──────────────────────────────────────────────────────--
@@ -2138,6 +1826,30 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   workoutTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, lineHeight: 26, letterSpacing: -0.3 },
   heroTitle: { fontFamily: C.fontDisplay, fontSize: 27, color: C.text, lineHeight: 32, letterSpacing: -0.5 },
   workoutTitleDone: { textDecorationLine: 'line-through', color: C.textSecondary },
+
+  // ── Hero additions: readiness chip, tap-to-expand, "lacking time?" ──────────
+  heroReadyChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm, paddingVertical: 5,
+  },
+  heroReadyDot: { width: 7, height: 7, borderRadius: Radius.full },
+  heroReadyText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  heroExpandWrap: {
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    padding: Spacing.sm, gap: 2,
+  },
+  heroExRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
+  heroExRowDivider: { borderTopWidth: 1, borderTopColor: C.outlineVariant },
+  heroExNum: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline, width: 18 },
+  heroExName: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.text, flex: 1 },
+  heroWhyBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    marginTop: 6, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: C.outlineVariant,
+  },
+  heroWhyText: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, flex: 1, lineHeight: 17 },
+  swapLinkText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary, textAlign: 'center', paddingVertical: 4 },
 
   metaRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
   metaChip: {

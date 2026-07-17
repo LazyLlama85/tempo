@@ -30,9 +30,12 @@ export interface TutorialStep {
 }
 
 // The Home tour — one concept per step, ≤2 sentences, never blocks the UI.
+// `home_calendar` + `home_today` used to be two separate steps (the multi-day
+// calendar strip, then the day's card below it) — collapsed into one now that
+// Home itself IS today's timeline (the IA redesign, 2026-07-16): there's no
+// separate calendar strip left on Home to spotlight on its own.
 export const HOME_TOUR_STEPS: TutorialStep[] = [
-  { id: 'home_calendar', target: 'home.calendar', title: 'This is your schedule', body: 'Tempo places your workouts around your real life — and moves them when life moves.', placement: 'bottom' },
-  { id: 'home_today', target: 'home.today', title: 'Your next session', body: 'Your training for the day, ready to go. Tempo tells you exactly what to do.', placement: 'bottom' },
+  { id: 'home_today', target: 'home.today', title: 'Your day, in real time', body: 'Tempo slots your training into your real calendar — and moves it when life moves.', placement: 'bottom' },
   { id: 'home_go', target: 'tab.go', title: 'Only a few minutes?', body: 'Tap GO and Tempo builds a focused workout that fits the time you have.', placement: 'top' },
   { id: 'home_progress', target: 'tab.progress', title: 'Your progress story', body: 'Every session you finish becomes your history, PRs, and strength trends.', placement: 'top' },
   { id: 'home_profile', target: 'tab.profile', title: 'Make it yours', body: 'Change goals, equipment, and availability anytime — your plan adapts.', placement: 'top' },
@@ -40,7 +43,6 @@ export const HOME_TOUR_STEPS: TutorialStep[] = [
 
 // Target ids screens register via useTutorialTarget, referenced by steps above.
 export const TARGET = {
-  homeCalendar: 'home.calendar',
   homeToday: 'home.today',
   tabGo: 'tab.go',
   tabProgress: 'tab.progress',

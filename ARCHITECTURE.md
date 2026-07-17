@@ -180,51 +180,61 @@ you moving."*
   for `tempo.app/w/<code>` / `tempo://w/<code>` → shared-workout).
 
 ### 3.2 Screen responsibilities
-- **Home / Schedule** (`(tabs)/index.tsx`): unified day/week/month calendar; merges plan workouts
-  with live device + Google calendar events; readiness ring; a **weekly-target card** ("2 of 3
-  sessions" + bar — the winnable loop for a 3×/week plan, always visible); **Add Workout** FAB
-  (opens `AddWorkoutSheet` → build new / pick a saved workout / pick a starter template, scheduled
-  onto the selected day via the builder); "ignore event" to free time; recovery check-in entry.
-  (Redesign polish: the workout/quick/weekly-target/phase/goal cards now carry the shared
-  `Elevation.e1` depth ramp instead of reading flat — style-only, no logic/layout change.)
-  **Today's-context strip** (`contextItems` array in `index.tsx`): the contextual banners that used
-  to stack independently — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
-  block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), and the
-  Quick Workout suggestion (`lib/quickSuggestion`) — are now priority-resolved so **at most one shows
-  as a full banner** (priority order: missed → reconnect → travel → rest → block → goal → report →
-  quick), with every other *currently-eligible* one demoted to a **swipeable chip** below it. Each
-  banner's original eligibility gate is unchanged (this only caps how many render at once and in
-  what form); the goal-countdown card and the standalone "Add a workout" row (redundant with the FAB)
-  were removed as separate rows. Today's workout flips to a
-  gentle **overdue "still on for this?"** state an hour past its start (ember treatment +
-  Reschedule / Skip); a **past-day row whose status flipped to `'missed'`** now gets its own
-  distinct treatment too (red **MISSED** badge/dumbbell tint, a dedicated note, and a red calendar
-  dot via `renderDayCell`'s new `dotMissed` variant) — previously a missed row rendered
-  indistinguishably from any other scheduled workout once you weren't looking at *today*. A workout
-  a calendar event now overlaps shows a **proactive "move it?"**
-  one-tap reschedule (the felt-intelligent case in manual mode, where times aren't auto-moved),
-  and a completed card gets a **Details** action into `session-detail`. On open, Home also runs
-  **plan rollover** (`extendActivePlan` + re-place times), the split horizon refresh, conflict
-  resolution, and a **14-day reminder reconciliation sweep** (newly materialized or auto-moved
-  sessions always carry a correct 30-min reminder; never prompts for permission). `checkMissedWorkouts`
-  itself only ran on cold-start/sign-in (`stores/auth.ts` deliberately skips it on `TOKEN_REFRESHED`,
-  which fires on every foreground) — so a workout that went stale while the app just sat
-  backgrounded across midnight was never flipped until the next cold start. A lightweight `AppState`
-  listener now re-runs just that cheap check (not the whole entry sweep) whenever the app foregrounds
-  on a new calendar day. A "Google Calendar needs reconnecting" banner (see §5) can also appear here.
-  **Day-timeline hero** (plan approved 2026-07-16, addresses the audit's #1 Home finding —
-  "make the hero a day-timeline, not a to-do card"): `lib/dayTimeline.ts` (pure, unit-tested
-  selector — `resolveBounds` + `buildDayTimeline`, with a greedy interval-overlap lane layout) +
-  `components/DayTimeline.tsx` (`DayTimelineStrip`) render a compact, non-interactive glanceable
-  ruler above today's card list in day/week view (month view unchanged), fed entirely from the
-  already-merged `dayGroups` items and `profile.wake_time`/`bedtime` — **zero new fetches, zero new
-  state.** Deliberately additive, not a replacement: a design fork (full absolute-position card
-  replacement vs. a glanceable ruler above the untouched list) was raised and the lower-risk ruler
-  was the explicit choice, so `renderWorkout`/`renderEvent` and the home-tour's `todayCardTarget`
-  anchor keep every bit of their existing behavior completely untouched. The strip renders `null`
-  on an empty day rather than an empty box, and is hidden from screen readers
-  (`accessibilityElementsHidden` / `importantForAccessibility="no-hide-descendants"`) since the
-  real, accessible content remains the card list below it.
+- **Home / Today** (`(tabs)/index.tsx`) — **IA redesign, 2026-07-16 (Phase 1 of 2, plan approved by
+  the founder after a full Working Method write-up):** Home is now **today only**. The audit's own
+  #1 finding — *"make the hero a day-timeline, not a to-do card"* — plus a founder-flagged density
+  complaint (too much to scroll through: Day/Week/Month, a range row, a weekly-target card, a
+  calendar strip, a flat list) drove a real IA split, not just a visual pass: **all multi-day
+  scheduling (Day/Week/Month, "Reschedule my whole week," the calendar strip) moved to the Plan
+  tab** (formerly Train — see below), which now owns the whole week. Home fetches only today's
+  `scheduled_workouts` + today's calendar events (`todayStr` on both query keys — no more
+  week/month range fetch), merges them into one time-sorted `todayItems` list (the exact same
+  merge/hero-pick logic that used to run per-day across a whole `dayGroups` array, now collapsed to
+  one day), and renders them on a **vertical timeline**: a continuous decorative rail line
+  (`components/DayTimeline.tsx`'s `TimelineRail`) behind the naturally-flowing, **completely
+  unchanged** `renderWorkout`/`renderEvent` cards, with a `GapRow` between items showing the real
+  free time between them ("2h 15m free") — `lib/dayTimeline.ts`'s new `buildDayGaps` (pure,
+  unit-tested), extending the same module the first day-timeline pass added earlier the same day.
+  Deliberately **not** time-proportional / absolutely-positioned by minute (card heights vary too
+  much — a MISSED badge, an overdue prompt, a conflict note all add height — and this RN0.85/
+  React19/new-arch stack already has a history of silent rendering bugs this session); the rail is
+  a single decorative element behind ordinary document flow, carrying none of that per-item risk.
+  This supersedes the same-day's first pass (`DayTimelineStrip`, a horizontal ruler above the list)
+  — the founder's own device screenshot showed it reading as a weak afterthought, so it's gone,
+  replaced by making the card list itself the timeline.
+  **Hero card gets three additions** (still the same `renderWorkout` function, hero-branch only):
+  a **readiness chip** ("88% ready · go hard," reusing `readinessFromHistory`/`intensityFromReadiness`
+  off the SAME `useProgressStats(userId)` call Home already made — zero new queries — tapping through
+  to Progress, which owns the full readiness card); **tap-to-expand** on the hero title, revealing a
+  lazily-fetched (only once expanded) exercise-name list + `describeSession()`'s "why this workout"
+  headline (a lightweight peek query — `id, name, movement_pattern, primary_muscles` — deliberately
+  NOT the full prescription/warmup/log-resuming load `plan.tsx`'s runner does); and a **"Lacking
+  time?" escape hatch** (audit: *"add this inline"*) that marks today's session skipped (reusing the
+  existing `skipWorkout` path) and routes to the existing `/quick-workout` generator for a real
+  15-minute session, confirmed via `OptionSheet` first — deliberately NOT a new "shrink this session"
+  abbreviation engine, which would have been much larger, unrequested scope.
+  **Today's-context strip** (`contextItems` array, unchanged from before this redesign): the
+  contextual banners — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
+  block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), Quick Workout
+  suggestion (`lib/quickSuggestion`) — stay priority-resolved so at most one shows as a full banner,
+  the rest as swipeable chips. **Weekly-target card** moved to directly under the timeline (the
+  audit: *"the single best retention mechanic on the screen — keep it prominent"*) instead of above
+  everything else. **Empty-day states simplified**: rest day with a real next session ahead shows
+  the existing "YOUR PLAN / next workout" card; a genuinely empty plan (no session today or ahead)
+  shows one "Add a workout" prompt — the old third branch (rest day within an otherwise-populated
+  *week* range) no longer applies now that Home has no week range to compare against.
+  **Add Workout** FAB (opens `AddWorkoutSheet`, defaults to today); "ignore event" to free time;
+  recovery check-in entry (the header ring — separate from the readiness chip above, this is where
+  you *log* a check-in). On open, Home still runs plan rollover, split-horizon refresh, conflict
+  resolution, and the 14-day reminder reconciliation sweep, and the `AppState`-driven missed-workout
+  re-check on a new calendar day — none of that changed. **Home tour**: the old two-step "this is
+  your calendar" + "your next session" pair collapsed into one step (`lib/tutorial.ts`
+  `HOME_TOUR_STEPS`) anchored on the timeline itself, since there's no separate calendar strip left
+  on Home to spotlight on its own; the anchor now wraps the ENTIRE conditional render (loading/error/
+  empty/timeline) in one always-present `View` so the tour target survives every branch, matching
+  the invariant the old per-day anchor relied on. **Not yet on-device verified** — flagged 🔍, needs
+  the checklist in `EXECUTION_STATUS.md`'s session log before this can be trusted, same discipline
+  as every other live-UI batch this session.
 - **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
   Tapping the tab (no `workoutId` param) lands on the **hub**. **Training redesign:** the hub is now a
   four-way **segmented control** (`components/TrainSegments.tsx`) — kept strictly to Training (no

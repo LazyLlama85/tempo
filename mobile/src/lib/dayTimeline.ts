@@ -44,9 +44,20 @@ export interface TimelineBlock {
   laneCount: number    // total columns in this item's overlap cluster
 }
 
+// A free window between two consecutive items — "2h 15m free" on the vertical
+// rail. `beforeIndex` is the index (into the SAME `items` array passed to
+// `buildDayGaps`) the gap renders in front of, so a caller can splice it into
+// its existing item list without re-deriving positions.
+export interface TimelineGap {
+  startMin: number
+  endMin: number
+  beforeIndex: number
+}
+
 const DEFAULT_START_MIN = 6 * 60   // 6am
 const DEFAULT_END_MIN = 22 * 60    // 10pm
 const MIN_WINDOW_MIN = 60          // never show a window smaller than 1 hour
+const MIN_GAP_MIN = 20             // a gap shorter than this is just rounding noise, not "free time"
 
 function timeStrToMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -160,4 +171,27 @@ export function buildDayTimeline(items: TimelineItem[], bounds: TimelineBounds):
       laneCount: lanes[i].laneCount,
     }
   })
+}
+
+/**
+ * Free windows between consecutive items — the "your real calendar gaps"
+ * half of the timeline. Assumes `items` is already chronologically sorted
+ * (Home's `dayGroups` already sorts by start time) so a gap's `beforeIndex`
+ * matches the caller's own render order with no re-sorting round-trip.
+ * Overlapping items simply produce no gap between them (the running `cursor`
+ * only ever advances), and any gap under `MIN_GAP_MIN` is dropped so a
+ * 3-minute rounding artifact never renders as a "free" row.
+ */
+export function buildDayGaps(items: TimelineItem[]): TimelineGap[] {
+  if (items.length < 2) return []
+  const gaps: TimelineGap[] = []
+  let cursor = itemMinutes(items[0]).end
+  for (let i = 1; i < items.length; i++) {
+    const { start, end } = itemMinutes(items[i])
+    if (start > cursor && start - cursor >= MIN_GAP_MIN) {
+      gaps.push({ startMin: cursor, endMin: start, beforeIndex: i })
+    }
+    cursor = Math.max(cursor, end)
+  }
+  return gaps
 }
