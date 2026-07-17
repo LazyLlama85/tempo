@@ -135,7 +135,10 @@ you moving."*
   Back — with small inline visuals for the split + generate/schedule concepts), not the old static
   scroll of stacked cards.
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
-  `travel-mode`, `legal` (Privacy + Terms), `workout-complete`, `welcome` (post-onboarding reveal),
+  **`settings`** (new, 2026-07-16/17 — every "how the app behaves" row moved off Profile: Calendar &
+  Scheduling, Notifications, Subscription, Tester Tools, App, Account, sign-out/delete; reached via
+  Profile's header gear icon, registered in `_layout.tsx` as a `slide_from_bottom` modal),
+  `travel-mode` (now Pro-gated-but-teased — see §10), `legal` (Privacy + Terms), `workout-complete`, `welcome` (post-onboarding reveal),
   `weekly-report` (Sunday progress recap), `plan-explainer` ("why this week" periodization explanation),
   **`workout-builder`** (two modes: **create/edit** a saved workout = name + exercises → library,
   with no scheduling UI; **schedule** = opened with a `date` param from Add Workout, adds date/time +
@@ -147,7 +150,11 @@ you moving."*
   **`workout-history`** (the training log — every completed session, newest first, with
   sets/volume/minutes per row), **`session-detail`** (one completed session's full set-by-set
   record + its PRs; opened from a completed card's **Details** on Home or a History row; each
-  exercise links to its trend), **`exercise-library`** (browse/search the whole ~1,360-move library —
+  exercise links to its trend; **no longer pure read-only (2026-07-16/17)** — tapping a logged set
+  opens it inline-editable (weight/reps/duration/distance per its tracked fields, plus a "per side?"
+  toggle when it has a weight), saving an `UPDATE` to the existing `set_logs` row and calling
+  `invalidateTrainingData` so volume/PR numbers — always derived live from `set_logs`, never cached —
+  reflect the correction immediately; see the runner's matching edit flow below), **`exercise-library`** (browse/search the whole ~1,360-move library —
   instant ranked search + muscle-group & equipment filter chips, with **variant families collapsed**
   (barbell/dumbbell/cable versions under one expandable row, representative = shortest name on a
   relevance tie so the plainest variant leads) → the form-guide sheet; also doubles as an **add-to-
@@ -341,6 +348,33 @@ you moving."*
   reflects that honestly rather than fabricating a trend that doesn't exist; a future iteration could
   track progression per movement-pattern/slot instead of exact exercise id to reduce how often that
   happens, not attempted here.)
+  **Scheduling / split-recovery bug fixes (2026-07-16/17, direct founder reports):** (1) "Reschedule
+  my whole week" (`lib/reschedule.ts`'s `rescheduleWholeWeek`) only ever re-slotted EXISTING
+  `scheduled_workouts` rows — if a split day had been deleted/skipped first, it stayed missing after
+  a reschedule. Now calls the same fill logic `materializeSplit` (`lib/splitSchedule.ts`) already uses
+  for the active split, for each weekday in the horizon with no live row, BEFORE re-slotting — so a
+  reschedule can't skip re-creating a day that should exist. (2) A soft-deleted day
+  (`status:'skipped'`, the established remove-a-workout pattern — never a real `DELETE`) was
+  permanently orphaned: `materializeSplit`'s "already taken" existing-dates query had no status
+  filter, so it read a skipped date as occupied forever. Fixed the query to exclude
+  `status = 'skipped'` (a skipped date now reads as open again — `'rescheduled'` days still correctly
+  stay excluded, since those are genuinely superseded by a plan/split change, not a single-day
+  removal) — this alone means the next app-open split-horizon refresh self-heals a skipped day with
+  no user action. Plan's day-card also gained an immediate affordance so the user isn't stuck waiting
+  for that sweep: selecting a day the active split expects a workout on, but has none for, shows
+  "Unscheduled this week — Add it back" with a one-tap button that re-runs the same fill logic for
+  just that day. (3) Plan's hub said "No session scheduled today" even once today's only session was
+  already completed — `loadWorkout()`'s fallback only ever queried for a `'scheduled'` row; it now
+  falls back to checking for a `'completed'` row on today's date and shows "Today's session is done"
+  instead of the generic empty state. (4) Connecting/reconnecting a calendar left a stale-looking
+  workout until a force-quit — `calendar-setup.tsx` fired `syncUpcomingWorkouts` fully fire-and-forget
+  with zero query invalidation, and Home's `range_events` key wasn't in `useRefreshOnFocus`'s list
+  either. Fixed at both ends: `calendar-setup.tsx` now invalidates `['range_events', userId]` +
+  `['scheduled_workouts', userId]` after every connect/disconnect path, and `lib/queryInvalidation.ts`'s
+  shared `TRAINING_KEYS` gained `['range_events']` + `['plan_cal_workouts']` so this exact class of
+  staleness can't recur at any other mutation call site either (the same fix covers the "onboarding
+  scheduled nothing until calendar connected" report — `generatePlan` always wrote the rows
+  immediately; the stale-query gap was the real cause, surfacing differently on first run).
   **Set logging is instant:** tapping ✓ logs the set immediately (light haptic, rest timer
   auto-starts at the workout's effective rest); **RPE is an optional post-log follow-up bar**
   that updates the `set_logs` row — it never gates logging or the timer. Each set row has a
@@ -386,6 +420,37 @@ you moving."*
   (60/90s/**2min suggested**/3min/**custom stepper**) rather than an Alert (Android caps alerts at
   3 buttons); the pick **persists as that workout's rest** (`lib/restPrefs`, SQLite localStorage)
   and drives the auto-started rest after every set.
+  **Editable completed sets + unilateral weight (2026-07-16/17):** a logged set could previously only
+  be fixed by delete-and-redo (`removeSet`). Tapping a done set now re-opens it as editable inputs;
+  saving issues an `UPDATE` to the existing `set_logs` row (`saveSetEdit`) instead of a new insert,
+  then calls `invalidateTrainingData` — `session-detail.tsx` gained the identical tap-to-edit-inline
+  pattern (see §3.1), since "logged it wrong, want to fix it after the fact" is squarely a
+  post-session need too. A new **"×2 per side" toggle** next to the weight input (both surfaces)
+  covers unilateral work with **no schema change**: `lib/unilateralPrefs.ts` (mirrors
+  `lib/restPrefs.ts`'s device-local, per-exercise-name-keyed localStorage pattern exactly) remembers
+  the choice per exercise, and the typed number is doubled into `weight_lbs` at write time — every
+  existing volume/PR calculation, which already reads `weight_lbs` directly, needed zero changes.
+  **Quick Workout re-scoping / session-active signal (2026-07-16/17):** the founder kept the GO tab
+  button but asked that it not compete with a live session. New one-boolean `stores/sessionActive.ts`
+  (matches the size/shape of small existing stores like `stores/entitlements.ts`) — `plan.tsx` syncs
+  its local `sessionActive` state into it on mount/change and resets it false on unmount; siblings
+  can't share React state directly, hence the store. `components/TempoTabBar.tsx`'s GO button reads
+  it and hides (`pointerEvents:'none'`) while a session is live.
+  **Active-session Focus Mode (2026-07-16/17):** a new full-screen, ADDITIVE view for whichever set is
+  currently in play — `components/FocusMode.tsx`, built after the founder's own reference screenshot
+  (large center ring, rest timer with −/+ adjust, form-reference preview, Skip/Done taking up the
+  whole screen, "especially for the rest timer"). Auto-opens when a rest timer starts
+  (`restSecondsLeft` goes non-null right after `startRest(...)`); a manual "Focus" button on the
+  exercise-card header opens it too. The ring (reusing `SvgProgressRing`, not new SVG code) shows a
+  live countdown while resting or the target-rep count while active; −/+ adjusts rest duration live;
+  the form preview reuses the exact same `getExerciseGifSource` resolution the exercise card's own
+  thumbnail already uses (curated clip → RapidAPI ExerciseDB clip → none), fetched once, not
+  re-fetched. Skip/Done wire to the exact existing handlers — `stopRest()` (skip while resting),
+  `removeSet()` (skip while not resting), `handleSetDone()` (done either way) — **no new logging
+  semantics**, just a different full-screen frame around the same state. Everything the runner
+  already had — the scrollable exercise list, ⋯ menu, RPE bar, warm-up toggle, trash, add-exercise,
+  Pause sheet — keeps working completely unchanged; Focus Mode is a second way to view the SAME
+  state, closing it returns to the normal list with nothing lost.
   On finish updates logs, fires adaptation re-eval, and routes to the celebration screen. When
   nothing is scheduled the hub shows the Quick Workout empty state (never a dead end); hub links
   include **History** (`workout-history`).
@@ -422,21 +487,38 @@ you moving."*
   `exercise-progress`), and a **journey timeline**. Data comes from `useProgressStats` (extended
   additively to also expose `logTimes` + `muscleSets` + `strengthSets` from its existing set-log query
   — no new fetches). Profile no longer duplicates any of the performance cards (see below).
-- **Profile** (`(tabs)/profile.tsx`): identity + config surface. The **level/XP hero** now also shows
-  a **Pro badge** (gold, when `useProAccess().isPro`), a **streak chip**, and **member-since**. Below
-  it (`components/ProfileCards.tsx`): a **Fitness Identity card** (goal · frequency · session length ·
-  equipment · active split, as chips — from `profile` + `fetchActiveSplit`) and a **Tempo Insights
-  grid** (WHOOP/Oura-style stat tiles: workouts, streak, consistency, PRs, volume, readiness — from
-  `useProgressStats` + `readinessFromHistory`; no new fetches beyond the split). Hero uses
-  `Elevation.e2`, cards `e1`. This surfaces stats *on Profile as identity*, distinct from Progress's
-  analytics dashboard. Profile keeps **Body
-  Stats** (weight + body-fat + waist trends, progress-photo capture — the only place to *log* a
-  measurement; "View trend" links to Progress), saved exercise swaps, a
-  **"Right Now"** section (temporary/personal adjustments — **travel mode + injuries**, surfaced at
-  the top of settings rather than buried in the plan), **My Plan** (workouts/splits/history/library +
-  goal/experience/days/equipment/Change Plan), settings (availability, calendar — connect **and
-  disconnect** Google/device, **notifications
-  toggle**, legal), edit profile, sign out, account deletion.
+- **Profile** (`(tabs)/profile.tsx`): identity + history surface — **trimmed to just that in the
+  2026-07-16/17 Settings split** (below). The **level/XP hero** shows a **Pro badge** (gold, when
+  `useProAccess().isPro`), a **streak chip**, and **member-since**, plus a new **header gear icon**
+  (`router.push('/settings')`). Below it (`components/ProfileCards.tsx`): a **Fitness Identity card**
+  (goal · frequency · session length · equipment · active split, as chips — from `profile` +
+  `fetchActiveSplit`) and a **Tempo Insights grid** (WHOOP/Oura-style stat tiles: workouts, streak,
+  consistency, PRs, volume, readiness — from `useProgressStats` + `readinessFromHistory`; no new
+  fetches beyond the split). Hero uses `Elevation.e2`, cards `e1`. This surfaces stats *on Profile as
+  identity*, distinct from Progress's analytics dashboard. Profile keeps **Body Stats** (weight +
+  body-fat + waist trends, progress-photo capture — the only place to *log* a measurement; "View
+  trend" links to Progress), saved exercise swaps, a **"Right Now"** section (temporary/personal
+  adjustments — **travel mode** (now Pro-gated-but-teased, see §10 above) **+ injuries**), **Training**
+  (workouts/splits/history/library + equipment/Change Plan; **Primary Goal and Experience are now
+  independently editable** — see below), and the Social section (Friends, gated on activation). Sign
+  out, account deletion, calendar/notifications/appearance/units/tester-tools all **moved to the new
+  `app/settings.tsx`** (route registered in `_layout.tsx` as a `slide_from_bottom` modal), reached via
+  the header gear icon: Calendar & Scheduling (availability, calendar connect/disconnect,
+  auto-scheduling toggle, add-to-calendar toggle, remove-all-Tempo-events), Subscription (Pro
+  upgrade/manage, tester-gated), Tester Tools, App (notifications master + 7 sub-switches, appearance,
+  units, Replay App Tour), Account (Privacy/Terms), Sign Out, Delete Account. This is a pure
+  relocation — every row kept its exact existing handler/behavior, just moved files.
+  **Goal/Experience independent edits (2026-07-16/17):** both rows were previously read-only display
+  text, forcing the full "Change Plan" re-onboarding wizard (`/onboarding/goal`) for even a
+  single-field change. Now tappable → a small `OptionSheet` → `saveTrainingField(field, value)`:
+  `UPDATE user_profiles`, then calls `restampFuturePlanForExperience(supabase, userId)` (the same
+  function `lib/experienceProgression.ts` already uses for automatic level-up promotions — it
+  re-selects every upcoming session's exercises against whatever's currently in `user_profiles` and
+  silently skips any focus it can't map to the new template set, so it can never corrupt the
+  schedule), then `invalidateTrainingData(queryClient)`. **Days Per Week deliberately stays
+  read-only** — changing it alone would leave the split's day count structurally wrong (the template
+  set `restampFuturePlanForExperience` builds is keyed by `days_per_week`, so most old sessions'
+  focuses would stop matching and go un-restamped) — still requires the full "Change Plan" regen.
 - **Quick Workout** (`quick-workout.tsx`): pick minutes + focus → generated session with a "why" and
   "why it counts"; one tap to start.
 - **Availability / Travel** modals: set work/school/sleep/unavailable windows, and a temporary
@@ -602,7 +684,12 @@ aware):**
   full-screen empty moment is illustrated + on-brand rather than a line of grey text. (Tight
   *section* empties inside a populated screen, e.g. My Workouts' per-section lists, stay as text —
   a full illustration per section would overwhelm.)
-- **`TempoTabBar`** — the floating dock (see 3.1).
+- **`TempoTabBar`** — the floating dock (see 3.1). Its GO button reads `stores/sessionActive.ts` and
+  hides while a live session is mounted (2026-07-16/17).
+- **`FocusMode`** (new, 2026-07-16/17) — the full-screen active-set view described in §3.2's Plan
+  section (large `SvgProgressRing`, rest −/+ adjust, form preview, Skip/Done). Purely presentational —
+  every prop is read from state the runner (`(tabs)/plan.tsx`) already owns; ADDITIVE, not a
+  replacement for the runner's existing exercise-card list.
 
 ### 3.3a Motion & celebration pass
 Cross-tab feel = the dock (icon pop + primary tick spring on select) + each screen's
@@ -657,7 +744,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`materializeSplit`/`refreshActiveSplit`** — the split analogue of `generatePlan`'s insert loop:
   lays the weekly pattern onto the calendar as ordinary `scheduled_workouts` rows (`source='split'`,
   `split_id` set) over a rolling 28-day horizon, idempotent so app-open can extend the window.
-  Everything downstream (feed, runner, auto-scheduling, calendar sync, missed sweep) works
+  **Bug fix (2026-07-16/17):** the existing-dates "already taken" check used to have no status
+  filter, so a soft-deleted (`status:'skipped'`) day read as permanently occupied and was never
+  refilled — now excludes `status = 'skipped'` (reads as open again; `'rescheduled'` still correctly
+  stays excluded, since that's a genuine supersession, not a single-day removal). `lib/reschedule.ts`'s
+  `rescheduleWholeWeek` now calls this same fill logic for any missing split day before re-slotting
+  the week, so "reschedule my week" can restore a deleted day instead of only re-slotting what already
+  exists. Everything downstream (feed, runner, auto-scheduling, calendar sync, missed sweep) works
   unchanged — split workouts are commitments, so the missed sweep includes them.
 - Entry points: **Profile → My Plan → My Splits** and **My Workouts → My Splits** → `my-splits`
   (list/activate) → `split-editor` (author). Generating a plan (Change Plan) deactivates any
@@ -735,6 +828,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **skip the profile re-fetch** when a profile is already held; the `user_signup` vs `login`
   analytics split keys on a *confirmed* missing row (`res.ok && !profile`), never on a failed
   fetch — a returning user on a fresh install with a network blip is a login, not a signup.
+- **`stores/sessionActive.ts`** (new, 2026-07-16/17) — a one-boolean store (`active`/`setActive`), the
+  only shared signal between the Plan tab's runner and its sibling `TempoTabBar` (siblings can't share
+  React state directly). Set true while a live session is mounted, false on unmount/pause/finish;
+  `TempoTabBar`'s GO button hides while it's true, so Quick Workout never competes with an in-progress
+  session.
 - **`stores/entitlements.ts`** (Tempo Pro, §10) — two facts: `proEnabled` (the dormant remote flag)
   and `isPro` (the RevenueCat entitlement). A feature is `locked` only when `proEnabled && !isPro`,
   so while dormant nothing is gated. `useProAccess()` exposes the state; `useProGate()` wraps a
@@ -755,7 +853,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   not a re-fence (see `proFeatures.ts`'s `schedule_optimization` comment, which spells out this
   distinction so a future call site doesn't accidentally gate the ambient engine by reusing the same
   feature id). Muscle Intelligence (`muscle-map.tsx`, plan.tsx's readiness tab, the post-workout
-  teaser) is unchanged — still gated, out of this batch's scope. **The custom paywall**
+  teaser) is unchanged — still gated, out of this batch's scope. **Travel Mode is a new gate
+  (2026-07-16/17):** a new `travel_mode` id in `proFeatures.ts`; Profile's "Right Now" → Travel Mode
+  row is wrapped in `<ProGate feature="travel_mode" compact>`, and `travel-mode.tsx` itself also
+  checks `useProGate().locked` and renders a `ProLockCard` in place of the equipment/duration form
+  when locked — belt-and-suspenders so a locked user can't reach the form via a deep link either,
+  matching `muscle-map.tsx`'s own screen-level gating pattern. Dormant-safe like every other gate:
+  byte-identical while `proEnabled` is false. **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
   StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
@@ -763,8 +867,9 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   plan cards + trial note → a "less than a coffee a week" value line → **trust indicators** (Secure ·
   Private · No ads · Cancel anytime). No fake testimonials (deliberately — real ones can be dropped
   in later). All purchase/restore/offering logic unchanged. Everything ships DORMANT — flip
-  `app_config.pro_enabled` (or allow-list a uid) to go live with no rebuild. On Profile, the Pro
-  upgrade/manage rows now live in their own **Subscription** section (shown only while Pro is live).
+  `app_config.pro_enabled` (or allow-list a uid) to go live with no rebuild. The Pro upgrade/manage
+  rows live in a **Subscription** section on the new `app/settings.tsx` screen (moved off Profile in
+  the 2026-07-16/17 Settings split below; shown only while Pro is live).
   **Tester Tools (Pro on/off switch):** the store also holds `tester` (may this account use the
   switch) + `devProOverride` (`null` real · `true` force-Pro · `false` force-free, persisted via the
   `localStorage` idiom, survives the RevenueCat listener). `useProAccess()` honors the override
@@ -1083,6 +1188,9 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   expo-haptics with a guarded require + Vibration fallback, so a dev client built before the
   module exists never crashes), **`restPrefs`** (per-workout rest-length preference keyed by
   workout focus, SQLite-localStorage-persisted; `SUGGESTED_REST_SEC = 120`),
+  **`unilateralPrefs`** (new, 2026-07-16/17 — the identical device-local pattern, keyed by
+  lowercased/trimmed exercise name instead of workout focus, backing the runner + session-detail's
+  "×2 per side" toggle),
   **`handoff`** (single-slot consumed-on-read mailbox for "create X, return, auto-use it" flows —
   currently split-editor ↔ workout-builder), and
   **`social`** (friends/privacy/shares data layer: search + friend CRUD over the RPCs,
