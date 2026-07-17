@@ -28,6 +28,12 @@ const START_TIMES: Record<TimeOfDay, string[]> = {
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+// 'HH:MM:SS', local time — comparable directly against planned_start_time.
+function nowTimeStr(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 // ISO weekday 1=Mon … 7=Sun.
 function isoWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1
@@ -83,6 +89,7 @@ export async function materializeSplit(
 
   const tod = preferredTimeOfDay ?? 'morning'
   const times = START_TIMES[tod]
+  const nowStr = nowTimeStr()
   const rows: object[] = []
   let idx = 0
   for (let i = 0; i < HORIZON_DAYS; i++) {
@@ -91,13 +98,18 @@ export async function materializeSplit(
     if (taken.has(dateStr)) { idx++; continue }
     const day = byWeekday.get(isoWeekday(date))
     if (!day || day.rest || !(day.exercise_ids?.length)) continue
+    // Today specifically: don't lay down a session whose natural slot has already
+    // passed — a split activated/built late in the day would otherwise read as
+    // overdue within minutes (mirrors generatePlan.ts's identical same-day guard).
+    const startTime = times[idx % times.length]
+    if (i === 0 && startTime <= nowStr) { idx++; continue }
     const config = day.config ?? []
     rows.push({
       user_id: userId,
       user_plan_id: null,
       split_id: split.id,
       planned_date: dateStr,
-      planned_start_time: times[idx % times.length],
+      planned_start_time: startTime,
       planned_duration_min: estimateDurationMin(config),
       focus: day.label || 'Workout',
       status: 'scheduled',

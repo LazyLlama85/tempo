@@ -66,6 +66,13 @@ function startTimeFor(tod: TimeOfDay, idx: number): string {
   return times[idx % times.length]
 }
 
+// 'HH:MM:SS', local time — comparable directly against planned_start_time.
+function nowTimeStr(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 const MIN_DAYS = 2
 const MAX_DAYS = 6
 const clampDays = (n: number) => Math.min(MAX_DAYS, Math.max(MIN_DAYS, Number.isFinite(n) ? n : 3))
@@ -631,6 +638,7 @@ function buildBlockRows(
   sessionCountStart: number,
 ): object[] {
   const todayStr = formatDate(new Date())
+  const nowStr = nowTimeStr()
   const rows: object[] = []
   let sessionCount = sessionCountStart
   // Per-focus occurrence index drives exercise rotation, so the FIRST Push/Pull/
@@ -649,6 +657,12 @@ function buildBlockRows(
       // Never create a past-dated session (mid-week signups): it would be marked
       // "missed" instantly. Skip without consuming a template so rotation stays intact.
       if (formatDate(date) < todayStr) continue
+      // Same guard for TODAY specifically: a signup late in the day would otherwise
+      // still get a same-day session dated with a start time already behind "now" —
+      // not "missed" by the DB sweep (date isn't in the past), but it reads as
+      // overdue within minutes of finishing onboarding. Push to the next valid day
+      // instead of forcing a session into a window that's already gone.
+      if (formatDate(date) === todayStr && startTimeFor(ctx.timeOfDay, sessionCount) <= nowStr) continue
 
       const template = ctx.templates[sessionCount % ctx.templates.length]
       const rot = (focusRotation.get(template.focus) ?? Math.floor(sessionCountStart / ctx.templates.length))

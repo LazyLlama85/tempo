@@ -58,7 +58,10 @@ function workoutRow(over: Partial<Record<string, any>>) {
 }
 
 describe('materializeSplit', () => {
-  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T12:00:00`)) })
+  // Early morning: every START_TIMES slot (morning/afternoon/evening) is still
+  // ahead of "now", so the same-day past-time guard (tested on its own below)
+  // never interferes with these skip/retire assertions.
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T05:00:00`)) })
   afterEach(() => { jest.useRealTimers() })
 
   it('inserts a row for each non-rest weekday in the 28-day horizon, and none for rest days', async () => {
@@ -82,6 +85,17 @@ describe('materializeSplit', () => {
     const rows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER).eq('planned_date', TODAY)).data
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe('existing')
+  })
+
+  it('skips creating TODAY\'s session when its natural slot has already passed — never surface an already-gone window as "today\'s workout"', async () => {
+    jest.setSystemTime(new Date(`${TODAY}T12:00:00`)) // noon — every morning slot is behind us
+    const client = createFakeSupabase({ scheduled_workouts: [] })
+    await materializeSplit(client, USER, split(), 'morning')
+    const todayRows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER).eq('planned_date', TODAY)).data
+    expect(todayRows).toHaveLength(0)
+    // Future days are unaffected — the guard only ever applies to day 0.
+    const allRows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER)).data
+    expect(allRows.length).toBeGreaterThan(0)
   })
 
   it('never materializes the auto-plan mirror (that would duplicate plan-owned sessions)', async () => {
@@ -127,7 +141,10 @@ describe('materializeSplit', () => {
 })
 
 describe('activateSplit — the poisoned-Change-Plan scenario, for splits', () => {
-  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T12:00:00`)) })
+  // Early morning: every START_TIMES slot (morning/afternoon/evening) is still
+  // ahead of "now", so the same-day past-time guard (tested on its own below)
+  // never interferes with these skip/retire assertions.
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T05:00:00`)) })
   afterEach(() => { jest.useRealTimers() })
 
   const MANUAL = { scheduling_mode: 'manual', preferred_time_of_day: 'morning' as const }

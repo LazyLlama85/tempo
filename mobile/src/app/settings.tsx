@@ -104,6 +104,11 @@ export default function SettingsScreen() {
     setDeleting(false)
     if (res.ok) {
       await signOut()
+      // This screen is a modal pushed on top of (tabs) — signing out swaps the
+      // stack underneath to /sign-in, but a presented modal doesn't auto-dismiss
+      // just because the screen behind it changed. Without this it stayed on
+      // screen until the user tapped the back arrow themselves.
+      if (router.canDismiss()) router.dismissAll()
     } else {
       Alert.alert('Couldn’t delete account', `Something went wrong (${res.error}). Please try again, or contact support if it continues.`)
     }
@@ -609,7 +614,10 @@ export default function SettingsScreen() {
           ? 'You’re using a guest account, and guest accounts can’t be signed back into. Signing out permanently loses your plan, workouts, and progress.'
           : 'You can sign back in any time.'}
         options={[{ key: 'signOut', label: session?.user.is_anonymous ? 'Sign out anyway' : 'Sign Out', icon: 'log-out-outline', destructive: true }]}
-        onSelect={() => { setSignOutSheetVisible(false); void signOut() }}
+        onSelect={() => {
+          setSignOutSheetVisible(false)
+          void signOut().then(() => { if (router.canDismiss()) router.dismissAll() })
+        }}
         onClose={() => setSignOutSheetVisible(false)}
       />
       <OptionSheet
