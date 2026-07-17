@@ -30,16 +30,36 @@ retaining and a growth loop compounding. So this OS optimizes for the sequence t
 
 ## 1. The 20% that drives 80% (the vital few — do these no matter what)
 
-Everything else is optimization around these seven. If a week goes by and none of these moved,
-the week was wasted.
+**Redirected 2026-07-17** (Phase 9 re-review): the original seven are now mostly *built*. Google
+Calendar went to production the same day this redirect was written — the single most-cited
+reliability risk in this whole document is structurally fixed. The bottleneck has moved from
+"what to build" to **"verify what's built, then measure it"** — building more before that happens
+would be exactly the "ambition outrunning validation" trap §6 warns about, now pointed at Claude's
+own output instead of a hypothetical future feature.
 
-1. **Calendar reliability** — Google OAuth to Production so the core feature stops silently dying. *(B0.2)*
-2. **Retention instrumentation + a defined activation event** — so every later decision is data-led. *(B0.1 ✅ / B0.3)*
-3. **Calendar day-timeline as the Home hero** — make the differentiator *felt* in 3 seconds. *(B1.2)*
-4. **"Reschedule my whole week"** — the payable magic only Tempo can do. *(B1.3)*
-5. **Re-fence Pro around scheduling; free the analytics** — 3–4× conversion. *(B2.1)*
-6. **Plain-language copy + progressive disclosure** — stop week-one churn from jargon and overwhelm. *(B3.1/B3.2)*
-7. **One acquisition channel around the demoable calendar trick** — a growth loop where there's none. *(B6.2)*
+1. **Verify the built backlog on-device** — Focus Mode, the 6-screen onboarding rebuild, the Plan
+   tour, the Feed button, and the Home/Progress fixes (streak, rest-day advice, body intelligence,
+   photo gallery, readiness chip, goal ETA) are ALL 🔍 code-verified/not-device-tested. Nothing in
+   this list scores until it's tested. *(founder)*
+2. **Retention instrumentation + a defined activation event** — still the single most important
+   unblocking dependency; every M4 decision needs this data. *(B0.1 ✅ / B0.3, founder)*
+3. **Confirm Google Calendar survives >7 days on a real device** — production approval (2026-07-17)
+   removes the root cause (Testing-mode token expiry); M0's own criterion ② still needs a real,
+   time-based confirmation before the milestone can close. *(founder)*
+4. **Multi-calendar (B1.5)** — the sequencing gate that blocked this ("let the in-flight
+   `calendar.events` verification finish first") is now clear. The next real Claude-buildable batch,
+   not a new surface — extends the existing calendar integration.
+5. **Pricing + trial config (B2.3)** and **App Store listing + one acquisition channel (B6.1/B6.2)**
+   — founder-only, unblocked, real ROI, not done yet.
+6. **Hold the M4 freeze** — no B4.x (accountability loop, referral), no Tempo Coach, no new feature
+   surface, until B0.3's data says retention holds. This discipline is more important now than
+   before, precisely because so much has shipped that it would be easy to keep shipping instead of
+   measuring.
+
+*(The original seven — Calendar reliability, retention instrumentation, the day-timeline hero,
+reschedule-my-week, the Pro re-fence, plain-language copy + progressive disclosure — are now ✅ or
+🔍-pending-device-test. See `EXECUTION_STATUS.md` for the current state of each. Acquisition channel
+(#7 originally) is unchanged: still not started, still founder-only.)
 
 ---
 
@@ -77,9 +97,14 @@ A milestone is **done** only when every criterion is objectively true. No "mostl
 
 ### M0 — Measurable & Reliable *(foundation; unblocks everything)*
 **Done when:** ① the retention funnel (onboarding → activation → D7) is visible in PostHog with a
-written activation definition; ② a connected Google Calendar stays connected **> 7 days** on a real
-device; ③ the current redesign has been smoke-tested on a physical device with **no blank-render**;
-④ a written "feature freeze" is in effect (no new surfaces until M4).
+written activation definition *(🔲 still open — the single biggest remaining M0 gap)*; ② a connected
+Google Calendar stays connected **> 7 days** on a real device *(🔍 the root cause — Testing-mode
+token expiry — is fixed now that Google Calendar is approved for production, 2026-07-17; still needs
+a real >7-day device confirmation before this criterion is objectively true)*; ③ the current redesign
+has been smoke-tested on a physical device with **no blank-render** *(🔍 partial — Home hierarchy,
+Session Complete, Settings split, and editable sets are founder-confirmed; Focus Mode, the onboarding
+rebuild, the Plan tour, and the Feed button are not yet)*; ④ a written "feature freeze" is in effect
+*(✅ in effect, and re-affirmed harder in §1's 2026-07-17 redirect)*.
 
 ### M1 — The Wedge, Undeniable
 **Done when:** ① a brand-new user sees their workout **slotted into a real calendar gap on Home**
@@ -144,7 +169,11 @@ B6.3 "Year in Training" Wrapped *(M)* · B6.4 Table-stakes polish, data-gated *(
 
 ## 5. Dependency map (don't violate these edges)
 
-- **B0.2 (OAuth) precedes B1.2 (timeline)** — a timeline over a calendar that silently breaks is worse than none.
+- **B0.2 (OAuth) precedes B1.2 (timeline)** — a timeline over a calendar that silently breaks is worse than none. *(B0.2 now ✅ — production approved 2026-07-17.)*
+- **B1.5's own sequencing gate is now clear** (2026-07-17): step 1, "let the in-flight `calendar.events`
+  verification finish first," is done — production approval covers it. Step 2 (Claude builds the
+  picker/`CalendarList` integration) can start now; step 3 (founder adds the `calendar.calendarlist.readonly`
+  scope + records a new demo video) still gates it actually working end-to-end.
 - **B0.1/B0.3 (measurement) precedes M4** — you cannot improve retention you can't see.
 - **B1.3 (reschedule-week) precedes B2.1/B2.2** — you can't gate/trigger a feature that doesn't exist.
 - **B2.1 (re-fence) precedes B2.2 (trigger)** — fence first, then fire the paywall at the right door.
