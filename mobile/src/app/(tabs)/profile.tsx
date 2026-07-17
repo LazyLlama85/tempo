@@ -527,6 +527,12 @@ export default function ProfileScreen() {
       <ScreenHeader
         right={
           <HeaderActions>
+            {/* Hidden pre-activation (audit §05 First-Week residual): an empty
+                badge case is overwhelm, not value, for a day-1 user. Same gate
+                as Friends below — `newBadges > 0` keeps it visible for anyone
+                who's already earned one, even before hitting ACTIVATION_SESSIONS,
+                so nobody who's already earned a badge ever loses access to it. */}
+            {(activated || newBadges > 0) && (
             <TouchableOpacity
               onPress={() => router.push('/badges' as any)}
               hitSlop={8}
@@ -540,6 +546,7 @@ export default function ProfileScreen() {
                 </View>
               )}
             </TouchableOpacity>
+            )}
             {(activated || socialNotifs > 0) && (
               <TouchableOpacity
                 onPress={() => router.push('/social' as any)}

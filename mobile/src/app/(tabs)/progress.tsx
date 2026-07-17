@@ -215,6 +215,96 @@ export default function ProgressScreen() {
             actionLabel="Start a Quick Workout"
             onAction={() => router.push('/quick-workout')}
           />
+        ) : !activated ? (
+          // Progressive disclosure (audit §10 "show 2 things at 4 sessions"): the
+          // full Fitness Intelligence dashboard (Tempo Score, momentum, heatmap,
+          // muscle balance, journey timeline, etc.) is a lot to hand a day-1 user
+          // with one logged session. Same ACTIVATION_SESSIONS gate Body
+          // Intelligence and Social already use — pacing, not a paywall: every
+          // card here is free and stays free once the rest unlocks.
+          <>
+            <FadeInView style={styles.ringCard} delay={40}>
+              <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
+              <View style={styles.ringWrap}>
+                <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                    <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
+                    <Text style={[styles.ringPercent, { fontSize: 20 }]}>%</Text>
+                  </View>
+                  <Text style={styles.ringSubLabel}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
+                </SvgProgressRing>
+              </View>
+              <Text style={styles.ringCaption}>
+                {consistency_pct > 0
+                  ? `${consistency_pct}% completion rate in the last 30 days.`
+                  : 'Complete your first workout to start tracking.'}
+              </Text>
+            </FadeInView>
+
+            <FadeInView style={styles.streakCard} delay={120}>
+              <View style={styles.streakRow}>
+                <Ionicons name="flame" size={22} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.streakTag}>CURRENT STREAK</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                <CountUp value={streak} delay={300} duration={700} style={styles.streakNum} />
+                <Text style={styles.streakUnit}>{streak === 1 ? 'Session' : 'Sessions'}</Text>
+              </View>
+              <Text style={styles.streakCaption}>
+                {streak > 0
+                  ? `${streak} in a row with no misses — rest days don't break it.`
+                  : 'Complete your next scheduled workout to start your streak.'}
+              </Text>
+            </FadeInView>
+
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>VOLUME LIFTED</Text>
+              <View style={styles.statRow}>
+                <Text style={styles.statValue}>
+                  {displayVolume(stats?.periodVolumeNum ?? 0, unit)}{' '}
+                  <Text style={styles.statUnit}>{unitLabel(unit)}</Text>
+                </Text>
+                <View style={styles.periodToggle}>
+                  {(['W', 'M', '6M'] as ChartPeriod[]).map((p) => (
+                    <PressableScale
+                      key={p}
+                      style={[styles.periodBtn, p === period && styles.periodBtnActive]}
+                      onPress={() => setPeriod(p)}
+                      scaleTo={0.9}
+                    >
+                      <Text style={[styles.periodText, p === period && styles.periodTextActive]}>{p}</Text>
+                    </PressableScale>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.weekBarsContainer}>
+                {chartVolumes.map((vol, i) => {
+                  const barH = vol > 0 ? Math.max(4, Math.round((vol / maxChartVol) * 44)) : 0
+                  const isCurrent = i === chartVolumes.length - 1
+                  return (
+                    <View key={`${period}-${i}`} style={styles.weekBarCol}>
+                      <View style={{ width: '100%', justifyContent: 'flex-end', opacity: barH > 0 ? 1 : 0.4 }}>
+                        <SvgGrowBar
+                          height={barH > 0 ? barH : 2}
+                          delay={i * 50}
+                          color={barH > 0 && isCurrent ? C.primary : C.surfaceContainerHigh}
+                        />
+                      </View>
+                      <Text style={[styles.dayDotLabel, isCurrent && styles.dayDotLabelActive]}>
+                        {chartLabels[i]}
+                      </Text>
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
+
+            <View style={styles.teaserRow}>
+              <Ionicons name="sparkles-outline" size={16} color={C.outline} />
+              <Text style={styles.teaserText}>More unlocks as you train — PRs, muscle balance, Tempo Score.</Text>
+            </View>
+          </>
         ) : (
           <>
             {/* ── Fitness Intelligence (new) — sits on top of every existing card ── */}
@@ -557,6 +647,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   dayDotLabelActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
   insightRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   insightText: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
+  teaserRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs,
+  },
+  teaserText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.outline, lineHeight: 17 },
 
   unlockToast: {
     position: 'absolute', top: 96, left: Spacing.containerPadding, right: Spacing.containerPadding,
