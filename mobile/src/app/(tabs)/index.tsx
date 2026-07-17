@@ -613,6 +613,58 @@ export default function ScheduleScreen() {
     [todayItems],
   )
 
+  // Every workout today is done — the day is a win, not a to-do list. Home
+  // switches to a celebration/summary instead of showing a finished session
+  // sitting on a timeline you can't act on.
+  const todayWorkouts = useMemo(
+    () => todayItems.filter((i): i is Extract<FeedItem, { kind: 'workout' }> => i.kind === 'workout'),
+    [todayItems],
+  )
+  const dayComplete = todayWorkouts.length > 0 && todayWorkouts.every(i => i.workout.status === 'completed')
+
+  // Real logged time across today's finished sessions. `actual_duration_min` is
+  // only set once a session is actually completed; null when the row predates
+  // that tracking, in which case the card just omits the line.
+  const completedMinutes = useMemo(() => {
+    const mins = todayWorkouts
+      .map(i => i.workout.actual_duration_min)
+      .filter((m): m is number => m != null && m > 0)
+    return mins.length ? mins.reduce((a, b) => a + b, 0) : null
+  }, [todayWorkouts])
+
+  // Today's real lifted volume, summed from the session's own set_logs (warm-ups
+  // excluded, matching how volume is counted everywhere else). Only fetched on a
+  // completed day, and returns null rather than 0 when the session was
+  // bodyweight/duration-only — "0 lbs lifted" would read as a failure when it
+  // just isn't a weight-based session.
+  const { data: todayVolume = null } = useQuery<number | null>({
+    queryKey: ['today_session_volume', userId, todayStr, todayWorkouts.length],
+    queryFn: async () => {
+      const ids = todayWorkouts.map(i => i.workout.id)
+      if (!ids.length) return null
+      const { data: logs } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .in('scheduled_workout_id', ids)
+        .not('completed_at', 'is', null)
+      const logIds = (logs ?? []).map((l: any) => l.id as string)
+      if (!logIds.length) return null
+      const { data: sets } = await supabase
+        .from('set_logs')
+        .select('weight_lbs, reps_completed')
+        .in('workout_log_id', logIds)
+        .not('is_warmup', 'is', true)
+      let vol = 0
+      for (const s of (sets ?? []) as { weight_lbs: number | null; reps_completed: number | null }[]) {
+        if (s.weight_lbs != null) vol += s.weight_lbs * (s.reps_completed ?? 0)
+      }
+      return vol > 0 ? Math.round(vol) : null
+    },
+    enabled: !!userId && dayComplete,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // Hero tap-to-expand: a lightweight exercise-name "peek" (NOT the full
   // prescription/warmup load `(tabs)/plan.tsx`'s runner does) — fetched only
   // once the user actually expands the card, so it costs nothing until asked.
@@ -636,17 +688,27 @@ export default function ScheduleScreen() {
     [heroPreviewExercises, heroWorkout?.focus],
   )
 
+  // First name only, for the completed-day headline ("Nice work, Alex.").
+  // `display_name` is free text, so take the first token and ignore anything
+  // that isn't a plausible name rather than greeting someone by their email.
+  const firstName = useMemo(() => {
+    const raw = (profile?.display_name ?? '').trim()
+    if (!raw || raw.includes('@')) return null
+    const first = raw.split(/\s+/)[0]
+    return first.length > 0 && first.length <= 20 ? first : null
+  }, [profile?.display_name])
+
   // The headline — states what today's session is FOR, in the user's own goal
   // language ("Your Window to Build Muscle"), not the focus label the card
   // below already shows. Falls back to something true when no goal is set,
   // rather than inventing one.
   const heroHeadline = useMemo(() => {
+    if (dayComplete) return firstName ? `Nice work, ${firstName}.` : 'Nice work.'
     if (!heroWorkout) return 'Your day at a glance'
-    if (heroWorkout.status === 'completed') return 'Today is done.'
     if (heroWorkout.status === 'missed') return 'Let’s find a new slot.'
     const goal = profile?.goal ? GOAL_LABELS[profile.goal] : null
     return goal ? `Your Window to ${goal}` : 'Your Window to Train'
-  }, [heroWorkout, profile?.goal])
+  }, [dayComplete, firstName, heroWorkout, profile?.goal])
 
   // ── Actions ──────────────────────────────────────────────────────────────--
   const handleRefresh = async () => {
@@ -1023,19 +1085,9 @@ export default function ScheduleScreen() {
   // behaviour change — only its position and prominence changed).
   function renderHeroActions(w: ScheduledWorkout) {
     const { done, missed, overdue, conflict, attention, early, soft } = workoutState(w)
-
-    // Everything today is finished: no CTA to fabricate. The weekly-target card
-    // below becomes the payoff instead of a glowing struck-through card.
-    if (done && !todayItems.some(i => i.kind === 'workout' && i.workout.status !== 'completed')) {
-      return (
-        <View style={styles.ctaWrap}>
-          <View style={styles.doneRow}>
-            <Ionicons name="checkmark-circle" size={18} color={C.success} />
-            <Text style={styles.doneText}>Today's training is done.</Text>
-          </View>
-        </View>
-      )
-    }
+    // An all-done day never reaches here — Home renders its own completion
+    // screen instead (see `dayComplete`). This only guards the mixed case: one
+    // session done, another still ahead, where the hero is the one still ahead.
     if (done) return null
 
     return (
@@ -1485,6 +1537,60 @@ export default function ScheduleScreen() {
                 onAction={() => setAddWorkoutOpen(true)}
               />
             )
+          ) : dayComplete ? (
+            /* Everything scheduled today is done. A timeline of finished work
+               you can't act on is a to-do list with nothing to do — lead with
+               the win, then what's next. */
+            <View style={styles.feed}>
+              <Text style={styles.eyebrow}>TODAY</Text>
+              <Text style={styles.headline}>{heroHeadline}</Text>
+
+              <FadeInView style={styles.completeCard}>
+                <View style={styles.completeCheck}>
+                  <Ionicons name="checkmark" size={26} color={C.onPrimary} />
+                </View>
+                <Text style={styles.completeTitle}>Session Complete</Text>
+                <Text style={styles.completeMeta}>
+                  {[
+                    completedMinutes != null ? `${completedMinutes} minutes` : null,
+                    todayVolume != null ? `${todayVolume.toLocaleString()} lbs lifted` : null,
+                  ].filter(Boolean).join('  ·  ') || 'Logged and banked.'}
+                </Text>
+              </FadeInView>
+
+              {/* What's next — the only forward action on a finished day. */}
+              {nextWorkout && nextWorkout.planned_date !== todayStr && (
+                <PressableScale
+                  style={styles.nextUpRow}
+                  scaleTo={0.98}
+                  onPress={() => router.push('/(tabs)/plan')}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nextUpLabel}>NEXT UP</Text>
+                    <Text style={styles.nextUpText}>
+                      {relativeDayLabel(nextWorkout.planned_date)} · {formatTime(nextWorkout.planned_start_time)} · {nextWorkout.focus}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.outline} />
+                </PressableScale>
+              )}
+
+              {/* The finished sessions themselves stay reachable — collapsed to
+                  a quiet row each, not a glowing card. */}
+              {todayWorkouts.map(i => (
+                <TouchableOpacity
+                  key={i.workout.id}
+                  style={styles.completedRow}
+                  activeOpacity={0.7}
+                  onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: i.workout.id } } as any)}
+                >
+                  <Ionicons name="checkmark-circle" size={15} color={C.success} />
+                  <Text style={styles.completedRowText} numberOfLines={1}>{i.workout.focus}</Text>
+                  <Text style={styles.completedRowAction}>Details</Text>
+                  <Ionicons name="chevron-forward" size={14} color={C.outline} />
+                </TouchableOpacity>
+              ))}
+            </View>
           ) : (
             <View style={styles.feed}>
               {/* Eyebrow + headline — the hierarchy anchor. Without these the
@@ -1550,6 +1656,42 @@ export default function ScheduleScreen() {
             </View>
           )
         })()}
+
+        {/* Two real stats to close the screen out — no heart rate/steps tile
+            (no HealthKit integration exists yet, B5.2 unbuilt; a fabricated
+            biometric would be worse than an empty screen). Both numbers here
+            are the same `useProgressStats` call Home already makes — zero
+            new queries besides the completed-day volume above. */}
+        {stats.totalWorkouts > 0 && (
+          <View style={styles.statsRow}>
+            <View style={styles.statTile}>
+              <Text style={styles.statTileLabel}>TOTAL VOLUME</Text>
+              <Text style={styles.statTileValue}>{stats.totalVolume} lbs</Text>
+              {stats.weekVolumes.some(v => v > 0) && (
+                <View style={styles.sparkRow}>
+                  {stats.weekVolumes.map((v, i) => {
+                    const max = Math.max(...stats.weekVolumes, 1)
+                    return (
+                      <View key={i} style={styles.sparkTrack}>
+                        <View style={[styles.sparkBar, { height: `${Math.max(8, Math.round((v / max) * 100))}%` as `${number}%` }]} />
+                      </View>
+                    )
+                  })}
+                </View>
+              )}
+            </View>
+            <View style={styles.statTile}>
+              <Text style={styles.statTileLabel}>SESSIONS</Text>
+              <Text style={styles.statTileValue}>{stats.totalWorkouts}</Text>
+              <View style={styles.statTileSubRow}>
+                <Ionicons name="flame" size={13} color={stats.streak > 0 ? C.ember : C.outline} />
+                <Text style={styles.statTileSub}>
+                  {stats.streak > 0 ? `${stats.streak}-session streak` : 'No active streak'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
       </ScrollView>
 
@@ -1853,8 +1995,49 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   ctaBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15.5, color: C.onPrimary, letterSpacing: 0.2 },
   focusCaption: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, textAlign: 'center' },
-  doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
-  doneText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.success },
+  // ── Completed-day screen ─────────────────────────────────────────────────
+  completeCard: {
+    alignItems: 'center', gap: 4,
+    backgroundColor: C.successSoft, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: C.success,
+    paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  completeCheck: {
+    width: 52, height: 52, borderRadius: Radius.full,
+    backgroundColor: C.success, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
+  },
+  completeTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.2 },
+  completeMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  nextUpRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.sm,
+  },
+  nextUpLabel: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6 },
+  nextUpText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, marginTop: 2 },
+  completedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, marginBottom: Spacing.xs,
+  },
+  completedRowText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.textSecondary },
+  completedRowAction: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+
+  // ── Bottom stats row ──────────────────────────────────────────────────────
+  statsRow: { flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.xl },
+  statTile: {
+    flex: 1, backgroundColor: C.background, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant, padding: Spacing.md, gap: 2,
+    ...Elevation.e1,
+  },
+  statTileLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
+  statTileValue: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  statTileSubRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  statTileSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  sparkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28, marginTop: 6 },
+  sparkTrack: { flex: 1, height: '100%', justifyContent: 'flex-end' },
+  sparkBar: { width: '100%', backgroundColor: C.primary, borderRadius: 2, opacity: 0.85 },
 
   // ── Timeline rows (shared rail) ──────────────────────────────────────────────
   row: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },

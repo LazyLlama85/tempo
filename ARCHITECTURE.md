@@ -215,8 +215,7 @@ you moving."*
   ("SCHEDULED TODAY" / "Your Window to Build Muscle", the goal in the user's own language) as the
   hierarchy anchor. Two real bugs fixed in the same pass: the readiness chip and the primary glow
   were both rendering on **completed** workouts — readiness advice about a decision already made,
-  and a finished session as the loudest thing on screen; a done hero now drops its glow
-  (`heroCardDone`) and the action bar becomes a calm "Today's training is done." **Context strip:**
+  and a finished session as the loudest thing on screen. **Context strip:**
   `ContextItem` gained `chipOnly`, implementing the audit's explicit "demote goal countdown,
   block-phase, and 3 of the 4 banner types → one calm chip row" — goal/block/report/travel can now
   never take the banner slot (they were out-shouting today's session at the top of the screen); the
@@ -224,6 +223,27 @@ you moving."*
   calendar-disconnected, welcome-back). Their `primary()` renderers are intentionally kept (dead but
   one flag-flip from being re-promoted). **Weekly target** rebuilt: the old ring + bar showed the
   same number twice — now one bar, a `N / target` count, and a line that says where you stand.
+
+  **Round 2 (same day, second device review):** the rail line now fades in/out at each end instead
+  of cutting hard past the first/last item — `components/DayTimeline.tsx`'s `TimelineRail` measures
+  its own rendered height (`onLayout`) and draws a real `react-native-svg` `LinearGradient`
+  (0→1→1→0 opacity stops) rather than a percentage-based CSS fade, so the fade length
+  (`RAIL_FADE_PX`, 26px) stays constant whether the day has two items or ten; guarded against a
+  fade longer than a very short rail. **All-done day gets its own screen, not the regular
+  timeline**: `dayComplete` (every scheduled workout today is `'completed'`) switches Home to a
+  completion card — a checkmark, "Session Complete," real logged minutes + lifted volume (summed
+  from `set_logs` for today's actual `workout_logs`, warm-ups excluded, matching every other volume
+  calculation in the app — **not** a fabricated number) — followed by a "NEXT UP" row (the existing
+  `nextWorkout` query, already fetched) and each finished session collapsed to a quiet reachable row
+  (→ `session-detail`), never a glowing struck-through card with no CTA. The headline personalizes
+  to "Nice work, {first name}." off `profile.display_name`'s first token (falls back to a name-free
+  greeting if the value looks like an email or is implausible). **A two-tile stats row** closes the
+  screen: Total Volume (all-time, with an 8-week sparkline reusing `stats.weekVolumes` — the exact
+  bars Progress's own chart already computes, zero new data) and Sessions + current streak.
+  **Deliberately no heart-rate/steps tile** despite the founder's reference design showing one —
+  Tempo has no HealthKit integration (B5.2, unbuilt); a fabricated biometric number would be worse
+  than the tile not existing. Both tiles gate on `stats.totalWorkouts > 0` so a brand-new account
+  doesn't see an all-zero row.
   **Hero card gets three additions** (still the same `renderWorkout` function, hero-branch only):
   a **readiness chip** ("88% ready · go hard," reusing `readinessFromHistory`/`intensityFromReadiness`
   off the SAME `useProgressStats(userId)` call Home already made — zero new queries — tapping through

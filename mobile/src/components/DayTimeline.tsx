@@ -16,31 +16,62 @@
 // element spanning the whole (naturally-flowing) list, which carries none of
 // that per-item risk.
 
-import { View, Text, StyleSheet } from 'react-native'
+import { useState } from 'react'
+import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { Spacing, Radius } from '@/constants/theme'
-import { useThemedStyles, type Palette } from '@/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
 // Must match `index.tsx`'s `railTime` column width exactly so the rail line
 // (drawn here) lines up with the time labels (drawn there) — imported by both
 // rather than duplicated as two magic numbers that could quietly drift apart.
 export const RAIL_COLUMN_WIDTH = 52
 
+// The rail fades out over this many px at each end, so it emerges before the
+// first activity and dissolves after the last instead of running past them into
+// the surrounding layout with a hard cut.
+const RAIL_FADE_PX = 26
+
 interface RailProps {
   children: React.ReactNode
 }
 
 /** Wraps a vertically-flowing list of timeline rows with one continuous rail
- * line behind them, centered in the time-label column. Purely decorative. */
+ * line behind them, centered in the time-label column. Purely decorative.
+ * Measured rather than percentage-faded so the fade is a consistent length
+ * whether the day has two items or ten. */
 export function TimelineRail({ children }: RailProps) {
+  const C = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const [height, setHeight] = useState(0)
+  const onLayout = (e: LayoutChangeEvent) => setHeight(e.nativeEvent.layout.height)
+
+  // Guard against a fade longer than the rail itself on a very short day —
+  // otherwise the two fade zones overlap and the line never reaches full opacity.
+  const fade = height > 0 ? Math.min(RAIL_FADE_PX, height / 3) / height : 0
+
   return (
-    <View style={styles.railWrap}>
-      <View
-        pointerEvents="none"
-        style={styles.railLine}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
+    <View style={styles.railWrap} onLayout={onLayout}>
+      {height > 0 && (
+        <Svg
+          pointerEvents="none"
+          style={styles.railLine}
+          width={2}
+          height={height}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Defs>
+            <LinearGradient id="tempoRailFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={C.outlineVariant} stopOpacity={0} />
+              <Stop offset={fade} stopColor={C.outlineVariant} stopOpacity={1} />
+              <Stop offset={1 - fade} stopColor={C.outlineVariant} stopOpacity={1} />
+              <Stop offset="1" stopColor={C.outlineVariant} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={2} height={height} rx={1} fill="url(#tempoRailFade)" />
+        </Svg>
+      )}
       {children}
     </View>
   )
@@ -77,13 +108,12 @@ export function GapRow({ minutes }: GapRowProps) {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   railWrap: { position: 'relative' },
+  // Height/width come from the measured <Svg> itself (see TimelineRail) — the
+  // gradient needs a real pixel height, so this only pins its position.
   railLine: {
     position: 'absolute',
     left: RAIL_COLUMN_WIDTH / 2 - 1,
-    top: 6, bottom: 6,
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: C.outlineVariant,
+    top: 0,
   },
   gapRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
