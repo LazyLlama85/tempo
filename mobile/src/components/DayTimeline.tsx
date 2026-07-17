@@ -35,7 +35,12 @@ export function TimelineRail({ children }: RailProps) {
   const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.railWrap}>
-      <View pointerEvents="none" style={styles.railLine} />
+      <View
+        pointerEvents="none"
+        style={styles.railLine}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      />
       {children}
     </View>
   )
@@ -60,8 +65,9 @@ export function GapRow({ minutes }: GapRowProps) {
   return (
     <View style={styles.gapRow}>
       {/* Centered in a column the same width as `railTime` so the dot sits
-          exactly on the rail line, like a marker along it. */}
-      <View style={styles.gapRailCell}>
+          exactly on the rail line, like a marker along it — decorative only,
+          the text carries the actual information. */}
+      <View style={styles.gapRailCell} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <View style={styles.gapDot} />
       </View>
       <Text style={styles.gapText}>{formatGapDuration(minutes)} free</Text>
