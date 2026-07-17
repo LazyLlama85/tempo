@@ -94,20 +94,21 @@
   Storage bucket (`exercise-gifs`) — a ONE-TIME fetch per exercise; production never calls RapidAPI
   live once cached (confirmed: the bucket's RLS-safe, publicly-readable, and the app's
   `getExerciseGifSource` reads only from it — see `ARCHITECTURE.md`'s exercise-media section).
-  **State checked live 2026-07-17: the bucket is completely empty (0/1,297) — the script has never
-  actually been run.** The RapidAPI BASIC plan caps at 690 requests/month (shared between GIF fetches
-  and instruction fetches), so this needs **several monthly runs** to finish the whole library —
-  script now prioritizes curated originals → `is_core` movements (~103, what the plan generator +
-  Quick Workout actually assign) → the rest, so even ONE month's run covers everything a real user is
-  likely to see. **Founder reported this month's RapidAPI quota is already exhausted** (2026-07-17) —
-  a live header check on the same key showed 688/690 still remaining, so this may be a different
-  key/account than the one in `mobile/.env.local`, or the dashboard may show something this header
-  check can't see; **check the RapidAPI dashboard's Analytics tab for the definitive number** before
-  assuming either way. Whenever quota is confirmed available: run
+  **First real run executed 2026-07-17**: 688 GIFs cached (0 failures) before hitting the monthly
+  RapidAPI quota — confirmed live in `storage.objects` (688 rows in the `exercise-gifs` bucket).
+  This resolves the earlier discrepancy: the founder's "quota already exhausted" report did not
+  match what was actually available on the key wired into `mobile/.env.local` — the live quota
+  check (688/690 remaining) was correct, and the run consumed exactly that. 641 GIFs remain
+  (script prioritizes curated originals → `is_core` movements first, so this first run's 688
+  landed the highest-value exercises); 0/1,285 instruction sets backfilled yet — the GIF loop runs
+  first and consumed the whole quota before the instructions loop ever started. **Note the bucket
+  requires the `service_role` key to write** (verified via `pg_policies` on `storage.objects`:
+  `exercise-gifs` has only a public-SELECT policy, no INSERT policy for `anon`/`authenticated`) —
+  there is no lower-privilege workaround; re-running this script will always need that key. Re-run
+  next billing cycle (and each month after) with:
   `$env:SUPABASE_SERVICE_ROLE_KEY="..."; node scripts/backfill-exercise-media.mjs` from `mobile/`
-  (service_role key from Supabase dashboard → Project Settings → API — never paste it into a Claude
-  conversation or commit it). Re-run every month (or after any RapidAPI plan change) until the script
-  reports nothing left to do. **Also considered and rejected:** `edb-with-videos-and-images-by-ascendapi`
+  (service_role key from Supabase dashboard → Project Settings → API — never commit it) until the
+  script reports nothing left to do. **Also considered and rejected:** `edb-with-videos-and-images-by-ascendapi`
   (a different RapidAPI product, richer data — real video, multi-res images, tips/variations) — its
   full-catalog paid tier tops out at 500 exercises, well short of the ~1,297 needed, so it's not a
   viable primary source; the free-exercise-db public-domain dataset (873 exercises, static images, MIT
