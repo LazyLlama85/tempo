@@ -220,13 +220,17 @@ export default function ProfileScreen() {
   const [equipSel, setEquipSel] = useState<string[]>([])
   const [equipSaving, setEquipSaving] = useState(false)
 
-  // Goal / Experience — single-field edits (unlike Days Per Week, these are safe to
-  // change alone: restampFuturePlanForExperience re-selects every upcoming session's
-  // exercises against the new value and no-ops any focus it can't map, so it never
-  // corrupts the schedule). Days Per Week stays read-only here — changing it alone
-  // would leave the split's day count wrong; that still requires "Change Plan".
+  // Goal / Experience / Days Per Week — single-field edits. Goal/Experience also
+  // re-stamp the active Tempo-GENERATED plan (restampFuturePlanForExperience
+  // no-ops for a split-driven user — "a split-driven user has no active plan to
+  // re-stamp"). Days Per Week deliberately does NOT trigger any regeneration or
+  // touch `splits` at all — it's just saved. A user on their own custom split
+  // must never be silently switched onto a Tempo-generated plan just because they
+  // tweaked this number; a real reshape of a Tempo plan's schedule still requires
+  // the explicit "Change Plan" action below.
   const [goalSheet, setGoalSheet] = useState(false)
   const [expSheet, setExpSheet] = useState(false)
+  const [daysSheet, setDaysSheet] = useState(false)
   const [fieldSaving, setFieldSaving] = useState(false)
 
   // Saved exercise swaps + editor
@@ -498,6 +502,25 @@ export default function ProfileScreen() {
     }
   }
 
+  // Days Per Week — deliberately just a field save. No restamp, no split touch:
+  // this number is descriptive metadata for stats/badges/heuristics elsewhere, not
+  // the source of truth for either a Tempo plan's actual schedule or a custom
+  // split's day count. Reshaping a Tempo-generated plan's schedule still requires
+  // the explicit "Change Plan" action.
+  const saveDaysPerWeek = async (value: string) => {
+    if (!userId || fieldSaving) return
+    setFieldSaving(true)
+    try {
+      await supabase.from('user_profiles').update({ days_per_week: parseInt(value, 10) }).eq('user_id', userId)
+      await refreshProfile()
+      setDaysSheet(false)
+    } catch {
+      Alert.alert('Could not save', 'Please try again.')
+    } finally {
+      setFieldSaving(false)
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
@@ -756,7 +779,7 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow icon="barbell-outline" label="EXPERIENCE" value={profile?.experience ? EXP_LABELS[profile.experience] : '—'} onPress={() => setExpSheet(true)} />
             <View style={styles.divider} />
-            <SettingRow icon="calendar-outline" label="DAYS PER WEEK" value={profile?.days_per_week ? `${profile.days_per_week} days` : '—'} />
+            <SettingRow icon="calendar-outline" label="DAYS PER WEEK" value={profile?.days_per_week ? `${profile.days_per_week} days` : '—'} onPress={() => setDaysSheet(true)} />
             <View style={styles.divider} />
             <SettingRow icon="fitness-outline" label="EQUIPMENT" value={equipmentSummary(profile?.equipment)} onPress={openEquip} />
             <View style={styles.divider} />
@@ -1041,6 +1064,15 @@ export default function ProfileScreen() {
         options={Object.entries(EXP_LABELS).map(([key, label]) => ({ key, label, icon: 'barbell-outline' }))}
         onSelect={(key) => saveTrainingField('experience', key)}
         onClose={() => setExpSheet(false)}
+      />
+
+      <OptionSheet
+        visible={daysSheet}
+        title="Days Per Week"
+        subtitle="Just updates your target — your current schedule or split stays exactly as-is."
+        options={[2, 3, 4, 5, 6].map((d) => ({ key: String(d), label: `${d} days`, icon: 'calendar-outline' }))}
+        onSelect={saveDaysPerWeek}
+        onClose={() => setDaysSheet(false)}
       />
 
       <SaveProgressSheet

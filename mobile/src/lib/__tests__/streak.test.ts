@@ -22,12 +22,29 @@ describe('streak — consecutive completed sessions (not calendar days)', () => 
     expect(sessionStreak(rows, '2026-07-10')).toBe(1) // only Fri counts; Wed miss breaks the run
   })
 
-  it('a deliberately skipped session also breaks it', () => {
+  it('a past deliberately-skipped session breaks it', () => {
     const rows = [
-      row('2026-07-09', 'completed'),
-      row('2026-07-10', 'skipped'),
+      row('2026-07-08', 'completed'),
+      row('2026-07-09', 'skipped'),
     ]
     expect(sessionStreak(rows, '2026-07-10')).toBe(0)
+  })
+
+  it("TODAY's own skip/miss does NOT break the streak yet — there's still time left in the day", () => {
+    const rows = [
+      row('2026-07-09', 'completed'),
+      row('2026-07-10', 'skipped'), // e.g. swapped to a Quick Workout, not finished yet
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(1) // yesterday's completion still stands
+  })
+
+  it("TODAY's own miss doesn't mask a real PAST break further back", () => {
+    const rows = [
+      row('2026-07-08', 'missed'),   // a real, settled break
+      row('2026-07-09', 'completed'),
+      row('2026-07-10', 'skipped'),  // today, still undecided
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(1) // only the 07-09 completion counts
   })
 
   it('pending/future rows never count and never break', () => {
@@ -62,12 +79,13 @@ describe('streak — consecutive completed sessions (not calendar days)', () => 
     expect(longestSessionStreak(rows, '2026-07-15')).toBe(2)
   })
 
-  it('a committed (plan) skip with no completion that day DOES break it', () => {
+  it('a committed (plan) skip with no completion breaks it — once that day has passed', () => {
     const rows = [
       row('2026-07-09', 'completed', 'split'),
       row('2026-07-10', 'skipped', 'plan'), // committed plan session skipped, nothing else done
     ]
-    expect(sessionStreak(rows, '2026-07-10')).toBe(0)
+    // Evaluated the NEXT day: 07-10 is now a settled, past break.
+    expect(sessionStreak(rows, '2026-07-11')).toBe(0)
   })
 
   it('empty history is a zero streak', () => {

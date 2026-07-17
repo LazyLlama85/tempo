@@ -340,11 +340,17 @@ you moving."*
   `intensity` via `useMemo`) but had **zero JSX consumer** — it never actually rendered anywhere,
   silently, since whichever pass built it. Now genuinely rendered in a `heroMetaRow` right under the
   headline, alongside a **streak indicator** the founder specifically asked for: the streak number
-  (`stats.streak`, from `lib/streak.ts`'s `sessionStreak()` — confirmed correct already: it only
-  resets when a PRIOR day is truly missed, never just because today hasn't happened yet) now shows
-  in a **muted/outlined style** whenever this branch renders (which only happens before today's
-  session is done), and in the **hot ember color** in the `dayComplete` branch — "keep the number,
-  just make it look paused-not-broken until it's earned."
+  (`stats.streak`, from `lib/streak.ts`'s `sessionStreak()`) now shows in a **muted/outlined style**
+  whenever this branch renders (which only happens before today's session is done), and in the
+  **hot ember color** in the `dayComplete` branch — "keep the number, just make it look
+  paused-not-broken until it's earned." **Real bug fixed 2026-07-17:** the "confirmed correct
+  already" claim above was wrong for one real path — swapping today's session for a Quick Workout
+  (or any same-day skip) marks the original row `'skipped'` immediately, and `sessionStreak` used to
+  treat that as a settled break the instant it happened, zeroing the streak before the replacement
+  session was even started. Fixed at the source: `isCommittedMiss`/`isSettledBreak` in
+  `lib/streak.ts` now only count a miss/skip as breaking the streak once that day is actually in the
+  PAST (`day < todayStr`) — today's own miss/skip is judged tomorrow, never zeroing the streak
+  mid-day. `longestSessionStreak` got the same fix for consistency.
   **Phase 8 — Feed button (2026-07-17):** the header's recovery-check-in ring is gone, replaced by a
   **Feed button** (`notifications-outline` + a red count badge) — the founder's original ask
   ("instead of recovery button, have a feed button that shows notifications, progress, friend
@@ -376,6 +382,14 @@ you moving."*
   false only for the "not enough signal yet" fallback (`"Log your weight to see your ETA"`, no real
   countdown in it), true for every genuine projection. The Home chip's eligibility now requires
   `projection?.hasEta`, so the no-signal placeholder never masquerades as an actual "Goal ETA" again.
+  **Second real gap, fixed 2026-07-17** (founder: "what's the point of goal ETA, there is no ETA, it
+  just takes you to momentum"): even with `hasEta` fixed, tapping the collapsed Goal ETA CHIP (i.e.
+  when it loses the single-banner slot to something else) just navigated to `/(tabs)/progress` —
+  which has zero goal-projection UI anywhere, so it read as a dead end into an unrelated tab (whose
+  actual top section is the unrelated "Momentum" habit card). The chip's `onPress` now opens a small
+  `TempoSheet` showing the real projection content directly (icon, headline, sub, progress bar — the
+  same content the primary card renders), with a "View full progress" button as an optional deeper
+  link to Progress, rather than the tab switch being the only outcome.
   **Rest-day advice re-tuned the same day** (founder: "don't push rest days too much, some people
   only need one rest day a week, don't discourage from workouts"): `lib/trainingLoad.ts`'s
   `restDayAdvice` raised its "affirm a rest day" threshold from 3→6 consecutive training days (a
@@ -649,12 +663,30 @@ you moving."*
   function `lib/experienceProgression.ts` already uses for automatic level-up promotions — it
   re-selects every upcoming session's exercises against whatever's currently in `user_profiles` and
   silently skips any focus it can't map to the new template set, so it can never corrupt the
-  schedule), then `invalidateTrainingData(queryClient)`. **Days Per Week deliberately stays
-  read-only** — changing it alone would leave the split's day count structurally wrong (the template
-  set `restampFuturePlanForExperience` builds is keyed by `days_per_week`, so most old sessions'
-  focuses would stop matching and go un-restamped) — still requires the full "Change Plan" regen.
+  schedule), then `invalidateTrainingData(queryClient)`. **Days Per Week — fixed 2026-07-17:** used to
+  be read-only, forcing "Change Plan" (a full regen) for even this one number — which, for a user
+  running their OWN custom split, meant a harmless-looking tweak silently discarded their split for a
+  freshly Tempo-generated plan (`generatePlan`'s `clearActivePlans` deactivates any active split and
+  retires its future rows — correct when the user really means to switch, wrong as a side effect of
+  one field edit). Now `saveDaysPerWeek(value)` — same `OptionSheet` pattern as Goal/Experience — just
+  saves the field. Deliberately **no restamp, no split/plan touch at all**: this number is descriptive
+  metadata for stats/badges/heuristics elsewhere, not the source of truth for a custom split's day
+  count. Reshaping a Tempo-generated plan's actual schedule still requires the explicit "Change Plan"
+  action (which already warns "This will replace your current plan" before proceeding). **The same
+  fix extended to Home's d30 "Review Plan" reactivation nudge** (`(tabs)/index.tsx`) — it used to push
+  straight into `/onboarding/goal` with zero warning, unlike Profile's Change Plan; it now shows the
+  same confirm sheet first (`reviewPlanConfirm`).
 - **Quick Workout** (`quick-workout.tsx`): pick minutes + focus → generated session with a "why" and
-  "why it counts"; one tap to start.
+  "why it counts"; one tap to start. **GO tab button re-scoped (2026-07-17):** it no longer always
+  opens this picker. `TempoTabBar`'s `GoButton` now checks today's schedule first (`go_today_workouts`
+  query) — a still-`'scheduled'` session today wins outright, jumping straight into the runner
+  (`/(tabs)/plan?workoutId=`) with no customization screen and no exercise-list preview first. Only
+  when today has nothing left to act on (already all completed, or a genuine rest day with nothing
+  scheduled) does it fall back to Quick Workout — and even then, generates + persists a
+  sensibly-defaulted session (goal-derived purpose, a fixed 30-minute duration) and starts it
+  immediately, skipping the picker/preview screen entirely. That full picker screen is unchanged and
+  still reachable from its other entry points (Home's contextual quick-suggestion banner, which
+  passes specific minutes/purpose/pattern worth previewing).
 - **Availability / Travel** modals: set work/school/sleep/unavailable windows, and a temporary
   travel-equipment override.
 - **Scheduling mode:** a `scheduling_mode` profile pref (`auto` default / `manual`) decides whether

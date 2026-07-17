@@ -31,6 +31,25 @@
   on-device verification, pricing/trial, App Store listing). Code is done and verified
   (`tsc`+jest green); it stays inert until the founder adds the OAuth scope — see the B1.5 row below.
 
+- **2026-07-17: four real bugs found via founder feedback + fixed, code-verified.** (1) **Days Per
+  Week** was read-only, forcing the full "Change Plan" regen for even this one number — which, for a
+  user on their OWN custom split, silently discarded it for a fresh Tempo-generated plan as a side
+  effect. Now an independent field save (no restamp, no split/plan touch), matching Goal/Experience;
+  Home's d30 "Review Plan" reactivation nudge (which had the exact same silent-switch risk with zero
+  warning) now shows the same "this will replace your plan" confirm Profile's Change Plan already had.
+  (2) **Streak zeroed mid-day**: swapping today's session to a Quick Workout (or any same-day skip)
+  marked the original row `'skipped'` immediately, and `sessionStreak` treated that as a settled break
+  instantly — before the replacement session was even started. Fixed: a miss/skip only breaks the
+  streak once that day is genuinely in the past; today's own is judged tomorrow. (3) **Goal ETA chip**
+  — when collapsed to a chip, tapping it dumped the user on the Progress tab, which has zero
+  goal-projection UI (its top section is the unrelated Momentum card) — a real dead end, not a partial
+  fix. Now opens the actual projection content (headline/sub/progress bar) in a sheet directly.
+  (4) **GO tab button re-scoped**: used to always open the full Quick Workout picker+preview. Now
+  checks today's schedule first — a still-due session wins outright (straight into the runner, no
+  picker, no preview); only a genuinely rest/all-done day falls back to Quick Workout, and even then
+  starts a sensibly-defaulted session immediately rather than showing the picker. `tsc` clean, full
+  suite green (211/211, +2 from updated streak-behavior tests).
+
 - **Founder's critical path this week:**
   1. **B0.3** — PostHog funnel (`onboarding_complete → activation_reached → D7 retained`) + a
      written activation definition. Data already flows (B0.1 ✅). **The single most important

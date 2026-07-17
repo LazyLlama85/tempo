@@ -11,16 +11,25 @@
 // doesn't depend on @react-navigation packages that expo-router vendors.
 
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Radius, Spacing } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useReducedMotion } from '@/components/motion'
 import { useTutorialTarget } from '@/components/TutorialOverlay'
 import { TARGET } from '@/lib/tutorial'
 import { useSessionActiveStore } from '@/stores/sessionActive'
+import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/lib/supabase'
+import { getProfileForQuick, generateQuickWorkout, persistQuickWorkout, goalToPurpose } from '@/lib/quickWorkout'
+import type { ScheduledWorkout } from '@/lib/notifications'
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 type IoniconsName = keyof typeof Ionicons.glyphMap
 
@@ -116,6 +125,11 @@ function TabItem({
 
 // ── GO button ─────────────────────────────────────────────────────────────────
 
+// A sensible, fixed default — deliberately not user-configurable here. Reached
+// only when there's no actionable session today (already done, or a rest day);
+// the point of GO in that case is momentum, not another set of choices.
+const FALLBACK_QUICK_MINUTES = 30
+
 function GoButton() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -123,6 +137,30 @@ function GoButton() {
   const reduce = useReducedMotion()
   const scale = useRef(new Animated.Value(1)).current
   const halo = useRef(new Animated.Value(0)).current
+  const { session } = useAuthStore()
+  const userId = session?.user.id ?? ''
+  const queryClient = useQueryClient()
+  const [starting, setStarting] = useState(false)
+
+  // Today's schedule, just enough to decide where GO goes. A dedicated key (not
+  // shared with Home's fuller query) so this stays correct even when Home isn't
+  // mounted — e.g. GO tapped straight from Plan/Progress/Profile.
+  const todayStr = toDateStr(new Date())
+  const { data: todayRows } = useQuery({
+    queryKey: ['go_today_workouts', userId, todayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('scheduled_workouts')
+        .select('id, status, planned_start_time')
+        .eq('user_id', userId)
+        .eq('planned_date', todayStr)
+        .order('planned_start_time')
+      if (error) throw error
+      return (data ?? []) as { id: string; status: string; planned_start_time: string }[]
+    },
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  })
 
   // A slow breathing halo — the dock keeps time even at rest.
   useEffect(() => {
@@ -142,6 +180,38 @@ function GoButton() {
 
   const goRef = useTutorialTarget(TARGET.tabGo)
 
+  // GO's whole point: one thumb away from training, not another decision.
+  // Today's actual session (if one is still due) wins outright — straight into
+  // the runner, no customization screen, no exercise-list preview first. Only
+  // when today has nothing left to do (already completed, or a genuine rest
+  // day with nothing scheduled) does it fall back to an instant, sensibly-
+  // defaulted Quick Workout — generated and started immediately, same reasoning
+  // (skip the picker + preview; the point here is momentum, not more choices).
+  const handlePress = async () => {
+    if (starting) return
+    const due = (todayRows ?? []).find(w => w.status === 'scheduled')
+    if (due) {
+      router.push({ pathname: '/(tabs)/plan', params: { workoutId: due.id } })
+      return
+    }
+    if (!userId) { router.push('/quick-workout'); return }
+    setStarting(true)
+    try {
+      const profile = await getProfileForQuick(supabase, userId)
+      const purpose = goalToPurpose(profile.goal)
+      const workout = await generateQuickWorkout(supabase, userId, { minutes: FALLBACK_QUICK_MINUTES, purpose }, profile)
+      if (!workout.exercises.length) { router.push('/quick-workout'); return } // genuinely nothing matches — fall back to the full picker
+      const id = await persistQuickWorkout(supabase, userId, workout)
+      if (!id) { router.push('/quick-workout'); return }
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      router.push({ pathname: '/(tabs)/plan', params: { workoutId: id, quick: '1' } })
+    } catch {
+      router.push('/quick-workout') // never leave GO dead — the full picker always works
+    } finally {
+      setStarting(false)
+    }
+  }
+
   return (
     <View ref={goRef} style={styles.goWrap}>
       <Animated.View
@@ -155,15 +225,22 @@ function GoButton() {
         ]}
       />
       <Pressable
-        onPress={() => router.push('/quick-workout')}
+        onPress={handlePress}
         onPressIn={() => to(0.9)}
         onPressOut={() => to(1)}
+        disabled={starting}
         accessibilityRole="button"
-        accessibilityLabel="Train now — start a quick workout"
+        accessibilityLabel="Train now"
       >
-        <Animated.View style={[styles.goBtn, { transform: [{ scale }] }]}>
-          <Ionicons name="flash" size={22} color={C.onPrimary} />
-          <Text style={styles.goText} maxFontSizeMultiplier={1}>GO</Text>
+        <Animated.View style={[styles.goBtn, { transform: [{ scale }] }, starting && { opacity: 0.7 }]}>
+          {starting ? (
+            <ActivityIndicator color={C.onPrimary} size="small" />
+          ) : (
+            <>
+              <Ionicons name="flash" size={22} color={C.onPrimary} />
+              <Text style={styles.goText} maxFontSizeMultiplier={1}>GO</Text>
+            </>
+          )}
         </Animated.View>
       </Pressable>
     </View>

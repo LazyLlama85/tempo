@@ -60,6 +60,7 @@ import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
 import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
+import { TempoSheet } from '@/components/TempoSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
 const GOAL_LABELS: Record<string, string> = {
@@ -239,6 +240,19 @@ export default function ScheduleScreen() {
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
   const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
   const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
+  // "Review plan" (d30 reactivation) used to jump straight into onboarding's
+  // re-plan flow with zero warning — unlike Profile's "Change Plan", which already
+  // confirms "this will replace your current plan" first. Silently doing that from
+  // a passive Home nudge is exactly how a user with their own custom split could
+  // get switched onto a Tempo-generated one without ever meaning to. Same warning,
+  // same confirm pattern, now required on this entry point too.
+  const [reviewPlanConfirm, setReviewPlanConfirm] = useState(false)
+  // Goal ETA — when it's collapsed to a chip (not the hero banner), tapping it
+  // used to just dump the user onto the Progress tab with no visible connection
+  // to the countdown itself (Progress has no goal-projection section at all) — a
+  // founder report: "what's the point, there's no ETA, it just takes you to
+  // momentum." Now the chip opens the actual projection content directly.
+  const [goalEtaSheet, setGoalEtaSheet] = useState(false)
   // Hero card tap-to-expand (exercise list + "why this workout") + the "lacking
   // time? swap to a quick workout instead" escape hatch.
   const [heroExpanded, setHeroExpanded] = useState(false)
@@ -1168,7 +1182,7 @@ export default function ScheduleScreen() {
         if (!returning) return null
         const content =
           returning.tier === 'd30'
-            ? { title: "It's been a while", sub: "Let's make sure your plan still fits.", cta: 'Review plan', icon: 'sparkles' as IconName, busy: false, onPress: () => router.push('/onboarding/goal') }
+            ? { title: "It's been a while", sub: "Let's make sure your plan still fits.", cta: 'Review plan', icon: 'sparkles' as IconName, busy: false, onPress: () => setReviewPlanConfirm(true) }
             : returning.tier === 'd7'
             ? { title: 'Welcome back', sub: 'Want a lighter week to ease back in?', cta: easingBack ? 'One sec…' : 'Ease me in', icon: 'leaf' as IconName, busy: easingBack, onPress: handleEaseIntoRecovery }
             : { title: 'Pick up where you left off', sub: `It's been ${returning.days} days — your next session is ready.`, cta: "Let's go", icon: 'play' as IconName, busy: false, onPress: () => router.push(returning.nextWorkoutId ? { pathname: '/(tabs)/plan', params: { workoutId: returning.nextWorkoutId } } : '/(tabs)/plan') }
@@ -1198,7 +1212,7 @@ export default function ScheduleScreen() {
         tint: C.primary,
         onPress: () => {
           if (!returning) return
-          if (returning.tier === 'd30') router.push('/onboarding/goal')
+          if (returning.tier === 'd30') setReviewPlanConfirm(true)
           else if (returning.tier === 'd7') handleEaseIntoRecovery()
           else router.push(returning.nextWorkoutId ? { pathname: '/(tabs)/plan', params: { workoutId: returning.nextWorkoutId } } : '/(tabs)/plan')
         },
@@ -1348,7 +1362,7 @@ export default function ScheduleScreen() {
           </View>
         </View>
       ) : null,
-      chip: { icon: (projection?.icon as IconName) ?? 'flag', label: 'Goal ETA', tint: C.primary, onPress: () => router.push('/(tabs)/progress') },
+      chip: { icon: (projection?.icon as IconName) ?? 'flag', label: 'Goal ETA', tint: C.primary, onPress: () => setGoalEtaSheet(true) },
     },
     // 7 — Weekly report: the Sun/Mon recap nudge (same gate as before).
     {
@@ -1901,6 +1915,43 @@ export default function ScheduleScreen() {
         onSelect={() => { const w = removeCalWorkout; setRemoveCalWorkout(null); if (w) void doRemoveFromCalendar(w) }}
         onClose={() => setRemoveCalWorkout(null)}
       />
+
+      <OptionSheet
+        visible={reviewPlanConfirm}
+        title="Review Plan"
+        subtitle="This will replace your current plan or split with a new Tempo-generated one."
+        options={[{ key: 'continue', label: 'Continue', icon: 'sparkles-outline' }]}
+        onSelect={() => { setReviewPlanConfirm(false); router.push('/onboarding/goal') }}
+        onClose={() => setReviewPlanConfirm(false)}
+      />
+
+      <TempoSheet visible={goalEtaSheet} onClose={() => setGoalEtaSheet(false)}>
+        <View style={styles.goalSheetBody}>
+          {projection ? (
+            <>
+              <View style={[styles.goalIcon, { backgroundColor: C.goldSoft, alignSelf: 'flex-start' }]}>
+                <Ionicons name={projection.icon as IconName} size={22} color={C.gold} />
+              </View>
+              <Text style={styles.goalSheetHeadline}>{projection.headline}</Text>
+              <Text style={styles.goalSheetSub}>{projection.sub}</Text>
+              {projection.pct != null && (
+                <View style={[styles.goalTrack, { marginTop: Spacing.sm }]}>
+                  <View style={[styles.goalFill, { width: `${Math.max(2, Math.min(100, projection.pct))}%` as `${number}%` }]} />
+                </View>
+              )}
+            </>
+          ) : (
+            <Text style={styles.goalSheetSub}>Not enough signal yet to project an ETA.</Text>
+          )}
+          <PressableScale
+            style={styles.goalSheetProgressBtn}
+            onPress={() => { setGoalEtaSheet(false); router.push('/(tabs)/progress') }}
+          >
+            <Text style={styles.goalSheetProgressBtnText}>View full progress</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.primary} />
+          </PressableScale>
+        </View>
+      </TempoSheet>
     </ScreenTransition>
     </SafeAreaView>
   )
@@ -2025,6 +2076,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   goalSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   goalTrack: { height: 6, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6, overflow: 'hidden' },
   goalFill: { height: 6, backgroundColor: C.gold, borderRadius: Radius.full },
+  goalSheetBody: { padding: Spacing.lg, paddingTop: Spacing.sm, gap: 4 },
+  goalSheetHeadline: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3, marginTop: Spacing.sm },
+  goalSheetSub: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
+  goalSheetProgressBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    marginTop: Spacing.lg, paddingVertical: Spacing.sm,
+  },
+  goalSheetProgressBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
 
   // ── Weekly report entry ──────────────────────────────────────────────────────
   reportRow: {
