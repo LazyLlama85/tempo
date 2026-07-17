@@ -1086,6 +1086,7 @@ export default function WorkoutsScreen() {
     // on a different exercise mid-flow.
     setFocusExId(exId)
     setFocusOpen(true)
+    setLastLoggedSet({ exId, idx })
 
     // Exercise fully banked? A firmer tick, and the next incomplete exercise
     // opens by itself so the flow never stalls on a collapsed accordion.
@@ -1646,6 +1647,12 @@ export default function WorkoutsScreen() {
   // of sync with the list as sets get logged.
   const [focusOpen, setFocusOpen] = useState(false)
   const [focusExId, setFocusExId] = useState<string | null>(null)
+  // The set that just logged — so Focus Mode can ask "how much weight did you
+  // do?" during the rest that follows, without the user ever exiting to the
+  // list. Only rendered while resting (see the FocusMode props below); reusing
+  // updateSet/saveSetEdit means this is the SAME edit-after-logging path the
+  // list view already has, not a second one.
+  const [lastLoggedSet, setLastLoggedSet] = useState<{ exId: string; idx: number } | null>(null)
   const focusSetsArr = focusExId ? (sets[focusExId] ?? []) : []
   const focusIdx = focusSetsArr.findIndex(s => !s.done)
   const focusSet = focusIdx >= 0 ? focusSetsArr[focusIdx] : null
@@ -2571,6 +2578,20 @@ export default function WorkoutsScreen() {
           ? (focusSet.warmup ? 'WARM-UP SET' : `SET ${setLabels[focusIdx]} OF ${totalWorking}`)
           : ''
         const formImage = getExerciseGifSource(focusEx.id) ?? (gifIds[focusEx.id] ? gifSource(gifIds[focusEx.id]!) : null)
+
+        // "How much weight did you do?" — only while resting, only for the set
+        // that just logged (not the upcoming one focusSet/focusIdx track).
+        const lastSet = lastLoggedSet ? sets[lastLoggedSet.exId]?.[lastLoggedSet.idx] : undefined
+        const lastSetFields = (restEndsAt !== null && lastLoggedSet && lastSet)
+          ? columnsFor(exMetrics[lastLoggedSet.exId]).map(c => ({
+              key: c.key,
+              label: c.key === 'weight' ? unitLabel(unit).toUpperCase() : c.label,
+              value: lastSet[c.field],
+              kbd: c.kbd,
+              onChange: (v: string) => updateSet(lastLoggedSet.exId, lastLoggedSet.idx, c.field, v),
+            }))
+          : undefined
+
         return (
           <FocusMode
             visible={focusOpen}
@@ -2587,6 +2608,8 @@ export default function WorkoutsScreen() {
             done={!focusSet}
             onSkip={focusSkip}
             onDone={focusDone}
+            lastSetFields={lastSetFields}
+            onSaveLastSet={lastLoggedSet ? () => saveSetEdit(lastLoggedSet.exId, lastLoggedSet.idx) : undefined}
           />
         )
       })()}

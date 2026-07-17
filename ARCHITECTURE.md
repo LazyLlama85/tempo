@@ -589,6 +589,15 @@ you moving."*
   already had — the scrollable exercise list, ⋯ menu, RPE bar, warm-up toggle, trash, add-exercise,
   Pause sheet — keeps working completely unchanged; Focus Mode is a second way to view the SAME
   state, closing it returns to the normal list with nothing lost.
+  **"How much did you do?" while resting (2026-07-17):** previously Focus Mode had no weight/reps
+  input at all — a set completed from inside Focus Mode logged whatever `set.lbs`/`set.reps` were
+  already typed in the LIST view beforehand (often nothing, if the user never left Focus Mode). Now,
+  while resting, Focus Mode shows an inline editor for the SET THAT JUST LOGGED (tracked separately
+  from `focusExId`/`focusIdx`, which track the upcoming set) with weight/reps fields pre-filled from
+  the just-inserted `set_logs` row. Editing reuses the exact existing `updateSet`/`saveSetEdit` path
+  Phase 2's editable-after-done feature already built (an `UPDATE` by `workout_log_id` + `exercise_id`
+  + `set_number`, not a new write path) — so this is the SAME edit-after-logging mechanism the list
+  view exposes via its checkmark-tap-to-edit UI, just reachable without leaving Focus Mode.
   On finish updates logs, fires adaptation re-eval, and routes to the celebration screen. When
   nothing is scheduled the hub shows the Quick Workout empty state (never a dead end); hub links
   include **History** (`workout-history`).
@@ -1637,6 +1646,16 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Both are de-duped by durable, per-user, force-close-proof localStorage flags (the same idiom as the
   tutorial + guest-save prompts), so PostHog can build the onboarding→activation funnel and split
   retention by calendar-adopters vs not. Analytics-only — no behavior change; no-ops without a key.
+  **Critical gap found + fixed 2026-07-17: `EXPO_PUBLIC_POSTHOG_KEY` had never actually been set
+  anywhere** — not `eas.json`'s `preview`/`production` env blocks, not `.env.local`. Every `track()`
+  call across the whole app (all of the above) had been a silent no-op in every build ever shipped,
+  dev or production — B0.1's "data already flows" was never actually true. Fixed: the project's real
+  key (`phc_tvY9sRfvjiqvTzFgJMorP29zJMxZoT7aLKJPs54CP2pm`, org Tempo, project "Default project" id
+  514051) plus `EXPO_PUBLIC_POSTHOG_HOST` are now wired into both EAS profiles and `.env.local`. A new
+  PostHog dashboard **"Tempo — Activation & Retention"** was built ahead of any real data: a 2-step
+  funnel (`onboarding_complete` → `activation_reached`) and a D-by-D retention curve anchored on
+  `activation_reached` returning via `app_open` — both currently empty (0 events ever ingested into
+  this project), ready to populate the moment a build with the new key actually ships.
 - **Progressive disclosure (B3.2, real behavior — unlike the analytics-only item above):** Social
   (Profile's header Friends icon + its "Social" section, which is also the only entry point to
   Groups) and Muscle Intelligence (Progress's "Body Intelligence" card + `workout-complete`'s

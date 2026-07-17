@@ -50,10 +50,17 @@
   starts a sensibly-defaulted session immediately rather than showing the picker. `tsc` clean, full
   suite green (211/211, +2 from updated streak-behavior tests).
 
+- **2026-07-17: critical fix — analytics had never actually been flowing.** `EXPO_PUBLIC_POSTHOG_KEY`
+  was never set anywhere (not `eas.json`, not `.env.local`) — B0.1's ✅ was wrong; every `track()` call
+  in the app had been a silent no-op in every build ever shipped. Fixed the key wiring, and — using
+  the newly-connected PostHog MCP — built the B0.3 funnel + retention insights ahead of time on a new
+  "Tempo — Activation & Retention" dashboard (id 1865254), empty until the next real build ships.
+  Also added Focus Mode weight/reps logging during rest (founder ask) — see `ARCHITECTURE.md`.
+
 - **Founder's critical path this week:**
-  1. **B0.3** — PostHog funnel (`onboarding_complete → activation_reached → D7 retained`) + a
-     written activation definition. Data already flows (B0.1 ✅). **The single most important
-     remaining gap** — every M4 decision needs this.
+  1. **Ship a build with the new PostHog key** (preview or production — either wires up real data)
+     — the single fastest way to unblock every M4 decision now that the funnel/retention insights
+     are already waiting. Also still owed: a WRITTEN activation definition (why 2 sessions specifically).
   2. **On-device test the built-but-unverified backlog** (below) — this is now the bigger blocker
      than any remaining code.
   3. **B2.3** (pricing/trial in RevenueCat) and **B6.1/B6.2** (App Store listing + one acquisition
@@ -112,9 +119,9 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 ### M0 — Measurable & Reliable
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B0.1 | Retention instrumentation (`activation_reached` + `calendar_connected`) | ✅ | Measurability | `lib/activation.ts`, `analytics.ts` | Events fire once, behind durable flags |
+| B0.1 | Retention instrumentation (`activation_reached` + `calendar_connected`) | 🔍 | Measurability | `lib/activation.ts`, `analytics.ts` | **Correction 2026-07-17:** the ✅ here was wrong — `EXPO_PUBLIC_POSTHOG_KEY` had never been set anywhere (not `eas.json`, not `.env.local`), so every `track()` call, including these, had been a silent no-op in every build ever shipped. Fixed: real key wired into both EAS profiles + `.env.local`. Events fire correctly in code (unchanged); held at 🔍 until a real build actually ships and PostHog shows a non-zero event count |
 | B0.2 | Google OAuth → Production + fix "connects but no events" | ✅ | Reliability, Trust | `CalendarApiService.describeReadError` (in-app diagnostic) | **Done 2026-07-17** — Google approved the app for production, removing the Testing-mode 7-day token-expiry root cause. 🔍 needs a real >7-day on-device confirmation to fully close M0's own criterion |
-| B0.3 | PostHog funnel + written activation definition | 🔲 | Measurability | PostHog dashboard *(founder)* | Funnel onboarding→activation→D7 visible — **the single biggest open M0 gap** |
+| B0.3 | PostHog funnel + written activation definition | 🔍 | Measurability | PostHog dashboard "Tempo — Activation & Retention" (id 1865254) | **Funnel + retention insights built 2026-07-17** (onboarding_complete→activation_reached funnel; D-by-D retention anchored on activation_reached→app_open) — both currently empty pending B0.1's fix actually shipping in a build. Founder still owes a WRITTEN activation definition (why 2 sessions, not 1 or 3) — that's a product-judgment call, not a code/config task |
 | B0.4 | Feature-freeze policy (no new surfaces until M4) | ✅ | Focus | `EXECUTION.md` §1/§9 | Written + in effect; re-affirmed 2026-07-17 |
 | B0.5 | Device-matrix QA of redesign; fix any blank-render | 🔍 partial | Reliability, Polish | Real device *(founder)* | Home/Settings/editable-sets confirmed; Focus Mode/onboarding/Plan-tour/Feed button not yet |
 

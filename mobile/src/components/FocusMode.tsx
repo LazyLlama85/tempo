@@ -12,7 +12,8 @@
 // that already exists in `(tabs)/plan.tsx`; nothing is duplicated or owned
 // here. Closing Focus Mode returns to the normal list with nothing lost.
 
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native'
+import { useState } from 'react'
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
@@ -20,6 +21,14 @@ import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale } from '@/components/motion'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
+
+export interface FocusModeField {
+  key: string
+  label: string
+  value: string
+  kbd: 'decimal-pad' | 'number-pad'
+  onChange: (v: string) => void
+}
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
@@ -44,16 +53,28 @@ interface Props {
   done: boolean
   onSkip: () => void
   onDone: () => void
+  // "How much weight did you do?" — the set that just logged, editable right
+  // here during rest so the user never has to exit to the list. Undefined
+  // (not resting, or nothing just logged) hides the editor entirely.
+  lastSetFields?: FocusModeField[]
+  onSaveLastSet?: () => void
 }
 
 export function FocusMode({
   visible, onClose, exerciseName, setLabel, targetRepsLabel,
   resting, restSecondsLeft, restTotal, onAdjustRest,
   formImage, onViewForm, done, onSkip, onDone,
+  lastSetFields, onSaveLastSet,
 }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
+  const [savedTick, setSavedTick] = useState(false)
+  const saveLastSet = () => {
+    onSaveLastSet?.()
+    setSavedTick(true)
+    setTimeout(() => setSavedTick(false), 1200)
+  }
 
   const ringValue = resting && restSecondsLeft != null
     ? Math.max(0, Math.min(100, (restSecondsLeft / Math.max(1, restTotal)) * 100))
@@ -107,6 +128,31 @@ export function FocusMode({
           <View style={{ height: 24 + 22 }} />
         )}
 
+        {resting && lastSetFields && lastSetFields.length > 0 && (
+          <View style={styles.lastSetCard}>
+            <Text style={styles.lastSetLabel}>HOW MUCH DID YOU DO?</Text>
+            <View style={styles.lastSetRow}>
+              {lastSetFields.map(f => (
+                <View key={f.key} style={styles.lastSetField}>
+                  <TextInput
+                    style={styles.lastSetInput}
+                    value={f.value}
+                    onChangeText={f.onChange}
+                    onEndEditing={saveLastSet}
+                    keyboardType={f.kbd}
+                    placeholder="0"
+                    placeholderTextColor={C.outline}
+                  />
+                  <Text style={styles.lastSetFieldLabel}>{f.label}</Text>
+                </View>
+              ))}
+              <PressableScale style={styles.lastSetSaveBtn} onPress={saveLastSet} scaleTo={0.9} accessibilityLabel="Save">
+                <Ionicons name={savedTick ? 'checkmark-done' : 'checkmark'} size={18} color={C.onPrimary} />
+              </PressableScale>
+            </View>
+          </View>
+        )}
+
         {formImage ? (
           <TouchableOpacity style={styles.formPreview} onPress={onViewForm} activeOpacity={0.85}>
             <Image source={formImage} style={styles.formImage} contentFit="contain" />
@@ -156,6 +202,23 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.outlineVariant,
   },
   restAdjustLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.8, width: 90, textAlign: 'center' },
+  lastSetCard: {
+    marginTop: Spacing.md, width: '100%', backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.lg, padding: Spacing.md, gap: Spacing.xs,
+  },
+  lastSetLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, textAlign: 'center' },
+  lastSetRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  lastSetField: { flex: 1, alignItems: 'center' },
+  lastSetInput: {
+    width: '100%', height: 44, borderRadius: Radius.md, backgroundColor: C.background,
+    borderWidth: 1, borderColor: C.outlineVariant, textAlign: 'center',
+    fontFamily: C.fontDisplay, fontSize: 17, color: C.text,
+  },
+  lastSetFieldLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.5, marginTop: 3 },
+  lastSetSaveBtn: {
+    width: 44, height: 44, borderRadius: Radius.full, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', marginTop: 18,
+  },
   formPreview: {
     marginTop: Spacing.lg, width: '100%', height: 140, borderRadius: Radius.lg,
     overflow: 'hidden', backgroundColor: C.surfaceContainerLow,
