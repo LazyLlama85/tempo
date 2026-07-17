@@ -239,7 +239,7 @@ export default function PlanPreviewScreen() {
       if (!isReplan) {
         const tut = useTutorialStore.getState()
         tut.init(session.user.id)
-        tut.arm(T.welcome); tut.arm(T.homeTour); tut.arm(T.firstWorkout)
+        tut.arm(T.welcome); tut.arm(T.homeTour); tut.arm(T.firstWorkout); tut.arm(T.planTour)
         tut.setFirstPlanCreated()
       }
 

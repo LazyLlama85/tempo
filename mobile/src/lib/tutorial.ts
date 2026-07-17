@@ -15,6 +15,7 @@ export const T = {
   welcome: 'welcome',
   homeTour: 'home_tour',
   firstWorkout: 'first_workout',
+  planTour: 'plan_tour',
 } as const
 export type TutorialId = (typeof T)[keyof typeof T]
 
@@ -41,13 +42,35 @@ export const HOME_TOUR_STEPS: TutorialStep[] = [
   { id: 'home_profile', target: 'tab.profile', title: 'Make it yours', body: 'Change goals, equipment, and availability anytime — your plan adapts.', placement: 'top' },
 ]
 
+// The Plan tour — introduces the 3 things new to the redesigned hub: the
+// calendar (now owns all multi-day scheduling), the current split, and the
+// library doors. One concept per step, same tone/length as the Home tour.
+export const PLAN_TOUR_STEPS: TutorialStep[] = [
+  { id: 'plan_calendar', target: 'plan.calendar', title: 'Your whole week, at a glance', body: 'Switch between Week and Month, tap any day, or reschedule your whole week around a busy stretch.', placement: 'bottom' },
+  { id: 'plan_split', target: 'plan.split', title: 'Your training pattern', body: 'This is the split Tempo — or you — built. Edit it anytime; every upcoming day updates to match.', placement: 'bottom' },
+  { id: 'plan_library', target: 'plan.library', title: 'Everything else lives here', body: 'Browse the exercise library or manage your saved workouts, without cluttering the hub above.', placement: 'top' },
+]
+
 // Target ids screens register via useTutorialTarget, referenced by steps above.
 export const TARGET = {
   homeToday: 'home.today',
   tabGo: 'tab.go',
   tabProgress: 'tab.progress',
   tabProfile: 'tab.profile',
+  planCalendar: 'plan.calendar',
+  planSplit: 'plan.split',
+  planLibrary: 'plan.library',
 } as const
+
+// Every tour's step array, keyed by id — the one lookup the overlay and the
+// store both read, so adding a tour is "add an id + a step array" (see
+// stores/tutorial.ts's STEPS and TutorialOverlay's `steps` derivation).
+export const TOUR_STEPS: Record<TutorialId, TutorialStep[]> = {
+  [T.welcome]: [],
+  [T.homeTour]: HOME_TOUR_STEPS,
+  [T.firstWorkout]: [],
+  [T.planTour]: PLAN_TOUR_STEPS,
+}
 
 // ── Persisted state ────────────────────────────────────────────────────────────
 

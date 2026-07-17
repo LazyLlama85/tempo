@@ -133,7 +133,16 @@ you moving."*
   distinction between Tempo **generating** a workout's exercises and Tempo **scheduling** its day/time.
   It's an **interactive, swipeable tutorial** (one concept per page — swipe or Next, progress dots,
   Back — with small inline visuals for the split + generate/schedule concepts), not the old static
-  scroll of stacked cards.
+  scroll of stacked cards. **`plan_tour` (new, 2026-07-17):** a second spotlight tour for the Plan
+  tab — calendar (Week/Month + reschedule), current split, and the library doors — armed at the same
+  new-user moment as the others and fired independently on Plan's own first post-welcome focus (a
+  user may open Plan before ever settling on Home, so it doesn't wait on `home_tour` completing).
+  Adding it required generalizing `TutorialOverlay.tsx`'s previously-hardcoded
+  `activeTour === T.homeTour ? HOME_TOUR_STEPS : EMPTY_STEPS` ternary into one lookup,
+  `lib/tutorial.ts`'s new `TOUR_STEPS: Record<TutorialId, TutorialStep[]>` — the single place both
+  the overlay and `stores/tutorial.ts`'s step-completion/skip/replay logic now read from, so adding
+  a future tour is purely "new id + new step array," no ternary to touch. **Profile → Replay App
+  Tour** now re-arms both `home_tour` and `plan_tour` together.
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
   **`settings`** (new, 2026-07-16/17 — every "how the app behaves" row moved off Profile: Calendar &
   Scheduling, Notifications, Subscription, Tester Tools, App, Account, sign-out/delete; reached via

@@ -6,8 +6,8 @@
 
 import { create } from 'zustand'
 import {
-  T, HOME_TOUR_STEPS, readTutorialData, writeTutorialData, emptyTutorialData,
-  type TutorialData, type TutorialId, type TutorialStep,
+  T, TOUR_STEPS, readTutorialData, writeTutorialData, emptyTutorialData,
+  type TutorialData, type TutorialId,
 } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
 
@@ -44,12 +44,6 @@ interface TutorialStoreState {
   endTour: (opts?: { skipped?: boolean }) => void
 }
 
-const STEPS: Record<TutorialId, TutorialStep[]> = {
-  [T.welcome]: [],
-  [T.homeTour]: HOME_TOUR_STEPS,
-  [T.firstWorkout]: [],
-}
-
 export const useTutorialStore = create<TutorialStoreState>((set, get) => {
   const persist = (mut: (d: TutorialData) => TutorialData) => {
     const { userId, data } = get()
@@ -78,13 +72,13 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     skip: (id) => persist(d => {
       // Skipping a tutorial completes its steps so it can't re-fire.
       const completedSteps = { ...d.completedSteps }
-      for (const s of STEPS[id]) completedSteps[s.id] = true
+      for (const s of TOUR_STEPS[id]) completedSteps[s.id] = true
       return { ...d, skipped: { ...d.skipped, [id]: true }, completedSteps }
     }),
     replay: (id) => {
       persist(d => {
         const completedSteps = { ...d.completedSteps }
-        for (const s of STEPS[id]) delete completedSteps[s.id]
+        for (const s of TOUR_STEPS[id]) delete completedSteps[s.id]
         const skipped = { ...d.skipped }; delete skipped[id]
         // Special step ids the welcome/first-workout screens track outside STEPS.
         if (id === T.welcome) delete completedSteps['welcome_done']
@@ -119,7 +113,7 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     nextStep: () => {
       const { activeTour, stepIndex } = get()
       if (!activeTour) return
-      const steps = STEPS[activeTour]
+      const steps = TOUR_STEPS[activeTour]
       const step = steps[stepIndex]
       if (step) { get().completeStep(step.id); track('tutorial_step_completed', { tutorial: activeTour, step: step.id }) }
       if (stepIndex + 1 >= steps.length) {

@@ -18,7 +18,7 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale, useReducedMotion } from '@/components/motion'
 import * as haptics from '@/lib/haptics'
 import { useTutorialStore, type TargetRect } from '@/stores/tutorial'
-import { shouldShowTip, markTipSeen, HOME_TOUR_STEPS, T, type TutorialStep } from '@/lib/tutorial'
+import { shouldShowTip, markTipSeen, TOUR_STEPS, type TutorialStep } from '@/lib/tutorial'
 
 // Stable empty reference so the "no active tour" case never mints a new array.
 const EMPTY_STEPS: TutorialStep[] = []
@@ -75,10 +75,12 @@ export function TutorialOverlay() {
   const nextStep = useTutorialStore(s => s.nextStep)
   const endTour = useTutorialStore(s => s.endTour)
 
-  // Derive steps from a STABLE module constant — selecting `activeSteps()` from the
-  // store returned a fresh array every render, which makes zustand's snapshot compare
-  // unequal every time → "getSnapshot should be cached" infinite loop.
-  const steps = activeTour === T.homeTour ? HOME_TOUR_STEPS : EMPTY_STEPS
+  // Derive steps from a STABLE module constant (`TOUR_STEPS`, keyed by tour id) —
+  // selecting `activeSteps()` from the store returned a fresh array every render,
+  // which makes zustand's snapshot compare unequal every time → "getSnapshot
+  // should be cached" infinite loop. Adding a new tour is just a new TOUR_STEPS
+  // entry (lib/tutorial.ts) — this lookup never needs to change again.
+  const steps = activeTour ? TOUR_STEPS[activeTour] ?? EMPTY_STEPS : EMPTY_STEPS
   const step = activeTour ? steps[stepIndex] : null
   const rect: TargetRect | undefined = step?.target ? targets[step.target] : undefined
 

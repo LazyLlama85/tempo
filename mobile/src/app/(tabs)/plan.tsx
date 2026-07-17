@@ -28,6 +28,8 @@ import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
+import { useTutorialTarget } from '@/components/TutorialOverlay'
+import { T, TARGET, PLAN_TOUR_STEPS } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { mondayStr } from '@/lib/schedulingImpact'
@@ -264,6 +266,11 @@ export default function WorkoutsScreen() {
   const userId = session?.user.id ?? ''
   const experience = useAuthStore(s => s.profile?.experience)
   const preferredTimeOfDay = useAuthStore(s => s.profile?.preferred_time_of_day)
+
+  // Plan tour targets (Phase 6) — calendar, current split, library doors.
+  const planCalendarTarget = useTutorialTarget(TARGET.planCalendar)
+  const planSplitTarget = useTutorialTarget(TARGET.planSplit)
+  const planLibraryTarget = useTutorialTarget(TARGET.planLibrary)
 
   // ── Plan hub (IA redesign, 2026-07-16 Phase 2) ──────────────────────────────
   // Was a 4-way segmented control (Session/Readiness/Splits/Workouts); now Plan
@@ -639,6 +646,24 @@ export default function WorkoutsScreen() {
       if (Date.now() - l.lastLoadAt < 15_000) return // fresh enough — skip the churn
       runLoad()
     }, [userId]), // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  // Plan tour (Phase 6) — fires the first time this tab is focused post-welcome,
+  // independent of the Home tour (a user may open Plan before ever settling on
+  // Home). Same gating shape as Home's: armed at onboarding, never mid-session.
+  useFocusEffect(
+    useCallback(() => {
+      const t = setTimeout(() => {
+        const s = useTutorialStore.getState()
+        const lastStep = PLAN_TOUR_STEPS[PLAN_TOUR_STEPS.length - 1].id
+        if (!s.isStepDone('welcome_done')) return
+        if (lifecycle.current.sessionActive) return // never mid-session
+        if (s.isArmed(T.planTour) && !s.isStepDone(lastStep) && !s.activeTour) {
+          s.startTour(T.planTour)
+        }
+      }, 650) // let the calendar/split card measure first
+      return () => clearTimeout(t)
+    }, []),
   )
 
   // Learn how this user's real sessions compare to estimates (best-effort).
@@ -1749,7 +1774,7 @@ export default function WorkoutsScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           {/* Week / Month + range nav + "Reschedule my whole week" — moved from
               Home; Plan now owns all multi-day scheduling. */}
-          <View style={styles.segment}>
+          <View style={styles.segment} ref={planCalendarTarget}>
             {(['week', 'month'] as const).map((m) => (
               <PressableScale
                 key={m}
@@ -1990,7 +2015,7 @@ export default function WorkoutsScreen() {
 
           {/* Current split — the audit's "one Programs door," condensed from
               the old full Splits list to just the active one. */}
-          <View style={styles.splitCard}>
+          <View style={styles.splitCard} ref={planSplitTarget}>
             <Text style={styles.splitLabel}>CURRENT SPLIT</Text>
             {activeSplit ? (
               <>
@@ -2030,7 +2055,7 @@ export default function WorkoutsScreen() {
               inline list (the old Workouts segment's searchable list moved out
               of the hub entirely; My Workouts already does that job). */}
           <Text style={styles.libraryLabel}>LIBRARY & TOOLS</Text>
-          <View style={styles.libraryCard}>
+          <View style={styles.libraryCard} ref={planLibraryTarget}>
             <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library' as any)}>
               <Ionicons name="book-outline" size={18} color={C.textSecondary} />
               <Text style={styles.libraryRowText}>Exercise Library</Text>
