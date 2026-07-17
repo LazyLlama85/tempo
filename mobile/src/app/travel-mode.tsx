@@ -5,6 +5,10 @@
 // Quick Workouts, swaps, and in-session substitutions against THIS gear instead of
 // their home equipment — then expires on its own when the date passes. Fully
 // reversible: "I'm back home" clears it and the normal plan resumes untouched.
+//
+// Gating (dormant-safe, matches app/muscle-map.tsx): `useProGate().locked` is only
+// true once Pro is LIVE and the user isn't subscribed. While Pro is dormant, everyone
+// gets the full feature exactly as today.
 
 import { useState } from 'react'
 import {
@@ -22,6 +26,8 @@ import { useAuthStore } from '@/stores/auth'
 import { saveTravelMode, clearTravelMode, describeTravelUntil } from '@/lib/travelMode'
 import { track } from '@/lib/analytics'
 import { syncTravelSchedule } from '@/lib/travelSchedule'
+import { useProGate } from '@/stores/entitlements'
+import { ProLockCard } from '@/components/ProGate'
 import type { Equipment, TravelMode } from '@/types'
 
 
@@ -84,6 +90,7 @@ export default function TravelModeScreen() {
   const { profile, session, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
   const existing = (profile?.travel_mode as TravelMode | null) ?? null
+  const { locked } = useProGate()
 
   const [equipment, setEquipment] = useState<Equipment[]>(existing?.equipment ?? [])
   const [dur, setDur] = useState<DurId>(existing ? durFromUntil(existing.until) : 'week')
@@ -135,6 +142,12 @@ export default function TravelModeScreen() {
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
       />
 
+      {locked ? (
+        <View style={styles.scroll}>
+          <ProLockCard feature="travel_mode" />
+        </View>
+      ) : (
+      <>
       {/* Keyboard insets: the label field is the last element, so the keyboard
           would otherwise cover it completely. */}
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
@@ -233,6 +246,8 @@ export default function TravelModeScreen() {
           )}
         </TouchableOpacity>
       </View>
+      </>
+      )}
     </SafeAreaView>
   )
 }

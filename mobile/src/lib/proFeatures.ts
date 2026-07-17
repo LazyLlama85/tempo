@@ -23,6 +23,7 @@ export type ProFeatureId =
   | 'smart_notifications'
   | 'tempo_coach'
   | 'muscle_intelligence'
+  | 'travel_mode'
 
 export interface ProFeatureMeta {
   id: ProFeatureId
@@ -82,6 +83,12 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'An interactive body map — training balance, recovery, and weak points, muscle by muscle.',
     icon: 'body',
   },
+  travel_mode: {
+    id: 'travel_mode',
+    title: 'Travel Mode',
+    benefit: 'Away from your usual setup? Rewrite your upcoming workouts to match whatever gear you have with you.',
+    icon: 'airplane',
+  },
 }
 
 export function proFeature(id: ProFeatureId): ProFeatureMeta {
@@ -108,4 +115,5 @@ export interface PaywallPoint {
 export const PAYWALL_POINTS: PaywallPoint[] = [
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
+  { icon: 'airplane', title: 'Travel Mode', benefit: 'Rewrite your upcoming workouts to match whatever gear you have with you on the road.' },
 ]

@@ -234,6 +234,7 @@ function RootLayout() {
           <Stack.Screen name="exercise-progress" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="pr-browser" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="calendar-setup" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="settings" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="how-tempo-works" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-complete" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen name="welcome" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }} />

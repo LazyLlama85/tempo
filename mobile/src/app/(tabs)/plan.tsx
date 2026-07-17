@@ -2042,12 +2042,6 @@ export default function WorkoutsScreen() {
               <Text style={styles.libraryRowText}>Manage Workouts</Text>
               <Ionicons name="chevron-forward" size={16} color={C.outline} />
             </TouchableOpacity>
-            <View style={styles.libraryDivider} />
-            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/workout-history' as any)}>
-              <Ionicons name="journal-outline" size={18} color={C.textSecondary} />
-              <Text style={styles.libraryRowText}>History</Text>
-              <Ionicons name="chevron-forward" size={16} color={C.outline} />
-            </TouchableOpacity>
           </View>
         </ScrollView>
 
