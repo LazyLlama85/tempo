@@ -34,9 +34,13 @@ const GOALS: { id: Goal; label: string; description: string; icon: string }[] = 
 
 // Each level previews a real slice of the program it unlocks — sample lifts with
 // honest set×rep prescriptions — so the choice communicates consequences, not vibes.
+// Years-training is the simplest, least-ambiguous way to self-place (no jargon
+// judgment call like "how advanced are you") — matches the founder's explicit ask
+// for Heavy-style, plain-language level picking.
 const LEVELS: {
   id: Experience
   label: string
+  years: string
   tagline: string
   sub: string
   icon: string
@@ -46,6 +50,7 @@ const LEVELS: {
   {
     id: 'beginner',
     label: 'Beginner',
+    years: '0–1 year',
     tagline: 'Build the foundation',
     sub: 'Form-first coaching and steady, confident progress.',
     icon: 'leaf-outline',
@@ -59,6 +64,7 @@ const LEVELS: {
   {
     id: 'intermediate',
     label: 'Intermediate',
+    years: '1–3 years',
     tagline: 'Push past plateaus',
     sub: 'Barbell lifts, steady weekly increases, and built-in recovery weeks.',
     icon: 'barbell-outline',
@@ -72,6 +78,7 @@ const LEVELS: {
   {
     id: 'advanced',
     label: 'Advanced',
+    years: '3+ years',
     tagline: 'Chase peak performance',
     sub: 'Heavier work that adapts to your performance.',
     icon: 'flash-outline',
@@ -215,6 +222,9 @@ export default function BasicsScreen() {
                     <Text style={[styles.segmentText, expSel === level.id && styles.segmentTextActive]}>
                       {level.label}
                     </Text>
+                    <Text style={[styles.segmentYears, expSel === level.id && styles.segmentYearsActive]}>
+                      {level.years}
+                    </Text>
                   </PressableScale>
                 ))}
               </View>
@@ -228,6 +238,7 @@ export default function BasicsScreen() {
                       <Ionicons name={current.icon as any} size={20} color={C.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
+                      <Text style={styles.previewYears}>{current.label.toUpperCase()} · {current.years} TRAINING</Text>
                       <Text style={styles.previewTagline}>{current.tagline}</Text>
                       <Text style={styles.previewSub}>{current.sub}</Text>
                     </View>
@@ -366,6 +377,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   segmentActive: { backgroundColor: C.background, shadowColor: C.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   segmentText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.textSecondary },
   segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
+  segmentYears: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, marginTop: 1 },
+  segmentYearsActive: { color: C.primary },
   previewCard: {
     backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
     borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, gap: Spacing.sm,
@@ -375,6 +388,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
+  previewYears: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.primary, letterSpacing: 0.5, marginBottom: 2 },
   previewTagline: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   previewSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
   meter: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 23 },

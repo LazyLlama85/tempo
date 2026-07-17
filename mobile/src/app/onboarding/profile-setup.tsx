@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth'
 import { AVATAR_PRESETS, buildAvatarValue, parseAvatar } from '@/lib/avatar'
 import { logMeasurement } from '@/lib/bodyMeasurements'
 import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
+import { Slider } from '@/components/Slider'
 import { track } from '@/lib/analytics'
 
 
@@ -42,8 +43,11 @@ export default function ProfileSetupScreen() {
   // countdown — without it those flagship surfaces stay dark until the user finds
   // "Log entry" in Profile → Body Stats, which most never do.
   const [weight, setWeight] = useState('')
+  const [weightEditing, setWeightEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const unit = useUnitStore((s) => s.unit)
+  const weightSliderDefault = unit === 'kg' ? 75 : 165
+  const weightRange = unit === 'kg' ? { min: 36, max: 180 } : { min: 80, max: 400 }
 
   if (!session) return <Redirect href="/sign-in" />
 
@@ -125,21 +129,39 @@ export default function ProfileSetupScreen() {
         />
 
         <Text style={styles.fieldLabel}>CURRENT WEIGHT (OPTIONAL)</Text>
-        <View style={styles.weightRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={weight}
-            onChangeText={setWeight}
-            placeholder={unit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
-            placeholderTextColor={C.outline}
-            keyboardType="decimal-pad"
-            maxLength={6}
-            returnKeyType="done"
-          />
-          <Text style={styles.weightUnit}>{unitLabel(unit)}</Text>
+        <View style={styles.weightBig}>
+          <Text style={styles.weightBigNum}>{weight || String(weightSliderDefault)}</Text>
+          <Text style={styles.weightBigUnit}>{unitLabel(unit)}</Text>
         </View>
+        <Slider
+          value={Number(weight) || weightSliderDefault}
+          min={weightRange.min}
+          max={weightRange.max}
+          onChange={(v) => setWeight(String(v))}
+          accessibilityLabel="Current weight"
+        />
+        <TouchableOpacity onPress={() => setWeightEditing(true)} hitSlop={8}>
+          <Text style={styles.weightTypeLink}>{weight ? 'Type an exact number' : "I'd rather type it"}</Text>
+        </TouchableOpacity>
+        {weightEditing && (
+          <View style={styles.weightRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={weight}
+              onChangeText={setWeight}
+              placeholder={unit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
+              placeholderTextColor={C.outline}
+              keyboardType="decimal-pad"
+              maxLength={6}
+              returnKeyType="done"
+              autoFocus
+            />
+            <Text style={styles.weightUnit}>{unitLabel(unit)}</Text>
+          </View>
+        )}
         <Text style={styles.weightHint}>
-          Starts your weight trend and goal countdown — Tempo projects when you'll hit your goal.
+          Starts your weight trend and goal countdown — Tempo projects when you'll hit your goal. Drag
+          to set it, or leave it and skip for now.
         </Text>
 
         <Text style={styles.fieldLabel}>AVATAR</Text>
@@ -213,7 +235,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     fontFamily: 'Inter_500Medium', fontSize: 16, color: C.text,
   },
 
-  weightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  weightBig: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 6, marginTop: Spacing.xs },
+  weightBigNum: { fontFamily: C.fontNumeric, fontSize: 44, color: C.text, letterSpacing: -1 },
+  weightBigUnit: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.textSecondary, marginBottom: 6 },
+  weightTypeLink: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, textAlign: 'center', marginTop: Spacing.xs },
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs },
   weightUnit: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.textSecondary },
   weightHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.outline, lineHeight: 17 },
 
