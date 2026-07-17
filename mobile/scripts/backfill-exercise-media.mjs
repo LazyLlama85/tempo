@@ -19,6 +19,11 @@
 // keep filling in the rest; already-cached/backfilled exercises are skipped, so
 // it's always safe to re-run.
 //
+// Prioritized (2026-07-17): curated originals, then `is_core` movements (the
+// ~100 the plan generator and Quick Workout actually assign), THEN the long
+// tail of the rest of the library — so a single month's quota guarantees real
+// coverage of what users actually see, even before the whole library is done.
+//
 // Usage:
 //   SUPABASE_SERVICE_ROLE_KEY=... node scripts/backfill-exercise-media.mjs
 //   (RapidAPI key + Supabase URL are read from mobile/.env.local automatically)
@@ -71,23 +76,28 @@ function curatedExdbIds() {
   return ids
 }
 
-// Imported-library rows: { rowId, exdbId, needsInstructions }.
+// Imported-library rows: { rowId, exdbId, needsInstructions, isCore }.
 async function importedRows() {
   const out = []
   const PAGE = 1000
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('exercises')
-      .select('id, instructions')
+      .select('id, instructions, is_core')
       .is('user_id', null)
       .range(from, from + PAGE - 1)
     if (error) throw error
     for (const row of data) {
       const exdbId = exdbIdFromRowId(row.id)
-      if (exdbId) out.push({ rowId: row.id, exdbId, needsInstructions: !(row.instructions?.length) })
+      if (exdbId) out.push({ rowId: row.id, exdbId, needsInstructions: !(row.instructions?.length), isCore: !!row.is_core })
     }
     if (data.length < PAGE) break
   }
+  // Core exercises first (the ~100 movements the plan generator + Quick Workout
+  // actually assign) — with a real monthly request cap, a partial run should
+  // guarantee full coverage of what users actually see before spending budget on
+  // the long tail of rarely-assigned library exercises.
+  out.sort((a, b) => Number(b.isCore) - Number(a.isCore))
   return out
 }
 
