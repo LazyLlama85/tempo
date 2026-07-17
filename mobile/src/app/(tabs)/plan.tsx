@@ -10,20 +10,19 @@ import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchSplits } from '@/lib/splits'
-import { fetchTemplates } from '@/lib/workoutBuilder'
 import { removeWorkoutFromCalendar } from '@/services/calendarSync'
-import { readinessFromHistory, intensityFromReadiness, muscleRecovery } from '@/lib/fitnessInsights'
+import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { useProGate } from '@/stores/entitlements'
-import { TrainSegments, TrainReadinessView, SplitsView, WorkoutsView, type TrainSeg } from '@/components/TrainSegments'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
 import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
+import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
@@ -34,6 +33,7 @@ import { mondayStr } from '@/lib/schedulingImpact'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
 import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
+import { rescheduleWholeWeek } from '@/lib/reschedule'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
@@ -54,6 +54,7 @@ import { workoutOrigin } from '@/lib/workoutOrigin'
 
 
 const RPE_OPTIONS = [6, 7, 8, 9, 10]
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,20 @@ interface ExerciseRow {
   tracking_metrics?: MetricKey[]
 }
 
+// The calendar's own lightweight row shape — just enough for day dots + the
+// selected-day summary card. NOT the runner's `WorkoutRow` (no exercise
+// config/progression needed here; the runner loads its own full row when a
+// session actually starts).
+interface PlanCalRow {
+  id: string
+  focus: string
+  planned_date: string
+  planned_start_time: string
+  planned_duration_min: number
+  exercise_ids: string[]
+  status: string
+}
+
 interface SetState {
   lbs: string
   reps: string
@@ -117,6 +132,59 @@ function toDateStr(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${m}-${day}`
+}
+
+function parseLocal(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00`)
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setDate(x.getDate() + n)
+  return x
+}
+
+// Sunday as the first day of the week (matches US calendars).
+function startOfWeek(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  x.setDate(x.getDate() - x.getDay())
+  return x
+}
+
+function getWeekDays(d: Date): Date[] {
+  const s = startOfWeek(d)
+  return Array.from({ length: 7 }, (_, i) => addDays(s, i))
+}
+
+// 6-row month grid (42 cells) starting on the Sunday on/before the 1st, so the
+// grid always aligns to weekday columns and never reflows between months.
+function getMonthGrid(d: Date): Date[] {
+  const first = new Date(d.getFullYear(), d.getMonth(), 1)
+  const s = startOfWeek(first)
+  return Array.from({ length: 42 }, (_, i) => addDays(s, i))
+}
+
+// '07:00:00' → '7:00 AM' (12-hour everywhere — never 24-hour)
+function formatTime(t: string): string {
+  const [hStr, mStr] = t.split(':')
+  const h = parseInt(hStr, 10)
+  return `${h % 12 || 12}:${mStr} ${h >= 12 ? 'PM' : 'AM'}`
+}
+
+function daysPerWeek(split: Split): number {
+  return split.days.filter((d) => !d.rest).length
+}
+
+function splitLabels(split: Split): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const d of split.days) {
+    if (d.rest) continue
+    const l = (d.label || '').trim()
+    if (l && !seen.has(l.toLowerCase())) { seen.add(l.toLowerCase()); out.push(l) }
+  }
+  return out.slice(0, 4)
 }
 
 function formatElapsed(seconds: number): string {
@@ -192,16 +260,27 @@ export default function WorkoutsScreen() {
   const userId = session?.user.id ?? ''
   const experience = useAuthStore(s => s.profile?.experience)
 
-  // ── Training hub segmented nav (Readiness / Splits / Workouts / Session) ──────
-  // Strictly Training: readiness for choosing today's workout + the user's splits
-  // and saved workouts. No Progress analytics, no Calendar scheduling here.
-  const [hubSeg, setHubSeg] = useState<TrainSeg>('session')
-  const { locked: proLocked } = useProGate()
+  // ── Plan hub (IA redesign, 2026-07-16 Phase 2) ──────────────────────────────
+  // Was a 4-way segmented control (Session/Readiness/Splits/Workouts); now Plan
+  // owns all multi-day scheduling (moved from Home) plus a condensed current-
+  // split card and simple nav rows into the existing Library screens. The
+  // runner below (sessionActive branch) is completely untouched.
+  const today = new Date()
+  const todayStr = toDateStr(today)
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [weekRescheduleConfirm, setWeekRescheduleConfirm] = useState(false)
+  const [weekRescheduling, setWeekRescheduling] = useState(false)
+  const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
+  const { requirePro: requireProForSchedule } = useProGate()
   const { workouts: histWorkouts, logTimes, muscleTimeline } = useProgressStats(userId)
+  // Readiness stays a chip here (the point-of-decision glance, same as Home's
+  // hero) — the full readiness card + muscle recovery detail live on Progress
+  // now, not a dedicated Train segment.
   const trainReady = useMemo(() => {
     const r = readinessFromHistory(histWorkouts, logTimes, new Date())
-    return { readiness: r, intensity: intensityFromReadiness(r.score), muscle: muscleRecovery(muscleTimeline, new Date()) }
-  }, [histWorkouts, logTimes, muscleTimeline])
+    return { readiness: r, intensity: intensityFromReadiness(r.score) }
+  }, [histWorkouts, logTimes])
   // B5.4 — real completed sets this week, per muscle group, from the SAME
   // already-fetched muscleTimeline the readiness card uses (no new query).
   // Feeds buildPrescription's weekly-volume MRV cap below.
@@ -215,18 +294,159 @@ export default function WorkoutsScreen() {
     }
     return counts
   }, [muscleTimeline])
-  const { data: hubSplits = [], isLoading: splitsLoading } = useQuery({
+  // Always fetched now (was gated behind the removed Splits segment) — the
+  // condensed "current split" card needs it on every hub visit.
+  const { data: hubSplits = [] } = useQuery({
     queryKey: ['train_splits', userId],
     queryFn: () => fetchSplits(supabase, userId),
-    enabled: !!userId && hubSeg === 'splits',
+    enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: hubTemplates = [], isLoading: templatesLoading } = useQuery({
-    queryKey: ['train_templates', userId],
-    queryFn: () => fetchTemplates(supabase, userId),
-    enabled: !!userId && hubSeg === 'workouts',
-    staleTime: 5 * 60 * 1000,
+  const activeSplit = useMemo(() => hubSplits.find(s => s.is_active) ?? null, [hubSplits])
+
+  // ── Calendar (moved from Home) ───────────────────────────────────────────────
+  const selDate = useMemo(() => parseLocal(selectedDate), [selectedDate])
+  const weekDays = useMemo(() => getWeekDays(selDate), [selDate])
+  const monthGrid = useMemo(() => getMonthGrid(selDate), [selDate])
+  const calRange = useMemo(() => {
+    const cells = viewMode === 'month' ? monthGrid : weekDays
+    return { start: toDateStr(cells[0]), end: toDateStr(cells[cells.length - 1]) }
+  }, [viewMode, weekDays, monthGrid])
+
+  const { data: calWorkouts = [] } = useQuery<PlanCalRow[]>({
+    queryKey: ['plan_cal_workouts', userId, calRange.start, calRange.end],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('scheduled_workouts')
+        .select('id, focus, planned_date, planned_start_time, planned_duration_min, exercise_ids, status')
+        .eq('user_id', userId)
+        .gte('planned_date', calRange.start)
+        .lte('planned_date', calRange.end)
+        .order('planned_date')
+        .order('planned_start_time')
+      if (error) throw error
+      return (data ?? []) as PlanCalRow[]
+    },
+    enabled: !!userId,
+    placeholderData: keepPreviousData,
   })
+
+  const calWorkoutsByDate = useMemo(() => {
+    const map: Record<string, PlanCalRow[]> = {}
+    for (const w of calWorkouts) {
+      if (w.status === 'rescheduled' || w.status === 'skipped') continue
+      ;(map[w.planned_date] ||= []).push(w)
+    }
+    return map
+  }, [calWorkouts])
+
+  const selectedDayWorkout = calWorkoutsByDate[selectedDate]?.[0] ?? null
+
+  const rangeLabel = useMemo(() => {
+    if (viewMode === 'month') return selDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const a = weekDays[0], b = weekDays[6]
+    const sameMonth = a.getMonth() === b.getMonth()
+    const left = a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const right = b.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })
+    return `${left} – ${right}`
+  }, [viewMode, selDate, weekDays])
+
+  const isThisRange = useMemo(() => {
+    if (viewMode === 'month') return selDate.getFullYear() === today.getFullYear() && selDate.getMonth() === today.getMonth()
+    return weekDays.some(d => toDateStr(d) === todayStr)
+  }, [viewMode, selDate, weekDays, todayStr])
+
+  const shiftRange = (delta: number) => {
+    if (viewMode === 'month') {
+      const d = new Date(selDate.getFullYear(), selDate.getMonth() + delta, 1)
+      const sameMonth = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth()
+      setSelectedDate(sameMonth ? todayStr : toDateStr(d))
+    } else {
+      setSelectedDate(toDateStr(addDays(selDate, delta * 7)))
+    }
+  }
+
+  function renderDayCell(day: Date, compact: boolean) {
+    const ds = toDateStr(day)
+    const dayWorkouts = calWorkoutsByDate[ds] ?? []
+    const isSelected = ds === selectedDate
+    const isToday = ds === todayStr
+    const inMonth = day.getMonth() === selDate.getMonth()
+    const hasWorkout = dayWorkouts.length > 0
+    const allDone = hasWorkout && dayWorkouts.every(w => w.status === 'completed')
+    const anyMissed = hasWorkout && !allDone && dayWorkouts.some(w => w.status === 'missed')
+
+    return (
+      <PressableScale
+        key={ds}
+        style={compact ? styles.gridCell : styles.weekCell}
+        onPress={() => setSelectedDate(ds)}
+        scaleTo={0.88}
+      >
+        {!compact && <Text style={[styles.weekDow, isSelected && styles.weekDowActive]}>{DOW[day.getDay()]}</Text>}
+        <View
+          style={[
+            styles.dayPill,
+            compact && styles.dayPillGrid,
+            isToday && !isSelected && styles.dayPillToday,
+            isSelected && styles.dayPillSelected,
+          ]}
+        >
+          <Text
+            style={[
+              styles.dayNum,
+              compact && !inMonth && styles.dayNumMuted,
+              isToday && !isSelected && styles.dayNumToday,
+              isSelected && styles.dayNumSelected,
+            ]}
+          >
+            {day.getDate()}
+          </Text>
+        </View>
+        {hasWorkout ? (
+          <View style={[styles.dayDot, allDone ? styles.dotDone : anyMissed ? styles.dotMissed : styles.dotWorkout, isSelected && styles.dotOnSelected]} />
+        ) : (
+          <View style={styles.dayDotPlaceholder} />
+        )}
+      </PressableScale>
+    )
+  }
+
+  // "Reschedule my whole week" (moved from Home) — one tap re-lays every
+  // upcoming session via the existing lib/reschedule engine.
+  const handleWeekReschedule = () => {
+    if (weekRescheduling) return
+    if (!requireProForSchedule('schedule_optimization')) return
+    setWeekRescheduleConfirm(true)
+  }
+
+  const confirmWeekReschedule = async () => {
+    setWeekRescheduleConfirm(false)
+    if (weekRescheduling) return
+    setWeekRescheduling(true)
+    try {
+      const { moved, total } = await rescheduleWholeWeek(supabase, userId)
+      track('week_reschedule_used', { moved, total })
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['plan_cal_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+      if (total === 0) {
+        Alert.alert('Nothing to reschedule', 'Your week is already clear of upcoming workouts.')
+      } else if (moved === 0) {
+        Alert.alert('Week already fits', 'Every upcoming workout already has its best slot — nothing needed to move.')
+      } else {
+        Alert.alert(
+          'Week rescheduled',
+          `Tempo moved ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} to a better time and re-synced your calendar.`,
+        )
+      }
+    } catch (err) {
+      const info = describeSaveError(err, 'reschedule your week')
+      Alert.alert(info.title, info.message)
+    } finally {
+      setWeekRescheduling(false)
+    }
+  }
 
   const [workout, setWorkout] = useState<WorkoutRow | null>(null)
   const [exercises, setExercises] = useState<ExerciseRow[]>([])
@@ -1347,15 +1567,13 @@ export default function WorkoutsScreen() {
   // deliberately here, and can step back out of the live session to this hub at any
   // time — so being on a workout day never traps you in the exercise logger.
   if (!sessionActive) {
+    const showToday = selectedDate === todayStr
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenTransition>
         <ScreenHeader
           right={
             <HeaderActions>
-              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
-                <Ionicons name="book-outline" size={22} color={C.text} />
-              </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
                 <Avatar size={32} iconSize={16} />
               </TouchableOpacity>
@@ -1363,9 +1581,75 @@ export default function WorkoutsScreen() {
           }
         />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <TrainSegments value={hubSeg} onChange={setHubSeg} />
+          {/* Week / Month + range nav + "Reschedule my whole week" — moved from
+              Home; Plan now owns all multi-day scheduling. */}
+          <View style={styles.segment}>
+            {(['week', 'month'] as const).map((m) => (
+              <PressableScale
+                key={m}
+                style={[styles.segmentBtn, viewMode === m && styles.segmentBtnActive]}
+                onPress={() => setViewMode(m)}
+                scaleTo={0.94}
+              >
+                <Text style={[styles.segmentText, viewMode === m && styles.segmentTextActive]}>
+                  {m === 'week' ? 'Week' : 'Month'}
+                </Text>
+              </PressableScale>
+            ))}
+          </View>
 
-          {hubSeg === 'session' && (workout ? (
+          <View style={styles.rangeRow}>
+            <Text style={styles.rangeText}>{rangeLabel}</Text>
+            <View style={styles.rangeNav}>
+              {!isThisRange && (
+                <TouchableOpacity style={styles.todayChip} onPress={() => setSelectedDate(todayStr)}>
+                  <Text style={styles.todayChipText}>Today</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.weekRescheduleBtn, weekRescheduling && { opacity: 0.5 }]}
+                onPress={handleWeekReschedule}
+                disabled={weekRescheduling}
+                accessibilityRole="button"
+                accessibilityLabel="Reschedule my whole week"
+              >
+                {weekRescheduling ? (
+                  <ActivityIndicator size="small" color={C.primary} />
+                ) : (
+                  <Ionicons name="repeat-outline" size={18} color={C.primary} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => shiftRange(-1)} hitSlop={8}>
+                <Ionicons name="chevron-back" size={22} color={C.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => shiftRange(1)} hitSlop={8}>
+                <Ionicons name="chevron-forward" size={22} color={C.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <FadeInView key={viewMode} duration={240}>
+            {viewMode === 'month' ? (
+              <View style={styles.grid}>
+                <View style={styles.gridDowRow}>
+                  {DOW.map((d, i) => <Text key={i} style={styles.gridDowLabel}>{d}</Text>)}
+                </View>
+                <View style={styles.gridBody}>
+                  {monthGrid.map(day => renderDayCell(day, true))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.weekStrip}>
+                {weekDays.map(day => renderDayCell(day, false))}
+              </View>
+            )}
+          </FadeInView>
+
+          {/* Selected day: today shows the full runner-ready session card
+              (unchanged logic — `workout`/`exercises` always resolve to
+              today's session); any other day shows a lighter read-only
+              summary, since the runner state itself is always today's. */}
+          {showToday ? (workout ? (
           <>
           <FadeInView style={styles.hubHero}>
             <View style={styles.hubEyebrowRow}>
@@ -1381,8 +1665,8 @@ export default function WorkoutsScreen() {
               })()}
             </View>
             <Text style={styles.hubTitle}>{workout.focus}</Text>
-            {/* Readiness glance — tap to open the full Readiness view. */}
-            <PressableScale style={styles.hubReadyChip} scaleTo={0.96} onPress={() => setHubSeg('readiness')}>
+            {/* Readiness glance — tap through to Progress's full readiness card. */}
+            <PressableScale style={styles.hubReadyChip} scaleTo={0.96} onPress={() => router.push('/(tabs)/progress')}>
               <View style={[styles.hubReadyDot, { backgroundColor: trainReady.readiness.score >= 80 ? C.readyHigh : trainReady.readiness.score >= 55 ? C.readyMed : C.readyLow }]} />
               <Text style={styles.hubReadyText}>{trainReady.readiness.score}% ready · go {trainReady.intensity.label.toLowerCase()}</Text>
               <Ionicons name="chevron-forward" size={13} color={C.outline} />
@@ -1443,56 +1727,128 @@ export default function WorkoutsScreen() {
               <EmptyState
                 kind="flash"
                 title="No session scheduled today"
-                body="Rest day, or nothing planned yet — start a Quick Workout, check your Readiness, or browse your Splits and Workouts above."
+                body="Rest day, or nothing planned yet — start a Quick Workout, or check your current split below."
                 actionLabel="Start a Quick Workout"
                 onAction={() => router.push('/quick-workout')}
               />
             </View>
-          ))}
+          )) : (
+            // A different day than today — a lighter read-only summary (the
+            // runner's own `workout` state always resolves to TODAY's session,
+            // so a past/future day never gets Start/Resume treatment here).
+            <View style={styles.dayCard}>
+              {selectedDayWorkout ? (
+                <>
+                  <Text style={styles.dayCardEyebrow}>
+                    {selectedDayWorkout.status === 'completed' ? 'COMPLETED' : selectedDayWorkout.status === 'missed' ? 'MISSED' : 'SCHEDULED'}
+                  </Text>
+                  <Text style={styles.dayCardTitle}>{selectedDayWorkout.focus}</Text>
+                  <Text style={styles.dayCardMeta}>
+                    {formatTime(selectedDayWorkout.planned_start_time)} · {selectedDayWorkout.planned_duration_min} min ·{' '}
+                    {selectedDayWorkout.exercise_ids.length} exercise{selectedDayWorkout.exercise_ids.length === 1 ? '' : 's'}
+                  </Text>
+                  <PressableScale
+                    style={styles.dayCardEditBtn}
+                    scaleTo={0.96}
+                    onPress={() => router.push(`/edit-session?workoutId=${selectedDayWorkout.id}` as any)}
+                  >
+                    <Ionicons name="create-outline" size={14} color={C.primary} />
+                    <Text style={styles.dayCardEditText}>Edit</Text>
+                  </PressableScale>
+                </>
+              ) : (
+                <>
+                  <View style={styles.dayCardRest}>
+                    <Ionicons name="moon-outline" size={15} color={C.outline} />
+                    <Text style={styles.dayCardRestText}>Rest day — recovery is part of the plan.</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                    <Text style={styles.dayCardAddText}>+ Add a workout</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
 
-          {hubSeg === 'readiness' && (
-            <TrainReadinessView
-              readiness={trainReady.readiness}
-              intensity={trainReady.intensity}
-              muscle={trainReady.muscle}
-              locked={proLocked}
-              onUnlock={() => router.push({ pathname: '/paywall', params: { context: 'muscle_map' } } as any)}
-            />
-          )}
-          {hubSeg === 'splits' && (
-            <SplitsView
-              splits={hubSplits}
-              loading={splitsLoading}
-              onOpenSplit={() => router.push('/my-splits' as any)}
-              onManage={() => router.push('/my-splits' as any)}
-            />
-          )}
-          {hubSeg === 'workouts' && (
-            <WorkoutsView
-              templates={hubTemplates}
-              loading={templatesLoading}
-              onOpenWorkout={() => router.push('/my-workouts' as any)}
-              onBrowse={() => router.push('/my-workouts' as any)}
-              onCreate={() => router.push('/workout-builder' as any)}
-            />
-          )}
+          {/* Current split — the audit's "one Programs door," condensed from
+              the old full Splits list to just the active one. */}
+          <View style={styles.splitCard}>
+            <Text style={styles.splitLabel}>CURRENT SPLIT</Text>
+            {activeSplit ? (
+              <>
+                <View style={styles.splitTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.splitName}>{activeSplit.name}</Text>
+                    <Text style={styles.splitMeta}>
+                      {daysPerWeek(activeSplit)} day{daysPerWeek(activeSplit) === 1 ? '' : 's'}/week
+                      {activeSplit.kind === 'auto' ? ' · Tempo' : ' · Yours'}
+                    </Text>
+                  </View>
+                  <PressableScale style={styles.splitEditBtn} scaleTo={0.95} onPress={() => router.push('/my-splits' as any)}>
+                    <Text style={styles.splitEditText}>Edit Split</Text>
+                  </PressableScale>
+                </View>
+                {splitLabels(activeSplit).length > 0 && (
+                  <View style={styles.chipRow}>
+                    {splitLabels(activeSplit).map((l, i) => (
+                      <View key={i} style={styles.splitChip}><Text style={styles.splitChipText}>{l}</Text></View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <EmptyState
+                kind="barbell"
+                compact
+                title="No split yet"
+                body="A split is your weekly training pattern — Push/Pull/Legs, Upper/Lower, and more."
+                actionLabel="Create a split"
+                onAction={() => router.push('/my-splits' as any)}
+              />
+            )}
+          </View>
 
-          {/* Quick destinations — always available under any segment. */}
-          <View style={styles.emptyLinksRow}>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/quick-workout')} activeOpacity={0.7}>
-              <Ionicons name="flash" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>Quick Workout</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/workout-history' as any)} activeOpacity={0.7}>
-              <Ionicons name="journal-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>History</Text>
-            </PressableScale>
-            <PressableScale style={styles.emptyLink} scaleTo={0.93} onPress={() => router.push('/exercise-library' as any)} activeOpacity={0.7}>
-              <Ionicons name="book-outline" size={15} color={C.textSecondary} />
-              <Text style={styles.emptyLinkText}>Library</Text>
-            </PressableScale>
+          {/* Library & Tools — simple doors into the existing screens, not an
+              inline list (the old Workouts segment's searchable list moved out
+              of the hub entirely; My Workouts already does that job). */}
+          <Text style={styles.libraryLabel}>LIBRARY & TOOLS</Text>
+          <View style={styles.libraryCard}>
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library' as any)}>
+              <Ionicons name="book-outline" size={18} color={C.textSecondary} />
+              <Text style={styles.libraryRowText}>Exercise Library</Text>
+              <Ionicons name="chevron-forward" size={16} color={C.outline} />
+            </TouchableOpacity>
+            <View style={styles.libraryDivider} />
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/my-workouts' as any)}>
+              <Ionicons name="barbell-outline" size={18} color={C.textSecondary} />
+              <Text style={styles.libraryRowText}>Manage Workouts</Text>
+              <Ionicons name="chevron-forward" size={16} color={C.outline} />
+            </TouchableOpacity>
+            <View style={styles.libraryDivider} />
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/workout-history' as any)}>
+              <Ionicons name="journal-outline" size={18} color={C.textSecondary} />
+              <Text style={styles.libraryRowText}>History</Text>
+              <Ionicons name="chevron-forward" size={16} color={C.outline} />
+            </TouchableOpacity>
           </View>
         </ScrollView>
+
+        <AddWorkoutSheet
+          visible={addWorkoutOpen}
+          userId={userId}
+          client={supabase}
+          date={selectedDate}
+          onClose={() => setAddWorkoutOpen(false)}
+        />
+
+        <OptionSheet
+          visible={weekRescheduleConfirm}
+          title="Reschedule your week"
+          subtitle="Tempo will re-lay every upcoming workout onto its best day and time this week — recovery-aware and around your calendar. Nothing gets dropped, and your calendar stays in sync."
+          options={[{ key: 'reschedule', label: 'Reschedule my week', icon: 'repeat-outline' }]}
+          onSelect={confirmWeekReschedule}
+          onClose={() => setWeekRescheduleConfirm(false)}
+        />
 
         {/* Why this workout — the reasoning behind the order + selection */}
         <Modal visible={whyOpen} animationType="fade" transparent onRequestClose={() => setWhyOpen(false)}>
@@ -2249,16 +2605,94 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   emptyStateSubtext: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 22 },
   quickCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: C.primary, borderRadius: Radius.lg, height: 52, paddingHorizontal: Spacing.xl, marginTop: Spacing.lg, alignSelf: 'stretch' },
   quickCtaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
-  // Wraps: four links (Quick Workout / My Workouts / My Splits / History) must fit
-  // any screen width — chips flow onto a second line instead of running off-screen.
-  emptyLinksRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.xs, marginTop: Spacing.lg },
-  emptyLink: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: C.outlineVariant,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+  // ── Calendar (moved from Home) ───────────────────────────────────────────────
+  segment: {
+    flexDirection: 'row', marginBottom: Spacing.xs,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.md, padding: 4, gap: 4,
   },
-  emptyLinkText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  segmentBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.sm + 4 },
+  segmentBtnActive: { backgroundColor: C.primary },
+  segmentText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+  segmentTextActive: { color: C.onPrimary },
+  rangeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+  },
+  rangeText: { fontFamily: 'Inter_700Bold', fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  rangeNav: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  todayChip: { backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  todayChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+  weekRescheduleBtn: { width: 32, height: 32, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
+  weekStrip: { flexDirection: 'row', marginBottom: Spacing.md },
+  weekCell: { flex: 1, alignItems: 'center', gap: 5 },
+  weekDow: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
+  weekDowActive: { color: C.primary },
+  dayPill: {
+    width: 38, height: 38, borderRadius: Radius.full,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent',
+  },
+  dayPillToday: { borderColor: C.primary },
+  dayPillSelected: { backgroundColor: C.primary, borderColor: C.primary },
+  dayNum: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
+  dayNumToday: { color: C.primary },
+  dayNumSelected: { color: C.onPrimary },
+  dayNumMuted: { color: C.outline },
+  dayDot: { width: 5, height: 5, borderRadius: Radius.full },
+  dotWorkout: { backgroundColor: C.primary },
+  dotDone: { backgroundColor: C.success },
+  dotMissed: { backgroundColor: C.error },
+  dotOnSelected: { backgroundColor: '#FFFFFF' },
+  dayDotPlaceholder: { width: 5, height: 5 },
+  grid: { marginBottom: Spacing.md },
+  gridDowRow: { flexDirection: 'row', marginBottom: Spacing.xs },
+  gridDowLabel: { flex: 1, textAlign: 'center', fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline },
+  gridBody: { flexDirection: 'row', flexWrap: 'wrap' },
+  gridCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, gap: 3 },
+  dayPillGrid: { width: 34, height: 34 },
+
+  // ── Selected-day summary (non-today) ─────────────────────────────────────────
+  dayCard: {
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.card, padding: Spacing.lg,
+    gap: Spacing.xs, marginBottom: Spacing.md, ...Elevation.e1,
+  },
+  dayCardEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  dayCardTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  dayCardMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  dayCardEditBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    backgroundColor: C.primarySoft, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm, paddingVertical: 6, marginTop: Spacing.xs,
+  },
+  dayCardEditText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  dayCardRest: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  dayCardRestText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline },
+  dayCardAddText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, marginTop: Spacing.xs },
+
+  // ── Current split card ────────────────────────────────────────────────────--
+  splitCard: {
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.card, padding: Spacing.lg,
+    gap: Spacing.sm, marginBottom: Spacing.md, ...Elevation.e1,
+  },
+  splitLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  splitTopRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  splitName: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
+  splitMeta: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
+  splitEditBtn: { backgroundColor: C.primary, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 8 },
+  splitEditText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.onPrimary },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  splitChip: { backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 2 },
+  splitChipText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.textSecondary, letterSpacing: 0.2 },
+
+  // ── Library & Tools ──────────────────────────────────────────────────────────
+  libraryLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginBottom: Spacing.xs },
+  libraryCard: {
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.card,
+    borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden', marginBottom: Spacing.xl,
+  },
+  libraryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  libraryRowText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14.5, color: C.text },
+  libraryDivider: { height: 1, backgroundColor: C.outlineVariant, marginLeft: Spacing.md + 18 + Spacing.sm },
+
   floatingToolActive: { borderWidth: 1.5, borderColor: C.primary },
   restPill: {
     position: 'absolute',

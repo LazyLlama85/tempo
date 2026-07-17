@@ -44,9 +44,9 @@ you moving."*
   `ThemeProvider`, loads fonts, initializes analytics + crash reporting, wires the React Query
   error→`captureApiError` funnel, **wires `focusManager` to `AppState`** (stale queries refetch on
   app foreground), routes notification taps to the right screen, and Sentry-wraps the root.
-- **Tabs** `(tabs)/`: **`index`** ("Today" — Home/Schedule), **`plan`** ("Train" — hub + workout
-  runner), **`progress`**, **`profile`** ("You"). All four mount at startup (`lazy: false`) so
-  switches are instant and nothing mounts mid-transition; the stock bar is replaced by
+- **Tabs** `(tabs)/`: **`index`** ("Today" — Home/Schedule), **`plan`** ("Plan", formerly "Train" —
+  hub + workout runner), **`progress`**, **`profile`** ("You"). All four mount at startup
+  (`lazy: false`) so switches are instant and nothing mounts mid-transition; the stock bar is replaced by
   **`TempoTabBar`** (floating dock, animated active states, raised amber **GO** button →
   quick-workout; hides while the keyboard is up).
 - **Data freshness (the "stale tab" fix):** tab switches are neither mounts nor window focus, so
@@ -235,18 +235,37 @@ you moving."*
   the invariant the old per-day anchor relied on. **Not yet on-device verified** — flagged 🔍, needs
   the checklist in `EXECUTION_STATUS.md`'s session log before this can be trusted, same discipline
   as every other live-UI batch this session.
-- **Workout runner** (`(tabs)/plan.tsx`): a **hub** and a **live session** in one tab.
-  Tapping the tab (no `workoutId` param) lands on the **hub**. **Training redesign:** the hub is now a
-  four-way **segmented control** (`components/TrainSegments.tsx`) — kept strictly to Training (no
-  Progress analytics, no Calendar scheduling): **Session** (default — today's session preview: focus,
-  exercise list, **Start session**), **Readiness** (a workout-focused card — readiness score +
-  recommended intensity Easy/Moderate/Hard + per-muscle recovery for chest/back/legs/shoulders/arms +
-  a recommended focus, from `fitnessInsights.readinessFromHistory`/`intensityFromReadiness`/
-  `muscleRecovery` over `useProgressStats`), **Splits** (the user's `fetchSplits` list as premium
-  cards → `my-splits`), **Workouts** (the user's `fetchTemplates` list + search → `my-workouts`).
-  Quick Workout / History / Library stay as a secondary link row under any segment. The hub renders
-  **even on a rest day / when nothing is scheduled** (the Session segment shows an empty state while
-  Readiness/Splits/Workouts stay usable — the old separate "nothing scheduled" screen is gone).
+- **Plan** (`(tabs)/plan.tsx`, formerly "Train" — **IA redesign Phase 2, 2026-07-16**): a **hub**
+  and a **live session** in one tab; the tab file/route is unchanged, only the label and the hub
+  content. Plan now owns **all multi-day scheduling** (moved from Home in Phase 1): a `[Week |
+  Month]` toggle + range row + a **"Reschedule my whole week"** icon button (the exact
+  `lib/reschedule.ts` engine, UI relocated verbatim from Home) sit above a week strip / month grid
+  (`renderDayCell`, also moved from Home, using Plan's own lightweight `plan_cal_workouts` range
+  query — day/status only, no calendar-event merge, since Plan's calendar only needs to know which
+  days have a workout for the dots). **Tapping a day** shows that day's session below the calendar:
+  selecting **today** shows the full pre-existing session card (hero focus, readiness chip, exercise
+  list, "why this workout," Start/Resume — unchanged, since the runner's own `workout` state always
+  resolves to today's session regardless of what's selected in the calendar); selecting **any other
+  day** shows a lighter read-only summary (focus, time, duration, exercise count) with an **Edit**
+  button into `edit-session.tsx`. Below that: a condensed **CURRENT SPLIT** card (name, days/week,
+  split-day labels, **Edit Split** → `my-splits`) — the audit's "one Programs door," replacing the
+  old full Splits list. Then **LIBRARY & TOOLS**: three simple navigation rows (Exercise Library,
+  Manage Workouts, History) — not an inline searchable list; that removed the old segmented
+  Workouts view's own template-browsing UI, since `my-workouts` already does that job.
+  **The old 4-way segmented control (`components/TrainSegments.tsx`: Session/Readiness/Splits/
+  Workouts) is gone, file deleted** — none of its non-Session segments survived in a form the new
+  design still needed: **Readiness** moved to a chip on the session card (tapping through to
+  Progress's full `ReadinessCard` + muscle-map, the same "point of decision, not a full tab"
+  treatment Home's hero chip got in Phase 1) — the underlying `readinessFromHistory`/
+  `intensityFromReadiness` computation stays, feeding the same chip; **Splits**' full list became
+  the condensed current-split card above; **Workouts**' inline list became a nav row. `muscleRecovery`
+  (only ever feeding the deleted `TrainReadinessView`) is unused now too. **Not touched, still
+  runner-critical:** `muscleTimeline` → `weeklySetsByGroup` (B5.4's real weekly-set counts per
+  muscle group) still feeds `buildPrescription`'s MRV cap at all 3 live call sites — that's a
+  completely separate concern from the display-only readiness chip and was never part of the
+  segmented-control cleanup. The hub renders **even on a rest day / when nothing is scheduled today**
+  (today's session branch shows an empty state; the calendar, split card, and library rows stay
+  usable regardless).
   **Discarding** an unstarted session now **fully cancels** it — drops it from the plan (status
   `rescheduled`, so it's ignored by the streak + never re-synced) **and** removes its synced calendar
   event (best-effort, `removeWorkoutFromCalendar`) so no ghost workout lingers. The **finish screen**
@@ -887,13 +906,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `workoutForecast` (3-day fatigue outlook), `consistencyPredictor` (weekly-goal projection),
   `consistencyHeatmap` (GitHub-style adherence grid), `frequencySeries`, `muscleBalance`,
   `strengthTrends` (per-lift start→now top movers), `journeyTimeline`, `intensityFromReadiness` +
-  `muscleRecovery` (Train tab readiness), and **`muscleIntelligence`** (Body Map: per-group status/
-  recovery/volume-trend + an overall balance score, over the coarse `muscle_group` only — no
-  fabricated per-fine-muscle stats). Every output ships a human message and honest empty states; no
-  invented numbers. 19 unit tests (`__tests__/fitnessInsights.test.ts`). **B5.1:** Progress's
-  `ReadinessCard` now carries the same honest disclosure Train's readiness view already had ("Recovery
-  is estimated from your recent sessions...") — "Estimated from your recent training and rest time —
-  not a wearable measurement." The WHOOP-style ring UI otherwise implies a physiological signal
+  `muscleRecovery` (also feeds Plan's session-card readiness chip — see §3.2), and
+  **`muscleIntelligence`** (Body Map: per-group status/recovery/volume-trend + an overall balance
+  score, over the coarse `muscle_group` only — no fabricated per-fine-muscle stats). Every output
+  ships a human message and honest empty states; no invented numbers. 19 unit tests
+  (`__tests__/fitnessInsights.test.ts`). **B5.1:** Progress's
+  `ReadinessCard` carries an honest disclosure ("Recovery is estimated from your recent sessions...")
+  — "Estimated from your recent training and rest time — not a wearable measurement." The WHOOP-style ring UI otherwise implies a physiological signal
   (sleep/HRV/resting HR) this heuristic doesn't have; the caption makes the actual input honest
   without needing HealthKit (B5.2) to say something true today.
 - **Body Intelligence / Muscle Map** (`app/muscle-map.tsx` + `components/MuscleMap.tsx`): a signature,
@@ -909,8 +928,10 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   everyone sees it in full. Three map modes: **Status** (status colours + recovery-% callout bubbles),
   **Heatmap** (7/30/90-day training-stimulus glow), and **Rank** (per-muscle training tier
   Beginner→World Class from `fitnessInsights.muscleRank` — most→least trained, for the "how developed"
-  Progress view). The **Train → Readiness** segment also embeds the recovery body map with %
-  bubbles, **Pro-gated** (free = dimmed + a lock overlay; the score/ring stays free). A
+  Progress view). (The old **Train → Readiness** segment also embedded this body map — removed along
+  with the rest of the segmented control in the 2026-07-16 Plan redesign; Progress's Body
+  Intelligence card is now the only surface for it, still **Pro-gated** the same way — free = dimmed
+  + a lock overlay, score/ring stays free.) A
   **post-workout teaser** on `workout-complete` surfaces it at a high-intent moment (only when locked).
   `MuscleMap`'s public API (`view` / `statusByGroup` / `heatByGroup` / `rankByGroup` / `mode` /
   `selected` / `onSelect` / `dimmed` / `bubbles` / `size` + the `muscleStatusColor` / `muscleTierColor`
