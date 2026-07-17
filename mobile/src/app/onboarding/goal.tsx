@@ -107,7 +107,12 @@ export default function BasicsScreen() {
   const router = useRouter()
   const { signOut, profile } = useAuthStore()
 
-  // 0 = goal, 1 = experience, 2 = equipment.
+  // 0 = goal, 1 = experience, 2 = equipment, 3 = build mode (new users only — see
+  // below: an existing user re-planning always regenerates, so offering "build my
+  // own" here would skip retiring their current plan's future sessions instead of
+  // replacing them, leaving stale + new schedules double-booked).
+  const isReplan = !!profile?.onboarding_complete
+  const cardCount = isReplan ? 3 : 4
   const [cardIndex, setCardIndex] = useState(0)
 
   // Re-running onboarding (Change Plan) starts from the current answers instead of
@@ -116,6 +121,11 @@ export default function BasicsScreen() {
   const [goalSel, setGoalSel] = useState<Goal | null>(profile?.goal ?? null)
   const [expSel, setExpSel] = useState<Experience>(profile?.experience ?? 'beginner')
   const [equipSel, setEquipSel] = useState<Equipment[]>((profile?.equipment as Equipment[]) ?? [])
+  // Guided (Tempo builds & adapts the plan) vs. custom (the user builds their own
+  // workouts/splits — free for everyone, not a Pro gate). No durable profile field
+  // for this: the free build-your-own tools (My Workouts/My Splits) are always
+  // reachable regardless — this only decides where onboarding drops the user off.
+  const [buildMode, setBuildMode] = useState<'guided' | 'custom'>('guided')
 
   const toggleEquip = (id: Equipment) =>
     setEquipSel((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]))
@@ -134,16 +144,17 @@ export default function BasicsScreen() {
 
   const onContinue = () => {
     if (!canContinue) return
-    if (cardIndex < 2) { setCardIndex(cardIndex + 1); return }
+    if (cardIndex < cardCount - 1) { setCardIndex(cardIndex + 1); return }
     router.push({
       pathname: '/onboarding/schedule',
-      params: { goal: goalSel!, experience: expSel, equipment: equipSel.join(',') },
+      params: { goal: goalSel!, experience: expSel, equipment: equipSel.join(','), buildMode: isReplan ? 'guided' : buildMode },
     })
   }
 
   const current = LEVELS.find((l) => l.id === expSel)!
-  // Step 1 of 4 overall; fill that first quarter in thirds as the cards advance.
-  const progressPct = `${((cardIndex + 1) * 25) / 3}%` as `${number}%`
+  // Step 1 of 4 overall; fill that first quarter across however many basics cards
+  // this account gets (4 for a new user, 3 for a replan — no build-mode card).
+  const progressPct = `${((cardIndex + 1) * 25) / cardCount}%` as `${number}%`
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -161,9 +172,9 @@ export default function BasicsScreen() {
         <View style={[styles.progressFill, { width: progressPct }]} />
       </View>
 
-      {/* Sub-step dots (which of the 3 basics cards) */}
+      {/* Sub-step dots (which basics card — 4 for a new user, 3 for a replan) */}
       <View style={styles.dots}>
-        {[0, 1, 2].map((i) => (
+        {Array.from({ length: cardCount }, (_, i) => i).map((i) => (
           <View key={i} style={[styles.dot, i === cardIndex && styles.dotOn, i < cardIndex && styles.dotDone]} />
         ))}
       </View>
@@ -302,6 +313,37 @@ export default function BasicsScreen() {
                       </View>
                       <View style={[styles.check, isSelected && styles.checkOn]}>
                         {isSelected && <Ionicons name="checkmark" size={15} color={C.onPrimary} />}
+                      </View>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+            </>
+          )}
+
+          {cardIndex === 3 && (
+            <>
+              <Text style={styles.title}>How do you want to train?</Text>
+              <Text style={styles.subtitle}>Both are free — pick whichever fits how you like to work out. You can switch anytime.</Text>
+              <View style={styles.options}>
+                {([
+                  { id: 'guided' as const, label: 'Guide me', description: 'Tempo builds your plan and keeps adapting it as you progress.', icon: 'sparkles-outline' },
+                  { id: 'custom' as const, label: "I'll build my own", description: 'Create your own workouts and splits — Tempo still schedules them around your life.', icon: 'construct-outline' },
+                ]).map((opt) => {
+                  const isSelected = buildMode === opt.id
+                  return (
+                    <PressableScale
+                      key={opt.id}
+                      style={[styles.option, isSelected && styles.optionSelected]}
+                      onPress={() => setBuildMode(opt.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
+                        <Ionicons name={opt.icon as any} size={22} color={isSelected ? C.onPrimary : C.primary} />
+                      </View>
+                      <View style={styles.optionText}>
+                        <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{opt.label}</Text>
+                        <Text style={styles.optionDesc}>{opt.description}</Text>
                       </View>
                     </PressableScale>
                   )

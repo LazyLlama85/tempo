@@ -80,7 +80,7 @@ export default function PlanPreviewScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { goal, experience, equipment, daysPerWeek, preferredCalendar, schedulingMode, sessionMinutes } = useLocalSearchParams<{
+  const { goal, experience, equipment, daysPerWeek, preferredCalendar, schedulingMode, sessionMinutes, buildMode, includeCardio } = useLocalSearchParams<{
     goal: string
     experience: string
     equipment: string
@@ -88,7 +88,15 @@ export default function PlanPreviewScreen() {
     preferredCalendar?: string
     schedulingMode?: string
     sessionMinutes?: string
+    buildMode?: string
+    includeCardio?: string
   }>()
+  const wantsCardio = includeCardio === 'true'
+  // "I'll build my own" (Phase 7d): Tempo still saves goal/experience/equipment/
+  // schedule (they're used everywhere else — Quick Workout, substitutions, the
+  // free-slot engine), but skips plan GENERATION entirely and drops the user into
+  // split-editor instead of a generated week. Free for everyone, not a Pro gate.
+  const isCustomBuild = buildMode === 'custom'
   const { session, profile, refreshProfile } = useAuthStore()
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'idle' | 'saving' | 'generating' | 'revealing'>('idle')
@@ -147,6 +155,7 @@ export default function PlanPreviewScreen() {
         equipment: equipmentList,
         days_per_week: days,
         preferred_duration_min: sessionMin,
+        include_cardio: wantsCardio,
         // onboarding_complete is deliberately NOT set here — it flips below, after
         // generatePlan succeeds. Setting it first meant a mid-chain failure + force
         // quit produced an "onboarded" account with no plan at next launch.
@@ -168,17 +177,24 @@ export default function PlanPreviewScreen() {
       })
       if (profileErr) throw profileErr
 
-      setStatus('generating')
-      await generatePlan(supabase, session.user.id, {
-        goal: goal as Goal,
-        experience: experience as Experience,
-        equipment: equipmentList,
-        days_per_week: days,
-        preferred_duration_min: sessionMin,
-      })
+      // Custom-build users skip generation entirely — there is no plan to build,
+      // by their own explicit choice. Everything else (profile fields, reminders,
+      // tutorials) still happens so the rest of the app behaves identically to any
+      // other onboarded account with no plan/split yet (an already-supported state).
+      if (!isCustomBuild) {
+        setStatus('generating')
+        await generatePlan(supabase, session.user.id, {
+          goal: goal as Goal,
+          experience: experience as Experience,
+          equipment: equipmentList,
+          days_per_week: days,
+          preferred_duration_min: sessionMin,
+          include_cardio: wantsCardio,
+        })
+      }
 
-      // The plan exists — NOW the account counts as onboarded. (On a re-plan this
-      // is already true; the update is a harmless no-op.)
+      // The plan exists (or the user chose not to have one yet) — NOW the account
+      // counts as onboarded. (On a re-plan this is already true; harmless no-op.)
       const { error: completeErr } = await supabase
         .from('user_profiles')
         .update({ onboarding_complete: true })
@@ -189,7 +205,9 @@ export default function PlanPreviewScreen() {
       // calendar the user just connected. In manual mode the user owns the times, so
       // we leave the curated template times. (autoScheduleUpcoming also self-guards on
       // scheduling_mode; this just skips the work entirely.) Best-effort either way.
-      if (schedulingMode !== 'manual') {
+      // Nothing to place yet for a custom build — it self-guards on there being no
+      // scheduled rows, but skip the call outright since we know there's nothing.
+      if (!isCustomBuild && schedulingMode !== 'manual') {
         try { await autoScheduleUpcoming(supabase, session.user.id) } catch { /* keep template times */ }
       }
 
@@ -247,7 +265,9 @@ export default function PlanPreviewScreen() {
       // place instead of jumping straight into the app. Best-effort AND honest —
       // any failure, or a genuinely empty week, just skips straight to entering
       // the app (exactly the old behavior) rather than show a misleading
-      // all-rest-days screen right after generating a plan.
+      // all-rest-days screen right after generating a plan. Custom-build users have
+      // no generated week by definition — skip straight to entering.
+      if (isCustomBuild) { enterApp(); return }
       try {
         const today = new Date(); today.setHours(0, 0, 0, 0)
         const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6)
@@ -297,7 +317,9 @@ export default function PlanPreviewScreen() {
       router.replace('/(tabs)')
     } else {
       // Tutorials were already armed in handleConfirm, before the reveal.
-      router.replace('/onboarding/profile-setup')
+      // Forward buildMode so profile-setup knows whether to drop a custom-build
+      // user into split-editor instead of the (empty, but perfectly valid) tabs.
+      router.replace({ pathname: '/onboarding/profile-setup', params: { buildMode: buildMode ?? '' } })
     }
   }
 
@@ -316,6 +338,7 @@ export default function PlanPreviewScreen() {
     { label: 'Experience', value: EXP_LABELS[experience ?? ''] ?? '—' },
     { label: 'Days per week', value: `${days} days` },
     { label: 'Duration', value: `~${sessionMin} min / session` },
+    ...(wantsCardio ? [{ label: 'Cardio finisher', value: 'Included' }] : []),
     { label: 'Length', value: '4 weeks (then repeats)' },
   ]
 
@@ -372,12 +395,31 @@ export default function PlanPreviewScreen() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView>
           <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 4 OF 4'}</Text>
-          <Text style={styles.title}>{isReplan ? 'Your new plan is ready.' : "Here's your plan."}</Text>
+          <Text style={styles.title}>
+            {isCustomBuild ? "You're all set." : isReplan ? 'Your new plan is ready.' : "Here's your plan."}
+          </Text>
           <Text style={styles.subtitle}>
-            {isReplan ? 'This replaces your current plan — history and PRs stay.' : "Take a look, then we'll build it and set up your week."}
+            {isCustomBuild
+              ? "No generated plan — you're building your own. Tempo still schedules whatever you create around your real day."
+              : isReplan ? 'This replaces your current plan — history and PRs stay.' : "Take a look, then we'll build it and set up your week."}
           </Text>
         </FadeInView>
 
+        {isCustomBuild ? (
+          <FadeInView delay={100} style={styles.planCard}>
+            <Text style={styles.programEyebrow}>YOUR SETUP</Text>
+            <Text style={styles.programName}>Build your own</Text>
+            <View style={styles.divider} />
+            <View style={styles.details}>
+              {DETAILS.slice(0, 4).map((d) => (
+                <View key={d.label} style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{d.label}</Text>
+                  <Text style={styles.detailValue}>{d.value}</Text>
+                </View>
+              ))}
+            </View>
+          </FadeInView>
+        ) : (
         <FadeInView delay={100} style={styles.planCard}>
           <Text style={styles.programEyebrow}>PROGRAM</Text>
           <Text style={styles.programName}>{programName}</Text>
@@ -391,13 +433,15 @@ export default function PlanPreviewScreen() {
             ))}
           </View>
         </FadeInView>
+        )}
 
         {/* Reinforce the core promise right at the finish line */}
         <FadeInView delay={200} style={styles.adaptNote}>
           <Ionicons name="sparkles" size={16} color={C.primary} style={{ marginTop: 1 }} />
           <Text style={styles.adaptNoteText}>
-            This is a starting point, not a contract. Tempo reshapes it around your real
-            schedule — and when life gets busy, a Quick Workout keeps you moving.
+            {isCustomBuild
+              ? "Next you'll add a name and photo, then land straight in the split builder to create your first workout."
+              : 'This is a starting point, not a contract. Tempo reshapes it around your real schedule — and when life gets busy, a Quick Workout keeps you moving.'}
           </Text>
         </FadeInView>
       </ScrollView>
@@ -424,7 +468,9 @@ export default function PlanPreviewScreen() {
           {busy ? (
             <ActivityIndicator color={C.onPrimary} />
           ) : (
-            <Text style={styles.confirmText}>{isReplan ? 'Switch to This Plan →' : "Let's Go →"}</Text>
+            <Text style={styles.confirmText}>
+              {isReplan ? 'Switch to This Plan →' : isCustomBuild ? 'Continue →' : "Let's Go →"}
+            </Text>
           )}
         </PressableScale>
         )}

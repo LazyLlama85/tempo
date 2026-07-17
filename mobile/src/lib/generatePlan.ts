@@ -16,6 +16,12 @@ export interface PlanProfile {
   days_per_week: number
   preferred_duration_min: number
   preferred_time_of_day?: TimeOfDay | null
+  // Optional cardio finisher (onboarding question, Phase 7c). muscle_gain/strength
+  // templates carry zero cardio by design (pure hypertrophy/strength focus) —
+  // this appends CARDIO as an OPTIONAL trailing slot on those two goals only, so a
+  // tight time budget can still drop it first. fat_loss/athletic/general_fitness
+  // already bake in a cardio finisher on some days regardless — unaffected.
+  include_cardio?: boolean
 }
 
 // Hard scheduling constraints the plan must respect: weekdays the user can never
@@ -169,15 +175,23 @@ const fullBody = (focus: string, order: Slot[], finisher: SlotSpec = CORE): Sess
 
 // ── Goal-specific programs ────────────────────────────────────────────────────
 
-function muscleSessions(days: number): SessionTemplate[] {
-  if (days === 2) return [UPPER_A, LOWER_A]
-  if (days === 3) return [PUSH_DAY, PULL_DAY, LEGS_DAY]
-  if (days === 4) return [UPPER_A, LOWER_A, UPPER_B, LOWER_B]
-  if (days === 5) return [PUSH_DAY, PULL_DAY, LEGS_DAY, UPPER_A, LOWER_A]
-  return [PUSH_DAY, PULL_DAY, LEGS_DAY, PUSH_DAY, PULL_DAY, LEGS_DAY] // 6 — PPL ×2
+// Cardio is OPTIONAL and dropped first by the time-budget trimmer (S(...,
+// {optional:true})) — asking for it never guarantees it survives a short session,
+// same honesty as every other optional slot in this file.
+const CARDIO_OPT: SlotSpec = S(['cardio'], 'cardio', { optional: true })
+const withCardio = (t: SessionTemplate, on: boolean): SessionTemplate =>
+  on ? { ...t, slots: [...t.slots, CARDIO_OPT] } : t
+
+function muscleSessions(days: number, cardio = false): SessionTemplate[] {
+  const list = days === 2 ? [UPPER_A, LOWER_A]
+    : days === 3 ? [PUSH_DAY, PULL_DAY, LEGS_DAY]
+    : days === 4 ? [UPPER_A, LOWER_A, UPPER_B, LOWER_B]
+    : days === 5 ? [PUSH_DAY, PULL_DAY, LEGS_DAY, UPPER_A, LOWER_A]
+    : [PUSH_DAY, PULL_DAY, LEGS_DAY, PUSH_DAY, PULL_DAY, LEGS_DAY] // 6 — PPL ×2
+  return list.map(t => withCardio(t, cardio))
 }
 
-function strengthSessions(days: number): SessionTemplate[] {
+function strengthSessions(days: number, cardio = false): SessionTemplate[] {
   // Fewer movements, compound-dominant, minimal isolation.
   const squat: SessionTemplate = { focus: 'Squat Day', slots: [
     S(['squat'], 'primary'), S(['hinge'], 'secondary'), S(['lunge', 'squat'], 'accessory'),
@@ -199,11 +213,12 @@ function strengthSessions(days: number): SessionTemplate[] {
     S(['h_push'], 'primary'), S(['h_pull'], 'primary'), S(['v_push'], 'secondary'),
     S(['biceps'], 'isolation', { optional: true }), CORE,
   ] }
-  if (days === 2) return [squat, press]
-  if (days === 3) return [squat, press, dead]
-  if (days === 4) return [squat, press, dead, pull]
-  if (days === 5) return [squat, press, dead, pull, upper]
-  return [squat, press, pull, dead, upper, squat]
+  const list = days === 2 ? [squat, press]
+    : days === 3 ? [squat, press, dead]
+    : days === 4 ? [squat, press, dead, pull]
+    : days === 5 ? [squat, press, dead, pull, upper]
+    : [squat, press, pull, dead, upper, squat]
+  return list.map(t => withCardio(t, cardio))
 }
 
 function fatLossSessions(days: number): SessionTemplate[] {
@@ -270,11 +285,11 @@ function generalSessions(days: number): SessionTemplate[] {
   return [upper, lower, fbA, upper, lower, fbB]
 }
 
-function buildSessionTemplates(goal: Goal, days: number): SessionTemplate[] {
+function buildSessionTemplates(goal: Goal, days: number, includeCardio = false): SessionTemplate[] {
   const n = clampDays(days)
   switch (goal) {
-    case 'muscle_gain':  return muscleSessions(n)
-    case 'strength':     return strengthSessions(n)
+    case 'muscle_gain':  return muscleSessions(n, includeCardio)
+    case 'strength':     return strengthSessions(n, includeCardio)
     case 'fat_loss':     return fatLossSessions(n)
     case 'athletic':     return athleticSessions(n)
     default:             return generalSessions(n)
@@ -592,7 +607,7 @@ async function buildBlockContext(
   const days = clampDays(profile.days_per_week)
   return {
     slots: chooseDaySlots(days, constraints.blockedWeekdays),
-    templates: buildSessionTemplates(profile.goal, days),
+    templates: buildSessionTemplates(profile.goal, days, profile.include_cardio),
     bySlot,
     // How many exercises fit the user's preferred session length FOR THIS GOAL —
     // a strength day (full 3-min rests) fits fewer lifts than a fat-loss circuit
@@ -791,7 +806,7 @@ export async function restampFuturePlanForExperience(
 
     const { data: p } = await client
       .from('user_profiles')
-      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day')
+      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day, include_cardio')
       .eq('user_id', userId)
       .maybeSingle()
     if (!p) return 0
@@ -803,6 +818,7 @@ export async function restampFuturePlanForExperience(
       days_per_week: clampDays(p.days_per_week ?? 3),
       preferred_duration_min: p.preferred_duration_min ?? 45,
       preferred_time_of_day: (p.preferred_time_of_day ?? null) as TimeOfDay | null,
+      include_cardio: !!p.include_cardio,
     }
     const constraints = await fetchPlanConstraints(client, userId)
     const ctx = await buildBlockContext(client, profile, constraints)
@@ -811,7 +827,7 @@ export async function restampFuturePlanForExperience(
     // Map each session's focus back to its template so re-selection stays true to
     // the day (a "Push" day re-picks pushes at the new level, never pulls).
     const focusToTemplate = new Map<string, SessionTemplate>()
-    for (const t of buildSessionTemplates(profile.goal, profile.days_per_week)) {
+    for (const t of buildSessionTemplates(profile.goal, profile.days_per_week, profile.include_cardio)) {
       focusToTemplate.set(t.focus, t)
     }
 
@@ -840,7 +856,7 @@ export async function restampFuturePlanForExperience(
 
     // Per-focus rotation, seeded from how many of each focus already ran, so a
     // re-stamp keeps varying from where the plan was rather than resetting.
-    const templatesLen = Math.max(1, buildSessionTemplates(profile.goal, profile.days_per_week).length)
+    const templatesLen = Math.max(1, buildSessionTemplates(profile.goal, profile.days_per_week, profile.include_cardio).length)
     const focusRotation = new Map<string, number>()
     const priorRot = Math.floor((prior ?? 0) / templatesLen)
     let changed = 0

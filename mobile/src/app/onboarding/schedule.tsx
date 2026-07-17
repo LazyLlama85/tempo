@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, ScrollView } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView, Switch } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,7 +16,7 @@ export default function ScheduleScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { goal, experience, equipment } = useLocalSearchParams<{ goal: string; experience: string; equipment: string }>()
+  const { goal, experience, equipment, buildMode } = useLocalSearchParams<{ goal: string; experience: string; equipment: string; buildMode?: string }>()
   const { profile } = useAuthStore()
   // Change Plan re-entry keeps the user's current cadence + scheduling mode —
   // re-running onboarding must never silently flip a manual scheduler back to auto.
@@ -40,13 +40,22 @@ export default function ScheduleScreen() {
   const [schedulingMode, setSchedulingMode] = useState<'auto' | 'manual'>(
     profile?.scheduling_mode === 'manual' ? 'manual' : 'auto',
   )
+  // Optional cardio question (Phase 7c) — only meaningful for muscle_gain/strength,
+  // whose templates carry zero cardio by design; fat_loss/athletic/general_fitness
+  // already bake it in on some days regardless, so asking there would be a
+  // question that does nothing — keep onboarding honest, don't show it.
+  const cardioMatters = (goal === 'muscle_gain' || goal === 'strength') && buildMode !== 'custom'
+  const [includeCardio, setIncludeCardio] = useState(!!profile?.include_cardio)
 
   // Carry the cadence + scheduling mode forward. (An already-connected calendar, e.g.
   // on Change Plan re-entry, keeps its saved preferred_calendar — plan-preview leaves
   // that field untouched when no preferredCalendar param is present.)
   const goNext = () => router.push({
     pathname: '/onboarding/availability',
-    params: { goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes) },
+    params: {
+      goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes), buildMode,
+      includeCardio: cardioMatters && includeCardio ? 'true' : 'false',
+    },
   })
 
   return (
@@ -139,6 +148,22 @@ export default function ScheduleScreen() {
           })}
         </View>
 
+        {/* Optional cardio finisher — only asked when it actually changes anything */}
+        {cardioMatters && (
+          <View style={styles.cardioRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardioTitle}>Add a cardio finisher?</Text>
+              <Text style={styles.cardioSub}>Optional — tacks a short cardio move onto some sessions. Off by default.</Text>
+            </View>
+            <Switch
+              value={includeCardio}
+              onValueChange={setIncludeCardio}
+              trackColor={{ false: C.surfaceContainerHigh, true: C.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+        )}
+
         {/* Calendar preview — a glimpse of automatic placement around real events */}
         <View style={styles.calendarPreview}>
           <View style={styles.previewHeader}>
@@ -201,6 +226,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   modeCardSel: { borderColor: C.primary, backgroundColor: C.primarySoft },
   modeTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   modeSub: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 2 },
+  cardioRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  cardioTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  cardioSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
   calendarPreview: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, padding: Spacing.md, gap: Spacing.md },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   previewDate: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },

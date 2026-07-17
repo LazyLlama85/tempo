@@ -44,7 +44,7 @@ export default function OnboardingAvailabilityScreen() {
   const router = useRouter()
   const { session, profile, refreshProfile } = useAuthStore()
   const params = useLocalSearchParams<{
-    goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string; schedulingMode?: string; sessionMinutes?: string
+    goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string
   }>()
 
   // Prefill from the saved profile (Change Plan re-entry) so continuing never

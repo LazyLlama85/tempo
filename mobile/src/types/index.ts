@@ -79,6 +79,9 @@ export interface UserProfile {
   equipment: Equipment[]
   days_per_week: number
   preferred_duration_min: number
+  // Optional cardio finisher on generated sessions (Phase 7c) — only changes
+  // anything for muscle_gain/strength (see lib/generatePlan.ts's withCardio()).
+  include_cardio?: boolean
   bodyweight_lbs: number | null
   injuries: string[] | null
   onboarding_complete: boolean

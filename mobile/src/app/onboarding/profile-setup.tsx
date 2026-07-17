@@ -3,7 +3,7 @@ import {
   StyleSheet, TouchableOpacity, View, Text, ScrollView, TextInput,
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native'
-import { useRouter, Redirect } from 'expo-router'
+import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
@@ -28,6 +28,8 @@ export default function ProfileSetupScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const { buildMode } = useLocalSearchParams<{ buildMode?: string }>()
+  const isCustomBuild = buildMode === 'custom'
   const { session, profile, refreshProfile } = useAuthStore()
 
   // Pre-fill from anything we already know (e.g. a Google display name), and match
@@ -54,7 +56,17 @@ export default function ProfileSetupScreen() {
   const preset = AVATAR_PRESETS.find(p => p.id === avatarId) ?? AVATAR_PRESETS[0]
   const firstName = name.trim().split(' ')[0]
 
-  const enterApp = () => { track('profile_setup_skipped'); router.replace('/(tabs)') }
+  // Custom-build users land in the split builder first (that's the whole point of
+  // their choice) rather than an empty Home. Always establish (tabs) as the base of
+  // the stack first (so the welcome-tour gate in (tabs)/_layout.tsx still fires
+  // normally), THEN push split-editor on top — the exact same push-while-in-tabs
+  // pattern my-splits.tsx already uses, so its own Close/back button lands back on
+  // (tabs)/welcome with no new navigation behavior to reason about.
+  const postOnboardingRoute = () => {
+    router.replace('/(tabs)')
+    if (isCustomBuild) router.push('/split-editor' as any)
+  }
+  const enterApp = () => { track('profile_setup_skipped'); postOnboardingRoute() }
 
   const handleSave = async () => {
     if (saving) return
@@ -79,7 +91,7 @@ export default function ProfileSetupScreen() {
       }
       await refreshProfile().catch(() => {})
       track('profile_setup_completed', { has_name: !!name.trim(), has_weight: validWeight })
-      router.replace('/(tabs)')
+      postOnboardingRoute()
     } catch {
       setSaving(false)
       Alert.alert('Could not save', 'Please try again, or skip for now.')
@@ -197,7 +209,7 @@ export default function ProfileSetupScreen() {
           {saving ? (
             <ActivityIndicator color={C.onPrimary} />
           ) : (
-            <Text style={styles.continueBtnText}>Enter Tempo →</Text>
+            <Text style={styles.continueBtnText}>{isCustomBuild ? 'Build My Split →' : 'Enter Tempo →'}</Text>
           )}
         </PressableScale>
       </View>
