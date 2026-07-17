@@ -293,7 +293,7 @@ export default function ScheduleScreen() {
     ['scheduled_workouts'], ['missed_workouts'], ['next_workout'], ['block_phase'],
     ['recovery_today'], ['quick_suggestion'], ['rest_advice'], ['range_events'],
     ['progress_workouts'], ['progress_set_logs'], ['goal_projection'], ['travel_mode'],
-    ['social_notifs'],
+    ['social_notifs'], ['adaptation_recent'],
   )
 
   // First-run Home tour: spotlight targets (calendar + today's card here; the GO/
@@ -402,6 +402,29 @@ export default function ScheduleScreen() {
         mode: (plan?.adaptation_mode ?? 'normal') as AdaptationMode,
         progression: (nextW?.progression ?? null) as WeekProgression | null,
       }
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Personalization made visible (audit §12, missing-feature #15 "partial" — the
+  // adaptation engine already re-stamps future weeks on a mode change, but nothing
+  // outside the runner ever announced it happened). The most recent mode-change
+  // event, if any — `blockPhase`'s own chip already says "· auto-adjusted" whenever
+  // the CURRENT week is recovery/deload, so this only adds new information for the
+  // "we're back to normal" transition (see the `eligible` check below).
+  const { data: recentAdaptation } = useQuery({
+    queryKey: ['adaptation_recent', userId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('adaptation_events')
+        .select('action_taken, created_at')
+        .eq('user_id', userId)
+        .eq('trigger', 'auto_periodization')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data as { action_taken: string; created_at: string } | null
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
@@ -1382,6 +1405,42 @@ export default function ScheduleScreen() {
         </PressableScale>
       ),
       chip: { icon: 'stats-chart', label: 'Weekly report', tint: C.primary, onPress: () => router.push('/weekly-report' as any) },
+    },
+    // 7b — Adaptation made visible (audit §12 #15): announces a RECENT mode
+    // change. Suppressed whenever blockPhase's own chip already says
+    // "· auto-adjusted" for the current week (recovery/deload) — this only adds
+    // new information for the "we're back to normal" transition, so the two
+    // chips never say the same thing twice.
+    {
+      id: 'adaptation',
+      eligible: !!recentAdaptation
+        && (Date.now() - new Date(recentAdaptation.created_at).getTime()) < 7 * 86_400_000
+        && blockPhase?.mode !== 'recovery' && blockPhase?.mode !== 'deload',
+      chipOnly: true,
+      primary: () => recentAdaptation ? (
+        <PressableScale style={styles.reportRow} onPress={() => router.push('/plan-explainer' as any)} scaleTo={0.98}>
+          <View style={[styles.reportIcon, (recentAdaptation.action_taken === 'recovery' || recentAdaptation.action_taken === 'deload') ? { backgroundColor: C.success } : undefined]}>
+            <Ionicons name="leaf" size={18} color={C.onPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reportTitle}>
+              {recentAdaptation.action_taken === 'recovery' ? 'Recovery week' : recentAdaptation.action_taken === 'deload' ? 'Deload week' : 'Back to full intensity'}
+            </Text>
+            <Text style={styles.reportSub} numberOfLines={1}>
+              {recentAdaptation.action_taken === 'recovery' || recentAdaptation.action_taken === 'deload'
+                ? 'We eased things back based on your recent training.'
+                : "You're ready — we've restored your full plan."}
+            </Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
+        </PressableScale>
+      ) : null,
+      chip: {
+        icon: 'leaf',
+        label: recentAdaptation?.action_taken === 'recovery' ? 'Recovery week' : recentAdaptation?.action_taken === 'deload' ? 'Deload week' : 'Back to full intensity',
+        tint: C.success,
+        onPress: () => router.push('/plan-explainer' as any),
+      },
     },
     // 8 — Quick Workout: opportunistic wedge (only fires when today has no actionable
     // session anyway, so it can safely sit last).
