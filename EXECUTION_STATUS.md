@@ -89,6 +89,32 @@
      instruction) and **B6.1** (App Store listing — `APP_STORE_LISTING.md` is drafted and ready to
      paste; someone still needs to take the actual screenshots) — founder-only, unblocked.
 
+- **🔁 RECURRING (monthly, founder-only): exercise GIF/instructions backfill.** `scripts/backfill-exercise-media.mjs`
+  caches each exercise's GIF + instructions from RapidAPI's ExerciseDB into Tempo's own public Supabase
+  Storage bucket (`exercise-gifs`) — a ONE-TIME fetch per exercise; production never calls RapidAPI
+  live once cached (confirmed: the bucket's RLS-safe, publicly-readable, and the app's
+  `getExerciseGifSource` reads only from it — see `ARCHITECTURE.md`'s exercise-media section).
+  **State checked live 2026-07-17: the bucket is completely empty (0/1,297) — the script has never
+  actually been run.** The RapidAPI BASIC plan caps at 690 requests/month (shared between GIF fetches
+  and instruction fetches), so this needs **several monthly runs** to finish the whole library —
+  script now prioritizes curated originals → `is_core` movements (~103, what the plan generator +
+  Quick Workout actually assign) → the rest, so even ONE month's run covers everything a real user is
+  likely to see. **Founder reported this month's RapidAPI quota is already exhausted** (2026-07-17) —
+  a live header check on the same key showed 688/690 still remaining, so this may be a different
+  key/account than the one in `mobile/.env.local`, or the dashboard may show something this header
+  check can't see; **check the RapidAPI dashboard's Analytics tab for the definitive number** before
+  assuming either way. Whenever quota is confirmed available: run
+  `$env:SUPABASE_SERVICE_ROLE_KEY="..."; node scripts/backfill-exercise-media.mjs` from `mobile/`
+  (service_role key from Supabase dashboard → Project Settings → API — never paste it into a Claude
+  conversation or commit it). Re-run every month (or after any RapidAPI plan change) until the script
+  reports nothing left to do. **Also considered and rejected:** `edb-with-videos-and-images-by-ascendapi`
+  (a different RapidAPI product, richer data — real video, multi-res images, tips/variations) — its
+  full-catalog paid tier tops out at 500 exercises, well short of the ~1,297 needed, so it's not a
+  viable primary source; the free-exercise-db public-domain dataset (873 exercises, static images, MIT
+  license, zero rate limit) was also considered as a supplement but not pursued — different id scheme
+  (name-slugs) would need per-exercise name-matching with real wrong-exercise risk, and it still falls
+  ~420 exercises short on its own.
+
 - **✅ Confirmed on-device (founder-tested, 2026-07-17):** Home (hierarchy pass, timeline rail fade,
   Session Complete screen, bottom stats), Settings/Profile split, editable completed sets +
   unilateral-weight toggle. These close their respective ledger rows for real, not just
