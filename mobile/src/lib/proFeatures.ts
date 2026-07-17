@@ -24,6 +24,7 @@ export type ProFeatureId =
   | 'tempo_coach'
   | 'muscle_intelligence'
   | 'travel_mode'
+  | 'multi_calendar'
 
 export interface ProFeatureMeta {
   id: ProFeatureId
@@ -88,6 +89,17 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     title: 'Travel Mode',
     benefit: 'Away from your usual setup? Rewrite your upcoming workouts to match whatever gear you have with you.',
     icon: 'airplane',
+  },
+  // B1.5: dormant until the calendar.calendarlist.readonly OAuth scope is granted
+  // (services/googleCalendar/config.ts) — registered here so the picker screen has
+  // a ProGate id ready, but deliberately left OUT of PAYWALL_POINTS below until it
+  // actually works (App Store review rejects paywalls advertising non-functional
+  // features).
+  multi_calendar: {
+    id: 'multi_calendar',
+    title: 'Multi-Calendar',
+    benefit: 'Read busy time from every calendar you use, not just your primary one, so Tempo never double-books you.',
+    icon: 'calendar',
   },
 }
 

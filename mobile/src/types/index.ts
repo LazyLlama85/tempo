@@ -110,6 +110,13 @@ export interface UserProfile {
   // Whether Tempo auto-places/auto-moves workout times. Optional so the app keeps
   // working before the column migration is applied; treated as 'auto' when absent.
   scheduling_mode?: SchedulingMode
+  // Google calendar ids (beyond 'primary') Tempo also reads busy-time from
+  // (B1.5, multi-calendar). Optional/nullable so the app keeps working before
+  // the column migration is applied and before a user configures it — null/empty
+  // means "just primary", identical to pre-B1.5 behavior. Dormant until the
+  // calendar.calendarlist.readonly OAuth scope is granted (see
+  // services/googleCalendar/config.ts).
+  selected_google_calendar_ids?: string[] | null
   // Hard "never schedule here" windows (religious observance, standing commitments).
   // Optional so the app keeps working before the column migration is applied.
   unavailable_blocks?: UnavailableBlock[] | null

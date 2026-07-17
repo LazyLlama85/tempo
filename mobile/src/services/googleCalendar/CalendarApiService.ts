@@ -11,7 +11,7 @@
 // (services/calendarService.ts → findFreeWindows) so both paths behave the same.
 
 import { getGoogleAccessToken, invalidateGoogleAccessToken } from './CalendarAuthService'
-import { eventsEndpoint, WORKOUT_EVENT_COLOR_ID } from './config'
+import { eventsEndpoint, calendarListEndpoint, GCAL_PRIMARY, WORKOUT_EVENT_COLOR_ID } from './config'
 import { captureApiError } from '@/lib/crashReporting'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -120,9 +120,36 @@ function bufferForGoal(goal?: string): number {
   return g.includes('strength') ? 15 : 10
 }
 
-// ── 1) Read the week's agenda from the 'primary' calendar ───────────────────────
+// ── 0) Enumerate the user's calendars (B1.5, multi-calendar — dormant until the
+//        calendar.calendarlist.readonly scope is granted; see config.ts) ─────────
 
-export async function fetchUserBusySlots(daysAhead = 7): Promise<BusySlot[]> {
+export interface GoogleCalendarListEntry {
+  id: string
+  summary: string
+  primary?: boolean
+  backgroundColor?: string
+}
+
+// Honest, not silent: while the scope doesn't exist yet, every real account will
+// get a 403 here. Reuses the same describeReadError diagnostics as every other
+// read path (so "insufficient scope" reports the same way "no Calendar API
+// enabled" already does) — the caller renders whatever it gets, including empty.
+export async function fetchCalendarList(): Promise<GoogleCalendarListEntry[]> {
+  const resp = await gcalFetch(`${calendarListEndpoint()}?minAccessRole=freeBusyReader`, { method: 'GET' })
+  if (!resp.ok) throw await describeReadError(resp, 'fetchCalendarList')
+  const data = await resp.json()
+  return ((data.items ?? []) as GoogleCalendarListEntry[])
+    .map(c => ({ id: c.id, summary: c.summary, primary: c.primary, backgroundColor: c.backgroundColor }))
+}
+
+// ── 1) Read the week's agenda from the selected calendar(s) ─────────────────────
+// Multi-calendar (B1.5): `calendarIds` defaults to just `['primary']` so every
+// existing caller (zero-arg or one-arg) is byte-for-byte unchanged. Only a caller
+// that explicitly passes a real `selected_google_calendar_ids` profile value reads
+// more than one. Each calendar is fetched independently and best-effort — one
+// calendar erroring (e.g. it was removed) doesn't blank the whole busy-time read.
+
+export async function fetchUserBusySlots(daysAhead = 7, calendarIds: string[] = [GCAL_PRIMARY]): Promise<BusySlot[]> {
   const now = new Date()
   const timeMax = new Date(now.getTime() + daysAhead * 86_400_000)
 
@@ -134,13 +161,21 @@ export async function fetchUserBusySlots(daysAhead = 7): Promise<BusySlot[]> {
     maxResults: '250',
   })
 
-  const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
-  if (!resp.ok) throw await describeReadError(resp, 'fetchUserBusySlots')
+  const ids = calendarIds.length ? calendarIds : [GCAL_PRIMARY]
+  const perCalendar = await Promise.all(ids.map(async (id, i) => {
+    const resp = await gcalFetch(`${eventsEndpoint(id)}?${params.toString()}`, { method: 'GET' })
+    if (!resp.ok) {
+      // The primary calendar failing is a real error (matches old behavior);
+      // an ADDITIONAL selected calendar failing is best-effort — skip it rather
+      // than lose the whole read over one bad calendar id.
+      if (i === 0) throw await describeReadError(resp, 'fetchUserBusySlots')
+      return [] as GoogleEvent[]
+    }
+    const data = await resp.json()
+    return (data.items ?? []) as GoogleEvent[]
+  }))
 
-  const data = await resp.json()
-  const items = (data.items ?? []) as GoogleEvent[]
-
-  return items
+  return perCalendar.flat()
     // Timed events only (skip all-day), skip ones the user marked "free", skip
     // cancelled, and skip Tempo's own workouts (colorId 11) — those are tracked
     // as scheduled_workouts, so counting them here would double-book / double-show.
@@ -163,7 +198,7 @@ export async function fetchUserBusySlots(daysAhead = 7): Promise<BusySlot[]> {
 
 export interface GcalDisplayEvent { id: string; title: string; start: Date; end: Date }
 
-export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDisplayEvent[]> {
+export async function fetchUserEvents(start: Date, end: Date, calendarIds: string[] = [GCAL_PRIMARY]): Promise<GcalDisplayEvent[]> {
   const params = new URLSearchParams({
     timeMin: start.toISOString(),
     timeMax: end.toISOString(),
@@ -172,11 +207,17 @@ export async function fetchUserEvents(start: Date, end: Date): Promise<GcalDispl
     maxResults: '250',
   })
 
-  const resp = await gcalFetch(`${eventsEndpoint()}?${params.toString()}`, { method: 'GET' })
-  if (!resp.ok) throw await describeReadError(resp, 'fetchUserEvents')
-
-  const data = await resp.json()
-  const items = (data.items ?? []) as GoogleEvent[]
+  const ids = calendarIds.length ? calendarIds : [GCAL_PRIMARY]
+  const perCalendar = await Promise.all(ids.map(async (id, i) => {
+    const resp = await gcalFetch(`${eventsEndpoint(id)}?${params.toString()}`, { method: 'GET' })
+    if (!resp.ok) {
+      if (i === 0) throw await describeReadError(resp, 'fetchUserEvents')
+      return [] as GoogleEvent[] // an additional selected calendar failing is best-effort
+    }
+    const data = await resp.json()
+    return (data.items ?? []) as GoogleEvent[]
+  }))
+  const items = perCalendar.flat()
 
   const kept = items
     .filter(e =>

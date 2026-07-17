@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarService'
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
+import { GCAL_PRIMARY } from '@/services/googleCalendar/config'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
@@ -62,10 +63,19 @@ function labelFor(day: Date, dt: Date): string {
 const FLEX_HORIZON: Record<string, number> = { strict: 2, balanced: 4, flexible: 7 }
 
 // Busy blocks from whichever calendar is connected (Google preferred, else device).
-async function gatherBusy(horizonDays: number, from: Date): Promise<{ busy: BusySlot[]; fromCalendar: boolean }> {
+// selected_google_calendar_ids stores only the calendars BEYOND primary (B1.5,
+// see add_selected_calendars.sql) — primary always stays in the read.
+async function gatherBusy(
+  horizonDays: number,
+  from: Date,
+  selectedGoogleCalendarIds?: string[] | null,
+): Promise<{ busy: BusySlot[]; fromCalendar: boolean }> {
+  const calendarIds = selectedGoogleCalendarIds?.length
+    ? [GCAL_PRIMARY, ...selectedGoogleCalendarIds.filter(id => id !== GCAL_PRIMARY)]
+    : undefined
   try {
     if (await isGoogleCalendarConnected()) {
-      return { busy: await fetchUserBusySlots(horizonDays), fromCalendar: true }
+      return { busy: await fetchUserBusySlots(horizonDays, calendarIds), fromCalendar: true }
     }
   } catch { /* fall through to device */ }
   try {
@@ -100,7 +110,7 @@ export async function suggestNextSlot(
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, schedule_flexibility')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, schedule_flexibility, selected_google_calendar_ids')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -181,7 +191,7 @@ export async function suggestNextSlot(
   }
   candidates.sort((a, b) => a.score - b.score || a.day.getTime() - b.day.getTime())
 
-  const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, tomorrow)
+  const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, tomorrow, p?.selected_google_calendar_ids as string[] | null)
   // Events the user crossed off ("ignore") don't block — let workouts use that time.
   const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
 
@@ -220,7 +230,7 @@ export async function suggestTimeOnDate(
 
     const { data: p } = await client
       .from('user_profiles')
-      .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day')
+      .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, selected_google_calendar_ids')
       .eq('user_id', userId)
       .maybeSingle()
 
@@ -237,7 +247,7 @@ export async function suggestTimeOnDate(
     }
 
     const horizon = Math.max(1, Math.round((day.getTime() - today.getTime()) / 86_400_000) + 1)
-    const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, today)
+    const { busy: rawBusy, fromCalendar } = await gatherBusy(horizon, today, p?.selected_google_calendar_ids as string[] | null)
     const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
 
     const slot = findVariedSlot(
@@ -316,7 +326,7 @@ export async function rescheduleWholeWeek(
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar, selected_google_calendar_ids')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -401,7 +411,7 @@ export async function rescheduleWholeWeek(
     .filter(r => !movableIds.has(r.id) && (r.status === 'completed' || r.status === 'scheduled'))
     .map(r => ({ date: r.planned_date, regions: regionsOf(r.exercise_ids) }))
 
-  const { busy: rawBusy } = await gatherBusy(horizon, today)
+  const { busy: rawBusy } = await gatherBusy(horizon, today, p?.selected_google_calendar_ids as string[] | null)
   const busy = filterIgnoredBusy(rawBusy, await getIgnoredEventKeys(client, userId))
 
   const assignments = planWeekReschedule(movable, busy, availability, priorLoads, { now, horizonDays: horizon, allowDays })

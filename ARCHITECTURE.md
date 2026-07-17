@@ -238,7 +238,9 @@ you moving."*
   from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
   jump to its `exercise-progress` trend), **`calendar-setup`** (dedicated connect/disconnect screen
   for Google + Device Calendar, replacing the old `Alert.alert` checklist; shows a "needs
-  reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`how-tempo-works`**
+  reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`calendar-picker`**
+  (B1.5 — Pro-gated "Choose calendars" modal, reached from `calendar-setup`'s Google card once
+  connected; dormant until the calendar-list OAuth scope is granted), **`how-tempo-works`**
   (one-time — then replayable from Profile → Replay App Tour — explainer defining workout / split /
   **Tempo *generates* the exercises vs Tempo *schedules* the day & time** / adding & editing /
   calendar / equipment & goals; shown once per device via `shouldShowTip('how_tempo_works')`, right
@@ -700,6 +702,25 @@ you moving."*
   `reason`, attach a fix hint, and report it via `captureApiError('gcal_read', …)` to Sentry — so a
   silently-empty timeline is diagnosable instead of a mystery (`getCalendarEventsForRange` still
   degrades to `[]` for the UI so the feed never blanks).
+- **Multi-calendar (B1.5, 2026-07-17), built dormant:** `user_profiles.selected_google_calendar_ids`
+  (jsonb array, migration `add_selected_calendars.sql`, **applied**) holds Google calendar ids
+  BEYOND primary that Tempo also reads busy-time/events from. `CalendarApiService.fetchCalendarList()`
+  enumerates the account's calendars (needs the `calendar.calendarlist.readonly` scope — see below);
+  `fetchUserBusySlots`/`fetchUserEvents` now take an optional `calendarIds` array (default
+  `['primary']`, so every existing zero-arg caller is unchanged) and fetch each calendar independently
+  — only the primary failing throws (matches old behavior), an additional calendar failing degrades to
+  `[]` rather than blanking the whole read. `lib/autoSchedule.ts` and `lib/reschedule.ts`'s internal
+  `gatherBusy()` helpers and `calendarSync.getCalendarEventsForRange()` all thread the profile's
+  `selected_google_calendar_ids` through (primary is always re-added even though the column stores only
+  the "beyond primary" ids). UI: `app/calendar-picker.tsx` (new modal, registered in `_layout.tsx`),
+  reached from `calendar-setup.tsx`'s Google card via a "Choose calendars" row (shown only once Google
+  is connected), gated by a new `multi_calendar` entry in `lib/proFeatures.ts`
+  (`<ProGate feature="multi_calendar" compact>`) — deliberately left OUT of `PAYWALL_POINTS` since it
+  doesn't work yet. **Deliberately dormant:** `GOOGLE_CALENDAR_SCOPES` in
+  `services/googleCalendar/config.ts` keeps the new scope commented out — adding it re-opens Google's
+  OAuth verification and requires a new in-app demo video (the founder's job, sequenced last). Until
+  then `fetchCalendarList()` honestly 403s and the picker shows a plain "not available yet" state
+  (`describeReadError`'s existing scope-diagnostic path) rather than faking success.
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 

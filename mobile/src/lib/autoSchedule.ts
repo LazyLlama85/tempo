@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarService'
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
+import { GCAL_PRIMARY } from '@/services/googleCalendar/config'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
@@ -60,9 +61,16 @@ async function gatherBusy(
   preferred: CalendarProvider | null,
   horizonDays: number,
   from: Date,
+  selectedGoogleCalendarIds?: string[] | null,
 ): Promise<BusySlot[]> {
+  // selected_google_calendar_ids stores only the calendars BEYOND primary
+  // (see add_selected_calendars.sql) — primary always stays in the read.
+  const calendarIds = selectedGoogleCalendarIds?.length
+    ? [GCAL_PRIMARY, ...selectedGoogleCalendarIds.filter(id => id !== GCAL_PRIMARY)]
+    : undefined
+
   const readGoogle = async (): Promise<BusySlot[] | null> =>
-    (await isGoogleCalendarConnected()) ? await fetchUserBusySlots(horizonDays) : null
+    (await isGoogleCalendarConnected()) ? await fetchUserBusySlots(horizonDays, calendarIds) : null
 
   const readDevice = async (): Promise<BusySlot[] | null> => {
     if ((await getCalendarPermissionStatus()) !== 'granted') return null
@@ -91,7 +99,7 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar, scheduling_mode')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, training_days, preferred_calendar, scheduling_mode, selected_google_calendar_ids')
     .eq('user_id', userId)
     .maybeSingle()
   if (!p) return 0
@@ -116,7 +124,7 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
   // Events the user crossed off ("ignore") shouldn't block scheduling — drop them.
   const ignored = await getIgnoredEventKeys(client, userId)
   const busy = filterIgnoredBusy(
-    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today),
+    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today, p.selected_google_calendar_ids as string[] | null),
     ignored,
   )
 
@@ -185,7 +193,7 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, preferred_calendar, scheduling_mode')
+    .select('wake_time, bedtime, work_start, work_end, school_start, school_end, preferred_time_of_day, preferred_calendar, scheduling_mode, selected_google_calendar_ids')
     .eq('user_id', userId)
     .maybeSingle()
   if (!p) return 0
@@ -211,7 +219,7 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
   // the user has crossed off ("ignore") are dropped, so a workout may sit over them.
   const ignored = await getIgnoredEventKeys(client, userId)
   const busy = filterIgnoredBusy(
-    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today),
+    await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today, p.selected_google_calendar_ids as string[] | null),
     ignored,
   )
   if (!busy.length) return 0

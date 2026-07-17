@@ -26,6 +26,11 @@
   past 7 days (the fix removes the *cause*; nobody has watched a connection outlive a week yet). This
   also clears B1.5's (multi-calendar) sequencing gate — see `EXECUTION.md` §5.
 
+- **2026-07-17: B1.5 (multi-calendar) built end-to-end, dormant.** The only item on the redirected
+  vital-few list that was actually Claude-buildable (everything else is founder-only: PostHog funnel,
+  on-device verification, pricing/trial, App Store listing). Code is done and verified
+  (`tsc`+jest green); it stays inert until the founder adds the OAuth scope — see the B1.5 row below.
+
 - **Founder's critical path this week:**
   1. **B0.3** — PostHog funnel (`onboarding_complete → activation_reached → D7 retained`) + a
      written activation definition. Data already flows (B0.1 ✅). **The single most important
@@ -102,7 +107,7 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 | — | IA cleanup: Train → Plan (segmented hub → calendar + split + library) | 🔍 | UX, Focus (audit §06 IA overload) | `(tabs)/plan.tsx` | Built same batch as B1.2; Home's confirmation covers the shared redesign work but Plan-specific flows (week/month toggle, day-tap, split-edit) weren't separately called out — treat as likely-fine, not proven |
 | B1.3 | "Reschedule my whole week" — engine + UI | ✅ | Subscription Value, Retention | `lib/weekReschedule.ts`, `reschedule.ts`, `(tabs)/index.tsx`/`plan.tsx` | Confirmed via web test; Pro-gated (B2.1) |
 | B1.4 | "Lacking time? 15-min swap" on Home | ✅ *(pre-existing)* | Retention (busy persona) | `lib/quickSuggestion.ts` → Quick Workout | Already covered free-gap/missed/restart triggers |
-| B1.5 | Multi-calendar: read/select beyond `primary` | 🔲 **now unblocked** | Differentiation, Trust; Pro gate | Google console scope `calendar.calendarlist.readonly` *(founder)* + `CalendarApiService` + a picker | **2026-07-17: the sequencing gate is clear** (production approval covers "let verification finish first"). Claude can build the picker/`CalendarList` integration now; founder still needs to add the scope + record a new demo video before it works end-to-end. Good candidate for the next real code batch |
+| B1.5 | Multi-calendar: read/select beyond `primary` | 🔍 **code done, dormant** | Differentiation, Trust; Pro gate | Google console scope `calendar.calendarlist.readonly` *(founder)* — everything else built | **2026-07-17: full stack built** — `selected_google_calendar_ids` column (applied), `fetchCalendarList`/multi-id `fetchUserBusySlots`/`fetchUserEvents` (best-effort per-calendar), `calendar-picker.tsx` (Pro-gated "Choose calendars"), threaded through `autoSchedule`/`reschedule`'s `gatherBusy()` + Home's timeline. `tsc`+jest (209) green. **Founder's turn:** add the OAuth scope in Google Cloud Console (this re-opens verification — record the new demo video showing the picker working), then uncomment it in `config.ts` and reconnect Google once to test end-to-end |
 
 ### M2 — It Sells Itself
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |

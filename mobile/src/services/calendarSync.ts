@@ -14,6 +14,7 @@ import {
 } from './calendarService'
 import { isGoogleCalendarConnected } from './googleCalendar/CalendarAuthService'
 import { autoScheduleWorkout, deleteCalendarEvent, fetchUserEvents } from './googleCalendar/CalendarApiService'
+import { GCAL_PRIMARY } from './googleCalendar/config'
 
 export interface SyncWorkout {
   id: string
@@ -134,14 +135,24 @@ export async function removeWorkoutFromCalendar(
 // This is the gap the dashboard had: events were only ever read from the *device*
 // calendar, so a user who connected Google in-app (without mirroring it into iOS)
 // saw none of their meetings. Routing through here pulls in both.
-export async function getCalendarEventsForRange(start: Date, end: Date): Promise<DayEvent[]> {
+// `selectedGoogleCalendarIds` (B1.5) are the calendars BEYOND primary the user
+// picked in Choose Calendars (add_selected_calendars.sql) — optional, so every
+// existing caller that omits it reads only the primary Google calendar exactly
+// as before this change.
+export async function getCalendarEventsForRange(
+  start: Date,
+  end: Date,
+  selectedGoogleCalendarIds?: string[] | null,
+): Promise<DayEvent[]> {
   const s = new Date(start); s.setHours(0, 0, 0, 0)
   const e = new Date(end); e.setHours(23, 59, 59, 999)
 
   const connected = await getConnectedProviders()
   const [deviceEvents, googleEvents] = await Promise.all([
     connected.device ? getRangeEvents(s, e).catch(() => [] as DayEvent[]) : Promise.resolve([] as DayEvent[]),
-    connected.google ? fetchUserEvents(s, e).catch(() => []) : Promise.resolve([]),
+    connected.google
+      ? fetchUserEvents(s, e, selectedGoogleCalendarIds?.length ? [GCAL_PRIMARY, ...selectedGoogleCalendarIds.filter(id => id !== GCAL_PRIMARY)] : undefined).catch(() => [])
+      : Promise.resolve([]),
   ])
 
   // When a Google account is ALSO mirrored into the device calendar, the same

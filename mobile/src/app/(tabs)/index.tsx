@@ -318,7 +318,7 @@ export default function ScheduleScreen() {
   // are filtered out (they render from scheduled_workouts).
   const { data: events = [] } = useQuery<DayEvent[]>({
     queryKey: ['range_events', userId, todayStr],
-    queryFn: () => getCalendarEventsForRange(parseLocal(todayStr), parseLocal(todayStr)),
+    queryFn: () => getCalendarEventsForRange(parseLocal(todayStr), parseLocal(todayStr), profile?.selected_google_calendar_ids ?? null),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,

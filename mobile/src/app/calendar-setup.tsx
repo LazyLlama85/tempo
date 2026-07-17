@@ -26,6 +26,7 @@ import {
 import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
 import { syncUpcomingWorkouts, purgeSyncedWorkouts } from '@/lib/calendarAutoSync'
 import { trackCalendarConnected } from '@/lib/activation'
+import { ProGate } from '@/components/ProGate'
 
 function friendlyConnectError(code?: string): string {
   switch (code) {
@@ -226,6 +227,17 @@ export default function CalendarSetupScreen() {
               </PressableScale>
             )}
           </View>
+          {googleConnected && (
+            <>
+              <View style={styles.divider} />
+              <ProGate feature="multi_calendar" compact>
+                <TouchableOpacity style={styles.subRow} onPress={() => router.push('/calendar-picker' as never)}>
+                  <Text style={styles.subRowText}>Choose calendars</Text>
+                  <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />
+                </TouchableOpacity>
+              </ProGate>
+            </>
+          )}
         </View>
 
         {/* Device Calendar */}
@@ -279,6 +291,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     ...CardShadow, overflow: 'hidden',
   },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: C.outlineVariant },
+  subRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
+  subRowText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
   cardIcon: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   cardSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
