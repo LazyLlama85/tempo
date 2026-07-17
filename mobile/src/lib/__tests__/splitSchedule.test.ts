@@ -98,6 +98,32 @@ describe('materializeSplit', () => {
     const n = await materializeSplit(client, USER, allRest, 'morning')
     expect(n).toBe(0)
   })
+
+  it('re-adds a day the user removed (status skipped) instead of treating it as permanently taken', async () => {
+    // Regression: a skipped day used to block this fill forever — "delete a
+    // workout" had no way back except adding it manually.
+    const client = createFakeSupabase({
+      scheduled_workouts: [workoutRow({ id: 'removed', split_id: 'split-1', planned_date: TODAY, status: 'skipped' })],
+    })
+    const n = await materializeSplit(client, USER, split(), 'morning')
+    expect(n).toBeGreaterThan(0)
+    const rows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER).eq('planned_date', TODAY)).data
+    // Both rows now exist: the old skipped one (untouched, kept for history) and
+    // a fresh 'scheduled' one filling the day back in.
+    expect(rows.some((r: any) => r.status === 'skipped')).toBe(true)
+    expect(rows.some((r: any) => r.status === 'scheduled' && r.split_id === 'split-1')).toBe(true)
+  })
+
+  it('never re-adds a day marked rescheduled — that row is genuinely superseded, not just skipped', async () => {
+    const client = createFakeSupabase({
+      scheduled_workouts: [workoutRow({ id: 'superseded', split_id: 'split-1', planned_date: TODAY, status: 'rescheduled' })],
+    })
+    await materializeSplit(client, USER, split(), 'morning')
+    const rows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER).eq('planned_date', TODAY)).data
+    // Still just the one row — a 'rescheduled' date reads as taken, same as before this fix.
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('superseded')
+  })
 })
 
 describe('activateSplit — the poisoned-Change-Plan scenario, for splits', () => {

@@ -13,7 +13,9 @@ import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { musclesToRegions, scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { planWeekReschedule, RESCHEDULE_HORIZON_DAYS, type WeekWorkout } from '@/lib/weekReschedule'
-import type { CalendarProvider } from '@/types'
+import { fetchActiveSplit, isAutoSplit } from '@/lib/splits'
+import { materializeSplit } from '@/lib/splitSchedule'
+import type { CalendarProvider, TimeOfDay } from '@/types'
 
 export interface SlotSuggestion {
   date: string         // 'YYYY-MM-DD'
@@ -332,6 +334,20 @@ export async function rescheduleWholeWeek(
     unavailable: await getUnavailableBlocks(client, userId),
   }
   const allowDays = new Set((p?.training_days as number[]) ?? [])
+
+  // Re-lay a whole week that's missing a day the active split actually owns —
+  // a workout the user removed one day (status 'skipped') or that never got
+  // materialized — BEFORE re-slotting, so "reschedule my week" also repairs a
+  // week that's short a session instead of only shuffling what's already there.
+  // Idempotent + a no-op when there's no active (or auto-mirror) split.
+  try {
+    const active = await fetchActiveSplit(client, userId)
+    if (active && !isAutoSplit(active)) {
+      await materializeSplit(client, userId, active, (p?.preferred_time_of_day as TimeOfDay | null) ?? null)
+    }
+  } catch {
+    // Best-effort — a failure here shouldn't block the re-slot pass below.
+  }
 
   const { data: rows } = await client
     .from('scheduled_workouts')

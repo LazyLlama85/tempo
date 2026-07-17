@@ -275,7 +275,7 @@ export default function ScheduleScreen() {
   // keys — the old "doesn't load until I leave and come back" bug.
   useRefreshOnFocus(
     ['scheduled_workouts'], ['missed_workouts'], ['next_workout'], ['block_phase'],
-    ['recovery_today'], ['quick_suggestion'], ['rest_advice'],
+    ['recovery_today'], ['quick_suggestion'], ['rest_advice'], ['range_events'],
     ['progress_workouts'], ['progress_set_logs'], ['goal_projection'], ['travel_mode'],
   )
 

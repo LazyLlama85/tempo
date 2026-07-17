@@ -66,11 +66,17 @@ export async function materializeSplit(
   if (!hasWork) return 0
 
   // Dates this split already owns in the horizon → skip (idempotent re-runs).
+  // A 'skipped' row (the user removed just that one day) is deliberately NOT
+  // "taken" — it reads as open again so this fill naturally re-adds it on the
+  // next run, instead of leaving a manually-removed day permanently empty.
+  // 'rescheduled' rows (superseded by a plan/split change or a dedupe pass)
+  // stay excluded — those really are gone, not just a single skipped day.
   const { data: existing } = await client
     .from('scheduled_workouts')
     .select('planned_date')
     .eq('user_id', userId)
     .eq('split_id', split.id)
+    .neq('status', 'skipped')
     .gte('planned_date', toDateStr(today))
     .lte('planned_date', toDateStr(horizonEnd))
   const taken = new Set((existing ?? []).map((r: any) => r.planned_date as string))

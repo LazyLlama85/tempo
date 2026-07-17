@@ -51,6 +51,7 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
     const api: any = {
       select: () => api,
       eq: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
+      neq: (col: string, val: any) => { filters.push((r) => r[col] !== val); return api },
       gte: (col: string, val: any) => { filters.push((r) => r[col] >= val); return api },
       lte: (col: string, val: any) => { filters.push((r) => r[col] <= val); return api },
       lt: (col: string, val: any) => { filters.push((r) => r[col] < val); return api },

@@ -10,6 +10,7 @@
 import { useCallback, useState } from 'react'
 import { StyleSheet, TouchableOpacity, View, Text, Alert, ActivityIndicator, Linking } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
@@ -45,6 +46,17 @@ export default function CalendarSetupScreen() {
   const router = useRouter()
   const { session, profile, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const queryClient = useQueryClient()
+
+  // Every path below writes calendar_event_id/calendar_provider or the whole
+  // schedule out from under Home's already-mounted queries — without this,
+  // the workout Home is showing keeps reading stale (empty) events until a
+  // fresh query mount (force-quit), which looked like a broken/faded button.
+  const invalidateCalendarData = () => {
+    queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
+    queryClient.invalidateQueries({ queryKey: ['scheduled_workouts', userId] })
+    queryClient.invalidateQueries({ queryKey: ['plan_cal_workouts', userId] })
+  }
 
   const [googleConnected, setGoogleConnected] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null)
@@ -76,7 +88,10 @@ export default function CalendarSetupScreen() {
       setNeedsReconnect(false)
       trackCalendarConnected(userId, 'google')
       await setPreferredCalendar('google')
-      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'google' }).catch(() => {})
+      invalidateCalendarData()
+      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'google' })
+        .then(invalidateCalendarData)
+        .catch(() => {})
       Alert.alert('Google Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')
     } else {
       Alert.alert('Couldn’t connect', friendlyConnectError(r.error))
@@ -85,7 +100,7 @@ export default function CalendarSetupScreen() {
 
   const handleConnectDevice = async () => {
     if (busy) return
-    if (deviceStatus === 'granted') { await setPreferredCalendar('device'); return }
+    if (deviceStatus === 'granted') { await setPreferredCalendar('device'); invalidateCalendarData(); return }
     setBusy('device')
     const granted = await requestCalendarPermissions()
     setBusy(null)
@@ -93,7 +108,10 @@ export default function CalendarSetupScreen() {
     if (granted) {
       trackCalendarConnected(userId, 'device')
       await setPreferredCalendar('device')
-      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'device' }).catch(() => {})
+      invalidateCalendarData()
+      syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'device' })
+        .then(invalidateCalendarData)
+        .catch(() => {})
       Alert.alert('Device Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')
     } else {
       Alert.alert('Permission needed', 'Allow calendar access in Settings to use your device calendar.', [
@@ -127,6 +145,7 @@ export default function CalendarSetupScreen() {
             } catch { /* best-effort */ }
           }
           setBusy(null)
+          invalidateCalendarData()
           Alert.alert('Google Calendar disconnected', 'Tempo will no longer read your Google Calendar or add workouts to it.')
         },
       },
@@ -151,8 +170,9 @@ export default function CalendarSetupScreen() {
             await supabase.from('user_profiles').update(patch).eq('user_id', userId)
             await refreshProfile()
           } catch { /* best-effort */ }
-          purgeSyncedWorkouts(supabase, userId).catch(() => {})
+          purgeSyncedWorkouts(supabase, userId).then(invalidateCalendarData).catch(() => {})
           setBusy(null)
+          invalidateCalendarData()
           Alert.alert('Stopped', 'Tempo will no longer add workouts to your device calendar.', [
             { text: 'Done', style: 'cancel' },
             { text: 'Open Settings', onPress: () => Linking.openSettings() },

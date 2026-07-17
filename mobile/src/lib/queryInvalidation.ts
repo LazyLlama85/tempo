@@ -16,6 +16,12 @@ const TRAINING_KEYS = [
   ['progress_set_logs'],
   ['wrapped_cards'],
   ['goal_projection'],
+  // Home/Plan's calendar-derived views — without these, a plan regeneration
+  // (onboarding, Change Plan) or a workout being placed at real times
+  // (autoScheduleUpcoming) could leave the merged day feed showing a stale
+  // (often empty) picture until an unrelated refetch happened to catch up.
+  ['range_events'],
+  ['plan_cal_workouts'],
 ] as const
 
 export function invalidateTrainingData(queryClient: QueryClient) {

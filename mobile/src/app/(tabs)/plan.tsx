@@ -12,7 +12,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useProgressStats } from '@/hooks/useProgressStats'
-import { fetchSplits } from '@/lib/splits'
+import { fetchSplits, isAutoSplit } from '@/lib/splits'
+import { materializeSplit } from '@/lib/splitSchedule'
 import { removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { useProGate } from '@/stores/entitlements'
@@ -39,6 +40,7 @@ import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
+import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { describeSaveError } from '@/lib/saveErrors'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
@@ -259,6 +261,7 @@ export default function WorkoutsScreen() {
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const experience = useAuthStore(s => s.profile?.experience)
+  const preferredTimeOfDay = useAuthStore(s => s.profile?.preferred_time_of_day)
 
   // ── Plan hub (IA redesign, 2026-07-16 Phase 2) ──────────────────────────────
   // Was a 4-way segmented control (Session/Readiness/Splits/Workouts); now Plan
@@ -341,6 +344,32 @@ export default function WorkoutsScreen() {
   }, [calWorkouts])
 
   const selectedDayWorkout = calWorkoutsByDate[selectedDate]?.[0] ?? null
+
+  // A day the active split expects a real workout on, but nothing live is
+  // scheduled for it — either skipped/removed, or never materialized. Distinct
+  // from a genuine rest day: the split's own weekday pattern says this SHOULD
+  // be a training day, so "no workout" here is a gap to offer to close, not a
+  // planned day off.
+  const missingSplitDay = useMemo(() => {
+    if (selectedDayWorkout || !activeSplit || isAutoSplit(activeSplit)) return null
+    const weekday = ((selDate.getDay() + 6) % 7) + 1 // 1=Mon … 7=Sun, matches splitSchedule.ts
+    const day = activeSplit.days.find(d => d.weekday === weekday)
+    return day && !day.rest && (day.exercise_ids?.length ?? 0) > 0 ? day : null
+  }, [selectedDayWorkout, activeSplit, selDate])
+
+  const [addingBackDay, setAddingBackDay] = useState(false)
+  const handleAddBackDay = async () => {
+    if (addingBackDay || !activeSplit) return
+    setAddingBackDay(true)
+    try {
+      await materializeSplit(supabase, userId, activeSplit, (preferredTimeOfDay as any) ?? null)
+      queryClient.invalidateQueries({ queryKey: ['plan_cal_workouts'] })
+    } catch {
+      Alert.alert('Could not add it back', 'Please try again in a moment.')
+    } finally {
+      setAddingBackDay(false)
+    }
+  }
 
   const rangeLabel = useMemo(() => {
     if (viewMode === 'month') return selDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -470,6 +499,11 @@ export default function WorkoutsScreen() {
   const [elapsed, setElapsed] = useState(0)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // Set when there's no PENDING session today but one was already completed —
+  // distinguishes "you're done for today" from "nothing was ever planned",
+  // which used to both render the same "No session scheduled today" empty
+  // state and made a finished day look like a broken/empty one.
+  const [todayCompletedFocus, setTodayCompletedFocus] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
   // Whether the live logging session is open. Tapping the Workouts tab lands on the
   // hub (false); you enter the session deliberately and can leave it back to the hub.
@@ -494,6 +528,20 @@ export default function WorkoutsScreen() {
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [finishEarlyConfirm, setFinishEarlyConfirm] = useState<{ remaining: number; done: number; total: number } | null>(null)
   const [removeSetConfirm, setRemoveSetConfirm] = useState<{ exId: string; idx: number; wasDone: boolean } | null>(null)
+  // A logged set can be re-opened for edit (wrong number typed in, fix it
+  // after the fact) instead of the old delete-and-redo-only path. Only one
+  // set edits at a time.
+  const [editingSet, setEditingSet] = useState<{ exId: string; idx: number } | null>(null)
+  // Per-exercise "the number I type is per side" toggle — no schema change;
+  // doubles into the stored total at log time. Remembered per exercise name
+  // (lib/unilateralPrefs.ts), seeded when the exercise list loads.
+  const [perSide, setPerSide] = useState<Record<string, boolean>>({})
+  const togglePerSide = (ex: ExerciseRow) => {
+    haptics.tapLight()
+    const next = !perSide[ex.id]
+    setPerSide(prev => ({ ...prev, [ex.id]: next }))
+    setUnilateralPref(ex.name, next)
+  }
   const [skipExerciseConfirm, setSkipExerciseConfirm] = useState<ExerciseRow | null>(null)
   const [swapSheet, setSwapSheet] = useState<{ ex: ExerciseRow; candidates: ExerciseRow[] } | null>(null)
   // Per-exercise action sheet (machine occupied → swap / move to end / skip / reorder).
@@ -607,7 +655,25 @@ export default function WorkoutsScreen() {
         .eq('status', 'scheduled')
         .limit(1)
         .maybeSingle()
-      if (!found) { setNotFound(true); setLoading(false); return { id: null, resumedLogId: null } }
+      if (!found) {
+        // Nothing PENDING today — but don't assume nothing was ever planned.
+        // Check for an already-completed session so the hub can say "you're
+        // done," not imply the day was empty.
+        const { data: doneToday } = await supabase
+          .from('scheduled_workouts')
+          .select('focus')
+          .eq('user_id', userId)
+          .eq('planned_date', toDateStr(new Date()))
+          .eq('status', 'completed')
+          .order('planned_start_time', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        setTodayCompletedFocus((doneToday?.focus as string | undefined) ?? null)
+        setNotFound(true)
+        setLoading(false)
+        return { id: null, resumedLogId: null }
+      }
+      setTodayCompletedFocus(null)
       targetId = found.id
     }
 
@@ -705,6 +771,7 @@ export default function WorkoutsScreen() {
     setExercises(ordered)
     setExpandedId(ordered[0]?.id ?? null)
     setGifIds({})
+    setPerSide(Object.fromEntries(ordered.map(ex => [ex.id, getUnilateralPref(ex.name)])))
 
     // Pre-fetch exercise IDs in the background; expo-image handles the actual GIF download with auth headers
     ordered.forEach(ex => {
@@ -945,6 +1012,17 @@ export default function WorkoutsScreen() {
   const restFor = (exId: string): number =>
     restOverride ?? restDefaults.current[exId] ?? SUGGESTED_REST_SEC
 
+  // The typed weight, converted to stored lbs — doubled first if this exercise
+  // is toggled "per side" (no schema change: the stored total is what every
+  // existing volume/PR calculation already reads, so this is the only place
+  // the convention needs to be applied).
+  const weightLbsFor = (exId: string, lbsInput: string): number | null => {
+    if (!lbsInput) return null
+    const total = inputToLbs(lbsInput, useUnitStore.getState().unit)
+    if (total == null) return null
+    return perSide[exId] ? total * 2 : total
+  }
+
   // Tapping ✓ logs the set IMMEDIATELY — rest starts, haptic fires, done. RPE is
   // captured after the fact via an optional follow-up bar; it must never gate
   // logging or the rest timer.
@@ -989,8 +1067,9 @@ export default function WorkoutsScreen() {
       exercise_id: exId,
       set_number: idx + 1,
       reps_completed: parseInt(set.reps) || 0,
-      // The input holds the display unit — storage is always lbs.
-      weight_lbs: set.lbs ? inputToLbs(set.lbs, useUnitStore.getState().unit) : null,
+      // The input holds the display unit — storage is always lbs (doubled
+      // first if this exercise is toggled "per side").
+      weight_lbs: weightLbsFor(exId, set.lbs),
       duration_sec: set.durationSec ? parseInt(set.durationSec) : null,
       distance_m: set.distanceM ? parseFloat(set.distanceM) : null,
       rpe: null,
@@ -1011,6 +1090,43 @@ export default function WorkoutsScreen() {
         const info = describeSaveError(error, 'save this set')
         Alert.alert('Set didn’t save', `${info.message}\n\nYour numbers are still in the row — tap the ✓ to retry.`)
       }
+    }
+  }
+
+  // Save an edit to an already-logged set (wrong reps/weight typed in the
+  // moment — fix it after the fact rather than delete-and-redo). Targets the
+  // same natural key attachRpe already uses (workout_log_id + exercise_id +
+  // set_number), so it can't drift from the row this UI is actually showing.
+  const savingSetEdit = useRef(false)
+  const saveSetEdit = async (exId: string, idx: number) => {
+    if (savingSetEdit.current) return
+    const set = sets[exId]?.[idx]
+    setEditingSet(null)
+    if (!set || !workoutLogId) return
+    savingSetEdit.current = true
+    try {
+      const { error } = await supabase
+        .from('set_logs')
+        .update({
+          reps_completed: parseInt(set.reps) || 0,
+          weight_lbs: weightLbsFor(exId, set.lbs),
+          duration_sec: set.durationSec ? parseInt(set.durationSec) : null,
+          distance_m: set.distanceM ? parseFloat(set.distanceM) : null,
+        })
+        .eq('workout_log_id', workoutLogId)
+        .eq('exercise_id', exId)
+        .eq('set_number', idx + 1)
+      if (error) {
+        const info = describeSaveError(error, 'save that edit')
+        Alert.alert('Couldn’t save the edit', info.message)
+        return
+      }
+      // Progress/volume/PRs all re-derive live from set_logs on next fetch —
+      // nothing else caches a stale copy of this number, so invalidating the
+      // shared training-data keys is enough to make the edit show up everywhere.
+      invalidateTrainingData(queryClient)
+    } finally {
+      savingSetEdit.current = false
     }
   }
 
@@ -1738,6 +1854,16 @@ export default function WorkoutsScreen() {
             </PressableScale>
           </FadeInView>
           </>
+          ) : todayCompletedFocus ? (
+            <View style={styles.dayCard}>
+              <View style={styles.completedTodayRow}>
+                <Ionicons name="checkmark-circle" size={20} color={C.success} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dayCardTitle}>Today's session is done</Text>
+                  <Text style={styles.dayCardMeta}>{todayCompletedFocus} — nice work.</Text>
+                </View>
+              </View>
+            </View>
           ) : (
             <View style={{ paddingVertical: Spacing.xl }}>
               <EmptyState
@@ -1775,6 +1901,27 @@ export default function WorkoutsScreen() {
                   >
                     <Ionicons name="create-outline" size={14} color={C.primary} />
                     <Text style={styles.dayCardEditText}>Edit</Text>
+                  </PressableScale>
+                </>
+              ) : missingSplitDay ? (
+                <>
+                  <View style={styles.dayCardRest}>
+                    <Ionicons name="alert-circle-outline" size={15} color={C.ember} />
+                    <Text style={styles.dayCardRestText}>
+                      Unscheduled this week — {missingSplitDay.label || 'a workout'} isn't on the calendar.
+                    </Text>
+                  </View>
+                  <PressableScale
+                    style={[styles.dayCardEditBtn, addingBackDay && { opacity: 0.6 }]}
+                    scaleTo={0.96}
+                    onPress={handleAddBackDay}
+                  >
+                    {addingBackDay ? (
+                      <ActivityIndicator size="small" color={C.primary} />
+                    ) : (
+                      <Ionicons name="add-circle-outline" size={14} color={C.primary} />
+                    )}
+                    <Text style={styles.dayCardEditText}>Add it back</Text>
                   </PressableScale>
                 </>
               ) : (
@@ -2094,6 +2241,24 @@ export default function WorkoutsScreen() {
                       <Ionicons name="swap-horizontal" size={15} color={C.primary} />
                       <Text style={styles.exActionText}>Swap</Text>
                     </PressableScale>
+                    {/* Whether the weight you type is per side (dumbbell press,
+                        single-arm row, a lunge) or the total — no reliable way
+                        to infer this from the exercise alone, so it's a
+                        remembered-per-exercise toggle, not a guess. */}
+                    {cols.some(c => c.key === 'weight') && (
+                      <PressableScale
+                        style={[styles.exActionBtn, perSide[ex.id] && styles.exActionBtnActive]}
+                        onPress={() => togglePerSide(ex)}
+                        scaleTo={0.93}
+                        accessibilityRole="button"
+                        accessibilityLabel={perSide[ex.id] ? 'Logging per side — tap to log total instead' : 'Logging total weight — tap to log per side instead'}
+                      >
+                        <Ionicons name="git-compare-outline" size={15} color={perSide[ex.id] ? C.onPrimary : C.primary} />
+                        <Text style={[styles.exActionText, perSide[ex.id] && { color: C.onPrimary }]}>
+                          {perSide[ex.id] ? '×2 per side' : 'Per side?'}
+                        </Text>
+                      </PressableScale>
+                    )}
                   </View>
 
                   {/* Table header — columns follow this exercise's tracked metrics */}
@@ -2113,6 +2278,7 @@ export default function WorkoutsScreen() {
                       is an optional follow-up bar, never a gate. */}
                   {exSets.map((set, idx) => {
                     const followingUp = rpeFollowUp?.exId === ex.id && rpeFollowUp?.idx === idx
+                    const isEditing = editingSet?.exId === ex.id && editingSet?.idx === idx
                     return (
                     <View key={idx}>
                       <View style={[styles.setRow, set.warmup && styles.setRowWarmup]}>
@@ -2124,13 +2290,46 @@ export default function WorkoutsScreen() {
                           {set.warmup ? 'warm-up' : (prevBySet[ex.id]?.[Number(setLabels[idx]) - 1] ?? '—')}
                         </Text>
 
-                        {set.done ? (
+                        {set.done && !isEditing ? (
                           <>
                             {cols.map((c) => <Text key={c.key} style={styles.setCell}>{set[c.field] || '0'}</Text>)}
-                            {/* Mounts the moment the set is logged — springs in */}
-                            <PopIn style={styles.checkCircleFilled}>
+                            {/* Tap to fix a wrong number after the fact — was
+                                permanently locked once logged; delete-and-redo
+                                was the only option. */}
+                            <PressableScale
+                              style={styles.checkCircleFilled}
+                              scaleTo={0.85}
+                              onPress={() => setEditingSet({ exId: ex.id, idx })}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Edit set ${idx + 1}`}
+                            >
                               <Ionicons name="checkmark" size={14} color={C.onPrimary} />
-                            </PopIn>
+                            </PressableScale>
+                          </>
+                        ) : set.done && isEditing ? (
+                          <>
+                            {cols.map((c) => (
+                              <View key={c.key} style={styles.inputBox}>
+                                <TextInput
+                                  style={styles.inputText}
+                                  value={set[c.field]}
+                                  onChangeText={v => updateSet(ex.id, idx, c.field, v)}
+                                  keyboardType={c.kbd}
+                                  placeholder="0"
+                                  placeholderTextColor={C.outline}
+                                  autoFocus
+                                />
+                              </View>
+                            ))}
+                            <PressableScale
+                              style={styles.checkCircleFilled}
+                              scaleTo={0.85}
+                              onPress={() => saveSetEdit(ex.id, idx)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Save edit to set ${idx + 1}`}
+                            >
+                              <Ionicons name="checkmark-done" size={14} color={C.onPrimary} />
+                            </PressableScale>
                           </>
                         ) : (
                           <>
@@ -2685,6 +2884,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   dayCardEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   dayCardTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
+  completedTodayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dayCardMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   dayCardEditBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
@@ -2783,6 +2983,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
   },
   exActionText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
+  exActionBtnActive: { backgroundColor: C.primary },
   emptyCircleActive: { borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   rpeBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

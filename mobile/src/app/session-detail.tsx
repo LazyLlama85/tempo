@@ -6,17 +6,22 @@
 // checks before repeating a session ("what did I do last Tuesday?").
 
 import { useEffect, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { PressableScale } from '@/components/motion'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
-import { useWeightUnit, unitLabel, formatWeight, displayVolume, type WeightUnit } from '@/lib/units'
+import { useWeightUnit, unitLabel, formatWeight, displayVolume, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
+import { describeSaveError } from '@/lib/saveErrors'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
+import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
 
 interface SetRow {
   exercise_id: string
@@ -50,6 +55,7 @@ export default function SessionDetailScreen() {
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const unit = useWeightUnit()
+  const queryClient = useQueryClient()
 
   const [loading, setLoading] = useState(true)
   const [focus, setFocus] = useState('')
@@ -58,6 +64,14 @@ export default function SessionDetailScreen() {
   const [groups, setGroups] = useState<ExerciseGroup[]>([])
   const [prs, setPrs] = useState<SessionPR[]>([])
   const [totalVolume, setTotalVolume] = useState(0)
+  const [logId, setLogId] = useState<string | null>(null)
+  // Logged it wrong, want to fix it after the fact — this screen used to be
+  // pure read-only. Editing one set at a time; the draft holds display-unit
+  // strings (matching the runner's own TextInput convention).
+  const [editing, setEditing] = useState<{ exId: string; setNumber: number } | null>(null)
+  const [editDraft, setEditDraft] = useState({ lbs: '', reps: '', durationSec: '', distanceM: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editPerSide, setEditPerSide] = useState(false)
 
   useEffect(() => {
     if (!userId || !scheduledId) { setLoading(false); return }
@@ -86,6 +100,7 @@ export default function SessionDetailScreen() {
           .limit(1)
           .maybeSingle()
         if (!log) { setGroups([]); return }
+        setLogId(log.id as string)
 
         const { data: sets } = await supabase
           .from('set_logs')
@@ -125,6 +140,64 @@ export default function SessionDetailScreen() {
   }, [userId, scheduledId])
 
   const totalSets = groups.reduce((n, g) => n + g.sets.length, 0)
+
+  const startEdit = (exId: string, exName: string, s: SetRow) => {
+    setEditing({ exId, setNumber: s.set_number })
+    setEditPerSide(getUnilateralPref(exName))
+    setEditDraft({
+      // Always shows the stored total, regardless of the per-side toggle —
+      // "this is what's saved." The toggle only changes how a NEW number you
+      // type here gets interpreted when you save.
+      lbs: toInputString(s.weight_lbs, unit),
+      reps: s.reps_completed ? String(s.reps_completed) : '',
+      durationSec: s.duration_sec != null ? String(s.duration_sec) : '',
+      distanceM: s.distance_m != null ? String(s.distance_m) : '',
+    })
+  }
+
+  const saveEdit = async () => {
+    const target = editing
+    if (!target || !logId || savingEdit) return
+    setSavingEdit(true)
+    try {
+      const rawLbs = editDraft.lbs ? inputToLbs(editDraft.lbs, unit) : null
+      const patch = {
+        weight_lbs: rawLbs != null && editPerSide ? rawLbs * 2 : rawLbs,
+        reps_completed: parseInt(editDraft.reps, 10) || 0,
+        duration_sec: editDraft.durationSec ? parseInt(editDraft.durationSec, 10) : null,
+        distance_m: editDraft.distanceM ? parseFloat(editDraft.distanceM) : null,
+      }
+      const { error } = await supabase
+        .from('set_logs')
+        .update(patch)
+        .eq('workout_log_id', logId)
+        .eq('exercise_id', target.exId)
+        .eq('set_number', target.setNumber)
+      if (error) {
+        const info = describeSaveError(error, 'save that edit')
+        Alert.alert('Couldn’t save the edit', info.message)
+        return
+      }
+      // Reflect it locally (this screen doesn't re-fetch on its own) and
+      // recompute the volume total the same way the initial load did.
+      setGroups(prev => prev.map(g => g.id !== target.exId ? g : {
+        ...g,
+        sets: g.sets.map(s => s.set_number !== target.setNumber ? s : { ...s, ...patch }),
+      }))
+      setTotalVolume(prev => {
+        const before = groups.find(g => g.id === target.exId)?.sets.find(s => s.set_number === target.setNumber)
+        const beforeVol = before?.weight_lbs != null ? before.weight_lbs * (before.reps_completed ?? 0) : 0
+        const afterVol = patch.weight_lbs != null ? patch.weight_lbs * (patch.reps_completed ?? 0) : 0
+        return Math.max(0, Math.round(prev - beforeVol + afterVol))
+      })
+      // Progress's volume/PR math re-derives live from set_logs — nothing else
+      // caches a stale copy, so invalidating the shared keys is enough.
+      invalidateTrainingData(queryClient)
+      setEditing(null)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -194,13 +267,90 @@ export default function SessionDetailScreen() {
                   <Text style={styles.exName}>{g.name}</Text>
                   <Ionicons name="trending-up-outline" size={16} color={C.primary} />
                 </TouchableOpacity>
-                {g.sets.map(s => (
-                  <View key={s.set_number} style={styles.setRow}>
-                    <Text style={styles.setNum}>{s.set_number}</Text>
-                    <Text style={styles.setLine}>{setLine(s, unit)}</Text>
-                    {s.rpe != null && <Text style={styles.setRpe}>RPE {s.rpe}</Text>}
-                  </View>
-                ))}
+                {g.sets.map(s => {
+                  const isEditing = editing?.exId === g.id && editing?.setNumber === s.set_number
+                  if (isEditing) {
+                    return (
+                      <View key={s.set_number}>
+                      <View style={styles.editRow}>
+                        <Text style={styles.setNum}>{s.set_number}</Text>
+                        {s.weight_lbs != null && (
+                          <TextInput
+                            style={styles.editInput}
+                            value={editDraft.lbs}
+                            onChangeText={v => setEditDraft(d => ({ ...d, lbs: v }))}
+                            keyboardType="decimal-pad"
+                            placeholder={unitLabel(unit)}
+                            placeholderTextColor={C.outline}
+                            autoFocus
+                          />
+                        )}
+                        {(s.weight_lbs != null || (s.duration_sec == null && s.distance_m == null)) && (
+                          <TextInput
+                            style={styles.editInput}
+                            value={editDraft.reps}
+                            onChangeText={v => setEditDraft(d => ({ ...d, reps: v }))}
+                            keyboardType="number-pad"
+                            placeholder="reps"
+                            placeholderTextColor={C.outline}
+                          />
+                        )}
+                        {s.duration_sec != null && (
+                          <TextInput
+                            style={styles.editInput}
+                            value={editDraft.durationSec}
+                            onChangeText={v => setEditDraft(d => ({ ...d, durationSec: v }))}
+                            keyboardType="number-pad"
+                            placeholder="sec"
+                            placeholderTextColor={C.outline}
+                          />
+                        )}
+                        {s.distance_m != null && (
+                          <TextInput
+                            style={styles.editInput}
+                            value={editDraft.distanceM}
+                            onChangeText={v => setEditDraft(d => ({ ...d, distanceM: v }))}
+                            keyboardType="decimal-pad"
+                            placeholder="m"
+                            placeholderTextColor={C.outline}
+                          />
+                        )}
+                        <TouchableOpacity onPress={() => setEditing(null)} hitSlop={8}>
+                          <Ionicons name="close" size={18} color={C.outline} />
+                        </TouchableOpacity>
+                        <PressableScale onPress={saveEdit} scaleTo={0.9} hitSlop={8} disabled={savingEdit}>
+                          <Ionicons name="checkmark-circle" size={22} color={C.primary} />
+                        </PressableScale>
+                      </View>
+                      {s.weight_lbs != null && (
+                        <TouchableOpacity
+                          style={styles.perSideRow}
+                          onPress={() => { setEditPerSide(v => !v); setUnilateralPref(g.name, !editPerSide) }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name={editPerSide ? 'checkbox' : 'square-outline'} size={14} color={editPerSide ? C.primary : C.outline} />
+                          <Text style={[styles.perSideText, editPerSide && { color: C.primary }]}>Logging this weight per side (×2)</Text>
+                        </TouchableOpacity>
+                      )}
+                      </View>
+                    )
+                  }
+                  return (
+                    <TouchableOpacity
+                      key={s.set_number}
+                      style={styles.setRow}
+                      activeOpacity={0.6}
+                      onPress={() => startEdit(g.id, g.name, s)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit set ${s.set_number}`}
+                    >
+                      <Text style={styles.setNum}>{s.set_number}</Text>
+                      <Text style={styles.setLine}>{setLine(s, unit)}</Text>
+                      {s.rpe != null && <Text style={styles.setRpe}>RPE {s.rpe}</Text>}
+                      <Ionicons name="create-outline" size={13} color={C.outlineVariant} />
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
             ))
           )}
@@ -242,5 +392,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   setNum: { width: 20, fontFamily: 'Inter_700Bold', fontSize: 13, color: C.outline, textAlign: 'center' },
   setLine: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 14, color: C.text },
   setRpe: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  perSideRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingTop: 4, paddingLeft: 20 },
+  perSideText: { fontFamily: 'Inter_500Medium', fontSize: 11.5, color: C.textSecondary },
+  editInput: {
+    flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.xs, paddingVertical: 6, textAlign: 'center',
+  },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 21 },
 })
