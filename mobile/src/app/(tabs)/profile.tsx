@@ -12,7 +12,7 @@ import { ScreenTransition } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { readinessFromHistory } from '@/lib/fitnessInsights'
 import { InsightsGrid, type InsightTile } from '@/components/ProfileCards'
 import { computeLevel } from '@/lib/achievements'
@@ -32,6 +32,8 @@ import {
 } from '@/lib/units'
 import { useProAccess } from '@/stores/entitlements'
 import { ProGate } from '@/components/ProGate'
+import { restampFuturePlanForExperience } from '@/lib/generatePlan'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
 import { updateUsername } from '@/lib/social'
 import { OptionSheet } from '@/components/OptionSheet'
@@ -134,6 +136,7 @@ export default function ProfileScreen() {
   const sheetPad = { paddingBottom: Math.max(insets.bottom, Spacing.lg) }
   const { profile, session, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const queryClient = useQueryClient()
   const { stats, workouts, logTimes } = useProgressStats(userId)
 
   // Consistency badges (lib/badges): derived from my session history + any stored
@@ -216,6 +219,15 @@ export default function ProfileScreen() {
   const [equipModal, setEquipModal] = useState(false)
   const [equipSel, setEquipSel] = useState<string[]>([])
   const [equipSaving, setEquipSaving] = useState(false)
+
+  // Goal / Experience — single-field edits (unlike Days Per Week, these are safe to
+  // change alone: restampFuturePlanForExperience re-selects every upcoming session's
+  // exercises against the new value and no-ops any focus it can't map, so it never
+  // corrupts the schedule). Days Per Week stays read-only here — changing it alone
+  // would leave the split's day count wrong; that still requires "Change Plan".
+  const [goalSheet, setGoalSheet] = useState(false)
+  const [expSheet, setExpSheet] = useState(false)
+  const [fieldSaving, setFieldSaving] = useState(false)
 
   // Saved exercise swaps + editor
   const [swaps, setSwaps] = useState<SavedSwap[]>([])
@@ -466,6 +478,23 @@ export default function ProfileScreen() {
       Alert.alert('Could not save', 'Please try again.')
     } finally {
       setEquipSaving(false)
+    }
+  }
+
+  const saveTrainingField = async (field: 'goal' | 'experience', value: string) => {
+    if (!userId || fieldSaving) return
+    setFieldSaving(true)
+    try {
+      await supabase.from('user_profiles').update({ [field]: value }).eq('user_id', userId)
+      await refreshProfile()
+      await restampFuturePlanForExperience(supabase, userId)
+      invalidateTrainingData(queryClient)
+      setGoalSheet(false)
+      setExpSheet(false)
+    } catch {
+      Alert.alert('Could not save', 'Please try again.')
+    } finally {
+      setFieldSaving(false)
     }
   }
 
@@ -720,9 +749,9 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow icon="journal-outline" label="WORKOUT HISTORY" value="Every logged session" onPress={() => router.push('/workout-history' as any)} />
             <View style={styles.divider} />
-            <SettingRow icon="trophy-outline" label="PRIMARY GOAL" value={profile?.goal ? GOAL_LABELS[profile.goal] : '—'} />
+            <SettingRow icon="trophy-outline" label="PRIMARY GOAL" value={profile?.goal ? GOAL_LABELS[profile.goal] : '—'} onPress={() => setGoalSheet(true)} />
             <View style={styles.divider} />
-            <SettingRow icon="barbell-outline" label="EXPERIENCE" value={profile?.experience ? EXP_LABELS[profile.experience] : '—'} />
+            <SettingRow icon="barbell-outline" label="EXPERIENCE" value={profile?.experience ? EXP_LABELS[profile.experience] : '—'} onPress={() => setExpSheet(true)} />
             <View style={styles.divider} />
             <SettingRow icon="calendar-outline" label="DAYS PER WEEK" value={profile?.days_per_week ? `${profile.days_per_week} days` : '—'} />
             <View style={styles.divider} />
@@ -991,6 +1020,24 @@ export default function ProfileScreen() {
         options={[{ key: 'continue', label: 'Continue', icon: 'refresh-outline' }]}
         onSelect={() => { setChangePlanSheet(false); router.push('/onboarding/goal') }}
         onClose={() => setChangePlanSheet(false)}
+      />
+
+      <OptionSheet
+        visible={goalSheet}
+        title="Primary Goal"
+        subtitle="Updates today — your upcoming sessions re-pick exercises to match."
+        options={Object.entries(GOAL_LABELS).map(([key, label]) => ({ key, label, icon: 'trophy-outline' }))}
+        onSelect={(key) => saveTrainingField('goal', key)}
+        onClose={() => setGoalSheet(false)}
+      />
+
+      <OptionSheet
+        visible={expSheet}
+        title="Experience"
+        subtitle="Updates today — your upcoming sessions re-pick exercises to match."
+        options={Object.entries(EXP_LABELS).map(([key, label]) => ({ key, label, icon: 'barbell-outline' }))}
+        onSelect={(key) => saveTrainingField('experience', key)}
+        onClose={() => setExpSheet(false)}
       />
 
       <SaveProgressSheet
