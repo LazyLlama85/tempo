@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, HeaderActions, PulseLoader } from '@/components/brand'
 import { ScreenTransition } from '@/components/motion'
@@ -1107,7 +1107,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
-  scroll: { paddingBottom: 120, gap: Spacing.lg },
+  scroll: { paddingBottom: BottomTabInset + 24, gap: Spacing.lg },
 
   // Hero
   // Dark modular profile card: a layered surface, not a solid colour block.

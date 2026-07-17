@@ -18,7 +18,7 @@ import { removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { useProGate } from '@/stores/entitlements'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
-import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
 import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
@@ -2460,7 +2460,14 @@ export default function WorkoutsScreen() {
                         <View style={styles.rpeBar}>
                           <Text style={styles.rpeBarLabel}>How hard?</Text>
                           {RPE_OPTIONS.map(n => (
-                            <PressableScale key={n} style={styles.rpeChip} onPress={() => attachRpe(ex.id, idx, n)} scaleTo={0.88}>
+                            <PressableScale
+                              key={n}
+                              style={styles.rpeChip}
+                              onPress={() => attachRpe(ex.id, idx, n)}
+                              scaleTo={0.88}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Rate this set RPE ${n}`}
+                            >
                               <Text style={styles.rpeChipText}>{n}</Text>
                             </PressableScale>
                           ))}
@@ -2847,7 +2854,7 @@ export default function WorkoutsScreen() {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 150 },
+  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: BottomTabInset + 54 },
   travelBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
     backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.sm,

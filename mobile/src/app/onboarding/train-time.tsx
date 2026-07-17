@@ -155,6 +155,9 @@ export default function OnboardingTrainTimeScreen() {
               style={[styles.segment, tod === t.id && styles.segmentActive]}
               onPress={() => setTod(tod === t.id ? null : t.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Train in the ${t.label.toLowerCase()}`}
+              accessibilityState={{ selected: tod === t.id }}
             >
               <Text style={[styles.segmentText, tod === t.id && styles.segmentTextActive]}>{t.label}</Text>
             </TouchableOpacity>
@@ -171,6 +174,9 @@ export default function OnboardingTrainTimeScreen() {
                 style={[styles.dayChip, on && styles.dayChipOn]}
                 onPress={() => toggleOff(d.iso)}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Never train on ${d.label}`}
+                accessibilityState={{ selected: on }}
               >
                 <Text style={[styles.dayChipText, on && styles.dayChipTextOn]}>{d.label}</Text>
               </TouchableOpacity>

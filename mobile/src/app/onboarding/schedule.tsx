@@ -94,6 +94,9 @@ export default function ScheduleScreen() {
                 style={[styles.dayBtn, daysPerWeek === d && styles.dayBtnSelected]}
                 onPress={() => setDaysPerWeek(d)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${d} days per week`}
+                accessibilityState={{ selected: daysPerWeek === d }}
               >
                 <Text style={[styles.dayBtnText, daysPerWeek === d && styles.dayBtnTextSelected]}>
                   {d}
@@ -114,6 +117,9 @@ export default function ScheduleScreen() {
                 style={[styles.dayBtn, sessionMinutes === m && styles.dayBtnSelected]}
                 onPress={() => setSessionMinutes(m)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${m} minutes per session`}
+                accessibilityState={{ selected: sessionMinutes === m }}
               >
                 <Text style={[styles.minBtnText, sessionMinutes === m && styles.dayBtnTextSelected]}>
                   {m}

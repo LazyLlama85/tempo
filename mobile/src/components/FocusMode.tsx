@@ -92,7 +92,15 @@ export function FocusMode({
           <Text style={styles.setPillText}>{setLabel}</Text>
         </View>
 
-        <View style={styles.ringWrap}>
+        <View
+          style={styles.ringWrap}
+          accessible
+          accessibilityLabel={
+            resting && restSecondsLeft != null
+              ? `Resting, ${formatElapsed(restSecondsLeft)} remaining`
+              : `${targetRepsLabel}${done ? ', done' : ''}`
+          }
+        >
           <SvgProgressRing
             value={ringValue}
             size={220}
@@ -102,12 +110,12 @@ export function FocusMode({
           >
             {resting && restSecondsLeft != null ? (
               <>
-                <Text style={styles.ringCaption}>RESTING</Text>
-                <Text style={styles.ringBig}>{formatElapsed(restSecondsLeft)}</Text>
+                <Text style={styles.ringCaption} maxFontSizeMultiplier={1.2}>RESTING</Text>
+                <Text style={styles.ringBig} maxFontSizeMultiplier={1}>{formatElapsed(restSecondsLeft)}</Text>
               </>
             ) : (
               <>
-                <Text style={styles.ringCaption}>{targetRepsLabel}</Text>
+                <Text style={styles.ringCaption} maxFontSizeMultiplier={1.2}>{targetRepsLabel}</Text>
                 <Ionicons name={done ? 'checkmark-circle' : 'barbell-outline'} size={40} color={done ? C.success : C.primary} />
               </>
             )}

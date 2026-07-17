@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
+import { Colors, Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'expo-router'
@@ -229,9 +229,9 @@ export default function ProgressScreen() {
                 <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                     <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
-                    <Text style={[styles.ringPercent, { fontSize: 20 }]}>%</Text>
+                    <Text style={[styles.ringPercent, { fontSize: 20 }]} maxFontSizeMultiplier={1}>%</Text>
                   </View>
-                  <Text style={styles.ringSubLabel}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
+                  <Text style={styles.ringSubLabel} maxFontSizeMultiplier={1.2}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
                 </SvgProgressRing>
               </View>
               <Text style={styles.ringCaption}>
@@ -331,9 +331,9 @@ export default function ProgressScreen() {
                 <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                     <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
-                    <Text style={[styles.ringPercent, { fontSize: 20 }]}>%</Text>
+                    <Text style={[styles.ringPercent, { fontSize: 20 }]} maxFontSizeMultiplier={1}>%</Text>
                   </View>
-                  <Text style={styles.ringSubLabel}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
+                  <Text style={styles.ringSubLabel} maxFontSizeMultiplier={1.2}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
                 </SvgProgressRing>
               </View>
               <Text style={styles.ringCaption}>
@@ -594,7 +594,7 @@ export default function ProgressScreen() {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 120 },
+  scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: BottomTabInset + 24 },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
