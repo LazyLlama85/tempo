@@ -37,6 +37,7 @@ import { getTodayReadiness } from '@/lib/recovery'
 import { rescheduleWholeWeek } from '@/lib/reschedule'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
+import { FocusMode } from '@/components/FocusMode'
 import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
@@ -1055,6 +1056,11 @@ export default function WorkoutsScreen() {
 
     // Auto-start the rest timer using this exercise's effective rest
     startRest(restFor(exId))
+    // Rest deserves the whole screen — nothing else to do while it counts
+    // down. Only auto-OPENS; never auto-closes an already-open Focus Mode
+    // on a different exercise mid-flow.
+    setFocusExId(exId)
+    setFocusOpen(true)
 
     // Exercise fully banked? A firmer tick, and the next incomplete exercise
     // opens by itself so the flow never stalls on a collapsed accordion.
@@ -1606,6 +1612,40 @@ export default function WorkoutsScreen() {
   const [restSheet, setRestSheet] = useState(false)
   const [customRestOpen, setCustomRestOpen] = useState(false)
   const [customRestSec, setCustomRestSec] = useState(SUGGESTED_REST_SEC)
+
+  // ── Focus Mode ──────────────────────────────────────────────────────────
+  // A full-screen view for the set currently in play — auto-opens when a rest
+  // timer starts (nothing else to look at while resting), and can be reopened
+  // manually per exercise. Tracks only WHICH EXERCISE; the current set within
+  // it is always derived (first not-yet-done set) so it can never drift out
+  // of sync with the list as sets get logged.
+  const [focusOpen, setFocusOpen] = useState(false)
+  const [focusExId, setFocusExId] = useState<string | null>(null)
+  const focusSetsArr = focusExId ? (sets[focusExId] ?? []) : []
+  const focusIdx = focusSetsArr.findIndex(s => !s.done)
+  const focusSet = focusIdx >= 0 ? focusSetsArr[focusIdx] : null
+  const focusEx = exercises.find(e => e.id === focusExId) ?? null
+  // Auto-close once this exercise's sets are all done — nothing left to focus on.
+  useEffect(() => {
+    if (focusOpen && focusExId && focusIdx === -1) setFocusOpen(false)
+  }, [focusOpen, focusExId, focusIdx])
+
+  const adjustRest = (deltaSec: number) => {
+    if (restEndsAt === null) return
+    haptics.tapLight()
+    setRestEndsAt(prev => (prev == null ? prev : Math.max(Date.now() + 1000, prev + deltaSec * 1000)))
+    setRestTotal(t => Math.max(1, t + deltaSec))
+  }
+
+  const focusSkip = () => {
+    if (!focusExId) return
+    if (restEndsAt !== null) { stopRest(); return }
+    if (focusIdx >= 0) removeSet(focusExId, focusIdx)
+  }
+  const focusDone = () => {
+    if (!focusExId || focusIdx < 0) return
+    handleSetDone(focusExId, focusIdx)
+  }
   const handleRestTimer = () => {
     if (restEndsAt !== null) {
       stopRest()
@@ -2243,6 +2283,17 @@ export default function WorkoutsScreen() {
 
                   {/* Form guide + smart swap */}
                   <View style={styles.exActions}>
+                    {exSets.some(s => !s.done) && (
+                      <PressableScale
+                        style={styles.exActionBtn}
+                        onPress={() => { setFocusExId(ex.id); setFocusOpen(true) }}
+                        scaleTo={0.93}
+                        accessibilityLabel="Open focus mode for this exercise"
+                      >
+                        <Ionicons name="expand-outline" size={15} color={C.primary} />
+                        <Text style={styles.exActionText}>Focus</Text>
+                      </PressableScale>
+                    )}
                     <PressableScale style={styles.exActionBtn} onPress={() => setFormSheetEx(ex)} scaleTo={0.93}>
                       <Ionicons name="book-outline" size={15} color={C.primary} />
                       <Text style={styles.exActionText}>Form guide</Text>
@@ -2486,6 +2537,40 @@ export default function WorkoutsScreen() {
       </View>
 
       <ExerciseFormSheet exercise={formSheetEx} onClose={() => setFormSheetEx(null)} />
+
+      {(() => {
+        if (!focusEx) return null
+        const p = targets[focusEx.id]
+        const targetRepsLabel = p
+          ? p.repLow === p.repHigh ? `TARGET ${p.repHigh} REPS` : `TARGET ${p.repLow}-${p.repHigh} REPS`
+          : 'TARGET REPS'
+        // Same working-ordinal scheme as the list (warm-ups don't count).
+        let workCounter = 0
+        const setLabels = focusSetsArr.map(s => (s.warmup ? 'W' : String(++workCounter)))
+        const totalWorking = focusSetsArr.filter(s => !s.warmup).length
+        const setLabel = focusSet
+          ? (focusSet.warmup ? 'WARM-UP SET' : `SET ${setLabels[focusIdx]} OF ${totalWorking}`)
+          : ''
+        const formImage = getExerciseGifSource(focusEx.id) ?? (gifIds[focusEx.id] ? gifSource(gifIds[focusEx.id]!) : null)
+        return (
+          <FocusMode
+            visible={focusOpen}
+            onClose={() => setFocusOpen(false)}
+            exerciseName={focusEx.name}
+            setLabel={setLabel}
+            targetRepsLabel={targetRepsLabel}
+            resting={restEndsAt !== null}
+            restSecondsLeft={restSecondsLeft}
+            restTotal={restTotal}
+            onAdjustRest={adjustRest}
+            formImage={formImage}
+            onViewForm={() => { setFocusOpen(false); setFormSheetEx(focusEx) }}
+            done={!focusSet}
+            onSkip={focusSkip}
+            onDone={focusDone}
+          />
+        )
+      })()}
       <OptionSheet
         visible={restSheet}
         title="Rest timer"
