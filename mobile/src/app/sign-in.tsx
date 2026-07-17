@@ -122,8 +122,11 @@ export default function SignInScreen() {
         <View style={{ alignItems: 'center' }}>
           <TempoWordmark size={40} mark={false} />
         </View>
+        {/* The one true sentence (audit §03/§22): a first-time visitor should know
+            in 5 seconds why this isn't just another workout logger — Tempo fits
+            training into your real week and moves it when life does. */}
         <Text style={styles.tagline}>
-          Training that keeps time{'\n'}with your life.
+          Training that fits your real week{'\n'}— and moves when life does.
         </Text>
       </View>
 

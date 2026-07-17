@@ -22,6 +22,12 @@ import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { describeSaveError, isAuthError } from '@/lib/saveErrors'
 import { formatTime12 } from '@/components/TimePickerSheet'
 import type { ScheduledWorkout } from '@/lib/notifications'
+import { connectGoogleCalendar, isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
+import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
+import { friendlyConnectError } from '@/services/googleCalendar/connectErrors'
+import { trackCalendarConnected } from '@/lib/activation'
+import { syncUpcomingWorkouts } from '@/lib/calendarAutoSync'
+import * as haptics from '@/lib/haptics'
 
 // Prime before the one-shot OS permission prompt: explain the value in our own
 // words first, so the system dialog isn't the first thing the user sees. iOS only
@@ -110,6 +116,18 @@ export default function PlanPreviewScreen() {
   // so we must not clobber personal fields and shouldn't re-run the intro steps.
   const isReplan = !!profile?.onboarding_complete
 
+  // The optional calendar tap-in at the reveal (audit §05's prescribed fix): only
+  // offered to a brand-new user with NOTHING connected yet. 'checking' renders the
+  // same honest copy as 'none' — never block the reveal on this lookup.
+  const [calState, setCalState] = useState<'checking' | 'connected' | 'none'>('checking')
+  const [calBusy, setCalBusy] = useState<null | 'google' | 'device'>(null)
+  const [calError, setCalError] = useState<string | null>(null)
+  // Tracks whether the tap-in card was ever actually shown, so 'skipped' only
+  // fires for someone who genuinely saw the offer and didn't take it — not for
+  // isReplan/isCustomBuild/already-connected users who never saw a card at all.
+  const calPromptShown = useRef(false)
+  const calConnectedThisSession = useRef(false)
+
   // While the plan generates, narrate what's actually happening — the wait
   // becomes the moment the coach proves it's working, not a dead spinner.
   const BUILD_STEPS = [
@@ -134,6 +152,24 @@ export default function PlanPreviewScreen() {
   // B3.3 — the time-budget question, answered on schedule.tsx. Falls back to the
   // saved profile value (Change Plan re-entry without re-answering) then 45.
   const sessionMin = sessionMinutes ? parseInt(sessionMinutes, 10) : (profile?.preferred_duration_min ?? 45)
+
+  // The next 7 days' real, saved schedule — used to build the reveal, and
+  // re-fetched after a successful calendar tap-in so the list reflects any times
+  // autoScheduleUpcoming just moved around the newly-visible busy blocks.
+  const fetchRevealWorkouts = async (): Promise<RevealWorkout[]> => {
+    if (!session) return []
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6)
+    const { data } = await supabase
+      .from('scheduled_workouts')
+      .select('id, focus, planned_date, planned_start_time')
+      .eq('user_id', session.user.id)
+      .eq('status', 'scheduled')
+      .gte('planned_date', toDateStr(today))
+      .lte('planned_date', toDateStr(weekEnd))
+      .order('planned_date')
+    return (data ?? []) as RevealWorkout[]
+  }
 
   const handleConfirm = async (attempt = 0) => {
     // Ref latch, not state: two taps in the same frame both read status==='idle'
@@ -277,17 +313,7 @@ export default function PlanPreviewScreen() {
       // no generated week by definition — skip straight to entering.
       if (isCustomBuild) { enterApp(); return }
       try {
-        const today = new Date(); today.setHours(0, 0, 0, 0)
-        const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6)
-        const { data } = await supabase
-          .from('scheduled_workouts')
-          .select('id, focus, planned_date, planned_start_time')
-          .eq('user_id', session.user.id)
-          .eq('status', 'scheduled')
-          .gte('planned_date', toDateStr(today))
-          .lte('planned_date', toDateStr(weekEnd))
-          .order('planned_date')
-        const upcoming = (data ?? []) as RevealWorkout[]
+        const upcoming = await fetchRevealWorkouts()
         if (upcoming.length > 0) {
           setRevealWorkouts(upcoming)
           setStatus('revealing')
@@ -319,6 +345,9 @@ export default function PlanPreviewScreen() {
   // Called from the reveal's Continue button — the exact same destinations
   // handleConfirm used to navigate to immediately; only the timing moved.
   const enterApp = () => {
+    if (calPromptShown.current && !calConnectedThisSession.current) {
+      track('onboarding_calendar_prompt', { action: 'skipped' })
+    }
     if (isReplan) {
       // Pop the whole onboarding stack so back-swipe can't land on a stale step.
       if (router.canDismiss()) router.dismissAll()
@@ -328,6 +357,82 @@ export default function PlanPreviewScreen() {
       // Forward buildMode so profile-setup knows whether to drop a custom-build
       // user into split-editor instead of the (empty, but perfectly valid) tabs.
       router.replace({ pathname: '/onboarding/profile-setup', params: { buildMode: buildMode ?? '' } })
+    }
+  }
+
+  // Check connection state once the reveal is showing (never before — don't slow
+  // the confirm chain on this). isReplan/isCustomBuild users never see the tap-in
+  // card at all, so skip the check entirely for them (calState stays 'checking',
+  // which is harmless since the card's render condition already excludes them).
+  useEffect(() => {
+    if (status !== 'revealing' || isReplan || isCustomBuild) return
+    let cancelled = false
+    Promise.all([
+      isGoogleCalendarConnected().catch(() => false),
+      getCalendarPermissionStatus().catch(() => 'undetermined' as const),
+    ]).then(([google, device]) => {
+      if (cancelled) return
+      setCalState(google || device === 'granted' ? 'connected' : 'none')
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
+
+  // Record (once) that the tap-in card was genuinely shown, for honest 'skipped'
+  // analytics — never during render itself (impure), so a separate effect.
+  useEffect(() => {
+    if (status === 'revealing' && calState === 'none' && !isReplan) calPromptShown.current = true
+  }, [status, calState, isReplan])
+
+  // Same post-connect sequence calendar-setup.tsx uses (preferred_calendar,
+  // refreshProfile, best-effort auto-sync) — reused, not reinvented — plus a
+  // re-fetch of the reveal list so a successful connect visibly re-places times
+  // around the now-visible busy blocks.
+  const afterCalendarConnected = async (provider: 'google' | 'device') => {
+    if (!session) return
+    trackCalendarConnected(session.user.id, provider)
+    try {
+      await supabase.from('user_profiles').update({ preferred_calendar: provider }).eq('user_id', session.user.id)
+      await refreshProfile()
+    } catch { /* best-effort — the connection still works without the default set */ }
+    try { await autoScheduleUpcoming(supabase, session.user.id) } catch { /* keep current times */ }
+    syncUpcomingWorkouts(supabase, session.user.id, { ...(profile as any), preferred_calendar: provider }).catch(() => {})
+    try {
+      const upcoming = await fetchRevealWorkouts()
+      if (upcoming.length > 0) setRevealWorkouts(upcoming)
+    } catch { /* reveal list just keeps its pre-connect times */ }
+    calConnectedThisSession.current = true
+    haptics.success()
+    setCalState('connected')
+  }
+
+  const handleConnectGoogleAtReveal = async () => {
+    if (calBusy) return
+    setCalBusy('google')
+    setCalError(null)
+    const r = await connectGoogleCalendar()
+    setCalBusy(null)
+    if (r.ok) {
+      track('onboarding_calendar_prompt', { action: 'connected_google' })
+      await afterCalendarConnected('google')
+    } else {
+      track('onboarding_calendar_prompt', { action: 'failed' })
+      setCalError(friendlyConnectError(r.error))
+    }
+  }
+
+  const handleConnectDeviceAtReveal = async () => {
+    if (calBusy) return
+    setCalBusy('device')
+    setCalError(null)
+    const granted = await requestCalendarPermissions()
+    setCalBusy(null)
+    if (granted) {
+      track('onboarding_calendar_prompt', { action: 'connected_device' })
+      await afterCalendarConnected('device')
+    } else {
+      track('onboarding_calendar_prompt', { action: 'failed' })
+      setCalError('You can allow calendar access later in Settings.')
     }
   }
 
@@ -395,8 +500,12 @@ export default function PlanPreviewScreen() {
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           <FadeInView>
             <Text style={styles.stepLabel}>YOUR WEEK</Text>
-            <Text style={styles.title}>Already on your calendar.</Text>
-            <Text style={styles.subtitle}>Tempo placed every session below — the what and the when, decided for you.</Text>
+            <Text style={styles.title}>{calState === 'connected' ? 'Already on your calendar.' : 'Your first week, planned.'}</Text>
+            <Text style={styles.subtitle}>
+              {calState === 'connected'
+                ? 'Tempo placed every session below — the what and the when, decided for you.'
+                : 'Tempo schedules every session around your real life — sleep, work, and (when you connect one) your actual calendar.'}
+            </Text>
           </FadeInView>
           <View style={styles.revealList}>
             {revealDays.map((day, i) => (
@@ -421,6 +530,40 @@ export default function PlanPreviewScreen() {
               </FadeInView>
             ))}
           </View>
+
+          {/* Optional, skippable calendar tap-in — the audit's own prescribed fix:
+              "a low-friction 'want us to fit this into your calendar?' moment right
+              after the plan appears." Never blocks "Enter Tempo →" below. */}
+          {!isReplan && calState === 'none' && (
+            <FadeInView delay={120 + revealDays.length * 90} style={styles.calCard}>
+              <View style={styles.calCardHeader}>
+                <View style={styles.calIcon}><Ionicons name="calendar-outline" size={18} color={C.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.calCardTitle}>See it with your real calendar</Text>
+                  <Text style={styles.calCardSub}>Tempo reads busy times only — event details never leave your phone.</Text>
+                </View>
+              </View>
+              {calError && <Text style={styles.calError}>{calError}</Text>}
+              <View style={styles.calBtnRow}>
+                <PressableScale
+                  style={[styles.calBtnPrimary, calBusy && { opacity: 0.6 }]}
+                  onPress={handleConnectGoogleAtReveal}
+                  disabled={!!calBusy}
+                >
+                  {calBusy === 'google' ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.calBtnPrimaryText}>Connect Google Calendar</Text>}
+                </PressableScale>
+                <TouchableOpacity onPress={handleConnectDeviceAtReveal} disabled={!!calBusy} hitSlop={8}>
+                  {calBusy === 'device' ? <ActivityIndicator color={C.primary} /> : <Text style={styles.calBtnSecondaryText}>Use device calendar</Text>}
+                </TouchableOpacity>
+              </View>
+            </FadeInView>
+          )}
+          {!isReplan && calState === 'connected' && calConnectedThisSession.current && (
+            <FadeInView style={styles.calSuccessRow}>
+              <Ionicons name="checkmark-circle" size={18} color={C.success} />
+              <Text style={styles.calSuccessText}>Scheduled around your calendar</Text>
+            </FadeInView>
+          )}
         </ScrollView>
       ) : (
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -557,4 +700,26 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderWidth: 1, borderColor: C.outlineVariant, borderStyle: 'dashed',
   },
   revealRestText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
+  // ── Optional calendar tap-in at the reveal ──────────────────────────────────
+  calCard: {
+    marginTop: Spacing.lg, backgroundColor: C.background, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: C.outlineVariant, padding: Spacing.lg, gap: Spacing.md, ...Elevation.e1,
+  },
+  calCardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  calIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  calCardTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  calCardSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
+  calError: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.error, lineHeight: 17 },
+  calBtnRow: { gap: Spacing.sm, alignItems: 'center' },
+  calBtnPrimary: {
+    width: '100%', height: 48, backgroundColor: C.primary, borderRadius: Radius.lg,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  calBtnPrimaryText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.onPrimary },
+  calBtnSecondaryText: { fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.primary, paddingVertical: Spacing.xs },
+  calSuccessRow: {
+    marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  calSuccessText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text },
 })
