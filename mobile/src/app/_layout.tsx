@@ -229,6 +229,7 @@ function RootLayout() {
           <Stack.Screen name="shared-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="split-editor" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-history" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="progress-photos" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="session-detail" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-library" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-progress" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

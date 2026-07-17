@@ -16,7 +16,7 @@ import { CountUp } from '@/components/celebration'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
 import { HeroGlow } from '@/components/HeroGlow'
 import type {
-  Momentum, Readiness, Predictor, Heatmap, ForecastDay, OptimalWindow, JourneyEvent,
+  Momentum, Readiness, Predictor, Heatmap, OptimalWindow, JourneyEvent,
   FrequencySeries, FreqRange, MuscleBalance, StrengthTrend,
 } from '@/lib/fitnessInsights'
 import type { TempoScoreBreakdown } from '@/lib/tempoScore'
@@ -223,28 +223,6 @@ export function ConsistencyHeatmap({ heatmap, streak, delay = 0 }: { heatmap: He
       <Text style={s.heatCaption}>
         {heatmap.totalCompleted} sessions · best week {heatmap.bestWeekCount} · last {heatmap.weeks.length} weeks
       </Text>
-    </FadeInView>
-  )
-}
-
-// ── 6. Forecast strip ───────────────────────────────────────────────────────────
-
-export function ForecastStrip({ days, delay = 0 }: { days: ForecastDay[]; delay?: number }) {
-  const C = useTheme()
-  const s = useThemedStyles(makeStyles)
-  const dot = (level: ForecastDay['level']) => (level === 'good' ? C.readyHigh : level === 'moderate' ? C.readyMed : C.readyLow)
-  return (
-    <FadeInView style={s.card} delay={delay}>
-      <Text style={s.cardLabel}>WORKOUT FORECAST</Text>
-      <View style={s.forecastRow}>
-        {days.map((d) => (
-          <View key={d.date} style={s.forecastCell}>
-            <Text style={s.forecastDay}>{d.dayLabel}</Text>
-            <View style={[s.forecastDot, { backgroundColor: dot(d.level) }]} />
-            <Text style={s.forecastReason}>{d.reason}</Text>
-          </View>
-        ))}
-      </View>
     </FadeInView>
   )
 }
@@ -531,13 +509,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heatCol: { gap: 3, flex: 1 },
   heatCell: { width: '100%', aspectRatio: 1, borderRadius: 2, maxHeight: 14 },
   heatCaption: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary },
-
-  // Forecast
-  forecastRow: { flexDirection: 'row', gap: Spacing.sm },
-  forecastCell: { flex: 1, gap: 6, alignItems: 'center', backgroundColor: C.surfaceContainer, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: 6 },
-  forecastDay: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
-  forecastDot: { width: 12, height: 12, borderRadius: 6 },
-  forecastReason: { fontFamily: 'Inter_400Regular', fontSize: 10.5, color: C.textSecondary, textAlign: 'center', lineHeight: 14 },
 
   // Insights
   optimalRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },

@@ -2,7 +2,6 @@ import {
   computeMomentum,
   readinessFromHistory,
   optimalWindow,
-  workoutForecast,
   consistencyPredictor,
   successPatterns,
   consistencyHeatmap,
@@ -74,15 +73,6 @@ describe('optimalWindow', () => {
     const w = optimalWindow(times)
     expect(w.hasData).toBe(true)
     expect(w.windowLabel).toMatch(/PM/)
-  })
-})
-
-describe('workoutForecast', () => {
-  it('flags a third consecutive day as fatigue risk', () => {
-    const sessions = [s(TODAY, 'completed'), s(d(1), 'scheduled'), s(d(2), 'scheduled'), s(d(3), 'scheduled')]
-    const f = workoutForecast(sessions, TODAY, 3)
-    expect(f[0].level).toBe('moderate') // tomorrow = 2nd in a row
-    expect(f[1].level).toBe('risk') // 3rd in a row
   })
 })
 

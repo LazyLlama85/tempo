@@ -62,3 +62,25 @@ export async function progressPhotoUrl(
     return null
   }
 }
+
+/**
+ * Batch-resolve signed URLs for the progress-photo gallery — one storage call
+ * for N photos instead of N round-trips. Returns a path→url map; a path whose
+ * signing failed is simply omitted (the gallery skips it rather than crash).
+ */
+export async function progressPhotoUrls(
+  client: SupabaseClient,
+  paths: string[],
+): Promise<Record<string, string>> {
+  if (!paths.length) return {}
+  try {
+    const { data } = await client.storage.from(BUCKET).createSignedUrls(paths, 3600)
+    const out: Record<string, string> = {}
+    for (const row of data ?? []) {
+      if (row.signedUrl && !row.error) out[row.path ?? ''] = row.signedUrl
+    }
+    return out
+  } catch {
+    return {}
+  }
+}

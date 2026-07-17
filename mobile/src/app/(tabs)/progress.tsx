@@ -34,14 +34,16 @@ import type { BodyMeasurement } from '@/types'
 import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore'
 import {
   computeMomentum, readinessFromHistory, consistencyPredictor, consistencyHeatmap,
-  workoutForecast, optimalWindow, successPatterns, journeyTimeline, muscleBalance,
-  frequencySeries, strengthTrends, type FreqRange,
+  optimalWindow, successPatterns, journeyTimeline, muscleBalance,
+  frequencySeries, strengthTrends, muscleIntelligence, type FreqRange,
+  type MuscleStatus, type MuscleGroupIntel,
 } from '@/lib/fitnessInsights'
 import {
   SectionLabel, TempoScoreHero, ReadinessCard, MomentumCard, PredictorCard,
-  ConsistencyHeatmap, ForecastStrip, InsightsCard, JourneyTimeline,
+  ConsistencyHeatmap, InsightsCard, JourneyTimeline,
   FrequencyCard, MuscleBalanceCard, WeeklyReviewCard, StrengthProgressCard,
 } from '@/components/ProgressCards'
+import { MuscleMap, type MuscleGroup } from '@/components/MuscleMap'
 
 
 
@@ -64,7 +66,7 @@ export default function ProgressScreen() {
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
-  const { stats, workouts, logTimes, muscleSets, strengthSets, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { stats, workouts, logTimes, muscleSets, strengthSets, muscleTimeline, isLoading, isError, refetch } = useProgressStats(userId, period)
   const [freqRange, setFreqRange] = useState<FreqRange>('3M')
   const { locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
@@ -148,7 +150,6 @@ export default function ProgressScreen() {
       readiness: readinessFromHistory(workouts, logTimes, new Date()),
       predictor: consistencyPredictor(workouts, goal, todayStr),
       heatmap: consistencyHeatmap(workouts, todayStr, 17),
-      forecast: workoutForecast(workouts, todayStr, 3),
       optimal: optimalWindow(logTimes),
       patterns: successPatterns(workouts, logTimes, todayStr),
       journey: journeyTimeline(workouts, todayStr),
@@ -161,6 +162,19 @@ export default function ProgressScreen() {
     () => (workouts.length ? frequencySeries(workouts, todayStr, freqRange) : null),
     [workouts, todayStr, freqRange],
   )
+
+  // Body Intelligence, shown INLINE now (2026-07-17 — a founder report: "actually
+  // show the body intelligence, don't have to click on a button to open it").
+  // Reuses `muscleTimeline`, already returned by the same `useProgressStats` call
+  // above — zero new fetches. Full interactivity (view toggle, heatmap/rank modes,
+  // tap-to-select detail) still lives on /muscle-map; this is the same live
+  // status coloring, just visible without a tap.
+  const bodyIntelStatusByGroup = useMemo(() => {
+    const intel = muscleIntelligence(muscleTimeline, new Date())
+    const m: Partial<Record<MuscleGroup, MuscleStatus>> = {}
+    for (const g of intel.groups as MuscleGroupIntel[]) m[g.group as MuscleGroup] = g.status
+    return m
+  }, [muscleTimeline])
   const fmtW = (lbs: number) => `${displayWeight(lbs, unit)} ${unitLabel(unit)}`
 
   return (
@@ -306,25 +320,35 @@ export default function ProgressScreen() {
               </View>
             )}
 
-            {/* ── Coaching (new): forecast + behavioural insights ── */}
+            {/* ── Coaching (new): behavioural insights ── */}
             <SectionLabel title="Coaching" hint="What Tempo notices about you." />
-            {/* Body Intelligence — the muscle-map feature (free preview → Pro).
+            {/* Body Intelligence — shown inline now, not behind a tap (2026-07-17).
                 Hidden pre-activation (B3.2): it's a Fitbod-echo depth feature, not
                 something a day-1 user needs to be shown before the core loop lands. */}
             {activated && (
               <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map' as any)}>
-                <View style={styles.bodyIntelIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
-                <View style={{ flex: 1 }}>
+                <View style={styles.bodyIntelHead}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.bodyIntelTitle}>Body Intelligence</Text>
                     {proLocked && <ProBadge />}
                   </View>
-                  <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points</Text>
+                  <View style={styles.bodyIntelViewMore}>
+                    <Text style={styles.bodyIntelViewMoreText}>Full view</Text>
+                    <Ionicons name="chevron-forward" size={14} color={C.outline} />
+                  </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={C.outline} />
+                <MuscleMap
+                  view="front"
+                  statusByGroup={bodyIntelStatusByGroup}
+                  mode="status"
+                  selected={null}
+                  onSelect={() => router.push('/muscle-map' as any)}
+                  dimmed={proLocked}
+                  size={150}
+                />
+                <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points, at a glance.</Text>
               </PressableScale>
             )}
-            {insights && insights.forecast.length > 0 && <ForecastStrip days={insights.forecast} delay={40} />}
             {insights && (
               <InsightsCard
                 patterns={[...insights.patterns, insights.muscle.insight].filter((x): x is string => !!x)}
@@ -506,10 +530,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   streakCaption: { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 20 },
 
   statCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow },
-  bodyIntelCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e1 },
-  bodyIntelIcon: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  bodyIntelCard: { alignItems: 'center', gap: Spacing.sm, backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e1 },
+  bodyIntelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
+  bodyIntelViewMore: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  bodyIntelViewMoreText: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.outline },
   bodyIntelTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  bodyIntelSub: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
+  bodyIntelSub: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, marginTop: 1, textAlign: 'center' },
   statLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   statRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   statValue: { fontFamily: C.fontDisplay, fontSize: 36, color: C.text, letterSpacing: -1, lineHeight: 40 },

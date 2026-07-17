@@ -254,56 +254,6 @@ export function optimalWindow(logTimes: string[]): OptimalWindow {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 4. WORKOUT FORECAST — fatigue outlook for the next few days.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export interface ForecastDay {
-  date: string
-  dayLabel: string         // "Tomorrow", "Fri"
-  level: 'good' | 'moderate' | 'risk'
-  reason: string
-}
-
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-export function workoutForecast(sessions: StreakRow[], todayStr: string, days = 3): ForecastDay[] {
-  // A date "trains" if it's completed (past) or still scheduled (future).
-  const trains = new Set(
-    sessions
-      .filter((s) => s.status === 'completed' || s.status === 'scheduled')
-      .map((s) => s.planned_date),
-  )
-  const out: ForecastDay[] = []
-  for (let i = 1; i <= days; i++) {
-    const date = addDays(todayStr, i)
-    // Consecutive run of training days ending on `date` (inclusive), walking back.
-    let run = 0
-    let cur = date
-    while (trains.has(cur)) { run++; cur = addDays(cur, -1) }
-    const d = parseYmd(date)
-    const dayLabel = i === 1 ? 'Tomorrow' : WD[d.getDay()]
-
-    let level: ForecastDay['level']
-    let reason: string
-    if (!trains.has(date)) {
-      level = 'good'
-      reason = 'Rest / open day — great for a fresh session if you add one.'
-    } else if (run >= 3) {
-      level = 'risk'
-      reason = `${run} training days in a row — higher fatigue risk.`
-    } else if (run === 2) {
-      level = 'moderate'
-      reason = 'Back-to-back day — moderate fatigue expected.'
-    } else {
-      level = 'good'
-      reason = 'Well-rested — a strong day to train.'
-    }
-    out.push({ date, dayLabel, level, reason })
-  }
-  return out
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // 5. CONSISTENCY PREDICTOR — will they hit this week's goal?
 // ═══════════════════════════════════════════════════════════════════════════════
 

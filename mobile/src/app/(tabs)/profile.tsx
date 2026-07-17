@@ -641,6 +641,9 @@ export default function ProfileScreen() {
               <TouchableOpacity onPress={() => router.push('/(tabs)/progress')}>
                 <Text style={styles.sectionLink}>View trend</Text>
               </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/progress-photos' as any)}>
+                <Text style={styles.sectionLink}>Photos</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={openBody}>
                 <Text style={styles.sectionLink}>Log entry</Text>
               </TouchableOpacity>

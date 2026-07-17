@@ -10,9 +10,20 @@ describe('goalProjection — honest ETA math', () => {
   it('fat loss with no weight trend shows a "log your weight" prompt, not a bogus ETA', () => {
     const p = projectGoal({ goal: 'fat_loss', weightPerWeek: null, benchMax: null })
     expect(p?.headline).toBe('Log your weight to see your ETA')
+    // hasEta is false here specifically — callers must never label/display this
+    // as an actual "Goal ETA" (2026-07-17 fix: it used to show as one with no
+    // real countdown, which read as illogical).
+    expect(p?.hasEta).toBe(false)
     // A tiny/flat rate isn't enough signal either.
     expect(projectGoal({ goal: 'fat_loss', weightPerWeek: -0.05, benchMax: null })?.headline)
       .toBe('Log your weight to see your ETA')
+  })
+
+  it('every real projection sets hasEta true', () => {
+    expect(projectGoal({ goal: 'fat_loss', weightPerWeek: -0.8, benchMax: null })?.hasEta).toBe(true)
+    expect(projectGoal({ goal: 'muscle_gain', weightPerWeek: 0.25, benchMax: null })?.hasEta).toBe(true)
+    expect(projectGoal({ goal: 'strength', experience: 'intermediate', weightPerWeek: null, benchMax: 200 })?.hasEta).toBe(true)
+    expect(projectGoal({ goal: 'general_fitness', weightPerWeek: 0.5, benchMax: null })?.hasEta).toBe(true)
   })
 
   it('muscle gain: weeks to add 5 lbs of bodyweight at the current rate', () => {

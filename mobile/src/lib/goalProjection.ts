@@ -12,6 +12,11 @@ export interface GoalProjection {
   sub: string              // the basis, e.g. "At your current pace of −0.8 lb/week"
   pct: number | null       // optional progress toward the target (0–100)
   icon: string             // Ionicons name
+  // False only for the "not enough signal yet" fallback (headline has no real
+  // countdown in it) — callers should treat that case as a data-logging prompt,
+  // never label/display it as an actual ETA (2026-07-17: a founder report found
+  // the Home banner showing "Goal ETA" with no real countdown "illogical").
+  hasEta: boolean
 }
 
 // Weekly strength progression assumed for a main lift, by training age.
@@ -38,16 +43,16 @@ export function projectGoal(args: {
   if (goal === 'fat_loss') {
     if (weightPerWeek != null && weightPerWeek < -0.1) {
       const weeks = Math.max(1, Math.ceil(10 / Math.abs(weightPerWeek)))
-      return { headline: `${weeks} weeks to lose 10 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'trending-down-outline' }
+      return { headline: `${weeks} weeks to lose 10 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'trending-down-outline', hasEta: true }
     }
-    return { headline: 'Log your weight to see your ETA', sub: 'Tempo projects your fat-loss timeline from your trend.', pct: null, icon: 'scale-outline' }
+    return { headline: 'Log your weight to see your ETA', sub: 'Tempo projects your fat-loss timeline from your trend.', pct: null, icon: 'scale-outline', hasEta: false }
   }
 
   // ── Muscle gain: weeks to add 5 lbs of bodyweight at the current rate ────────
   if (goal === 'muscle_gain') {
     if (weightPerWeek != null && weightPerWeek > 0.05) {
       const weeks = Math.max(1, Math.ceil(5 / weightPerWeek))
-      return { headline: `${weeks} weeks to gain 5 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'trending-up-outline' }
+      return { headline: `${weeks} weeks to gain 5 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'trending-up-outline', hasEta: true }
     }
     // Fall through to a strength projection if we have a max.
   }
@@ -58,14 +63,14 @@ export function projectGoal(args: {
     const rate = STRENGTH_RATE[experience]
     const weeks = Math.max(1, Math.ceil((target - benchMax) / rate))
     const pct = Math.round((benchMax / target) * 100)
-    return { headline: `${weeks} weeks to a projected ${target} bench`, sub: `From your ${benchMax} lb max at steady progression`, pct, icon: 'barbell-outline' }
+    return { headline: `${weeks} weeks to a projected ${target} bench`, sub: `From your ${benchMax} lb max at steady progression`, pct, icon: 'barbell-outline', hasEta: true }
   }
 
   // ── General fitness / not enough signal: lean on the weight trend if any ──────
   if (weightPerWeek != null && Math.abs(weightPerWeek) >= 0.1) {
     const dir = weightPerWeek < 0 ? 'lose' : 'gain'
     const weeks = Math.max(1, Math.ceil(5 / Math.abs(weightPerWeek)))
-    return { headline: `${weeks} weeks to ${dir} 5 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'fitness-outline' }
+    return { headline: `${weeks} weeks to ${dir} 5 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'fitness-outline', hasEta: true }
   }
 
   return null

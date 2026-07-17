@@ -113,18 +113,21 @@ export function consecutiveTrainingDays(trainingDates: Set<string>, today: Date)
 export interface RestAdvice { title: string; body: string }
 
 // A clear, non-naggy rest-day recommendation. Rest is when muscle is built, so after
-// a few days straight we either affirm a rest day or gently suggest one.
+// a genuinely long run with no rest, we affirm a rest day IF one is already open today.
+//
+// 2026-07-17 (founder report: "don't push rest days too much, some people only need
+// one rest day a week, don't discourage from workouts"): two changes from the
+// original thresholds. (1) Raised 3→6 consecutive days before affirming a rest
+// day — a 6-day/week trainer with exactly one rest day (the common, healthy
+// pattern this complaint names) was getting nagged every single week at the old
+// threshold. (2) Removed the `trainsToday` branch entirely — it used to suggest
+// resting even on a day the user already has a workout scheduled, which is
+// actively discouraging a planned session, not just affirming an open one.
 export function restDayAdvice(consecutiveDays: number, trainsToday: boolean): RestAdvice | null {
-  if (consecutiveDays >= 3 && !trainsToday) {
+  if (consecutiveDays >= 6 && !trainsToday) {
     return {
       title: 'Rest day',
       body: `You've trained ${consecutiveDays} days straight. Today's recovery is where those gains actually lock in — take it.`,
-    }
-  }
-  if (consecutiveDays >= 4 && trainsToday) {
-    return {
-      title: 'Consider a rest day',
-      body: `That's ${consecutiveDays} days in a row. A recovery day now will leave you stronger for the rest of the week.`,
     }
   }
   return null

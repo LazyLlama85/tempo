@@ -1309,9 +1309,15 @@ export default function ScheduleScreen() {
       },
     },
     // 6 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
+    // Only eligible when there's a REAL countdown (projection.hasEta) — the
+    // "not enough signal yet" fallback ("Log your weight to see your ETA") used
+    // to pass this same check and render as a "Goal ETA" chip with no actual ETA
+    // in it, which a founder report called out as illogical. That prompt still
+    // exists contextually elsewhere (Profile → Body Stats already asks for a
+    // weigh-in); it doesn't need to also masquerade as this banner.
     {
       id: 'goal',
-      eligible: !!projection,
+      eligible: !!projection?.hasEta,
       chipOnly: true,
       primary: () => projection ? (
         <View style={styles.goalCard}>
@@ -1447,10 +1453,15 @@ export default function ScheduleScreen() {
       >
         {/* Today's-context strip — at most ONE full banner (the top-priority eligible
             item) plus a swipeable chip row for the rest. Replaces the old stack of up
-            to eight independently-rendered banners. */}
-        {primaryContext && (
+            to eight independently-rendered banners.
+            Bug fix (2026-07-17): this used to gate on `primaryContext` alone, so on a
+            day with no banner-eligible item (no missed/reconnect/rest-advice), every
+            chip-only item — Goal ETA, travel mode, block phase, weekly report — was
+            silently hidden too, even though each was individually eligible. Now shows
+            whenever there's a banner OR at least one chip. */}
+        {(primaryContext || overflowContext.length > 0) && (
           <View style={styles.contextStrip}>
-            {primaryContext.primary()}
+            {primaryContext?.primary()}
             {overflowContext.length > 0 && (
               <ScrollView
                 horizontal
@@ -1545,6 +1556,14 @@ export default function ScheduleScreen() {
               <Text style={styles.eyebrow}>TODAY</Text>
               <Text style={styles.headline}>{heroHeadline}</Text>
 
+              {/* Today counted — the streak reads hot/active here, not muted. */}
+              {stats.streak > 0 && (
+                <View style={[styles.heroReadyChip, { alignSelf: 'flex-start' }]}>
+                  <Ionicons name="flame" size={12} color={C.ember} />
+                  <Text style={[styles.heroReadyText, { color: C.ember }]}>{stats.streak}-session streak</Text>
+                </View>
+              )}
+
               <FadeInView style={styles.completeCard}>
                 <View style={styles.completeCheck}>
                   <Ionicons name="checkmark" size={26} color={C.onPrimary} />
@@ -1598,6 +1617,26 @@ export default function ScheduleScreen() {
                   the same weight. */}
               <Text style={styles.eyebrow}>{heroWorkout ? 'SCHEDULED TODAY' : 'TODAY'}</Text>
               <Text style={styles.headline}>{heroHeadline}</Text>
+
+              {/* Readiness + streak — the two "should I push today" signals, at a
+                  glance, without needing to visit Progress first. Readiness taps
+                  through to Progress's full readiness card; the streak stays
+                  visible (never hidden, never reset just for today) but reads as
+                  muted here specifically because this branch only ever renders
+                  BEFORE today's session is done — a founder ask: keep the number,
+                  just make it look "paused, not broken" until it's earned. */}
+              <View style={styles.heroMetaRow}>
+                <PressableScale style={styles.heroReadyChip} onPress={() => router.push('/(tabs)/progress')} scaleTo={0.95}>
+                  <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(readiness.score, C) }]} />
+                  <Text style={styles.heroReadyText}>{readiness.score}% ready · {intensity.label.toLowerCase()}</Text>
+                </PressableScale>
+                {stats.streak > 0 && (
+                  <View style={[styles.heroReadyChip, styles.heroStreakChipMuted]}>
+                    <Ionicons name="flame" size={12} color={C.outline} />
+                    <Text style={[styles.heroReadyText, { color: C.outline }]}>{stats.streak}-session streak</Text>
+                  </View>
+                )}
+              </View>
 
               <TimelineRail>
                 {todayItems.map((item, idx) => {
@@ -2128,11 +2167,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   workoutTitleDone: { textDecorationLine: 'line-through', color: C.textSecondary },
 
   // ── Hero additions: readiness chip, tap-to-expand, "lacking time?" ──────────
+  heroMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: 2 },
   heroReadyChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
     paddingHorizontal: Spacing.sm, paddingVertical: 5,
   },
+  // Muted, not hidden — the streak count itself never changes just because
+  // today isn't done yet; only the color says "not earned yet today".
+  heroStreakChipMuted: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.outlineVariant },
   heroReadyDot: { width: 7, height: 7, borderRadius: Radius.full },
   heroReadyText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },

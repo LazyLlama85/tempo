@@ -334,11 +334,34 @@ you moving."*
   existing `skipWorkout` path) and routes to the existing `/quick-workout` generator for a real
   15-minute session, confirmed via `OptionSheet` first — deliberately NOT a new "shrink this session"
   abbreviation engine, which would have been much larger, unrequested scope.
-  **Today's-context strip** (`contextItems` array, unchanged from before this redesign): the
+  **Bug fix (2026-07-17):** the readiness chip described above was computed (`readiness`/
+  `intensity` via `useMemo`) but had **zero JSX consumer** — it never actually rendered anywhere,
+  silently, since whichever pass built it. Now genuinely rendered in a `heroMetaRow` right under the
+  headline, alongside a **streak indicator** the founder specifically asked for: the streak number
+  (`stats.streak`, from `lib/streak.ts`'s `sessionStreak()` — confirmed correct already: it only
+  resets when a PRIOR day is truly missed, never just because today hasn't happened yet) now shows
+  in a **muted/outlined style** whenever this branch renders (which only happens before today's
+  session is done), and in the **hot ember color** in the `dayComplete` branch — "keep the number,
+  just make it look paused-not-broken until it's earned." **Today's-context strip** (`contextItems` array, unchanged from before this redesign): the
   contextual banners — missed-workout reschedule, Google-reconnect, travel-mode, rest-day advice,
   block-phase (mesocycle position), goal-countdown ETA, weekly-report nudge (Sun/Mon), Quick Workout
   suggestion (`lib/quickSuggestion`) — stay priority-resolved so at most one shows as a full banner,
-  the rest as swipeable chips. **Weekly-target card** moved to directly under the timeline (the
+  the rest as swipeable chips. **Bug fix (2026-07-17):** the whole strip — banner AND the chip row —
+  used to be gated on `primaryContext` alone, so on any day with no banner-eligible item (no missed/
+  reconnect/rest-advice), every `chipOnly` item (goal ETA, travel mode, block phase, weekly report)
+  was silently hidden too, even though each was individually eligible; now shows whenever there's a
+  banner OR at least one chip. **Goal ETA fixed the same day** (founder: "it says goal ETA but there
+  isn't even an ETA… illogical"): `lib/goalProjection.ts`'s `GoalProjection` gained a `hasEta` field —
+  false only for the "not enough signal yet" fallback (`"Log your weight to see your ETA"`, no real
+  countdown in it), true for every genuine projection. The Home chip's eligibility now requires
+  `projection?.hasEta`, so the no-signal placeholder never masquerades as an actual "Goal ETA" again.
+  **Rest-day advice re-tuned the same day** (founder: "don't push rest days too much, some people
+  only need one rest day a week, don't discourage from workouts"): `lib/trainingLoad.ts`'s
+  `restDayAdvice` raised its "affirm a rest day" threshold from 3→6 consecutive training days (a
+  6-day/week trainer with one rest day was getting nagged every week at the old threshold), and
+  dropped the "consider a rest day" branch entirely — it used to fire even on a day the user already
+  has a workout scheduled, which is actively discouraging a planned session, not just affirming an
+  open one. **Weekly-target card** moved to directly under the timeline (the
   audit: *"the single best retention mechanic on the screen — keep it prominent"*) instead of above
   everything else. **Empty-day states simplified**: rest day with a real next session ahead shows
   the existing "YOUR PLAN / next workout" card; a genuinely empty plan (no session today or ahead)
@@ -561,12 +584,22 @@ you moving."*
   loading). Added on top (from `lib/fitnessInsights` + `components/ProgressCards`): a **Tempo Score
   hero** with "why" bars, **Readiness** (history-based, works with no health hardware), **Momentum**,
   a weekly **consistency predictor**, a GitHub-style **consistency heatmap**, a **Weekly Review** card
-  (opens the full `weekly-report`), a 3-day **workout forecast**, **Tempo Insights** (optimal-window +
-  behavioural patterns + muscle-balance nudge), a **training-frequency** graph (1M–1Y range), a
-  **muscle-balance** radar (`react-native-svg`), a **strength-progress** top-movers list (→
-  `exercise-progress`), and a **journey timeline**. Data comes from `useProgressStats` (extended
-  additively to also expose `logTimes` + `muscleSets` + `strengthSets` from its existing set-log query
-  — no new fetches). Profile no longer duplicates any of the performance cards (see below).
+  (opens the full `weekly-report`), **Tempo Insights** (optimal-window + behavioural patterns +
+  muscle-balance nudge), a **training-frequency** graph (1M–1Y range), a **muscle-balance** radar
+  (`react-native-svg`), a **strength-progress** top-movers list (→ `exercise-progress`), and a
+  **journey timeline**. Data comes from `useProgressStats` (extended additively to also expose
+  `logTimes` + `muscleSets` + `strengthSets` + `muscleTimeline` from its existing set-log query — no
+  new fetches). Profile no longer duplicates any of the performance cards (see below).
+  **Removed (2026-07-17, founder: "completely useless"):** the 3-day workout forecast
+  (`workoutForecast()`/`ForecastStrip` — a fatigue-risk outlook that, ironically, flagged the exact
+  "3+ days straight" pattern as risk the same way the old rest-day nag did) — deleted the function,
+  component, and its dedicated test, not just the render call. **Body Intelligence is now shown
+  INLINE** (founder: "actually show the body intelligence, don't have to click on a button to open
+  it") — the Coaching section's card now renders a live, real `<MuscleMap>` preview (status-colored,
+  reusing `muscleIntelligence(muscleTimeline, …)` — the SAME `muscleTimeline` field, zero new
+  queries) directly on the card instead of a button-only teaser; a "Full view" chevron still links to
+  `/muscle-map` for the interactive experience (view toggle, heatmap/rank modes, tap-to-select
+  detail), which stays a dedicated screen rather than being fully duplicated inline.
 - **Profile** (`(tabs)/profile.tsx`): identity + history surface — **trimmed to just that in the
   2026-07-16/17 Settings split** (below). The **level/XP hero** shows a **Pro badge** (gold, when
   `useProAccess().isPro`), a **streak chip**, and **member-since**, plus a new **header gear icon**
@@ -758,7 +791,7 @@ aware):**
 - **`celebration`** — `ConfettiBurst` (one-shot, tasteful, auto-unmounts) + `CountUp` (stats tick
   up to their value; lands on the final number even if interrupted).
 - **`ProgressCards`** — the Fitness Intelligence dashboard cards (`TempoScoreHero`, `ReadinessCard`,
-  `MomentumCard`, `PredictorCard`, `ConsistencyHeatmap`, `ForecastStrip`, `InsightsCard`,
+  `MomentumCard`, `PredictorCard`, `ConsistencyHeatmap`, `InsightsCard`,
   `JourneyTimeline`, `SectionLabel`). Pure presentational — fed pre-computed `lib/fitnessInsights`
   outputs by the Progress screen; reuse `SvgProgressRing`/`CountUp`/`FadeInView`/`PressableScale` and
   the new `glass`/`Elevation`/`metricHero` tokens so they match the rest of the app.
@@ -1109,11 +1142,19 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   exercises the current gear supports, stashing the original in `scheduled_workouts.travel_restore`
   and restoring it exactly when travel ends; runs on app open and after save/clear).
 - **Body & progress:** `bodyMeasurements` (history + weight/body-fat/waist trend math),
-  `progressPhotos` (image pick + private upload), `wrapped` (share cards: weekly/streak/PR/goal/
-  monthVolume/topLifts/weightTrend), `achievements`, `avatar`.
+  `progressPhotos` (image pick + private upload; **`progressPhotoUrls` batch-resolves signed URLs
+  for N photos in one Storage call**, backing the new **`app/progress-photos.tsx`** gallery —
+  2026-07-17, founder: "have a way to view the weight progress with pictures in order, so those
+  pictures don't just disappear." Every `body_measurements` row with a `photo_url` is fetched via the
+  existing `fetchMeasurements`, batch-signed, and shown as a tap-to-enlarge grid, newest first;
+  reachable from Profile → Body Stats' new "Photos" link. Previously there was capture-only, no way
+  to browse past photos — they were saved but effectively invisible after the fact), `wrapped`
+  (share cards: weekly/streak/PR/goal/monthVolume/topLifts/weightTrend), `achievements`, `avatar`.
 - **Insights & motivation:** `weeklyReport` (the Sunday recap engine — workouts/volume/strength/
   weight/consistency), `prs` (per-session weight/e1rm/rep PR detection), `goalProjection`
-  (goal-countdown ETA from weight trend + strength max), **`streak`** (`sessionStreak` — the one
+  (goal-countdown ETA from weight trend + strength max — `GoalProjection` carries a `hasEta` flag,
+  2026-07-17, false only for the "log your weight to see your ETA" no-signal fallback, so callers can
+  tell a real countdown from a data-logging prompt), **`streak`** (`sessionStreak` — the one
   streak definition, shared by stats/wrapped/achievements: **completed sessions across consecutive
   training days**. It's **day-aware and source-aware**: rest days never break it; a day you completed
   ANY session counts even if another session that day was missed/skipped (e.g. the plan slot you
@@ -1140,7 +1181,7 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   sustainability score off `tempoScore`+`streak`), `readinessFromHistory` (a check-in-free readiness
   from recovery gap + `trainingLoad.consecutiveTrainingDays`, complementing `recovery.ts`),
   `optimalWindow` / `successPatterns` (real time-of-day + weekday patterns from log timestamps),
-  `workoutForecast` (3-day fatigue outlook), `consistencyPredictor` (weekly-goal projection),
+  `consistencyPredictor` (weekly-goal projection),
   `consistencyHeatmap` (GitHub-style adherence grid), `frequencySeries`, `muscleBalance`,
   `strengthTrends` (per-lift start→now top movers), `journeyTimeline`, `intensityFromReadiness` +
   `muscleRecovery` (also feeds Plan's session-card readiness chip — see §3.2), and
