@@ -122,6 +122,36 @@ you moving."*
   already applied to B3.2's progressive disclosure. `plan.tsx`'s `first_workout_started`/
   `first_set_logged` analytics still key off the same local flag (lower stakes — no user-visible text,
   just funnel accuracy) and weren't changed in this pass; a future cleanup could align them too.
+  **Onboarding Phase 7 additions (2026-07-17):** the Basics screen's experience
+  card now shows the years-training range next to each level (Beginner 0-1yr /
+  Intermediate 1-3yr / Advanced 3+yr) on both the segmented tabs and the preview
+  card — a concrete self-placement question instead of pure vibes. A **4th Basics
+  card** ("How do you want to train?") asks Guided vs. "I'll build my own,"
+  shown to **new users only** (a replan always regenerates, so offering a
+  no-generation path there would leave the old plan's future sessions unretired
+  instead of replaced — `goal.tsx`'s `isReplan`/`cardCount` gate). Choosing
+  "build my own" carries a `buildMode=custom` param through
+  `schedule→availability→plan-preview`; `plan-preview.tsx` skips `generatePlan`/
+  `autoScheduleUpcoming`/the week-reveal entirely but still saves goal/experience/
+  equipment/schedule and flips `onboarding_complete` (an onboarded account with no
+  plan/split yet is already a supported state — same as any existing user before
+  their first Change Plan), then routes through `profile-setup` into
+  `/split-editor` — pushed on top of `(tabs)` (not `replace`d), the exact same
+  push-while-in-tabs pattern `my-splits.tsx` already uses, so its own Close button
+  lands correctly on `/welcome`/`(tabs)` with no new navigation behavior. `schedule.tsx`
+  also gained an **optional cardio-finisher toggle**, shown only for
+  `muscle_gain`/`strength` (the two goals whose templates carry zero cardio by
+  design — asking elsewhere would be a question that does nothing).
+  `user_profiles.include_cardio` (new column, applied) threads into
+  `lib/generatePlan.ts`'s `withCardio()`, which appends an **optional** trailing
+  CARDIO slot (dropped first under a tight time budget, same as every other
+  optional slot) — wired at both call sites that build session templates
+  (`generatePlan` itself and `restampFuturePlanForExperience`) so they can't drift
+  apart. A dependency-free **`components/Slider.tsx`** (PanResponder-based, no
+  native module) replaced profile-setup's plain weight `TextInput` with a
+  drag-to-set control (big number + slider, "type an exact number" fallback for
+  precision) — an untouched slider never writes a value, so leaving it alone
+  still skips the optional weigh-in exactly like before.
   **Profile → Replay App Tour** re-arms it (and also clears the
   `how_tempo_works` one-off tip below, via its localStorage key directly). Analytics:
   `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
