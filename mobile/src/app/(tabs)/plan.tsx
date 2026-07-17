@@ -1637,6 +1637,22 @@ export default function WorkoutsScreen() {
                 <View style={styles.gridBody}>
                   {monthGrid.map(day => renderDayCell(day, true))}
                 </View>
+                {/* The dots are the only information in a month of numbers —
+                    without this they're an unexplained colour code. */}
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dayDot, styles.dotWorkout]} />
+                    <Text style={styles.legendText}>Scheduled</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dayDot, styles.dotDone]} />
+                    <Text style={styles.legendText}>Done</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dayDot, styles.dotMissed]} />
+                    <Text style={styles.legendText}>Missed</Text>
+                  </View>
+                </View>
               </View>
             ) : (
               <View style={styles.weekStrip}>
@@ -1737,11 +1753,16 @@ export default function WorkoutsScreen() {
             // runner's own `workout` state always resolves to TODAY's session,
             // so a past/future day never gets Start/Resume treatment here).
             <View style={styles.dayCard}>
+              {/* Which day you're actually looking at — "Rest day" with no date
+                  gives no clue which cell you tapped. */}
+              <Text style={styles.dayCardEyebrow}>
+                {selDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()}
+                {selectedDayWorkout
+                  ? ` · ${selectedDayWorkout.status === 'completed' ? 'COMPLETED' : selectedDayWorkout.status === 'missed' ? 'MISSED' : 'SCHEDULED'}`
+                  : ''}
+              </Text>
               {selectedDayWorkout ? (
                 <>
-                  <Text style={styles.dayCardEyebrow}>
-                    {selectedDayWorkout.status === 'completed' ? 'COMPLETED' : selectedDayWorkout.status === 'missed' ? 'MISSED' : 'SCHEDULED'}
-                  </Text>
                   <Text style={styles.dayCardTitle}>{selectedDayWorkout.focus}</Text>
                   <Text style={styles.dayCardMeta}>
                     {formatTime(selectedDayWorkout.planned_start_time)} · {selectedDayWorkout.planned_duration_min} min ·{' '}
@@ -2649,6 +2670,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   gridBody: { flexDirection: 'row', flexWrap: 'wrap' },
   gridCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, gap: 3 },
   dayPillGrid: { width: 34, height: 34 },
+  legendRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: Spacing.md,
+    marginTop: Spacing.sm, paddingTop: Spacing.sm,
+    borderTopWidth: 1, borderTopColor: C.outlineVariant,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline },
 
   // ── Selected-day summary (non-today) ─────────────────────────────────────────
   dayCard: {

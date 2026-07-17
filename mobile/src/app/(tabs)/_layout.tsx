@@ -37,7 +37,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Today' }} />
-      <Tabs.Screen name="plan" options={{ title: 'Train' }} />
+      <Tabs.Screen name="plan" options={{ title: 'Plan' }} />
       <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
       <Tabs.Screen name="profile" options={{ title: 'You' }} />
     </Tabs>

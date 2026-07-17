@@ -202,6 +202,28 @@ you moving."*
   This supersedes the same-day's first pass (`DayTimelineStrip`, a horizontal ruler above the list)
   — the founder's own device screenshot showed it reading as a weak afterthought, so it's gone,
   replaced by making the card list itself the timeline.
+  **Hierarchy pass (2026-07-16, after the founder's device review of the first attempt):** the
+  first version put a rail next to the *existing dense card* and changed nothing else — the founder
+  correctly called it noise with no hierarchy ("too many elements competing at the same size and
+  intensity"). The structural fix: **the timeline is a DISPLAY; the action bar is separate and sits
+  BELOW it** (matching the reference design, where `Start Session` is outside the timeline entirely).
+  So `renderWorkout` now renders only status/title/one meta line, and a single `renderHeroActions`
+  bar underneath the whole timeline owns the primary CTA + focus caption + the "lacking time?" link.
+  Both read the same `workoutState(w)` helper so display and action can't disagree about what state
+  today's session is in. Secondary actions (Add to Calendar, Details, Edit, Skip) moved into the
+  tap-to-expand state — one tap away, **not removed**. Added an **eyebrow + big headline**
+  ("SCHEDULED TODAY" / "Your Window to Build Muscle", the goal in the user's own language) as the
+  hierarchy anchor. Two real bugs fixed in the same pass: the readiness chip and the primary glow
+  were both rendering on **completed** workouts — readiness advice about a decision already made,
+  and a finished session as the loudest thing on screen; a done hero now drops its glow
+  (`heroCardDone`) and the action bar becomes a calm "Today's training is done." **Context strip:**
+  `ContextItem` gained `chipOnly`, implementing the audit's explicit "demote goal countdown,
+  block-phase, and 3 of the 4 banner types → one calm chip row" — goal/block/report/travel can now
+  never take the banner slot (they were out-shouting today's session at the top of the screen); the
+  banner is reserved for something needing an ACTION or reporting something BROKEN (missed,
+  calendar-disconnected, welcome-back). Their `primary()` renderers are intentionally kept (dead but
+  one flag-flip from being re-promoted). **Weekly target** rebuilt: the old ring + bar showed the
+  same number twice — now one bar, a `N / target` count, and a line that says where you stand.
   **Hero card gets three additions** (still the same `renderWorkout` function, hero-branch only):
   a **readiness chip** ("88% ready · go hard," reusing `readinessFromHistory`/`intensityFromReadiness`
   off the SAME `useProgressStats(userId)` call Home already made — zero new queries — tapping through
@@ -252,6 +274,9 @@ you moving."*
   old full Splits list. Then **LIBRARY & TOOLS**: three simple navigation rows (Exercise Library,
   Manage Workouts, History) — not an inline searchable list; that removed the old segmented
   Workouts view's own template-browsing UI, since `my-workouts` already does that job.
+  The `[Week | Month]` month grid carries a **dot legend** (Scheduled / Done / Missed) — without it
+  a month of numbers is an unexplained colour code — and the selected-day card names the day it's
+  showing ("THURSDAY, JUL 16 · SCHEDULED"), since "Rest day" alone gave no clue which cell you tapped.
   **The old 4-way segmented control (`components/TrainSegments.tsx`: Session/Readiness/Splits/
   Workouts) is gone, file deleted** — none of its non-Session segments survived in a form the new
   design still needed: **Readiness** moved to a chip on the session card (tapping through to

@@ -16,7 +16,6 @@ import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/them
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
-import { AnimatedRing } from '@/components/AnimatedRing'
 import { EmptyState } from '@/components/EmptyState'
 import { TimelineRail, GapRow, RAIL_COLUMN_WIDTH } from '@/components/DayTimeline'
 import { buildDayGaps, type TimelineItem } from '@/lib/dayTimeline'
@@ -126,6 +125,13 @@ function formatTime(t: string): string {
   return `${h % 12 || 12}:${mStr} ${h >= 12 ? 'PM' : 'AM'}`
 }
 
+// Minutes-since-midnight → '7:00 AM' (for a computed end time).
+function formatMin(min: number): string {
+  const m = ((min % 1440) + 1440) % 1440
+  const h = Math.floor(m / 60)
+  return `${h % 12 || 12}:${String(m % 60).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
+}
+
 // Date → '7:00 AM' for calendar events on the timeline.
 function time12(d: Date): string {
   let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12
@@ -188,9 +194,19 @@ interface HeroPreviewExercise {
 // exactly — this change only controls how many show at once and in what form, never
 // WHEN a banner is allowed to appear. Array order = priority (first eligible wins the
 // banner slot).
+//
+// `chipOnly` (2026-07-16) implements the audit's explicit ask — "Remove/demote: goal
+// countdown, block-phase card, and 3 of the 4 context banner types → one calm chip
+// row." A chipOnly item can never take the banner slot, however eligible it is; it
+// only ever renders as a chip. The rule of thumb for which: the banner is reserved
+// for something that needs an ACTION or reports something BROKEN (missed session,
+// calendar disconnected, welcome-back). Purely informational/motivational context
+// (goal ETA, mesocycle phase, weekly report, travel mode) is a chip — it was
+// out-shouting today's actual session at the top of the screen.
 type ContextItem = {
   id: string
   eligible: boolean
+  chipOnly?: boolean
   primary: () => ReactNode
   chip: { icon: IconName; label: string; tint: string; onPress: () => void }
 }
@@ -620,6 +636,18 @@ export default function ScheduleScreen() {
     [heroPreviewExercises, heroWorkout?.focus],
   )
 
+  // The headline — states what today's session is FOR, in the user's own goal
+  // language ("Your Window to Build Muscle"), not the focus label the card
+  // below already shows. Falls back to something true when no goal is set,
+  // rather than inventing one.
+  const heroHeadline = useMemo(() => {
+    if (!heroWorkout) return 'Your day at a glance'
+    if (heroWorkout.status === 'completed') return 'Today is done.'
+    if (heroWorkout.status === 'missed') return 'Let’s find a new slot.'
+    const goal = profile?.goal ? GOAL_LABELS[profile.goal] : null
+    return goal ? `Your Window to ${goal}` : 'Your Window to Train'
+  }, [heroWorkout, profile?.goal])
+
   // ── Actions ──────────────────────────────────────────────────────────────--
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -819,67 +847,105 @@ export default function ScheduleScreen() {
     )
   }
 
-  function renderWorkout(w: ScheduledWorkout, hero: boolean) {
+  // Everything the hero's state implies, in one place — read by BOTH the
+  // timeline block (which only *displays*) and the action bar below the
+  // timeline (which *acts*). Keeping this one function means the two can't
+  // disagree about what state today's session is in.
+  function workoutState(w: ScheduledWorkout) {
     const done = w.status === 'completed'
     const missed = w.status === 'missed'
     const overdue = isOverdueWorkout(w, nowMs, todayStr)
     const conflict = !done && !overdue ? conflictingEvent(w, events) : null
     const attention = overdue || missed || !!conflict
-    // "Early" = the scheduled time is still more than ~45 min away (or it's a future
-    // day). You can still train now, but the button says "Do it now instead" so it
-    // doesn't pretend it's go-time.
+    // "Early" = the scheduled time is still more than ~45 min away. You can
+    // still train now, but the button says "Do it now instead" so it doesn't
+    // pretend it's go-time.
     const early = !done && !attention && (workoutStartMs(w) - nowMs) / 60000 > 45
-    const soft = attention || early
     const accent = done ? C.success : missed ? C.error : attention ? C.ember : C.primary
+    return { done, missed, overdue, conflict, attention, early, soft: attention || early, accent }
+  }
+
+  // A timeline block: DISPLAY ONLY. The old version crammed the badge, a
+  // readiness chip, three meta chips, Start, "lacking time?", Add-to-Calendar,
+  // Details and Edit all inside this card — nine competing elements, which is
+  // exactly why the screen read as noise with no hierarchy. Actions now live in
+  // ONE bar below the whole timeline (`renderHeroActions`); secondary actions
+  // are one tap away inside the expanded state. Nothing was removed.
+  function renderWorkout(w: ScheduledWorkout, hero: boolean) {
+    const { done, missed, overdue, conflict, attention, accent } = workoutState(w)
+    const endMin = minOfTime(w.planned_start_time) + w.planned_duration_min
+    const timeRange = `${formatTime(w.planned_start_time)} – ${formatMin(endMin)}`
+    const origin = workoutOrigin(w.source)
+    // A status badge only when it actually says something. "TODAY'S WORKOUT" on
+    // the one obviously-primary card was pure noise.
+    const badgeText = done ? 'DONE' : missed ? 'MISSED' : overdue ? 'STILL ON FOR THIS?' : conflict ? 'CALENDAR CONFLICT' : null
+
+    const Card = hero ? PressableScale : View
+    const cardProps = hero
+      ? {
+          scaleTo: 0.99,
+          onPress: () => setHeroExpanded(v => !v),
+          accessibilityRole: 'button' as const,
+          accessibilityLabel: heroExpanded ? 'Collapse workout details' : 'Show exercise list and why this workout',
+        }
+      : {}
 
     return (
       <View style={styles.row}>
-        <Text style={[styles.railTime, styles.railTimeActive, { color: accent }]} numberOfLines={1}>
+        <Text style={[styles.railTime, hero && styles.railTimeActive, hero && { color: accent }]} numberOfLines={1}>
           {formatTime(w.planned_start_time)}
         </Text>
-        <View collapsable={false} style={[hero ? styles.heroCard : styles.workoutCard, done && styles.workoutCardDone, attention && styles.workoutCardAttn, !hero && { borderLeftColor: accent }]}>
-          {/* Faux-gradient glow: a soft accent blob behind the hero's content */}
+        <Card
+          collapsable={false}
+          style={[
+            hero ? styles.heroCard : styles.workoutCard,
+            // A finished session recedes — it is not the loudest thing on the
+            // screen. The glow is reserved for work still ahead of you.
+            hero && done && styles.heroCardDone,
+            done && styles.workoutCardDone,
+            attention && styles.workoutCardAttn,
+            !hero && { borderLeftColor: accent },
+          ]}
+          {...cardProps}
+        >
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroBlob} />}
           {hero && !done && !attention && <View pointerEvents="none" style={styles.heroWash} />}
 
-          <View style={styles.workoutTop}>
-            <View style={[styles.badge, done ? styles.badgeDone : missed ? styles.badgeMissed : attention ? styles.badgeAttn : styles.badgeWorkout]}>
-              <Ionicons name={done ? 'checkmark' : missed ? 'close-circle' : overdue ? 'alert-circle' : conflict ? 'warning' : 'flash'} size={11} color={accent} />
-              <Text style={[styles.badgeText, { color: accent }]}>
-                {done ? 'DONE' : missed ? 'MISSED' : overdue ? 'STILL ON FOR THIS?' : conflict ? 'CALENDAR CONFLICT' : hero ? "TODAY'S WORKOUT" : 'WORKOUT'}
-              </Text>
+          {badgeText && (
+            <View style={styles.workoutTop}>
+              <View style={[styles.badge, done ? styles.badgeDone : missed ? styles.badgeMissed : styles.badgeAttn]}>
+                <Ionicons name={done ? 'checkmark' : missed ? 'close-circle' : overdue ? 'alert-circle' : 'warning'} size={11} color={accent} />
+                <Text style={[styles.badgeText, { color: accent }]}>{badgeText}</Text>
+              </View>
             </View>
-            <View style={[styles.dumbbell, { backgroundColor: done ? C.successSoft : missed ? C.dangerSoft : attention ? C.emberSoft : C.primarySoft }]}>
-              <Ionicons name="barbell" size={hero ? 18 : 16} color={accent} />
-            </View>
+          )}
+
+          <View style={styles.heroTitleRow}>
+            <Text
+              style={[hero ? styles.heroTitle : styles.workoutTitle, (done || missed) && styles.workoutTitleDone, { flex: 1 }]}
+            >
+              {w.focus}
+            </Text>
+            {hero && <Ionicons name={heroExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={C.outline} />}
           </View>
 
-          {/* Readiness — the point-of-decision chip the audit asks for, not a
-              full tab. Tapping deep-links to Progress, which already owns the
-              full readiness card + muscle recovery detail. */}
-          {hero && (
-            <PressableScale style={styles.heroReadyChip} scaleTo={0.96} onPress={() => router.push('/(tabs)/progress')}>
-              <View style={[styles.heroReadyDot, { backgroundColor: readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow }]} />
-              <Text style={styles.heroReadyText}>{readiness.score}% ready · go {intensity.label.toLowerCase()}</Text>
-              <Ionicons name="chevron-forward" size={13} color={C.outline} />
-            </PressableScale>
+          {/* One calm line instead of three separate chips. */}
+          <Text style={styles.blockMeta}>
+            {timeRange} · {(done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min)} min · {origin.short}
+          </Text>
+
+          {missed && (
+            <Text style={styles.attnNote}>This workout was missed. Reschedule it to get back on track, or skip it and move on.</Text>
+          )}
+          {overdue && (
+            <Text style={styles.attnNote}>This was scheduled for {formatTime(w.planned_start_time)}. Want to do it tomorrow instead?</Text>
+          )}
+          {conflict && (
+            <Text style={styles.attnNote}>“{conflict.title}” now overlaps this workout. Move it to a free slot?</Text>
           )}
 
-          {hero ? (
-            <PressableScale
-              style={styles.heroTitleRow}
-              scaleTo={0.98}
-              onPress={() => setHeroExpanded(v => !v)}
-              accessibilityRole="button"
-              accessibilityLabel={heroExpanded ? 'Collapse workout details' : 'Show exercise list and why this workout'}
-            >
-              <Text style={[styles.heroTitle, (done || missed) && styles.workoutTitleDone, { flex: 1 }]}>{w.focus}</Text>
-              <Ionicons name={heroExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={C.outline} />
-            </PressableScale>
-          ) : (
-            <Text style={[styles.workoutTitle, (done || missed) && styles.workoutTitleDone]}>{w.focus}</Text>
-          )}
-
+          {/* Expanded: the exercise list, the reasoning, and every secondary
+              action — one tap away rather than permanently on screen. */}
           {hero && heroExpanded && (
             <View style={styles.heroExpandWrap}>
               {heroPreviewExercises.length === 0 ? (
@@ -898,107 +964,113 @@ export default function ScheduleScreen() {
                   <Text style={styles.heroWhyText}>{heroRationale.headline}</Text>
                 </View>
               )}
+              <View style={styles.cardActions}>
+                {w.calendar_event_id ? (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleRemoveFromCalendar(w)}>
+                    <Ionicons name="calendar" size={14} color={C.success} />
+                    <Text style={[styles.actionText, { color: C.success }]}>In Calendar</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleAddToCalendar(w)}>
+                    <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
+                    <Text style={styles.actionText}>Add to Calendar</Text>
+                  </TouchableOpacity>
+                )}
+                {!done && (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => setEditingWorkout(w)}>
+                    <Ionicons name="create-outline" size={14} color={C.textSecondary} />
+                    <Text style={styles.actionText}>Edit</Text>
+                  </TouchableOpacity>
+                )}
+                {done && (
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: w.id } } as any)}
+                  >
+                    <Ionicons name="receipt-outline" size={14} color={C.textSecondary} />
+                    <Text style={styles.actionText}>Details</Text>
+                  </TouchableOpacity>
+                )}
+                {overdue && (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleSkip(w)}>
+                    <Ionicons name="close-circle-outline" size={14} color={C.ember} />
+                    <Text style={[styles.actionText, { color: C.ember }]}>Skip</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
 
-          {missed && (
-            <Text style={styles.attnNote}>This workout was missed. Reschedule it to get back on track, or skip it and move on.</Text>
-          )}
-          {overdue && (
-            <Text style={styles.attnNote}>This was scheduled for {formatTime(w.planned_start_time)}. Want to do it tomorrow instead?</Text>
-          )}
-          {conflict && (
-            <Text style={styles.attnNote}>“{conflict.title}” now overlaps this workout. Move it to a free slot?</Text>
-          )}
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaChip}>
-              <Ionicons name="time-outline" size={13} color={C.textSecondary} />
-              <Text style={styles.metaText}>{formatTime(w.planned_start_time)}</Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Ionicons name="hourglass-outline" size={13} color={C.textSecondary} />
-              {/* Completed: show how long it actually took; otherwise the estimate. */}
-              <Text style={styles.metaText}>{(done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min)} min</Text>
-            </View>
-            {(() => {
-              const origin = workoutOrigin(w.source)
-              return (
-                <View style={[styles.originChip, origin.byTempo ? styles.originChipTempo : styles.originChipYours]}>
-                  <Ionicons name={origin.icon as any} size={11} color={origin.byTempo ? C.primary : C.textSecondary} />
-                  <Text style={[styles.originText, { color: origin.byTempo ? C.primary : C.textSecondary }]}>{origin.short}</Text>
-                </View>
-              )
-            })()}
-          </View>
-
-          {attention && (
+          {/* A non-hero (second session today) keeps its own inline Start — it
+              has no action bar of its own below the timeline. */}
+          {!hero && !done && (
             <PressableScale
-              style={[styles.startBtn, styles.rescheduleBtn, rescheduling && { opacity: 0.6 }]}
-              onPress={() => handleReschedule(w)}
-              disabled={rescheduling}
-            >
-              <Ionicons name="calendar" size={14} color={C.onPrimary} />
-              <Text style={styles.startBtnText}>{conflict ? 'Move to a free slot' : 'Reschedule'}</Text>
-            </PressableScale>
-          )}
-
-          {!done && (
-            <PressableScale
-              style={[soft ? styles.startBtnGhost : styles.startBtn, !soft && hero && styles.startBtnHero]}
+              style={styles.startBtnGhost}
               onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
             >
-              <Ionicons name="play" size={14} color={soft ? C.primary : C.onPrimary} />
-              <Text style={[styles.startBtnText, soft && { color: C.primary }]}>
-                {overdue ? 'Start it now anyway' : early ? 'Do it now instead' : 'Start Session'}
-              </Text>
+              <Ionicons name="play" size={14} color={C.primary} />
+              <Text style={[styles.startBtnText, { color: C.primary }]}>Start Session</Text>
             </PressableScale>
           )}
+        </Card>
+      </View>
+    )
+  }
 
-          {/* "Lacking time?" escape hatch (audit: add this inline) — swaps
-              today's real session for a genuine 15-min Quick Workout rather
-              than silently shrinking it, so nothing gets misrepresented. */}
-          {hero && !done && !attention && (
-            <TouchableOpacity onPress={() => setSwapConfirmWorkout(w)} activeOpacity={0.7}>
-              <Text style={styles.swapLinkText}>Lacking time? Swap to a 15-min workout instead</Text>
-            </TouchableOpacity>
-          )}
+  // The single action area — deliberately OUTSIDE and BELOW the timeline. The
+  // timeline shows you your day; this tells you what to do about it. One
+  // primary CTA, whose label/behaviour is exactly the old inline button's (no
+  // behaviour change — only its position and prominence changed).
+  function renderHeroActions(w: ScheduledWorkout) {
+    const { done, missed, overdue, conflict, attention, early, soft } = workoutState(w)
 
-          <View style={styles.cardActions}>
-            {w.calendar_event_id ? (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleRemoveFromCalendar(w)}>
-                <Ionicons name="calendar" size={14} color={C.success} />
-                <Text style={[styles.actionText, { color: C.success }]}>In Calendar</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleAddToCalendar(w)}>
-                <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
-                <Text style={styles.actionText}>Add to Calendar</Text>
-              </TouchableOpacity>
-            )}
-            {!done && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => setEditingWorkout(w)}>
-                <Ionicons name="create-outline" size={14} color={C.textSecondary} />
-                <Text style={styles.actionText}>Edit</Text>
-              </TouchableOpacity>
-            )}
-            {done && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: w.id } } as any)}
-              >
-                <Ionicons name="receipt-outline" size={14} color={C.textSecondary} />
-                <Text style={styles.actionText}>Details</Text>
-              </TouchableOpacity>
-            )}
-            {overdue && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleSkip(w)}>
-                <Ionicons name="close-circle-outline" size={14} color={C.ember} />
-                <Text style={[styles.actionText, { color: C.ember }]}>Skip</Text>
-              </TouchableOpacity>
-            )}
+    // Everything today is finished: no CTA to fabricate. The weekly-target card
+    // below becomes the payoff instead of a glowing struck-through card.
+    if (done && !todayItems.some(i => i.kind === 'workout' && i.workout.status !== 'completed')) {
+      return (
+        <View style={styles.ctaWrap}>
+          <View style={styles.doneRow}>
+            <Ionicons name="checkmark-circle" size={18} color={C.success} />
+            <Text style={styles.doneText}>Today's training is done.</Text>
           </View>
         </View>
+      )
+    }
+    if (done) return null
+
+    return (
+      <View style={styles.ctaWrap}>
+        {attention && (
+          <PressableScale
+            style={[styles.ctaBtn, styles.ctaBtnAttn, rescheduling && { opacity: 0.6 }]}
+            onPress={() => handleReschedule(w)}
+            disabled={rescheduling}
+          >
+            <Ionicons name="calendar" size={16} color={C.onPrimary} />
+            <Text style={styles.ctaBtnText}>{conflict ? 'Move to a free slot' : 'Reschedule'}</Text>
+          </PressableScale>
+        )}
+
+        <PressableScale
+          style={[soft ? styles.ctaBtnGhost : styles.ctaBtn]}
+          onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
+        >
+          <Ionicons name="play" size={16} color={soft ? C.primary : C.onPrimary} />
+          <Text style={[styles.ctaBtnText, soft && { color: C.primary }]}>
+            {overdue ? 'Start it now anyway' : early ? 'Do it now instead' : 'Start Session'}
+          </Text>
+        </PressableScale>
+
+        <Text style={styles.focusCaption}>Focus: {w.focus}</Text>
+
+        {/* "Lacking time?" escape hatch (audit: add this inline) — swaps
+            today's real session for a genuine 15-min Quick Workout rather
+            than silently shrinking it, so nothing gets misrepresented. */}
+        {!attention && (
+          <TouchableOpacity onPress={() => setSwapConfirmWorkout(w)} activeOpacity={0.7}>
+            <Text style={styles.swapLinkText}>Lacking time? Swap to a 15-min workout</Text>
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
@@ -1116,6 +1188,7 @@ export default function ScheduleScreen() {
     {
       id: 'travel',
       eligible: !!travel,
+      chipOnly: true,
       primary: () => travel ? (
         <PressableScale style={styles.travelBanner} onPress={() => router.push('/travel-mode')} scaleTo={0.98}>
           <Ionicons name="airplane" size={16} color={C.primary} />
@@ -1152,6 +1225,7 @@ export default function ScheduleScreen() {
     {
       id: 'block',
       eligible: !!blockPhase?.progression,
+      chipOnly: true,
       primary: () => blockPhase?.progression ? (
         <PressableScale
           style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
@@ -1186,6 +1260,7 @@ export default function ScheduleScreen() {
     {
       id: 'goal',
       eligible: !!projection,
+      chipOnly: true,
       primary: () => projection ? (
         <View style={styles.goalCard}>
           <View style={[styles.goalIcon, { backgroundColor: C.goldSoft }]}>
@@ -1208,6 +1283,7 @@ export default function ScheduleScreen() {
     {
       id: 'report',
       eligible: stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1),
+      chipOnly: true,
       primary: () => (
         <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} scaleTo={0.98}>
           <View style={styles.reportIcon}>
@@ -1266,8 +1342,11 @@ export default function ScheduleScreen() {
   ]
 
   const eligibleContext = contextItems.filter(i => i.eligible)
-  const primaryContext = eligibleContext[0]
-  const overflowContext = eligibleContext.slice(1)
+  // The banner slot goes to the top-priority eligible item that isn't chip-only;
+  // everything else eligible (including any chip-only item that would otherwise
+  // have won) becomes a chip, in the same priority order.
+  const primaryContext = eligibleContext.find(i => !i.chipOnly)
+  const overflowContext = eligibleContext.filter(i => i !== primaryContext)
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1408,6 +1487,12 @@ export default function ScheduleScreen() {
             )
           ) : (
             <View style={styles.feed}>
+              {/* Eyebrow + headline — the hierarchy anchor. Without these the
+                  screen opened straight into a card and every element read at
+                  the same weight. */}
+              <Text style={styles.eyebrow}>{heroWorkout ? 'SCHEDULED TODAY' : 'TODAY'}</Text>
+              <Text style={styles.headline}>{heroHeadline}</Text>
+
               <TimelineRail>
                 {todayItems.map((item, idx) => {
                   const gapBefore = todayGaps.find(g => g.beforeIndex === idx)
@@ -1422,6 +1507,9 @@ export default function ScheduleScreen() {
                   )
                 })}
               </TimelineRail>
+
+              {/* The one action area — outside the timeline, below it. */}
+              {heroWorkout && renderHeroActions(heroWorkout)}
             </View>
           )}
         </View>
@@ -1429,37 +1517,39 @@ export default function ScheduleScreen() {
         {/* Weekly target — directly under today's session, not buried below a
             stack of other cards. The audit: "the single best retention
             mechanic on the screen — keep it prominent." Rest days can't break
-            it, and hitting it is a real achievement (unlike a daily streak). */}
-        {!!profile?.days_per_week && (
-          <View style={styles.weekTargetCard}>
-            {/* The weekly ring — fills as sessions land, flips sage on target */}
-            <AnimatedRing
-              value={Math.min(100, Math.round((stats.thisWeek / profile.days_per_week) * 100))}
-              size={46}
-              stroke={5}
-              color={stats.thisWeek >= profile.days_per_week ? C.success : C.primary}
-              holeColor={C.background}
-            >
-              <Text style={styles.weekTargetRingNum}>{stats.thisWeek}</Text>
-            </AnimatedRing>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.weekTargetLabel}>THIS WEEK</Text>
-              <Text style={styles.weekTargetValue}>
-                {stats.thisWeek} of {profile.days_per_week} sessions
-                {stats.thisWeek >= profile.days_per_week ? ' — target hit!' : ''}
-              </Text>
+            it, and hitting it is a real achievement (unlike a daily streak).
+            The old ring + bar showed the SAME number twice — dropped the ring
+            for one honest bar plus a line that says where you actually stand. */}
+        {!!profile?.days_per_week && (() => {
+          const target = profile.days_per_week
+          const doneN = stats.thisWeek
+          const hit = doneN >= target
+          const left = Math.max(0, target - doneN)
+          return (
+            <View style={styles.weekTargetCard}>
+              <View style={styles.weekTargetTop}>
+                <Text style={styles.weekTargetLabel}>WEEKLY TARGET</Text>
+                <Text style={[styles.weekTargetCount, hit && { color: C.success }]}>{doneN} / {target}</Text>
+              </View>
               <View style={styles.weekTargetTrack}>
                 <View
                   style={[
                     styles.weekTargetFill,
-                    stats.thisWeek >= profile.days_per_week && { backgroundColor: C.success },
-                    { width: `${Math.min(100, Math.round((stats.thisWeek / profile.days_per_week) * 100))}%` as `${number}%` },
+                    hit && { backgroundColor: C.success },
+                    { width: `${Math.min(100, Math.round((doneN / target) * 100))}%` as `${number}%` },
                   ]}
                 />
               </View>
+              <Text style={styles.weekTargetNote}>
+                {hit
+                  ? 'Target hit. Everything from here is a bonus.'
+                  : left === 1
+                  ? 'Almost there — one more session this week.'
+                  : `${left} more sessions to hit your week.`}
+              </Text>
             </View>
-          </View>
-        )}
+          )
+        })()}
 
       </ScrollView>
 
@@ -1618,24 +1708,23 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   // ── Weekly target ───────────────────────────────────────────────────────────
   weekTargetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
     marginHorizontal: Spacing.containerPadding,
+    marginTop: Spacing.xl,
     marginBottom: Spacing.sm,
     backgroundColor: C.background,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: C.outlineVariant,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    padding: Spacing.md,
+    gap: Spacing.sm,
     ...Elevation.e1,
   },
-  weekTargetRingNum: { fontFamily: C.fontDisplay, fontSize: 15, color: C.text },
-  weekTargetLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
-  weekTargetValue: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, letterSpacing: -0.1, marginTop: 1 },
-  weekTargetTrack: { height: 4, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, marginTop: 6 },
-  weekTargetFill: { height: 4, backgroundColor: C.primary, borderRadius: Radius.full },
+  weekTargetTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  weekTargetLabel: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.8 },
+  weekTargetCount: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
+  weekTargetTrack: { height: 6, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full, overflow: 'hidden' },
+  weekTargetFill: { height: 6, backgroundColor: C.primary, borderRadius: Radius.full },
+  weekTargetNote: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
 
   // ── Block-phase banner ───────────────────────────────────────────────────────
   phaseBanner: {
@@ -1743,6 +1832,30 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   feed: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm },
   groupItems: { gap: Spacing.sm },
 
+  // ── Hierarchy: eyebrow + headline ────────────────────────────────────────
+  eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.8 },
+  headline: {
+    fontFamily: C.fontDisplay, fontSize: 30, color: C.text,
+    lineHeight: 35, letterSpacing: -0.6, marginTop: 4, marginBottom: Spacing.lg,
+  },
+
+  // ── The one action area (below the timeline, not inside a card) ───────────
+  ctaWrap: { marginTop: Spacing.lg, gap: Spacing.sm },
+  ctaBtn: {
+    height: 54, backgroundColor: C.primary, borderRadius: Radius.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+  },
+  ctaBtnAttn: { backgroundColor: C.ember },
+  ctaBtnGhost: {
+    height: 52, backgroundColor: 'transparent', borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+  },
+  ctaBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15.5, color: C.onPrimary, letterSpacing: 0.2 },
+  focusCaption: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, textAlign: 'center' },
+  doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
+  doneText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.success },
+
   // ── Timeline rows (shared rail) ──────────────────────────────────────────────
   row: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
   railTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: RAIL_COLUMN_WIDTH, paddingTop: 13 },
@@ -1804,6 +1917,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     elevation: 10,
   },
   heroWash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.primarySoft },
+  // A finished session drops the glow + primary border entirely — the day's
+  // work is behind you, so it must not be the loudest thing on the screen.
+  heroCardDone: {
+    borderWidth: 1, borderColor: C.outlineVariant,
+    shadowOpacity: 0, elevation: 0,
+  },
   heroBlob: {
     position: 'absolute', top: -60, right: -50,
     width: 180, height: 180, borderRadius: 90,
@@ -1815,13 +1934,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderRadius: Radius.full, paddingHorizontal: Spacing.xs, paddingVertical: 4,
   },
-  badgeWorkout: { backgroundColor: C.primarySoft },
   badgeDone: { backgroundColor: C.successSoft },
   badgeAttn: { backgroundColor: C.emberSoft },
   badgeMissed: { backgroundColor: C.dangerSoft },
   badgeText: { fontFamily: C.fontDisplay, fontSize: 10, letterSpacing: 0.6 },
   attnNote: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-  dumbbell: { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 
   workoutTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, lineHeight: 26, letterSpacing: -0.3 },
   heroTitle: { fontFamily: C.fontDisplay, fontSize: 27, color: C.text, lineHeight: 32, letterSpacing: -0.5 },
@@ -1836,6 +1953,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroReadyDot: { width: 7, height: 7, borderRadius: Radius.full },
   heroReadyText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  blockMeta: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
   heroExpandWrap: {
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
     padding: Spacing.sm, gap: 2,
@@ -1851,28 +1969,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroWhyText: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, flex: 1, lineHeight: 17 },
   swapLinkText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.primary, textAlign: 'center', paddingVertical: 4 },
 
-  metaRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
-  metaChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm, paddingVertical: 5,
-  },
-  metaText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.text },
-  originChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderWidth: 1,
-  },
-  originChipTempo: { backgroundColor: C.primarySoft, borderColor: 'transparent' },
-  originChipYours: { backgroundColor: C.surfaceContainerLow, borderColor: C.outlineVariant },
-  originText: { fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 0.3 },
-
-  startBtn: {
-    backgroundColor: C.primary, borderRadius: Radius.lg, height: 46,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
-    marginTop: 2,
-  },
-  startBtnHero: { height: 52 },
-  rescheduleBtn: { backgroundColor: C.ember },
   startBtnGhost: {
     backgroundColor: 'transparent', borderRadius: Radius.lg, height: 44,
     borderWidth: 1, borderColor: C.outlineVariant,
