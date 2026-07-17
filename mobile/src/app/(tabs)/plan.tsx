@@ -41,6 +41,7 @@ import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
 import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
+import { useSessionActiveStore } from '@/stores/sessionActive'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { describeSaveError } from '@/lib/saveErrors'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
@@ -508,6 +509,15 @@ export default function WorkoutsScreen() {
   // Whether the live logging session is open. Tapping the Workouts tab lands on the
   // hub (false); you enter the session deliberately and can leave it back to the hub.
   const [sessionActive, setSessionActive] = useState(false)
+  // Mirror into the shared store so sibling screens (the tab bar's GO button)
+  // can react to "a session is active" without prop-drilling — every existing
+  // setSessionActive(...) call site stays exactly as it is; this just observes
+  // the result. Reset to false on unmount so leaving the tab never strands GO
+  // hidden.
+  useEffect(() => {
+    useSessionActiveStore.getState().setActive(sessionActive)
+  }, [sessionActive])
+  useEffect(() => () => { useSessionActiveStore.getState().setActive(false) }, [])
   // Rest timer is wall-clock: we store WHEN it ends, and derive the display from
   // that — so locking the phone between sets can't freeze the countdown.
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null)

@@ -20,6 +20,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useReducedMotion } from '@/components/motion'
 import { useTutorialTarget } from '@/components/TutorialOverlay'
 import { TARGET } from '@/lib/tutorial'
+import { useSessionActiveStore } from '@/stores/sessionActive'
 
 type IoniconsName = keyof typeof Ionicons.glyphMap
 
@@ -175,6 +176,12 @@ export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const [keyboardUp, setKeyboardUp] = useState(false)
+  // Quick Workout is a "only have a few minutes?" escape hatch, not an
+  // alternative to the session you're already in the middle of — showing GO
+  // mid-workout read as the app not knowing what you're doing. The dock's
+  // shape stays put (spacer/overlay containers still reserve the space) so
+  // hiding it never causes the other four tabs to jump.
+  const sessionActive = useSessionActiveStore(s => s.active)
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
@@ -209,8 +216,8 @@ export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
         <View style={styles.goSpacer} />
         {items.slice(2)}
       </View>
-      <View style={styles.goOverlay} pointerEvents="box-none">
-        <GoButton />
+      <View style={styles.goOverlay} pointerEvents={sessionActive ? 'none' : 'box-none'}>
+        {!sessionActive && <GoButton />}
       </View>
     </View>
   )
