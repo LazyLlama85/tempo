@@ -102,9 +102,11 @@ export default function BasicsScreen() {
     })
   }
 
-  // Step 1 of 4 overall; fill that first quarter across however many basics cards
-  // this account gets (4 for a new user, 3 for a replan — no build-mode card).
-  const progressPct = `${((cardIndex + 1) * 25) / cardCount}%` as `${number}%`
+  // Step 1 of 6 overall (2026-07-17: 6 lighter screens, up from 4 denser ones);
+  // fill that first sixth across however many basics cards this account gets
+  // (4 for a new user, 3 for a replan — no build-mode card).
+  const TOTAL_STEPS = 6
+  const progressPct = `${((cardIndex + 1) / cardCount) * (100 / TOTAL_STEPS)}%` as `${number}%`
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -130,7 +132,7 @@ export default function BasicsScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 1 OF 4</Text>
+        <Text style={styles.stepLabel}>STEP 1 OF {TOTAL_STEPS}</Text>
 
         {/* Crossfade between cards so the sequence feels alive. */}
         <FadeInView key={cardIndex} duration={220} style={{ gap: Spacing.md }}>

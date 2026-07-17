@@ -12,14 +12,18 @@ import { useAuthStore } from '@/stores/auth'
 
 const SESSION_MINUTES = [30, 45, 60, 75, 90] as const
 
+// Onboarding step count (2026-07-17 restructure): 6 lighter, single-purpose
+// screens instead of 4 dense ones — Basics / Schedule / Sleep / Work-School /
+// Train Time / Plan Preview. Each screen keeps its own literal "STEP N OF 6".
+const TOTAL_STEPS = 6
+
 export default function ScheduleScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { goal, experience, equipment, buildMode } = useLocalSearchParams<{ goal: string; experience: string; equipment: string; buildMode?: string }>()
   const { profile } = useAuthStore()
-  // Change Plan re-entry keeps the user's current cadence + scheduling mode —
-  // re-running onboarding must never silently flip a manual scheduler back to auto.
+  // Change Plan re-entry keeps the user's current cadence.
   const [daysPerWeek, setDaysPerWeek] = useState(() => {
     const d = profile?.days_per_week ?? 3
     return d >= 2 && d <= 6 ? d : 3
@@ -33,13 +37,13 @@ export default function ScheduleScreen() {
     const m = profile?.preferred_duration_min ?? 45
     return SESSION_MINUTES.includes(m as typeof SESSION_MINUTES[number]) ? m : 45
   })
-  // Connecting a calendar does NOT force automatic scheduling — the user chooses.
-  // Calendar connection itself now happens after onboarding (Home prompt / Profile →
-  // Calendar), so the critical path to a first workout never touches OAuth. A user
-  // who never connects still gets auto placement from Tempo's free-slot engine.
-  const [schedulingMode, setSchedulingMode] = useState<'auto' | 'manual'>(
-    profile?.scheduling_mode === 'manual' ? 'manual' : 'auto',
-  )
+  // Scheduling mode is no longer an onboarding QUESTION (2026-07-17 — the founder
+  // felt the auto/manual choice + a mockup implying varying daily times cluttered
+  // this screen and undersold consistency). New users silently get 'auto' (the
+  // same default this choice always defaulted to); an EXISTING user re-planning
+  // keeps whatever they already chose — never silently reset to auto. Manual mode
+  // is still fully available afterward from Settings → Automatic Scheduling.
+  const schedulingMode = profile?.scheduling_mode === 'manual' ? 'manual' : 'auto'
   // Optional cardio question (Phase 7c) — only meaningful for muscle_gain/strength,
   // whose templates carry zero cardio by design; fat_loss/athletic/general_fitness
   // already bake it in on some days regardless, so asking there would be a
@@ -47,11 +51,8 @@ export default function ScheduleScreen() {
   const cardioMatters = (goal === 'muscle_gain' || goal === 'strength') && buildMode !== 'custom'
   const [includeCardio, setIncludeCardio] = useState(!!profile?.include_cardio)
 
-  // Carry the cadence + scheduling mode forward. (An already-connected calendar, e.g.
-  // on Change Plan re-entry, keeps its saved preferred_calendar — plan-preview leaves
-  // that field untouched when no preferredCalendar param is present.)
   const goNext = () => router.push({
-    pathname: '/onboarding/availability',
+    pathname: '/onboarding/sleep',
     params: {
       goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes), buildMode,
       includeCardio: cardioMatters && includeCardio ? 'true' : 'false',
@@ -71,17 +72,13 @@ export default function ScheduleScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '50%' }]} />
+        <View style={[styles.progressFill, { width: `${(2 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
+        <Text style={styles.stepLabel}>STEP 2 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>Your training rhythm.</Text>
-        <Text style={styles.subtitle}>
-          How many days a week, how long each session realistically is, and whether
-          Tempo places each workout for you or you pick the times yourself. You can
-          connect a calendar later for smarter placement.
-        </Text>
+        <Text style={styles.subtitle}>How many days a week, and how long each session realistically is.</Text>
 
         {/* Days per week selector */}
         <View style={styles.daysSection}>
@@ -122,32 +119,6 @@ export default function ScheduleScreen() {
           </View>
         </View>
 
-        {/* How to schedule — connecting a calendar (later) doesn't force automatic */}
-        <View style={styles.modeSection}>
-          <Text style={styles.whyLabel}>HOW DO YOU WANT WORKOUTS SCHEDULED?</Text>
-          {([
-            { key: 'auto' as const, icon: 'sparkles' as const, title: 'Automatically schedule workouts', sub: 'Tempo reads your free time and places each workout around your real day — you can still edit any time.' },
-            { key: 'manual' as const, icon: 'hand-left' as const, title: "I'll schedule workouts myself", sub: 'You pick the times. Tempo never moves them on its own (your calendar is still used to show busy times).' },
-          ]).map((opt) => {
-            const sel = schedulingMode === opt.key
-            return (
-              <PressableScale
-                key={opt.key}
-                style={[styles.modeCard, sel && styles.modeCardSel]}
-                onPress={() => setSchedulingMode(opt.key)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name={opt.icon} size={20} color={sel ? C.primary : C.outline} style={{ marginTop: 1 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.modeTitle, sel && { color: C.primary }]}>{opt.title}</Text>
-                  <Text style={styles.modeSub}>{opt.sub}</Text>
-                </View>
-                <Ionicons name={sel ? 'radio-button-on' : 'radio-button-off'} size={20} color={sel ? C.primary : C.outline} />
-              </PressableScale>
-            )
-          })}
-        </View>
-
         {/* Optional cardio finisher — only asked when it actually changes anything */}
         {cardioMatters && (
           <View style={styles.cardioRow}>
@@ -163,39 +134,6 @@ export default function ScheduleScreen() {
             />
           </View>
         )}
-
-        {/* Calendar preview — a glimpse of automatic placement around real events */}
-        <View style={styles.calendarPreview}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewDate}>Tuesday, Oct 24</Text>
-            <View style={styles.previewDots}>
-              <View style={[styles.dot, { backgroundColor: '#EA4335' }]} />
-              <View style={[styles.dot, { backgroundColor: C.primary }]} />
-            </View>
-          </View>
-          {/* Timeline preview */}
-          <View style={styles.previewTimeline}>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewTime}>8:00 AM</Text>
-              <View style={styles.previewEvent}><Text style={styles.previewEventText}>Team Standup</Text></View>
-            </View>
-            <View style={styles.previewRow}>
-              <Text style={[styles.previewTime, { color: C.primary }]}>10:30 AM</Text>
-              <View style={styles.previewWorkout}>
-                <View style={styles.idealBadge}>
-                  <Text style={styles.idealBadgeText}>IDEAL TRAINING WINDOW</Text>
-                  <Ionicons name="sparkles" size={10} color={C.primary} />
-                </View>
-                <Text style={styles.previewWorkoutTitle}>Upper Body Power</Text>
-                <Text style={styles.previewWorkoutMeta}>45 Minutes • Free Time detected</Text>
-              </View>
-            </View>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewTime}>12:00 PM</Text>
-              <View style={styles.previewEvent}><Text style={styles.previewEventText}>Project Review</Text></View>
-            </View>
-          </View>
-        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -220,37 +158,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },
-  whyLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
-  modeSection: { gap: Spacing.sm },
-  modeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: C.background, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1.5, borderColor: C.outlineVariant },
-  modeCardSel: { borderColor: C.primary, backgroundColor: C.primarySoft },
-  modeTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  modeSub: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 2 },
   cardioRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md,
   },
   cardioTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   cardioSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 2, lineHeight: 17 },
-  calendarPreview: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, padding: Spacing.md, gap: Spacing.md },
-  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  previewDate: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  previewDots: { flexDirection: 'row', gap: 4 },
-  dot: { width: 8, height: 8, borderRadius: Radius.full },
-  previewTimeline: { gap: Spacing.sm },
-  previewRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
-  previewTime: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.outline, width: 58, paddingTop: 12 },
-  previewEvent: { flex: 1, backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.md, padding: Spacing.sm },
-  previewEventText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
-  previewWorkout: {
-    flex: 1, borderRadius: Radius.md, padding: Spacing.sm,
-    borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed',
-    backgroundColor: `${C.primary}08`, gap: 3,
-  },
-  idealBadge: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  idealBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9, color: C.primary, letterSpacing: 0.4 },
-  previewWorkoutTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
-  previewWorkoutMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary },
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },

@@ -54,45 +54,78 @@ you moving."*
   query roots on every re-focus, and every workout-state mutation calls
   `invalidateTrainingData(queryClient)` (`src/lib/queryInvalidation.ts`). Route modals blur/refocus
   the tab beneath them, so closing a mutating modal also triggers a refresh.
-- **Onboarding stack** `onboarding/`: `goal → schedule → availability → plan-preview` (now **4
-  numbered steps, down from 6**). **`goal` is a single merged "Basics" screen** — a 3-card sequence
-  (goal → experience → equipment) behind one header + progress bar + sub-step dots (formerly three
-  separate pushed screens; `experience.tsx`/`equipment.tsx` removed, route name `goal` kept so the
-  `(tabs)` gate redirect and Profile → Change Plan re-entry are unchanged). **`schedule`** sets 2–6
-  days/week **and** an **auto vs. manual scheduling mode**; **connecting a calendar has moved out of
+- **Onboarding stack** `onboarding/`: `goal → schedule → sleep → work-school → train-time →
+  plan-preview` — **6 numbered steps (2026-07-17 restructure, up from 4)**. The founder's own
+  device-testing feedback drove this: the old `schedule` screen packed Days/Minutes/scheduling-mode/
+  a calendar-preview mockup onto one screen, and the old `availability` screen packed Sleep/Work
+  hours/School hours/Preferred time/Off-days onto another — both read as "squished together." Each
+  concept now gets its own lighter screen. **`goal` is a single merged "Basics" screen** — a
+  3-or-4-card sequence (goal → experience → equipment → build-mode, new users only) behind one
+  header + progress bar + sub-step dots (formerly three separate pushed screens; `experience.tsx`/
+  `equipment.tsx` removed, route name `goal` kept so the `(tabs)` gate redirect and Profile → Change
+  Plan re-entry are unchanged). **Experience is now a vertical option list** (matching Goal/
+  Equipment), not a horizontal segmented control — years-training is the whole answer (Beginner
+  0-1yr / Intermediate 1-3yr / Advanced 3+yr, on both the list and nowhere else); the old preview
+  card (intensity meter + sample lifts) is gone entirely, per the founder's explicit ask to just
+  pick one, no glimpse. **The 4th Basics card ("How do you want to train?")** — Guided vs. "I'll
+  build my own" — is new-users-only; see §3.1's Basics description above for why (an existing
+  replanner always regenerates, so offering a no-generation path there would leave the old plan's
+  sessions unretired).
+  **`schedule`** now asks ONLY Days Per Week + Minutes Per Session (+ the optional cardio question
+  for muscle_gain/strength) — the old auto-vs-manual scheduling-mode picker and its calendar-preview
+  mockup are gone from onboarding entirely (the founder: the choice + a mockup implying the exact
+  time varies day-to-day cluttered the screen and undersold consistency). New users silently default
+  to `scheduling_mode: 'auto'` (the same default the picker always defaulted to); an existing user
+  re-planning keeps whatever they already had — never silently reset. Manual mode is still fully
+  available afterward from Settings → Automatic Scheduling. **Connecting a calendar has moved out of
   the required path** — a first-time "Connect your calendar" Home context banner (lowest priority)
   plus Profile → Calendar (`calendar-setup.tsx`) own it now, so a new user's path to a first workout
   never touches OAuth (a user who never connects still gets auto placement from the free-slot engine).
   **`schedule` also captures the time-budget question (B3.3)** — MINUTES PER SESSION (30/45/60/75/90,
   pre-filled from the saved profile on Change Plan re-entry) — previously never asked anywhere, so
   every new user silently got a hardcoded 45-minute `preferred_duration_min`. This is a real input,
-  not cosmetic: it flows through `availability` → `plan-preview` and directly sets
-  `preferred_duration_min`, which `generatePlan`'s `exerciseCountForDuration` uses to decide how many
-  exercises fit a session. Then `plan-preview`
+  not cosmetic: it flows through the whole chain and directly sets `preferred_duration_min`, which
+  `generatePlan`'s `exerciseCountForDuration` uses to decide how many exercises fit a session.
+  **`sleep`** (new, split off the old `availability`) asks only Wake/Bedtime. **`work-school`** (new)
+  merges what used to be two separate Work Hours / School Hours sections into ONE question ("I have
+  set work or school hours" + a single start/end pair) — writes the SAME times into both
+  `work_start`/`work_end` AND `school_start`/`school_end` so every existing consumer of either field
+  (`lib/availability.ts`'s busy-window builder, `autoSchedule.ts`, `reschedule.ts` — all of which
+  already treat the two fields additively) keeps working with zero changes. **`train-time`** (new)
+  asks Preferred Time to Train + Days I Never Train, and is now the screen that does the actual
+  `user_profiles` upsert (the old `availability` screen's job) — its "consistently" framing replaces
+  the old "then varies the exact time so your week isn't robotic" hint, and the religious-observance
+  example ("e.g. Shabbat") in the off-days hint is gone (kept generic: "a standing commitment, or any
+  day you simply rest"). Then `plan-preview`
   (primed notification ask — an explainer sheet *before* the one-shot OS prompt; push-token
   registration happens here on grant, never at sign-in) `→ profile-setup` (name, avatar, and an
-  **optional starting weight** that seeds the weight trend + goal countdown on day one;
-  weight input respects the kg/lb display unit).
+  **optional starting weight** that seeds the weight trend + goal countdown on day one; the weight
+  field is now a real drag-to-set `Slider`, not a bare text input — see §3.3).
+  **Plan generation gets a real "Personalizing your plan…" screen** (2026-07-17): a full-screen
+  `SvgProgressRing` tracking `BUILD_STEPS`' real progress through the save → generate → auto-schedule
+  → reminders chain replaces the old small footer text row, which could read as stuck on a slow
+  connection (the founder: "it was taking a while… i refreshed and it worked"). Refreshing mid-chain
+  was already safe by the existing design (`onboarding_complete` only flips after `generatePlan`
+  succeeds, so a refresh just correctly restarts onboarding from `goal`) — the ring doesn't change
+  that safety, it just makes the wait legible instead of looking frozen.
   **Change Plan re-entry is first-class:** every step pre-fills from the saved profile (current
-  goal/experience/equipment preselected; days-per-week, scheduling mode, and a previously chosen
-  calendar reflected; availability shows the saved sleep/work/school/off-days instead of
-  defaults), the availability save **merges** the weekday off-day chips with any dated/timed
-  unavailable blocks added in Settings (it used to wipe them), and `plan-preview` detects a
-  re-plan (`onboarding_complete` already true): copy flips to "Your new plan is ready", the
-  notification primer is skipped (permission is just re-checked), `display_name`/`avatar_url`/
+  goal/experience/equipment preselected; days-per-week and a previously chosen calendar reflected;
+  the split sleep/work-school/train-time screens each show their own saved values instead of
+  defaults), the final upsert **merges** the weekday off-day chips with any dated/timed unavailable
+  blocks added in Settings (it used to wipe them), and `plan-preview` detects a re-plan
+  (`onboarding_complete` already true): copy flips to "Your new plan is ready", the notification
+  primer is skipped (permission is just re-checked), `display_name`/`avatar_url`/
   `preferred_duration_min` are never clobbered by the upsert (identity fields only seed when
   empty), training query caches are invalidated so the tabs paint the new plan immediately, and
   on success it pops the whole onboarding stack back into the app instead of re-running
-  profile-setup. The **Basics screen's experience card preview** is a real "session at this level"
-  card — icon chip + 3-bar intensity meter + three sample lifts with set×rep prescriptions per level
-  (replacing the old gray placeholder box), and each card scrolls on small phones.
+  profile-setup.
   `plan-preview` also guards double-taps with a **ref latch** (state alone can't stop two taps
   in one frame), proactively refreshes the auth session before the save chain, auto-retries once
   after a silent token refresh on JWT failures, and maps failures to actionable copy (offline vs
-  session vs server — `lib/saveErrors.ts`) with Try Again / Not now actions; the availability
-  step has the same silent refresh-retry. **`onboarding_complete` flips only AFTER `generatePlan`
-  succeeds** (a separate update), so a mid-chain failure + force-quit can't produce an
-  "onboarded" account with no plan at next launch.
+  session vs server — `lib/saveErrors.ts`) with Try Again / Not now actions; the sleep/work-school/
+  train-time steps share the same silent refresh-retry pattern where they write. **`onboarding_complete`
+  flips only AFTER `generatePlan` succeeds** (a separate update), so a mid-chain failure + force-quit
+  can't produce an "onboarded" account with no plan at next launch.
 - **First-time experience (framework):** a reusable, **device-local, opt-in** tutorial engine
   (`lib/tutorial.ts` state/defs + `stores/tutorial.ts` reactive layer + `components/TutorialOverlay.tsx`
   spotlight + `useTutorialTarget`/`useOnceTip` hooks). State (armed/completedSteps/skipped/first-*)
@@ -414,6 +447,14 @@ you moving."*
   staleness can't recur at any other mutation call site either (the same fix covers the "onboarding
   scheduled nothing until calendar connected" report — `generatePlan` always wrote the rows
   immediately; the stale-query gap was the real cause, surfacing differently on first run).
+  (5) A signup or split activation/build later in the day could still get a same-day session dated
+  with a start time already behind "now" (`generatePlan.ts`'s and `splitSchedule.ts`'s fixed
+  `START_TIMES` arrays had no awareness of the actual clock) — not `'missed'` by the DB sweep (the
+  date isn't in the past), but reading as overdue within minutes of finishing onboarding (2026-07-17
+  founder report: "don't schedule a workout that's already past and say they missed it"). Both
+  engines now skip creating today's row when its natural slot has already passed, mirroring the
+  existing past-date skip exactly (`generatePlan.ts`'s comment: "Never create a past-dated session…";
+  the same logic now also covers "today, but too late for this slot").
   **Set logging is instant:** tapping ✓ logs the set immediately (light haptic, rest timer
   auto-starts at the workout's effective rest); **RPE is an optional post-log follow-up bar**
   that updates the `set_logs` row — it never gates logging or the timer. Each set row has a
@@ -637,6 +678,13 @@ bug).
     inside a sheet must render as in-sheet UI (an inline row, or a nested `TempoSheet`/`OptionSheet` —
     nested Modals DO present), never `Alert.alert`. Single-button post-action toasts elsewhere share
     the flaw but fire after the action and rarely need to be seen, so they're low-priority.
+  - **A presented `presentation:'modal'` screen doesn't auto-dismiss when a screen BEHIND it
+    changes (do not regress):** `app/settings.tsx` is pushed as a modal on top of `(tabs)`; signing
+    out or deleting the account swaps the stack underneath to `/sign-in`, but the modal itself stayed
+    visibly on screen until the user manually tapped the back arrow (2026-07-17 bug). Fixed by having
+    both handlers explicitly call `router.dismissAll()` on success. Rule: any modal screen whose
+    action causes an auth-state change (sign-out, delete-account, and similarly session-ending
+    actions) must explicitly dismiss itself — never assume a redirect elsewhere in the tree closes it.
 `EditWorkoutSheet`, `ExerciseFormSheet`, `ExerciseMedia`, `RecoveryCheckIn`, `ShareCardSheet`,
 **`SaveProgressSheet`** (the single guest → permanent-account upgrade surface, §1.1 — Apple/Google
 buttons over `lib/accountLinking`, shared by the Profile card and the post-3rd-workout modal;

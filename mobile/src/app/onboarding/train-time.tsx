@@ -1,31 +1,26 @@
-// Tempo — onboarding availability step.
+// Tempo — onboarding preferred-time + off-days step (2026-07-17 restructure).
 //
-// Captured BEFORE the plan is generated so the very first schedule already lands in
-// real openings: sleep window, work hours, school hours, preferred time of day, and
-// any days the user is completely unavailable (e.g. Shabbat). Everything here is
-// optional — "Skip" keeps sensible defaults — and fully editable later from the
-// Profile → Availability screen. We upsert so the row is guaranteed to exist before
-// plan-preview adds the goal/experience and flips onboarding_complete.
+// Last of the split-up availability screens (Sleep → Work/School → here). Does
+// the actual user_profiles upsert — same responsibility the old single
+// availability.tsx screen had — since it's now the step with all the pieces
+// (wake/bed from Sleep, work/school from Work-School, tod/off-days from here).
 
 import { useState } from 'react'
-import {
-  StyleSheet, TouchableOpacity, View, Text, ScrollView, Switch, ActivityIndicator, Alert,
-} from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
+import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { describeSaveError, isAuthError } from '@/lib/saveErrors'
-import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
-
 const genId = () => `${Date.now()}-${Math.round(Math.random() * 1e6)}`
+const TOTAL_STEPS = 6
 
 const DAYS: { iso: number; label: string }[] = [
   { iso: 1, label: 'Mon' }, { iso: 2, label: 'Tue' }, { iso: 3, label: 'Wed' },
@@ -36,26 +31,16 @@ const TODS: { id: TimeOfDay; label: string }[] = [
   { id: 'morning', label: 'Morning' }, { id: 'afternoon', label: 'Afternoon' }, { id: 'evening', label: 'Evening' },
 ]
 
-type PickerField = 'wake' | 'bed' | 'workStart' | 'workEnd' | 'schoolStart' | 'schoolEnd'
-
-export default function OnboardingAvailabilityScreen() {
+export default function OnboardingTrainTimeScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const { session, profile, refreshProfile } = useAuthStore()
   const params = useLocalSearchParams<{
-    goal: string; experience: string; equipment: string; daysPerWeek: string; preferredCalendar?: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string
+    goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string
+    includeCardio?: string; wake?: string; bed?: string; workSchoolStart?: string; workSchoolEnd?: string
   }>()
 
-  // Prefill from the saved profile (Change Plan re-entry) so continuing never
-  // silently resets availability the user already dialed in; new users get the
-  // same defaults as before.
-  const [wake, setWake] = useState<string | null>(profile?.wake_time ?? '06:30:00')
-  const [bed, setBed] = useState<string | null>(profile?.bedtime ?? '22:30:00')
-  const [workStart, setWorkStart] = useState<string | null>(profile?.work_start ?? null)
-  const [workEnd, setWorkEnd] = useState<string | null>(profile?.work_end ?? null)
-  const [schoolStart, setSchoolStart] = useState<string | null>(profile?.school_start ?? null)
-  const [schoolEnd, setSchoolEnd] = useState<string | null>(profile?.school_end ?? null)
   const [tod, setTod] = useState<TimeOfDay | null>(profile?.preferred_time_of_day ?? null)
   const [offDays, setOffDays] = useState<number[]>(() =>
     ((profile?.unavailable_blocks ?? []) as UnavailableBlock[])
@@ -63,53 +48,11 @@ export default function OnboardingAvailabilityScreen() {
       .map((b) => b.weekday as number)
       .sort((a, b) => a - b),
   )
-
-  const [picker, setPicker] = useState<PickerField | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const workOn = workStart != null && workEnd != null
-  const schoolOn = schoolStart != null && schoolEnd != null
-
-  const toggleWork = (on: boolean) => {
-    if (on) { setWorkStart('09:00:00'); setWorkEnd('17:00:00') }
-    else { setWorkStart(null); setWorkEnd(null) }
-  }
-  const toggleSchool = (on: boolean) => {
-    if (on) { setSchoolStart('08:00:00'); setSchoolEnd('15:00:00') }
-    else { setSchoolStart(null); setSchoolEnd(null) }
-  }
   const toggleOff = (iso: number) =>
     setOffDays(prev => prev.includes(iso) ? prev.filter(d => d !== iso) : [...prev, iso].sort((a, b) => a - b))
 
-  const pickerValue = (): string | null => {
-    switch (picker) {
-      case 'wake': return wake
-      case 'bed': return bed
-      case 'workStart': return workStart
-      case 'workEnd': return workEnd
-      case 'schoolStart': return schoolStart
-      case 'schoolEnd': return schoolEnd
-      default: return null
-    }
-  }
-  const applyPicker = (v: string) => {
-    switch (picker) {
-      case 'wake': setWake(v); break
-      case 'bed': setBed(v); break
-      case 'workStart': setWorkStart(v); break
-      case 'workEnd': setWorkEnd(v); break
-      case 'schoolStart': setSchoolStart(v); break
-      case 'schoolEnd': setSchoolEnd(v); break
-    }
-    setPicker(null)
-  }
-  const pickerTitle: Record<PickerField, string> = {
-    wake: 'Wake-up time', bed: 'Bedtime',
-    workStart: 'Work starts', workEnd: 'Work ends',
-    schoolStart: 'School starts', schoolEnd: 'School ends',
-  }
-
-  // Pass the onboarding choices straight through to the plan step.
   const goNext = () => router.push({ pathname: '/onboarding/plan-preview', params })
 
   const handleContinue = async (attempt = 0) => {
@@ -126,24 +69,30 @@ export default function OnboardingAvailabilityScreen() {
       ...kept,
       ...offDays.map(wd => ({ id: genId(), scope: 'weekday' as const, weekday: wd, allDay: true })),
     ]
+    const workSchoolStart = params.workSchoolStart || null
+    const workSchoolEnd = params.workSchoolEnd || null
     try {
-      // Include the required (NOT NULL) profile fields from the onboarding params —
-      // this is the FIRST write to user_profiles, so the row doesn't exist yet. Without
+      // Include the required (NOT NULL) profile fields from onboarding params — this
+      // is the FIRST write to user_profiles, so the row doesn't exist yet. Without
       // goal/experience/days_per_week the insert violates NOT NULL and silently drops
-      // all availability (this was happening for every new user). plan-preview later
-      // re-upserts the same row to add onboarding_complete.
+      // all availability. plan-preview later re-upserts the same row to add
+      // onboarding_complete. Work/School is one merged onboarding question but writes
+      // into BOTH fields (see work-school.tsx's header comment) so every existing
+      // consumer of either field keeps working unchanged.
       const { error } = await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
         goal: params.goal,
         experience: params.experience,
         equipment: (params.equipment ?? '').split(',').filter(Boolean) as Equipment[],
         days_per_week: parseInt(params.daysPerWeek ?? '3', 10) || 3,
-        wake_time: wake,
-        bedtime: bed,
-        work_start: workStart,
-        work_end: workEnd,
-        school_start: schoolStart,
-        school_end: schoolEnd,
+        preferred_duration_min: params.sessionMinutes ? parseInt(params.sessionMinutes, 10) : 45,
+        include_cardio: params.includeCardio === 'true',
+        wake_time: params.wake || null,
+        bedtime: params.bed || null,
+        work_start: workSchoolStart,
+        work_end: workSchoolEnd,
+        school_start: workSchoolStart,
+        school_end: workSchoolEnd,
         preferred_time_of_day: tod,
         unavailable_blocks: unavailable,
         scheduling_mode: params.schedulingMode === 'manual' ? 'manual' : 'auto',
@@ -163,8 +112,8 @@ export default function OnboardingAvailabilityScreen() {
       }
       setSaving(false)
       // Don't trap the user at onboarding over an availability save — they can set
-      // this any time from Profile → Availability. But say WHY it failed and offer
-      // a real retry, since "continue" quietly drops their choices for this pass.
+      // this any time from Profile → Settings → Availability. But say WHY it failed
+      // and offer a real retry, since "continue" quietly drops their choices for this pass.
       const info = describeSaveError(err, 'save your availability')
       Alert.alert(info.title, `${info.message}\n\nYou can also continue and set this later in Settings.`, [
         { text: 'Try Again', onPress: () => handleContinue() },
@@ -172,16 +121,6 @@ export default function OnboardingAvailabilityScreen() {
       ])
     }
   }
-
-  const TimeRow = ({ label, value, field }: { label: string; value: string | null; field: PickerField }) => (
-    <TouchableOpacity style={styles.timeRow} onPress={() => setPicker(field)} activeOpacity={0.7}>
-      <Text style={styles.timeRowLabel}>{label}</Text>
-      <View style={styles.timeRowRight}>
-        <Text style={styles.timeRowValue}>{formatTime12(value)}</Text>
-        <Ionicons name="chevron-forward" size={16} color={C.outline} />
-      </View>
-    </TouchableOpacity>
-  )
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -196,70 +135,14 @@ export default function OnboardingAvailabilityScreen() {
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: '75%' }]} />
+        <View style={[styles.progressFill, { width: `${(5 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 3 OF 4</Text>
-        <Text style={styles.title}>When does life happen?</Text>
-        <Text style={styles.subtitle}>
-          Tell Tempo your real hours and it'll slot workouts into the gaps — never on top
-          of sleep, work, or class. You can change all of this later.
-        </Text>
+        <Text style={styles.stepLabel}>STEP 5 OF {TOTAL_STEPS}</Text>
+        <Text style={styles.title}>When do you want to train?</Text>
+        <Text style={styles.subtitle}>Tempo aims for this window consistently, and never schedules a day you rule out.</Text>
 
-        {/* Sleep */}
-        <Text style={styles.sectionLabel}>SLEEP</Text>
-        <View style={styles.card}>
-          <TimeRow label="Wake up" value={wake} field="wake" />
-          <View style={styles.divider} />
-          <TimeRow label="Bedtime" value={bed} field="bed" />
-        </View>
-
-        {/* Work */}
-        <Text style={styles.sectionLabel}>WORK HOURS</Text>
-        <View style={styles.card}>
-          <View style={styles.switchRow}>
-            <Text style={styles.timeRowLabel}>I have set work hours</Text>
-            <Switch
-              value={workOn}
-              onValueChange={toggleWork}
-              trackColor={{ true: C.primary, false: C.surfaceContainerHigh }}
-              thumbColor="#fff"
-            />
-          </View>
-          {workOn && (
-            <>
-              <View style={styles.divider} />
-              <TimeRow label="Starts" value={workStart} field="workStart" />
-              <View style={styles.divider} />
-              <TimeRow label="Ends" value={workEnd} field="workEnd" />
-            </>
-          )}
-        </View>
-
-        {/* School */}
-        <Text style={styles.sectionLabel}>SCHOOL HOURS</Text>
-        <View style={styles.card}>
-          <View style={styles.switchRow}>
-            <Text style={styles.timeRowLabel}>I have set school hours</Text>
-            <Switch
-              value={schoolOn}
-              onValueChange={toggleSchool}
-              trackColor={{ true: C.primary, false: C.surfaceContainerHigh }}
-              thumbColor="#fff"
-            />
-          </View>
-          {schoolOn && (
-            <>
-              <View style={styles.divider} />
-              <TimeRow label="Starts" value={schoolStart} field="schoolStart" />
-              <View style={styles.divider} />
-              <TimeRow label="Ends" value={schoolEnd} field="schoolEnd" />
-            </>
-          )}
-        </View>
-
-        {/* Preferred time of day */}
         <Text style={styles.sectionLabel}>PREFERRED TIME TO TRAIN</Text>
         <View style={styles.segmented}>
           {TODS.map(t => (
@@ -273,9 +156,7 @@ export default function OnboardingAvailabilityScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.hint}>Tempo aims for this window, then varies the exact time so your week isn't robotic.</Text>
 
-        {/* Days completely off */}
         <Text style={styles.sectionLabel}>DAYS I NEVER TRAIN</Text>
         <View style={styles.daysRow}>
           {DAYS.map(d => {
@@ -293,8 +174,8 @@ export default function OnboardingAvailabilityScreen() {
           })}
         </View>
         <Text style={styles.hint}>
-          For religious observance (e.g. Shabbat), a standing commitment, or any day you
-          simply rest. Tempo never schedules a workout here. Add specific times later in Settings.
+          A standing commitment, or any day you simply rest — Tempo never schedules a
+          workout here. Add specific times later in Settings.
         </Text>
       </ScrollView>
 
@@ -308,14 +189,6 @@ export default function OnboardingAvailabilityScreen() {
           {saving ? <ActivityIndicator color={C.onPrimary} /> : <Text style={styles.continueBtnText}>Continue</Text>}
         </PressableScale>
       </View>
-
-      <TimePickerSheet
-        visible={picker !== null}
-        value={pickerValue()}
-        title={picker ? pickerTitle[picker] : ''}
-        onSelect={applyPicker}
-        onClose={() => setPicker(null)}
-      />
     </SafeAreaView>
   )
 }
@@ -327,7 +200,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.md,
   },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontFamily: C.fontDisplay, fontSize: 15, color: C.primary, letterSpacing: 2 },
   skipTop: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.textSecondary },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
@@ -335,26 +207,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, marginBottom: Spacing.xs },
-
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
-  card: {
-    backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,
-    ...Elevation.e1, overflow: 'hidden',
-  },
-  divider: { height: 1, backgroundColor: C.surfaceContainerHigh, marginLeft: Spacing.md },
-  timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
-  timeRowLabel: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  timeRowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  timeRowValue: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.primary },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
   hint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, lineHeight: 17, marginTop: 2 },
-
   segmented: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 4, gap: 4 },
   segment: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center' },
-  segmentActive: { backgroundColor: C.background, ...CardShadow, shadowOpacity: 0.08 },
+  segmentActive: {
+    backgroundColor: C.background, shadowColor: C.text, shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+  },
   segmentText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
-
   daysRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between' },
   dayChip: {
     flex: 1, aspectRatio: 1, borderRadius: Radius.md, borderWidth: 1.5, borderColor: C.outlineVariant,
@@ -363,7 +225,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   dayChipOn: { backgroundColor: C.primary, borderColor: C.primary },
   dayChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   dayChipTextOn: { color: C.onPrimary },
-
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
