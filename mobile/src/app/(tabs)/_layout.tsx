@@ -2,23 +2,20 @@ import { Redirect } from 'expo-router'
 import { Tabs } from 'expo-router'
 import { View } from 'react-native'
 import { useAuthStore } from '@/stores/auth'
-import { useTutorialStore } from '@/stores/tutorial'
-import { T } from '@/lib/tutorial'
 import { useTheme } from '@/theme'
 import { TempoTabBar, type TabBarProps } from '@/components/TempoTabBar'
 
 export default function TabsLayout() {
   const { session, profile, loading } = useAuthStore()
-  // Read the tutorial state reactively so completing the welcome re-evaluates the gate.
-  const welcomePending = useTutorialStore(s => !!s.data.armed[T.welcome] && !s.data.skipped[T.welcome] && !s.data.completedSteps['welcome_done'])
   const C = useTheme()
 
   if (loading) return <View style={{ flex: 1, backgroundColor: C.background }} />
   if (!session) return <Redirect href="/sign-in" />
   if (!profile?.onboarding_complete) return <Redirect href="/onboarding/goal" />
-  // A freshly-onboarded user is routed through the Welcome experience before the
-  // app. Force-close-proof: this gate re-shows it on reopen until it's completed.
-  if (welcomePending) return <Redirect href={'/welcome' as any} />
+  // A freshly-onboarded user used to be routed through a separate /welcome screen
+  // here (removed 2026-07-17 — it repeated the same plan facts plan-preview's own
+  // reveal already shows). That reveal now sets 'welcome_done' directly, so there's
+  // nothing left for this gate to redirect to.
 
   return (
     <Tabs
