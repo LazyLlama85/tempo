@@ -390,7 +390,19 @@ you moving."*
   Tapping Feed opens an `OptionSheet` listing every eligible item (reusing each `contextItems` entry's
   own `chip.label`/`chip.icon`/`chip.onPress` — selecting one does exactly what its chip already did)
   plus a "Friends — N new" row that routes to `/social`. **No new table, no new screen for the list
-  itself** — genuinely just an aggregator over signals that already existed. The recovery check-in
+  itself** — genuinely just an aggregator over signals that already existed.
+  **Badge fixed to actually clear once viewed (2026-07-17):** the count used to just be
+  `eligibleContext.length + socialNotifs` — a live snapshot of what's currently eligible, so it never
+  went away even after the user opened the Feed and looked at everything (the founder: "should go
+  away once viewed"). New `lib/feedSeen.ts` (same device-local idiom as `lib/badges.ts`'s
+  unviewed-badge count): context items are keyed `${id}:${todayStr}` (dated, not permanent — most of
+  them, like rest-day advice or the Quick Workout suggestion, are legitimately eligible again
+  tomorrow with different content, and a permanent key would wrongly suppress that), social's count
+  is tracked as an acknowledged number. Opening the Feed (`openFeed`) marks everything currently
+  showing as seen; the badge (`feedCount`) now counts only items NOT in the seen set plus any real
+  increase in social notifications since last acknowledged. The sheet's own list is unaffected — it
+  still shows every currently-eligible item regardless of seen state, only the header badge reflects
+  "unviewed." The recovery check-in
   itself (still the same `RecoveryCheckIn` sheet, untouched) relocated into the hero's `heroMetaRow`
   next to the readiness chip — reachable in the 3 most common Home states (a scheduled day not yet
   done, a completed day, and a rest day with a real next session ahead) via a small "Daily check-in" /

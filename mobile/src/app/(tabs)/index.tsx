@@ -45,6 +45,7 @@ import { getQuickSuggestion } from '@/lib/quickSuggestion'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { describeSession } from '@/lib/sessionRationale'
 import { trackCalendarConnected } from '@/lib/activation'
+import { feedItemKey, getSeenFeedItems, markFeedItemsSeen, getSeenSocialCount, setSeenSocialCount } from '@/lib/feedSeen'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
 import { getTodayCheckin } from '@/lib/recovery'
@@ -1495,11 +1496,27 @@ export default function ScheduleScreen() {
   // Feed button (Phase 8) — aggregates today's eligible context items (every one
   // of them, not just the overflow chips, so the Feed is a single consolidated
   // view) + social's pending count. No new backend: both are already computed.
-  const feedCount = eligibleContext.length + socialNotifs
+  // The badge is UNVIEWED items, not just "currently eligible" (fixed 2026-07-17
+  // — it used to just re-show the same count every time, never actually
+  // clearing once looked at). Opening the Feed marks everything currently
+  // showing as seen; each context item is keyed by day (most of them are
+  // legitimately eligible again tomorrow with different content) and social's
+  // count is tracked as an acknowledged number, so only a real increase counts.
+  const seenFeedItems = getSeenFeedItems(userId)
+  const seenSocialCount = getSeenSocialCount(userId)
+  const unseenContextCount = eligibleContext.filter(i => !seenFeedItems.has(feedItemKey(i.id, todayStr))).length
+  const unseenSocialCount = Math.max(0, socialNotifs - seenSocialCount)
+  const feedCount = unseenContextCount + unseenSocialCount
   const feedOptions: OptionSheetItem[] = [
     ...eligibleContext.map((i): OptionSheetItem => ({ key: i.id, label: i.chip.label, icon: i.chip.icon })),
     ...(socialNotifs > 0 ? [{ key: 'friends', label: `Friends — ${socialNotifs} new`, icon: 'people-outline' }] : []),
   ]
+  const openFeed = () => {
+    setFeedOpen(true)
+    if (!userId) return
+    markFeedItemsSeen(userId, eligibleContext.map(i => feedItemKey(i.id, todayStr)))
+    setSeenSocialCount(userId, socialNotifs)
+  }
   const onSelectFeed = (key: string) => {
     setFeedOpen(false)
     if (key === 'friends') { router.push('/social' as any); return }
@@ -1525,7 +1542,7 @@ export default function ScheduleScreen() {
           <HeaderActions>
             <TouchableOpacity
               style={styles.feedBtn}
-              onPress={() => setFeedOpen(true)}
+              onPress={openFeed}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={feedCount > 0 ? `Feed — ${feedCount} new` : 'Feed'}
