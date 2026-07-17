@@ -18,6 +18,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 
 const TOTAL_STEPS = 6
@@ -45,10 +46,13 @@ export default function OnboardingWorkSchoolScreen() {
     if (v && (start == null || end == null)) { setStart('09:00:00'); setEnd('17:00:00') }
   }
 
-  const goNext = () => router.push({
-    pathname: '/onboarding/train-time',
-    params: { ...params, workSchoolStart: on ? (start ?? '') : '', workSchoolEnd: on ? (end ?? '') : '' },
-  })
+  const goNext = () => {
+    track('onboarding_step_completed', { step: 'work_school' })
+    router.push({
+      pathname: '/onboarding/train-time',
+      params: { ...params, workSchoolStart: on ? (start ?? '') : '', workSchoolEnd: on ? (end ?? '') : '' },
+    })
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>

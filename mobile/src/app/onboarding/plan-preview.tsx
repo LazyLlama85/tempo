@@ -142,6 +142,7 @@ export default function PlanPreviewScreen() {
     if (attempt === 0) {
       if (confirmLatch.current || status !== 'idle') return
       confirmLatch.current = true
+      track('onboarding_step_completed', { step: 'plan_confirmed' })
     }
     setStatus('saving')
     try {

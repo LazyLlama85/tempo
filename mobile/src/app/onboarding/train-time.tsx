@@ -16,6 +16,7 @@ import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import { describeSaveError, isAuthError } from '@/lib/saveErrors'
 import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
@@ -53,7 +54,10 @@ export default function OnboardingTrainTimeScreen() {
   const toggleOff = (iso: number) =>
     setOffDays(prev => prev.includes(iso) ? prev.filter(d => d !== iso) : [...prev, iso].sort((a, b) => a - b))
 
-  const goNext = () => router.push({ pathname: '/onboarding/plan-preview', params })
+  const goNext = () => {
+    track('onboarding_step_completed', { step: 'train_time' })
+    router.push({ pathname: '/onboarding/plan-preview', params })
+  }
 
   const handleContinue = async (attempt = 0) => {
     if (attempt === 0 && saving) return

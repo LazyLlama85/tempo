@@ -17,6 +17,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import type { Goal, Experience, Equipment } from '@/types'
 
 
@@ -96,6 +97,7 @@ export default function BasicsScreen() {
   const onContinue = () => {
     if (!canContinue) return
     if (cardIndex < cardCount - 1) { setCardIndex(cardIndex + 1); return }
+    track('onboarding_step_completed', { step: 'basics', substeps: cardCount })
     router.push({
       pathname: '/onboarding/schedule',
       params: { goal: goalSel!, experience: expSel, equipment: equipSel.join(','), buildMode: isReplan ? 'guided' : buildMode },

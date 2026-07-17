@@ -37,6 +37,18 @@ export type EventProperties = {
     experience: string
     days_per_week: number
   }
+  // Fired once per screen-complete as the user advances through onboarding, so the
+  // PostHog funnel can localize drop-off to a step (B0.3 granularity) instead of
+  // only knowing the start (signup) and end (onboarding_complete).
+  onboarding_step_completed: {
+    step: 'basics' | 'schedule' | 'sleep' | 'work_school' | 'train_time' | 'plan_confirmed'
+    substeps?: number
+  }
+  // The optional calendar tap-in at the plan-preview reveal (B1.5-adjacent —
+  // this is the onboarding-time offer, not the Settings connect flow).
+  onboarding_calendar_prompt: {
+    action: 'connected_google' | 'connected_device' | 'failed' | 'skipped'
+  }
   // A workout session was started (Quick Workout or a planned session).
   session_start: {
     type: SessionType

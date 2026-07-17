@@ -8,6 +8,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 
 
 const SESSION_MINUTES = [30, 45, 60, 75, 90] as const
@@ -51,13 +52,16 @@ export default function ScheduleScreen() {
   const cardioMatters = (goal === 'muscle_gain' || goal === 'strength') && buildMode !== 'custom'
   const [includeCardio, setIncludeCardio] = useState(!!profile?.include_cardio)
 
-  const goNext = () => router.push({
-    pathname: '/onboarding/sleep',
-    params: {
-      goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes), buildMode,
-      includeCardio: cardioMatters && includeCardio ? 'true' : 'false',
-    },
-  })
+  const goNext = () => {
+    track('onboarding_step_completed', { step: 'schedule' })
+    router.push({
+      pathname: '/onboarding/sleep',
+      params: {
+        goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes), buildMode,
+        includeCardio: cardioMatters && includeCardio ? 'true' : 'false',
+      },
+    })
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>

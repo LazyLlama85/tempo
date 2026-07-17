@@ -14,6 +14,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { useAuthStore } from '@/stores/auth'
+import { track } from '@/lib/analytics'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 
 const TOTAL_STEPS = 6
@@ -32,10 +33,13 @@ export default function OnboardingSleepScreen() {
   const [bed, setBed] = useState<string | null>(profile?.bedtime ?? '22:30:00')
   const [picker, setPicker] = useState<PickerField | null>(null)
 
-  const goNext = () => router.push({
-    pathname: '/onboarding/work-school',
-    params: { ...params, wake: wake ?? '', bed: bed ?? '' },
-  })
+  const goNext = () => {
+    track('onboarding_step_completed', { step: 'sleep' })
+    router.push({
+      pathname: '/onboarding/work-school',
+      params: { ...params, wake: wake ?? '', bed: bed ?? '' },
+    })
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
