@@ -250,30 +250,25 @@ paywall reflect it on next launch. Revisit pricing the day Tempo Coach ships (se
 ## Part D2 — Android / Google Play (all founder-only; audited 2026-07-18)
 
 The app is `com.fittempo.app` on Play (name "Tempo: Fitness Scheduling"), in **Closed testing**. The
-same RevenueCat entitlement + offering serve Android — Android just needs its own products + credential
-wired in. **None of this is set up yet, and the whole chain is blocked on two founder-only financial /
-credential steps I can't do.** Do them in order:
+same RevenueCat entitlement + offering serve Android. Progress as of 2026-07-18:
 
-1. **⛔ Set up a Google Play merchant account** — Play Console → *Monetize with Play* shows "To monetize
-   this app, set up a merchant account → Get started". This is the Android equivalent of Apple's Paid
-   Apps Agreement: business + tax + bank details. **Until it exists you cannot create any priced
-   subscription.** *(founder — financial data)*
-2. **Create the subscriptions** (Play Console → Monetize with Play → *Products → Subscriptions → Create
-   subscription*). Play's model differs from Apple's: create **one subscription per product ID**, each
-   with a **base plan** (billing period + price), then add **offers** on a base plan:
-   - `tempo_pro_month` — base plan: monthly, **$4.99**.
-   - `tempo_pro_year` — base plan: yearly, **$34.99**, + a **Free trial offer → 1 week** (the 7-day
-     trial). Give it the same accurate description: *"Unlimited custom plans, workouts & smart
-     scheduling."* *(I can drive this once step 1 is done.)*
-3. **⛔ RevenueCat → Play Store app → Service account credentials JSON** — currently **empty**. RevenueCat
-   needs a Google Cloud **service-account JSON** (with Play Android Publisher API access, granted under
-   Play Console → Users and permissions / API access), plus **Real-time developer notifications**
-   (Pub/Sub) for renewals. Without it, RevenueCat can't validate Android purchases *and can't even
-   import the Play products.* *(founder — credential; RevenueCat's "Google Play" setup docs walk it.)*
-4. **RevenueCat wiring** (after 2–3): import `tempo_pro_month` / `tempo_pro_year`, **attach both to the
-   `Tempo: Fitness Planner Pro` entitlement**, and add them to the **`default` offering**'s `$rc_monthly`
-   / `$rc_annual` packages (so the packages hold *both* the App Store and Play products). *(I can do
-   this once the credential is set.)*
+1. **✅ Google Play merchant account — DONE** (founder). The *Monetize with Play* page no longer shows
+   the "set up a merchant account" block.
+2. **✅ Play subscriptions created + activated** (2026-07-18): `tempo_pro_month` → monthly base plan
+   **$4.99** (Active); `tempo_pro_year` → yearly base plan **$34.99** (Active) **+ a `free-trial`
+   offer** (Free trial phase, **1 week**, eligibility "New customer acquisition → Never had any
+   subscription" — one trial per user, matching iOS). Prices auto-converted to all 174–177 regions.
+3. **⛔ RevenueCat → Play Store app → Service account credentials JSON — STILL EMPTY (do this next).**
+   RevenueCat needs a Google Cloud **service-account JSON** (with Play Android Publisher API access,
+   granted under Play Console → Users and permissions / API access), plus **Real-time developer
+   notifications** (Pub/Sub) for renewals. Without it, RevenueCat can't validate Android purchases
+   *and can't even import the Play products.* *(founder — credential; RevenueCat's "Google Play" setup
+   docs walk it step by step. This is now the ONLY thing blocking Android.)*
+4. **RevenueCat wiring** (after 3): import `tempo_pro_month:monthly` / `tempo_pro_year:yearly` (Play
+   products are `subscriptionId:basePlanId`), **attach both to the `Tempo: Fitness Planner Pro`
+   entitlement**, and add them to the **`default` offering**'s `$rc_monthly` / `$rc_annual` packages
+   (so each package holds *both* the App Store and Play product). *(I can do this once the credential
+   is set — same as I did the iOS wiring.)*
 5. **Android SDK key — DONE (verify):** `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` is now in `eas.json`
    (`goog_oxlGATTCFaOSINDjTcKnkPbPBSp`). ⚠️ **Verify this matches RevenueCat → Apps → Play Store → Public
    API Key exactly** — it was read off-screen; a single wrong character silently breaks Android purchases
@@ -282,8 +277,8 @@ credential steps I can't do.** Do them in order:
    --platform android`, or `--local`), unlike iOS. Test purchases on the **Closed testing** track with a
    **License tester** account (Play Console → Setup → License testing) — no need to go to production.
 
-The `pro_enabled` flag and the paywall/caps code are already cross-platform — once 1–5 are done and an
-Android build ships, Pro works on Android identically to iOS.
+The `pro_enabled` flag and the paywall/caps code are already cross-platform — once step 3 (credential)
++ step 4 (wiring) are done and an Android build ships, Pro works on Android identically to iOS.
 
 ---
 
