@@ -795,12 +795,14 @@ you moving."*
   the "beyond primary" ids). UI: `app/calendar-picker.tsx` (new modal, registered in `_layout.tsx`),
   reached from `calendar-setup.tsx`'s Google card via a "Choose calendars" row (shown only once Google
   is connected), gated by a new `multi_calendar` entry in `lib/proFeatures.ts`
-  (`<ProGate feature="multi_calendar" compact>`) — deliberately left OUT of `PAYWALL_POINTS` since it
-  doesn't work yet. **Deliberately dormant:** `GOOGLE_CALENDAR_SCOPES` in
-  `services/googleCalendar/config.ts` keeps the new scope commented out — adding it re-opens Google's
-  OAuth verification and requires a new in-app demo video (the founder's job, sequenced last). Until
-  then `fetchCalendarList()` honestly 403s and the picker shows a plain "not available yet" state
-  (`describeReadError`'s existing scope-diagnostic path) rather than faking success.
+  (`<ProGate feature="multi_calendar" compact>`) — still OUT of `PAYWALL_POINTS` until it's device-
+  confirmed. **Scope enabled 2026-07-18:** the founder added `calendar.calendarlist.readonly` in
+  Google Cloud Console and `GOOGLE_CALENDAR_SCOPES` in `services/googleCalendar/config.ts` now
+  includes it, so `fetchCalendarList()` + the picker work (OTA — the scope is a JS-config string, no
+  rebuild). Two caveats live in the config comment: (1) already-connected Google users must reconnect
+  once (a refresh-token exchange can't retroactively broaden granted scopes); (2) until Google finishes
+  verifying the scope, users may hit an "unverified app" consent screen. `describeReadError`'s
+  scope-diagnostic path still handles the pre-reconnect insufficient-scope case gracefully.
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 

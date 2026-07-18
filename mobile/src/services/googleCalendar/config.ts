@@ -9,20 +9,18 @@
 // Scope requested at sign-in AND configured on the Supabase Google provider.
 // calendar.events = create/read/update events only (not full calendar mgmt).
 //
-// B1.5 (multi-calendar, 2026-07-17): reading BEYOND the primary calendar needs
-// 'https://www.googleapis.com/auth/calendar.calendarlist.readonly' added here —
-// deliberately NOT added yet. Per the founder's own sequencing (EXECUTION_STATUS.md
-// B1.5): adding a new sensitive scope re-opens Google's OAuth verification and
-// requires a NEW demo video showing the feature in-app. So the order is (1) this
-// scope stays commented out, (2) the picker/integration below is built dormant —
-// fetchCalendarList() will honestly fail with an insufficient-scope error until
-// the scope exists, exactly like any other real permission gap — (3) only once the
-// founder is ready to file that verification does this line get uncommented. Every
-// already-connected user will also need to reconnect (a refresh-token exchange
-// can't retroactively broaden its own granted scopes).
+// B1.5 (multi-calendar): reading BEYOND the primary calendar needs
+// 'calendar.calendarlist.readonly'. ENABLED 2026-07-18 — the founder added this
+// scope in Google Cloud Console, so fetchCalendarList() (and the calendar picker)
+// now work. Two consequences to know: (1) every ALREADY-connected Google user must
+// reconnect once — a refresh-token exchange can't retroactively broaden its own
+// granted scopes, so existing tokens keep working for primary-calendar events but
+// can't list calendars until reconnect; (2) if Google hasn't finished verifying the
+// added scope, users may see an "unverified app" consent screen — that's a Google
+// dashboard/verification matter, not an app bug. To roll back, re-comment the line.
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
-  // 'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
 ] as const
 
 // Google Calendar REST v3.
