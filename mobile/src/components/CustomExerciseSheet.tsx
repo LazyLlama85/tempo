@@ -14,8 +14,9 @@ import { Spacing, Radius, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import {
   EXERCISE_CATEGORIES, METRIC_OPTIONS,
-  createCustomExercise, updateCustomExercise,
+  createCustomExercise, updateCustomExercise, countCustomExercises,
 } from '@/lib/customExercises'
+import { useCreateLimit } from '@/lib/proLimits'
 import type { Exercise, MovementPattern, MetricKey, Equipment } from '@/types'
 
 // Sensible default metrics per category, so a "Cardio" exercise tracks time/distance
@@ -50,6 +51,7 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const editing = !!exercise?.id
+  const { canCreate } = useCreateLimit()
 
   const [name, setName] = useState('')
   const [pattern, setPattern] = useState<MovementPattern>('push')
@@ -104,6 +106,10 @@ export function CustomExerciseSheet({ visible, userId, client, exercise, onClose
         if (!ok) throw new Error('update failed')
         onSaved({ ...exercise, ...input, primary_muscles: exercise.primary_muscles ?? [] } as Exercise)
       } else {
+        // Free-tier cap: block a NEW custom exercise past the limit (routes to the
+        // paywall). Inert while Pro is dormant. Editing an existing one is never gated.
+        const count = await countCustomExercises(client, userId)
+        if (!canCreate('custom_exercises', count)) { setSaving(false); return }
         const created = await createCustomExercise(client, userId, input)
         if (!created) throw new Error('create failed')
         onSaved(created)

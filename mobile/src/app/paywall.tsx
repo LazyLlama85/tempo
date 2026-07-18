@@ -32,14 +32,18 @@ type PlanKey = 'annual' | 'monthly'
 
 // Free-vs-Pro — kept honest to the actual gating (proFeatures.ts): the free app is
 // fully functional; Pro adds depth/foresight/breadth/personalization on top.
-const COMPARE: { label: string; free: boolean }[] = [
+// Honest to the actual gating (proFeatures.ts + proLimits.ts): the core training
+// loop is free and uncapped; Pro removes the creation caps and adds the scheduling
+// superpowers. The free column reflects the real free-tier limits.
+const COMPARE: { label: string; free: string | boolean }[] = [
   { label: 'Auto-scheduled workout plan', free: true },
-  { label: 'Calendar sync & logging', free: true },
-  { label: 'Splits, templates & quick workouts', free: true },
+  { label: 'Unlimited logging & full history', free: true },
+  { label: 'Full 1,300+ exercise library', free: true },
   { label: 'Advanced analytics', free: true },
+  { label: 'Custom plans', free: '1' },
+  { label: 'Custom workouts & exercises', free: '5 each' },
   { label: '"Reschedule my whole week" in one tap', free: false },
-  { label: 'Readiness & recovery insights', free: false },
-  { label: 'Long-term & structured planning', free: false },
+  { label: 'Multi-calendar & travel mode', free: false },
   { label: 'Premium themes & app icons', free: false },
 ]
 
@@ -208,12 +212,16 @@ export default function PaywallScreen() {
             <View key={i} style={[styles.compareRow, i > 0 && styles.compareRowDivider]}>
               <Text style={styles.compareLabel}>{row.label}</Text>
               <View style={styles.compareCell}>
-                {row.free
-                  ? <Ionicons name="checkmark" size={16} color={C.textSecondary} />
-                  : <Ionicons name="remove" size={16} color={C.outlineVariant} />}
+                {typeof row.free === 'string'
+                  ? <Text style={styles.compareFreeVal}>{row.free}</Text>
+                  : row.free
+                    ? <Ionicons name="checkmark" size={16} color={C.textSecondary} />
+                    : <Ionicons name="remove" size={16} color={C.outlineVariant} />}
               </View>
               <View style={styles.compareCell}>
-                <Ionicons name="checkmark-circle" size={18} color={C.primary} />
+                {typeof row.free === 'string'
+                  ? <Text style={styles.compareProVal}>∞</Text>
+                  : <Ionicons name="checkmark-circle" size={18} color={C.primary} />}
               </View>
             </View>
           ))}
@@ -378,6 +386,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   compareRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
   compareLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.text },
   compareCell: { width: 46, alignItems: 'center' },
+  compareFreeVal: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  compareProVal: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.primary, lineHeight: 20 },
 
   valueStatement: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, textAlign: 'center' },
   trustRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.md, marginTop: 2 },

@@ -125,6 +125,7 @@ export interface PaywallPoint {
 // to something a Pro user can use today; add to this list only as new gates
 // actually ship.
 export const PAYWALL_POINTS: PaywallPoint[] = [
+  { icon: 'infinite', title: 'Unlimited Everything', benefit: 'Build unlimited custom plans, workouts, and exercises — no caps. (Free includes 1 plan, 5 workouts, 5 exercises.)' },
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
   { icon: 'airplane', title: 'Travel Mode', benefit: 'Rewrite your upcoming workouts to match whatever gear you have with you on the road.' },

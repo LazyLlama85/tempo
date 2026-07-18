@@ -20,8 +20,9 @@ import { TempoSheet } from '@/components/TempoSheet'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { OptionSheet } from '@/components/OptionSheet'
 import {
-  WEEKDAY_LABELS, dayFromDraftItems, daysToDraftItems, restDay, saveSplit, fetchSplits,
+  WEEKDAY_LABELS, dayFromDraftItems, daysToDraftItems, restDay, saveSplit, fetchSplits, countCustomSplits,
 } from '@/lib/splits'
+import { useCreateLimit } from '@/lib/proLimits'
 import { activateSplit } from '@/lib/splitSchedule'
 import { describeSaveError } from '@/lib/saveErrors'
 import { consumeSplitHandoff } from '@/lib/handoff'
@@ -45,6 +46,7 @@ export default function SplitEditorScreen() {
   const insets = useSafeAreaInsets()
   const { session, profile } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const { canCreate } = useCreateLimit()
   const { splitId } = useLocalSearchParams<{ splitId?: string }>()
 
   const [name, setName] = useState('')
@@ -225,6 +227,13 @@ export default function SplitEditorScreen() {
     if (workDays.length === 0) { Alert.alert('Add a workout', 'Set at least one training day with exercises.'); return }
 
     setSaving(true)
+    // Free-tier cap: block a NEW custom plan past the limit (routes to the paywall).
+    // Inert while Pro is dormant; editing an existing split is never gated, and the
+    // auto "By Tempo" program never counts toward the limit (countCustomSplits).
+    if (!splitId) {
+      const count = await countCustomSplits(supabase, userId)
+      if (!canCreate('custom_plans', count)) { setSaving(false); return }
+    }
     const splitDays = days.map((d) =>
       d.rest || d.items.length === 0 ? restDay(d.weekday) : dayFromDraftItems(d.weekday, d.label, d.items))
     const id = await saveSplit(supabase, userId, { name, days: splitDays, splitId: splitId ?? null })

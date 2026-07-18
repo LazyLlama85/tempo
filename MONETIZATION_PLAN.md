@@ -133,7 +133,9 @@ wall. Capping how much custom content you can *create* is fine; capping the *cor
 - **Pre-workout reminders** + retention nudges.
 - **Account, calendar sync (primary), sign-in, data export/delete.**
 
-**Free tier limits (founder decision 2026-07-18) — on *created content* only:**
+**Free tier limits (founder decision 2026-07-18) — on *created content* only** *(✅ IMPLEMENTED in
+code 2026-07-18, dormant until Pro is live — `lib/proLimits.ts` + the three creation choke points;
+see `ARCHITECTURE.md` § Pro and `PRO_SETUP_GUIDE.md` to turn it on):*
 | Limit | Free | Pro | Notes |
 |---|---|---|---|
 | Adaptive Tempo plan | 1 | 1 (+ unlimited custom) | You only need one — it adapts. Not really a "cap." |

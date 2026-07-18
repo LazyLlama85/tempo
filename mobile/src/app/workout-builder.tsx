@@ -29,8 +29,9 @@ import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { EXERCISE_COLUMNS } from '@/lib/customExercises'
 import {
   type DraftItem, makeDraftItem, estimateDurationMin,
-  saveTemplate, scheduleWorkout, templateToItems,
+  saveTemplate, scheduleWorkout, templateToItems, countTemplates,
 } from '@/lib/workoutBuilder'
+import { useCreateLimit } from '@/lib/proLimits'
 import { WORKOUT_PRESETS, workoutPresetById, hydrateWorkoutPreset } from '@/lib/starterTemplates'
 import { setSplitHandoff } from '@/lib/handoff'
 import { track } from '@/lib/analytics'
@@ -50,6 +51,7 @@ export default function WorkoutBuilderScreen() {
   const { templateId, date, presetId, forSplit, addExerciseIds } = useLocalSearchParams<{ templateId?: string; date?: string; presetId?: string; forSplit?: string; addExerciseIds?: string }>()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const { canCreate } = useCreateLimit()
   const unit = useWeightUnit()
 
   // Two modes:
@@ -177,6 +179,12 @@ export default function WorkoutBuilderScreen() {
   const handleSaveTemplate = async () => {
     if (busy || !validate()) return
     setBusy('template')
+    // Free-tier cap: block saving a NEW custom workout past the limit (routes to the
+    // paywall). Inert while Pro is dormant; editing an existing template is never gated.
+    if (!templateId) {
+      const count = await countTemplates(supabase, userId)
+      if (!canCreate('custom_workouts', count)) { setBusy(null); return }
+    }
     const id = await saveTemplate(supabase, userId, { name, items, templateId: templateId ?? null })
     setBusy(null)
     if (id) {

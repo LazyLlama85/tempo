@@ -117,6 +117,15 @@ export async function fetchSplits(client: SupabaseClient, userId: string): Promi
   return (data ?? []) as Split[]
 }
 
+// How many HAND-BUILT splits this user has (for the free-tier cap — see lib/proLimits).
+// The auto "By Tempo" program mirror (kind='auto') never counts — it isn't a custom
+// plan, and custom splits store kind=NULL, so a SQL neq('kind','auto') would wrongly
+// drop them; count client-side via isAutoSplit instead.
+export async function countCustomSplits(client: SupabaseClient, userId: string): Promise<number> {
+  const splits = await fetchSplits(client, userId)
+  return splits.filter((s) => !isAutoSplit(s)).length
+}
+
 export async function fetchActiveSplit(client: SupabaseClient, userId: string): Promise<Split | null> {
   const { data } = await client
     .from('splits')

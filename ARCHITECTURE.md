@@ -1101,7 +1101,20 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   checks `useProGate().locked` and renders a `ProLockCard` in place of the equipment/duration form
   when locked — belt-and-suspenders so a locked user can't reach the form via a deep link either,
   matching `muscle-map.tsx`'s own screen-level gating pattern. Dormant-safe like every other gate:
-  byte-identical while `proEnabled` is false. **The custom paywall**
+  byte-identical while `proEnabled` is false. **Free-tier creation caps (2026-07-18) —
+  `lib/proLimits.ts`:** the capped side of the Free/Pro line (founder decision — keep current price,
+  cap created content instead). `FREE_LIMITS` = **1 custom plan, 5 custom exercises, 5 saved custom
+  workouts**; the core training loop (unlimited logging, the adaptive plan, the full library, quick
+  workouts, history) is **never** capped. `useCreateLimit().canCreate(key, count)` returns true when
+  creation may proceed (Pro dormant, user is Pro, or under the limit) and otherwise routes to the
+  paywall (`context = the limit key`). Enforced at the three creation **choke points**, only when
+  creating NEW (editing is never gated): `CustomExerciseSheet.handleSave` (via
+  `countCustomExercises`), `workout-builder.handleSaveTemplate` when `!templateId` (via
+  `countTemplates`), and `split-editor.handleSave` when `!splitId` (via `countCustomSplits`, which
+  excludes the auto "By Tempo" mirror). Dormant-safe: `canCreate` always returns true while
+  `proEnabled` is false, so free users are uncapped until Pro is live. `PAYWALL_POINTS` leads with
+  "Unlimited Everything" and the paywall's Free-vs-Pro table shows the real caps (1 / 5-each → ∞).
+  **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
   StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a

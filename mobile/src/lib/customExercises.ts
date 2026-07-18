@@ -111,6 +111,15 @@ export async function deleteCustomExercise(client: SupabaseClient, exerciseId: s
   return { ok: false, reason: 'error' }
 }
 
+// How many custom exercises this user has (for the free-tier cap — see lib/proLimits).
+export async function countCustomExercises(client: SupabaseClient, userId: string): Promise<number> {
+  const { count } = await client
+    .from('exercises')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return count ?? 0
+}
+
 export async function fetchCustomExercises(client: SupabaseClient, userId: string): Promise<Exercise[]> {
   const { data } = await client
     .from('exercises')

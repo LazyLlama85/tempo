@@ -73,6 +73,15 @@ export async function fetchTemplates(client: SupabaseClient, userId: string): Pr
   return (data ?? []) as WorkoutTemplate[]
 }
 
+// How many saved workout templates this user has (for the free-tier cap — proLimits).
+export async function countTemplates(client: SupabaseClient, userId: string): Promise<number> {
+  const { count } = await client
+    .from('workout_templates')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return count ?? 0
+}
+
 export async function saveTemplate(
   client: SupabaseClient,
   userId: string,
