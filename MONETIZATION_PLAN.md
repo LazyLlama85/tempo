@@ -16,8 +16,17 @@
 
 > **Free proves the wedge on autopilot: "Tempo plans my week and it just works."
 > Pro turns Tempo into the coach that *runs* your training — command it, see months ahead, go deep,
-> and let it reprogram anything.** Free stays genuinely amazing (the whole engine is free forever);
-> Pro is *additive power*, not a hostage negotiation.
+> and let it reprogram anything.** The core training loop is free forever (log unlimited sessions,
+> run your adaptive plan, use the whole library); Pro unlocks *depth, foresight, and unlimited
+> creation* on top.
+
+> **FOUNDER DECISION (2026-07-18):** keep the **current price** ($4.99/mo · $34.99/yr) and give the
+> free tier real limits on **user-created content** — **1 Tempo plan + 1 custom plan, 5 custom
+> exercises, 5 saved custom workouts.** This is the *freemium content-cap* model (Hevy/Strong), and
+> it's internally consistent: a Strong/Hevy-level price paired with a Strong/Hevy-level free cap. It
+> replaces this doc's original "raise price, keep free generous" recommendation — both are valid
+> strategies; this is the chosen one. The rest of the plan (pillars, paywall placement, the proof
+> number) is unchanged and now *more* important, since a lower price needs higher volume to pay off.
 
 Everything below is how we get there, grounded in what people actually pay for, what the apps making
 real money do, and what the audit already told us.
@@ -106,24 +115,35 @@ feeling — delivered by *adding power*, not by crippling free.
 
 ## 4. Exactly what's Free vs Pro
 
-### 🟢 FREE — and it stays amazing (never gate these)
-The entire core loop. If any of this ever gets gated, we've broken the funnel and the brand.
+### 🟢 FREE — the core training loop, uncapped forever (never gate these)
+The line the caps must never cross: a free user must be able to *train forever* without hitting a
+wall. Capping how much custom content you can *create* is fine; capping the *core loop* is not.
 
 - **The engine:** plan generation, periodization/mesocycles, adaptive deloads, experience promotion —
   the full adaptive brain.
 - **Ambient auto-scheduling** around your **primary** calendar (the wedge — free forever).
-- **One active, living Tempo plan**, always adapting to you.
+- **Your living Tempo plan**, always adapting to you (this is the "1 Tempo plan" — you only need one;
+  it adapts).
 - **Quick Workout** (minutes + focus → a session that fits).
-- **Full logging:** every set, RPE, warm-ups, edit-after-the-fact, unilateral weights.
+- **Unlimited logging:** every set, RPE, warm-ups, edit-after-the-fact, unilateral weights. *(Never
+  capped — Hevy/Strong both give unlimited logging free; capping it would be a category faux-pas.)*
 - **The full 1,300+ exercise library** with form GIFs + instructions.
 - **Basic progress:** streak, consistency, volume trend, workout history, PRs list, body-weight log.
 - **Streaks, badges, and social** (already built; disclosure-gated by activation, not by Pro).
 - **Pre-workout reminders** + retention nudges.
 - **Account, calendar sync (primary), sign-in, data export/delete.**
 
-> Free Tempo should beat free Hevy/Strong on *intelligence* (it adapts; they're static) while matching
-> them on *usability* (nothing crippled). A free user who never pays is still a great story and a great
-> word-of-mouth engine.
+**Free tier limits (founder decision 2026-07-18) — on *created content* only:**
+| Limit | Free | Pro | Notes |
+|---|---|---|---|
+| Adaptive Tempo plan | 1 | 1 (+ unlimited custom) | You only need one — it adapts. Not really a "cap." |
+| Custom plans (hand-built) | 1 | Unlimited | The Strong "routines" lever, applied to *plans*. |
+| Custom exercises (user-created) | 5 | Unlimited | The 1,300 library stays fully free; only *your own* additions are capped. |
+| Saved custom workouts | 5 | Unlimited | Interpreting "5 workouts" = 5 saved custom workout templates (not 5 logged sessions — logging is unlimited). |
+
+> These numbers are gentle enough that a casual free user rarely hits them, but a *committed* user —
+> exactly the one who'd pay — bumps into them naturally once they start building their own stuff.
+> That's the right kind of cap: it converts intent, not access.
 
 ### 🔵 PRO — "Tempo becomes your coach." Four pillars.
 
@@ -134,9 +154,9 @@ The entire core loop. If any of this ever gets gated, we've broken the funnel an
   double-books. *(built, dormant behind an OAuth scope — `multi_calendar`)*
 - **Travel Mode** — rewrite upcoming workouts to whatever gear you have on the road. *(built:
   `travel_mode`)*
-- **Unlimited custom / manual programs** — free gives you your one adaptive plan; Pro lets you build,
-  save, and switch between unlimited programs (the Strong/Hevy "routines" lever, but additive — free
-  isn't capped *down*, Pro is opened *up*).
+- **Unlimited creation** — free includes your adaptive Tempo plan + 1 custom plan + 5 custom
+  exercises + 5 saved custom workouts (§4 table); Pro removes all four caps. This is the Strong/Hevy
+  "routines" lever, and it's the primary conversion driver at the current price point.
 
 **Pillar 2 — FORESIGHT (outcomes, not history)**
 - **Long-horizon / goal-date planning** — set a date ("strong by my ski trip"), see and shape the
@@ -163,28 +183,33 @@ flair. *(built: `premium_personalization`)* — keep it in the paywall's "and al
 
 ---
 
-## 5. Pricing & trial (recommendation)
+## 5. Pricing & trial (founder decision 2026-07-18: keep current price)
 
-Today's config ($4.99/mo · $34.99/yr) **under-prices the promise** — the audit says so and the market
-agrees. Tempo sells "reclaim your week," not "log my reps." Recommended:
+**Chosen: keep the current $4.99/mo · $34.99/yr.** This pairs deliberately with the capped free tier
+(§4) — the Hevy/Strong "cheap-Pro + capped-free" model. It's a coherent, proven combination.
 
 | Plan | Price | Notes |
 |---|---|---|
-| **Annual (lead offer, default-selected)** | **$59.99/yr** | ~$5/mo framing; anchor of the paywall. 7-day free trial. |
-| **Monthly** | **$9.99/mo** | Deliberately unattractive vs annual (that's its job — it makes annual look smart). |
-| **Lifetime (optional)** | **$149.99** | Captures subscription-averse buyers; Strong/Hevy both offer it. Price it *high* — it caps LTV, so it should only win you a customer you'd otherwise lose. **Founder's call whether to offer at all.** |
+| **Annual (lead offer, default-selected)** | **$34.99/yr** | ~$2.92/mo framing; anchor of the paywall. 7-day free trial. |
+| **Monthly** | **$4.99/mo** | Makes annual the obvious value (annual = ~7 months' price for a year). |
+| **Lifetime (optional)** | e.g. **$79.99–$99.99** | Strong/Hevy both offer it at ~$75–100. Captures sub-averse buyers; price it so it never undercuts a couple years of annual. **Founder's call whether to offer.** |
 
-- **Trial:** 7-day free trial **on annual**, annual pre-selected, with a hard trial-reminder the day
-  before it converts (transparency > dark patterns; it also reduces refund/chargeback churn).
-- **Positioning:** more generous free tier than Fitbod (which has none), on par with Strong/Hevy on
-  usability, priced *above* their $24–30/yr because Tempo sells scheduling + coaching outcomes — but
-  well under Fitbod's $96 and RP's $300. The story: *"priced like a tool that saves your week, not a
-  rep counter."*
-- **Why not cheaper:** at 2–5% conversion, $30/yr vs $60/yr is the difference between a viable business
-  and a hobby. High-priced annual earns ~4.5× per user; you do not make that back on volume in a niche.
+- **Trial:** 7-day free trial **on annual**, annual pre-selected, hard trial-reminder the day before it
+  converts (transparency > dark patterns; also cuts refunds/chargebacks).
+- **Positioning:** free tier more generous than Fitbod (which has none) and on par with Hevy/Strong;
+  Pro priced right at the Hevy/Strong band ($24–35/yr). The story: *"free is genuinely usable; Pro is
+  cheap and removes every limit."*
+
+> **The honest tradeoff to keep in mind (the skeptic's note):** at this price, the business is a
+> **volume game** — $34.99/yr × a 2–5% conversion needs a *lot* of installs to matter, and a low
+> price signals "utility," not "premium coach." The counter-argument (and why this is still a fine
+> call): a cheap, clearly-capped free tier converts *more* of the people who do hit the wall, and
+> Tempo can always raise the price later once the value story (Coach, foresight) is thicker and
+> proven — raising price on *new* cohorts is easy; there's no paying cohort to grandfather today.
+> Revisit the price the same day Tempo Coach ships.
 
 *(Prices live in the RevenueCat dashboard; the paywall code is offering-agnostic and reads them live,
-so this is a dashboard change, not a code change.)*
+so a future price change is a dashboard change, not a code change.)*
 
 ---
 
@@ -200,7 +225,11 @@ Fire the paywall at these value moments (each maps to a `requirePro(context)` ca
 3. Tapping **Travel Mode**.
 4. Opening **long-horizon / goal-date planning**.
 5. Tapping **Muscle Intelligence** or a **PR forecast**.
-6. Creating a **2nd+ custom program**.
+6. **Hitting a free cap** (the primary trigger at this price): creating a **2nd custom plan**, a **6th
+   custom exercise**, or a **6th saved custom workout**. Each cap-hit is a natural, non-annoying
+   paywall moment — the user is mid-creation and *wants* the thing, which is the highest-intent state
+   there is. Copy stays honest and generous: *"You've used your free custom workouts — go unlimited
+   with Pro,"* never a scolding wall.
 
 **The emotional engine — the proof number.** Build/finish the `schedulingImpact` counter (audit
 missing-feature #10 — *"the number that sells the subscription"*): **"Tempo fit N workouts into your
@@ -290,18 +319,24 @@ Per Tempo's working method — arguing to *reject* this before recommending it:
 
 ---
 
-## 10. Open decisions (genuinely the founder's call)
+## 10. Decisions
 
-1. **How aggressive is the free/Pro line?** Recommendation: start generous (uncapped core loop, Pro =
-   additive power). Alternative: add one light cap (custom-program count, or N free reschedule-week uses
-   per month) to sharpen conversion. *Recommend generous first; tighten on data.*
-2. **Exact price.** Recommendation: $59.99/yr · $9.99/mo. Comfortable range: annual $49.99–$59.99.
-3. **Lifetime — offer it or not?** Recommendation: yes at $149.99 (captures sub-averse buyers), priced
-   high so it never cannibalizes annual. Defensible to skip entirely.
-4. **Trial length.** Recommendation: 7 days (category standard, highest-leverage). 14 days is an option
-   if the foresight features need longer to be felt.
-5. **Launch scope.** Recommendation: don't flip globally until proof-number + one foresight surface
-   ship; Coach is a fast-follow. Alternative: launch thin now on the three built gates and iterate.
+**Settled (founder, 2026-07-18):**
+- **Price:** keep current $4.99/mo · $34.99/yr. *(Revisit when Coach ships.)*
+- **Free/Pro line:** capped free tier — 1 Tempo plan + 1 custom plan, 5 custom exercises, 5 saved
+  custom workouts; core training loop (logging, adaptive plan, library) uncapped.
+
+**Still open (the founder's call):**
+1. **Lifetime — offer it or not?** Recommendation: yes at ~$79.99–$99.99 (Hevy/Strong band), priced so
+   it never undercuts ~2–3 years of annual. Defensible to skip.
+2. **Trial length.** Recommendation: 7 days (category standard, highest-leverage). 14 if the deeper
+   surfaces need longer to be felt.
+3. **Launch scope.** Recommendation: launch on the caps + the three built gates (reschedule-week,
+   muscle map, travel) — that's already a real Pro tier at this price — then fast-follow foresight +
+   Coach. The caps make Pro feel worth it on day one even before Coach exists (which was the founder's
+   original concern, now addressed).
+4. **Exact cap numbers.** 5/5/1 is a sensible start; watch where committed users actually hit the wall
+   and tune (e.g. if 5 custom workouts is too tight for normal use, or too loose to ever bind).
 
 ---
 
