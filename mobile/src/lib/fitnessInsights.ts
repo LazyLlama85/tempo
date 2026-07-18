@@ -682,6 +682,108 @@ export function muscleRank(sets: { group: string | null }[]): MuscleRankResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 12c. FINE MUSCLE INTELLIGENCE — per individual muscle (biceps vs triceps, quads
+//      vs hamstrings…) for the upgraded Body Map. Maps the exercise's stored fine
+//      `primary_muscles` onto the body figure's anatomical regions and computes each
+//      one's own recovery/status. ADDITIVE — the coarse `muscleIntelligence` above is
+//      untouched (the Progress-tab inline still reads it).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// The individual regions the body figure (react-native-body-highlighter) can shade.
+export type BodyMuscle =
+  | 'chest' | 'deltoids' | 'biceps' | 'triceps' | 'forearm' | 'trapezius'
+  | 'upper-back' | 'lower-back' | 'abs' | 'obliques' | 'quadriceps'
+  | 'hamstring' | 'gluteal' | 'calves' | 'adductors'
+
+export const BODY_MUSCLES: BodyMuscle[] = [
+  'chest', 'deltoids', 'biceps', 'triceps', 'forearm', 'trapezius', 'upper-back',
+  'lower-back', 'abs', 'obliques', 'quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors',
+]
+
+// Tempo's stored primary_muscles vocabulary → the body figure's regions. Anything
+// not listed (full_body, legs — too coarse to attribute to one region) is ignored.
+const MUSCLE_TO_BODY: Record<string, BodyMuscle> = {
+  chest: 'chest', upper_chest: 'chest', pectorals: 'chest',
+  shoulders: 'deltoids', deltoids: 'deltoids', lateral_deltoids: 'deltoids', rear_delts: 'deltoids', front_delts: 'deltoids', rotator_cuff: 'deltoids',
+  biceps: 'biceps',
+  triceps: 'triceps',
+  forearms: 'forearm', forearm: 'forearm',
+  lats: 'upper-back', upper_back: 'upper-back', teres_major: 'upper-back', rhomboids: 'upper-back', back: 'upper-back',
+  traps: 'trapezius', mid_traps: 'trapezius', trapezius: 'trapezius',
+  lower_back: 'lower-back', erectors: 'lower-back', spine: 'lower-back',
+  abs: 'abs', transverse_abdominis: 'abs', core: 'abs',
+  obliques: 'obliques',
+  quads: 'quadriceps', quadriceps: 'quadriceps', hip_flexors: 'quadriceps',
+  hamstrings: 'hamstring', hamstring: 'hamstring',
+  glutes: 'gluteal', hips: 'gluteal', gluteal: 'gluteal',
+  calves: 'calves', ankles: 'calves',
+  adductors: 'adductors', inner_thighs: 'adductors',
+}
+
+export const BODY_MUSCLE_LABEL: Record<BodyMuscle, string> = {
+  chest: 'Chest', deltoids: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps',
+  forearm: 'Forearms', trapezius: 'Traps', 'upper-back': 'Back', 'lower-back': 'Lower back',
+  abs: 'Abs', obliques: 'Obliques', quadriceps: 'Quads', hamstring: 'Hamstrings',
+  gluteal: 'Glutes', calves: 'Calves', adductors: 'Adductors',
+}
+
+/** Map one stored primary-muscle name to a body region, or null if unmapped. */
+export function bodyMuscleOf(name: string): BodyMuscle | null {
+  return MUSCLE_TO_BODY[name.trim().toLowerCase()] ?? null
+}
+
+export interface FineMuscleIntel {
+  muscle: BodyMuscle
+  label: string
+  status: MuscleStatus
+  recoveryPct: number
+  lastTrainedHours: number | null
+  weeklySets: number
+}
+export interface FineMuscleResult { muscles: FineMuscleIntel[]; hasData: boolean }
+
+/** Per-individual-muscle recovery/status from logged sets. `muscles` on each set is
+ *  the exercise's fine primary_muscles list. A set counts once per body region it
+ *  maps to (so "biceps + forearms" credits both, but not twice for two lat slugs). */
+export function fineMuscleIntelligence(
+  sets: { muscles: string[] | null; at: string | null }[],
+  now: Date = new Date(),
+): FineMuscleResult {
+  const nowMs = now.getTime()
+  const times = new Map<BodyMuscle, number[]>()
+  for (const s of sets) {
+    if (!s.at) continue
+    const t = new Date(s.at).getTime()
+    if (!Number.isFinite(t) || t > nowMs) continue
+    const seen = new Set<BodyMuscle>()
+    for (const raw of s.muscles ?? []) {
+      const bm = bodyMuscleOf(raw)
+      if (!bm || seen.has(bm)) continue
+      seen.add(bm)
+      let arr = times.get(bm)
+      if (!arr) { arr = []; times.set(bm, arr) }
+      arr.push(t)
+    }
+  }
+
+  const muscles: FineMuscleIntel[] = []
+  for (const m of BODY_MUSCLES) {
+    const ts = times.get(m)
+    if (!ts || !ts.length) continue
+    const last = Math.max(...ts)
+    const lastTrainedHours = Math.round((nowMs - last) / 3_600_000)
+    const weeklySets = ts.filter((t) => nowMs - t <= 7 * DAY_MS).length
+    const recoveryPct = Math.max(0, Math.min(100, Math.round((lastTrainedHours / 48) * 100)))
+    // Fatigued < 36h; long-neglected (>2 weeks) needs attention; otherwise optimal.
+    const status: MuscleStatus = lastTrainedHours < 36 ? 'fatigued' : lastTrainedHours > 14 * 24 ? 'attention' : 'optimal'
+    muscles.push({ muscle: m, label: BODY_MUSCLE_LABEL[m], status, recoveryPct, lastTrainedHours, weeklySets })
+  }
+  // Least-recovered first — the most actionable ("train what's ready, rest what's not").
+  muscles.sort((a, b) => a.recoveryPct - b.recoveryPct)
+  return { muscles, hasData: muscles.length > 0 }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 13. JOURNEY TIMELINE — the emotional "how far you've come" story.
 // ═══════════════════════════════════════════════════════════════════════════════
 

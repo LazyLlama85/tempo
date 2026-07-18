@@ -15,6 +15,7 @@ type EnrichedSetLog = {
   completed_at: string | null
   exerciseName: string
   muscleGroup: string | null
+  primaryMuscles: string[]
 }
 
 type SetLogsResult = {
@@ -84,7 +85,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       const exIds = [...new Set((sets as any[]).map(s => s.exercise_id as string))]
       const { data: exRows } = await supabase
         .from('exercises')
-        .select('id, name, muscle_group')
+        .select('id, name, muscle_group, primary_muscles')
         .in('id', exIds)
 
       const exNameMap = new Map<string, string>(
@@ -95,6 +96,11 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
       const exMuscleMap = new Map<string, string | null>(
         (exRows ?? []).map(e => [e.id as string, (e.muscle_group as string | null) ?? null])
       )
+      // Fine primary muscles (biceps/triceps/quads/hamstrings…) — powers the
+      // per-muscle Body Map (lib/fitnessInsights.fineMuscleIntelligence). Additive.
+      const exPrimaryMap = new Map<string, string[]>(
+        (exRows ?? []).map(e => [e.id as string, (e.primary_muscles as string[] | null) ?? []])
+      )
 
       const setLogs: EnrichedSetLog[] = (sets as any[]).map(s => ({
         workout_log_id: s.workout_log_id as string,
@@ -104,6 +110,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
         completed_at: s.completed_at as string | null,
         exerciseName: exNameMap.get(s.exercise_id as string) ?? 'Unknown',
         muscleGroup: exMuscleMap.get(s.exercise_id as string) ?? null,
+        primaryMuscles: exPrimaryMap.get(s.exercise_id as string) ?? [],
       }))
 
       return { setLogs, logDates }
@@ -308,6 +315,12 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({ group: sl.muscleGroup, at: sl.completed_at })),
     [setLogsQ.data],
   )
+  // Per-set FINE muscles + when trained — powers the per-muscle Body Map
+  // (lib/fitnessInsights.fineMuscleIntelligence). Additive.
+  const muscleFineTimeline = useMemo(
+    () => (setLogsQ.data?.setLogs ?? []).map((sl) => ({ muscles: sl.primaryMuscles, at: sl.completed_at })),
+    [setLogsQ.data],
+  )
 
   return {
     stats,
@@ -320,6 +333,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     muscleSets,
     strengthSets,
     muscleTimeline,
+    muscleFineTimeline,
     isLoading: workoutsQ.isLoading || setLogsQ.isLoading,
     isError: workoutsQ.isError || setLogsQ.isError,
     refetch: async () => { await Promise.all([workoutsQ.refetch(), setLogsQ.refetch()]) },

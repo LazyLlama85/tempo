@@ -1101,7 +1101,21 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   not a re-fence (see `proFeatures.ts`'s `schedule_optimization` comment, which spells out this
   distinction so a future call site doesn't accidentally gate the ambient engine by reusing the same
   feature id). Muscle Intelligence (`muscle-map.tsx`, plan.tsx's readiness tab, the post-workout
-  teaser) is unchanged — still gated, out of this batch's scope. **Travel Mode is a new gate
+  teaser) is unchanged — still gated, out of this batch's scope. **Muscle Map — per-individual-muscle
+  upgrade (2026-07-18):** the full `/muscle-map` screen's **status** mode now shades and lets you tap
+  each INDIVIDUAL muscle (biceps vs triceps, quads vs hamstrings, glutes, calves…) instead of the six
+  coarse groups. New `fitnessInsights.fineMuscleIntelligence(sets, now)` maps the exercise's stored
+  fine `primary_muscles` onto the body figure's regions via `MUSCLE_TO_BODY` (alias-resolving:
+  lats→upper-back, quads→quadriceps, glutes→gluteal; `full_body`/`legs` ignored as too coarse) and
+  computes each muscle's own recovery %/status — powered by a new `muscleFineTimeline`
+  (`primary_muscles` + `completed_at`) added to `useProgressStats` (additive; coarse `muscleTimeline`
+  untouched). `MuscleMap` gained `statusBySlug`/`selectedSlug`/`onSelectSlug`; when `statusBySlug` is
+  present in status mode it colours per slug, else it falls back to the coarse group path — so the
+  **Progress-tab inline preview (which passes only `statusByGroup`) is unchanged**, and heatmap/rank
+  modes stay coarse. The old floating recovery-% **bubbles (which overlapped on the torso) are removed**
+  and replaced by a clean **"Recovery by muscle" readout** (each muscle's % next to its name, tap →
+  per-muscle detail card). Coarse `muscleIntelligence` (balance/insights cards, Progress inline) is
+  fully untouched. **Travel Mode is a new gate
   (2026-07-16/17):** a new `travel_mode` id in `proFeatures.ts`; Profile's "Right Now" → Travel Mode
   row is wrapped in `<ProGate feature="travel_mode" compact>`, and `travel-mode.tsx` itself also
   checks `useProGate().locked` and renders a `ProLockCard` in place of the equipment/duration form

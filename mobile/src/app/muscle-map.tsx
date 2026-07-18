@@ -21,8 +21,8 @@ import { FadeInView, PressableScale } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
-import { muscleIntelligence, muscleRank, MUSCLE_TIERS, MUSCLE_TIER_LABEL, type MuscleStatus, type MuscleGroupIntel, type MuscleTier } from '@/lib/fitnessInsights'
-import { MuscleMap, muscleStatusColor, muscleTierColor, type MuscleGroup, type BodyView, type MapMode, type MapBubble } from '@/components/MuscleMap'
+import { muscleIntelligence, muscleRank, fineMuscleIntelligence, MUSCLE_TIERS, MUSCLE_TIER_LABEL, type MuscleStatus, type MuscleGroupIntel, type MuscleTier, type BodyMuscle } from '@/lib/fitnessInsights'
+import { MuscleMap, muscleStatusColor, muscleTierColor, type MuscleGroup, type BodyView, type MapMode } from '@/components/MuscleMap'
 import { useProGate } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
 
@@ -45,11 +45,12 @@ export default function MuscleMapScreen() {
   const router = useRouter()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
-  const { muscleTimeline, isLoading } = useProgressStats(userId)
+  const { muscleTimeline, muscleFineTimeline, isLoading } = useProgressStats(userId)
   const { locked } = useProGate()
 
   const [view, setView] = useState<BodyView>('front')
-  const [selected, setSelected] = useState<MuscleGroup | null>(null)
+  const [selected, setSelected] = useState<MuscleGroup | null>(null)   // coarse (heatmap/rank)
+  const [selMuscle, setSelMuscle] = useState<BodyMuscle | null>(null)  // fine (status mode)
 
   const intel = useMemo(() => muscleIntelligence(muscleTimeline, new Date()), [muscleTimeline])
   const byGroup = useMemo(() => {
@@ -90,16 +91,16 @@ export default function MuscleMapScreen() {
     return m
   }, [rank])
 
-  // Recovery-% callout bubbles — the 3 least-recovered visible muscles (Image #15 style).
-  const VIEW_GROUPS: Record<BodyView, MuscleGroup[]> = { front: ['chest', 'shoulders', 'arms', 'core', 'legs'], back: ['back', 'shoulders', 'arms', 'legs'] }
-  const bubbles = useMemo<MapBubble[] | undefined>(() => {
-    if (locked || mode !== 'status') return undefined
-    return VIEW_GROUPS[view]
-      .map((g) => byGroup[g]).filter((g): g is MuscleGroupIntel => !!g && g.lastTrainedHours != null)
-      .sort((a, b) => a.recoveryPct - b.recoveryPct).slice(0, 3)
-      .map((g) => ({ group: g.group as MuscleGroup, text: `${g.recoveryPct}%`, tone: muscleStatusColor(C, g.status) }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, mode, view, byGroup, C])
+  // Per-INDIVIDUAL-muscle recovery/status (biceps vs triceps, quads vs hamstrings…) —
+  // powers the per-muscle body shading + the "recovery by muscle" readout that
+  // replaced the old overlapping recovery bubbles.
+  const fineIntel = useMemo(() => fineMuscleIntelligence(muscleFineTimeline, new Date()), [muscleFineTimeline])
+  const statusBySlug = useMemo(() => {
+    const m: Partial<Record<string, MuscleStatus>> = {}
+    for (const fm of fineIntel.muscles) m[fm.muscle] = fm.status
+    return m
+  }, [fineIntel])
+  const fineSel = selMuscle ? fineIntel.muscles.find((m) => m.muscle === selMuscle) ?? null : null
 
   const openPaywall = () => {
     track('paywall_shown', { context: 'muscle_map' })
@@ -129,14 +130,14 @@ export default function MuscleMapScreen() {
             <View style={s.toggleRow}>
               <View style={s.viewToggle}>
                 {(['front', 'back'] as BodyView[]).map((v) => (
-                  <PressableScale key={v} style={[s.viewBtn, v === view && s.viewBtnOn]} scaleTo={0.95} onPress={() => setView(v)}>
+                  <PressableScale key={v} style={[s.viewBtn, v === view && s.viewBtnOn]} scaleTo={0.95} onPress={() => { setView(v); setSelected(null); setSelMuscle(null) }}>
                     <Text style={[s.viewBtnText, v === view && { color: C.onPrimary }]}>{v === 'front' ? 'Front' : 'Back'}</Text>
                   </PressableScale>
                 ))}
               </View>
               <View style={s.viewToggle}>
                 {(['status', 'heatmap', 'rank'] as MapMode[]).map((m) => (
-                  <PressableScale key={m} style={[s.viewBtn, m === mode && s.viewBtnOn]} scaleTo={0.95} onPress={() => setMode(m)}>
+                  <PressableScale key={m} style={[s.viewBtn, m === mode && s.viewBtnOn]} scaleTo={0.95} onPress={() => { setMode(m); setSelected(null); setSelMuscle(null) }}>
                     <Text style={[s.viewBtnText, m === mode && { color: C.onPrimary }]}>{m === 'status' ? 'Status' : m === 'heatmap' ? 'Heatmap' : 'Rank'}</Text>
                   </PressableScale>
                 ))}
@@ -159,12 +160,14 @@ export default function MuscleMapScreen() {
               <MuscleMap
                 view={view}
                 statusByGroup={statusByGroup}
+                statusBySlug={statusBySlug}
                 heatByGroup={heatByGroup}
                 rankByGroup={rankByGroup}
                 mode={mode}
-                bubbles={bubbles}
                 selected={selected}
                 onSelect={(g) => setSelected(g === selected ? null : g)}
+                selectedSlug={selMuscle}
+                onSelectSlug={(sl) => { if (statusBySlug[sl]) setSelMuscle((prev) => (prev === sl ? null : (sl as BodyMuscle))) }}
                 dimmed={locked}
                 size={210}
               />
@@ -205,6 +208,59 @@ export default function MuscleMapScreen() {
                 <Text style={s.footNote}>Most trained: {GROUP_LABEL[rank.mostTrained]} · Least: {GROUP_LABEL[rank.leastTrained ?? '']}</Text>
               )}
             </FadeInView>
+
+            {/* Per-muscle detail (status mode — biceps, quads, etc. individually) */}
+            {mode === 'status' && !locked && fineSel && (
+              <FadeInView key={fineSel.muscle} style={s.card}>
+                <View style={s.rowBetween}>
+                  <Text style={s.detailTitle}>{fineSel.label}</Text>
+                  <View style={[s.pill, { borderColor: muscleStatusColor(C, fineSel.status), backgroundColor: muscleStatusColor(C, fineSel.status) + '22' }]}>
+                    <Text style={[s.pillText, { color: muscleStatusColor(C, fineSel.status) }]}>{STATUS_LABEL[fineSel.status]}</Text>
+                  </View>
+                </View>
+                <View style={s.statGrid}>
+                  <Stat label="Recovery" value={`${fineSel.recoveryPct}%`} tint={muscleStatusColor(C, fineSel.status)} />
+                  <Stat label="Last trained" value={lastTrainedLabel(fineSel.lastTrainedHours)} />
+                  <Stat label="Sets this week" value={`${fineSel.weeklySets}`} />
+                </View>
+                <View style={s.actionRow}>
+                  <PressableScale style={s.actionBtn} scaleTo={0.97} onPress={() => router.push('/quick-workout')}>
+                    <Ionicons name="flash" size={15} color={C.onPrimary} />
+                    <Text style={s.actionText}>Train this</Text>
+                  </PressableScale>
+                  <PressableScale style={[s.actionBtn, s.actionBtnGhost]} scaleTo={0.97} onPress={() => router.push('/(tabs)/progress')}>
+                    <Text style={[s.actionText, { color: C.primary }]}>See progress</Text>
+                  </PressableScale>
+                </View>
+              </FadeInView>
+            )}
+
+            {/* Recovery-by-muscle readout — each muscle's % next to it, no overlap
+                (replaces the old floating recovery bubbles that piled up on the torso). */}
+            {mode === 'status' && !locked && fineIntel.hasData && (
+              <FadeInView style={s.card} delay={20}>
+                <Text style={s.cardLabel}>RECOVERY BY MUSCLE</Text>
+                <View style={s.readoutGrid}>
+                  {fineIntel.muscles.map((m) => {
+                    const on = selMuscle === m.muscle
+                    const col = muscleStatusColor(C, m.status)
+                    return (
+                      <PressableScale
+                        key={m.muscle}
+                        style={[s.readoutRow, on && { borderColor: col, backgroundColor: col + '18' }]}
+                        scaleTo={0.97}
+                        onPress={() => setSelMuscle((prev) => (prev === m.muscle ? null : m.muscle))}
+                      >
+                        <View style={[s.readoutDot, { backgroundColor: col }]} />
+                        <Text style={s.readoutLabel} numberOfLines={1}>{m.label}</Text>
+                        <Text style={[s.readoutPct, { color: col }]}>{m.recoveryPct}%</Text>
+                      </PressableScale>
+                    )
+                  })}
+                </View>
+                <Text style={s.footNote}>Recovery since each muscle was last trained. Tap one for detail.</Text>
+              </FadeInView>
+            )}
 
             {/* Tapped muscle detail */}
             {sel && (
@@ -387,6 +443,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   stat: { flexGrow: 1, flexBasis: '30%', backgroundColor: C.surfaceContainer, borderRadius: Radius.md, padding: Spacing.sm, gap: 2 },
   statValue: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.4 },
   statLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.textSecondary },
+  readoutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  readoutRow: { flexGrow: 1, flexBasis: '46%', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: 8, paddingHorizontal: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, borderColor: C.outlineVariant, backgroundColor: C.surfaceContainer },
+  readoutDot: { width: 8, height: 8, borderRadius: 4 },
+  readoutLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.text },
+  readoutPct: { fontFamily: C.fontDisplay, fontSize: 14, letterSpacing: -0.3 },
   actionRow: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: Radius.lg, backgroundColor: C.primary },
   actionBtnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.primaryLine },

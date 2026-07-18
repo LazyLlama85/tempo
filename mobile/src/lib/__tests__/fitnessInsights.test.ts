@@ -11,6 +11,8 @@ import {
   intensityFromReadiness,
   muscleRecovery,
   muscleIntelligence,
+  fineMuscleIntelligence,
+  bodyMuscleOf,
   muscleRank,
   journeyTimeline,
 } from '../fitnessInsights'
@@ -193,6 +195,37 @@ describe('muscleIntelligence', () => {
   })
   it('reports no data for an empty history', () => {
     expect(muscleIntelligence([]).hasData).toBe(false)
+  })
+})
+
+describe('fineMuscleIntelligence', () => {
+  it('maps stored primary_muscles to body regions with independent recovery', () => {
+    const now = new Date(`${TODAY}T18:00:00`)
+    const sets = [
+      { muscles: ['biceps'], at: `${TODAY}T09:00:00` },   // today → fatigued, low recovery
+      { muscles: ['triceps'], at: `${d(-3)}T09:00:00` },  // 3 days ago → optimal, 100%
+      { muscles: ['quads', 'glutes'], at: `${d(-1)}T09:00:00` }, // ~1 day → both credited
+    ]
+    const res = fineMuscleIntelligence(sets, now)
+    expect(res.hasData).toBe(true)
+    const biceps = res.muscles.find((m) => m.muscle === 'biceps')!
+    const triceps = res.muscles.find((m) => m.muscle === 'triceps')!
+    // Biceps and triceps are tracked SEPARATELY (the whole point of the upgrade).
+    expect(biceps.status).toBe('fatigued')
+    expect(triceps.status).toBe('optimal')
+    expect(triceps.recoveryPct).toBe(100)
+    expect(biceps.recoveryPct).toBeLessThan(triceps.recoveryPct)
+    // 'quads' → quadriceps, 'glutes' → gluteal (aliases resolved).
+    expect(res.muscles.some((m) => m.muscle === 'quadriceps')).toBe(true)
+    expect(res.muscles.some((m) => m.muscle === 'gluteal')).toBe(true)
+    // Sorted least-recovered first.
+    expect(res.muscles[0].recoveryPct).toBeLessThanOrEqual(res.muscles[res.muscles.length - 1].recoveryPct)
+  })
+  it('resolves aliases and ignores unmapped/too-coarse names', () => {
+    expect(bodyMuscleOf('lats')).toBe('upper-back')
+    expect(bodyMuscleOf('Glutes')).toBe('gluteal')
+    expect(bodyMuscleOf('full_body')).toBeNull()
+    expect(fineMuscleIntelligence([]).hasData).toBe(false)
   })
 })
 
