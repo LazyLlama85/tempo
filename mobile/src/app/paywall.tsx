@@ -63,6 +63,19 @@ function trialLabel(pkg: PurchasesPackage | null): string | null {
   return `${n}-${pretty}${n === 1 ? '' : 's'} free`
 }
 
+// The trial length in DAYS (for the "how your trial works" timeline). Normalizes
+// whatever unit the store reports (a 7-day trial can come back as 1 WEEK or 7 DAY).
+function trialDaysOf(pkg: PurchasesPackage | null): number | null {
+  const intro = pkg?.product.introPrice
+  if (!intro || intro.price !== 0) return null
+  const n = intro.periodNumberOfUnits || 0
+  const unit = String(intro.periodUnit || '').toUpperCase()
+  if (unit.includes('WEEK')) return n * 7
+  if (unit.includes('MONTH')) return n * 30
+  if (unit.includes('YEAR')) return n * 365
+  return n // DAY (or unknown → treat as days)
+}
+
 export default function PaywallScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -111,6 +124,7 @@ export default function PaywallScreen() {
       : null
 
   const trial = trialLabel(selectedPkg)
+  const trialDays = trialDaysOf(selectedPkg)
 
   const close = () => {
     track('paywall_dismissed', { context })
@@ -226,6 +240,33 @@ export default function PaywallScreen() {
             </View>
           ))}
         </View>
+
+        {/* How your free trial works — the trust-building timeline top fitness apps
+            use so "free trial" doesn't read as "surprise charge". Only when a trial
+            actually exists on the selected plan. */}
+        {trial && trialDays ? (
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineHead}>How your {trialDays}-day free trial works</Text>
+            <TimelineRow
+              icon="lock-open"
+              title="Today"
+              body="Unlock everything in Pro — instantly."
+            />
+            {trialDays > 2 && (
+              <TimelineRow
+                icon="notifications-outline"
+                title={`Day ${trialDays - 2}`}
+                body="We'll remind you before your trial ends."
+              />
+            )}
+            <TimelineRow
+              icon="star"
+              title={`Day ${trialDays}`}
+              body={`Your plan begins${selectedPkg?.product.priceString ? ` (${selectedPkg.product.priceString}${selected === 'annual' ? '/yr' : '/mo'})` : ''} — cancel anytime before.`}
+              last
+            />
+          </View>
+        ) : null}
 
         {/* Plans */}
         {loading ? (
@@ -355,6 +396,25 @@ function PlanOption({
   )
 }
 
+function TimelineRow({ icon, title, body, last }: { icon: IoniconName; title: string; body: string; last?: boolean }) {
+  const C = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineRail}>
+        <View style={styles.timelineDot}>
+          <Ionicons name={icon} size={15} color={C.primary} />
+        </View>
+        {!last && <View style={styles.timelineLine} />}
+      </View>
+      <View style={{ flex: 1, paddingBottom: last ? 0 : Spacing.md }}>
+        <Text style={styles.timelineRowTitle}>{title}</Text>
+        <Text style={styles.timelineRowBody}>{body}</Text>
+      </View>
+    </View>
+  )
+}
+
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { padding: Spacing.containerPadding, paddingBottom: Spacing.lg, gap: Spacing.lg },
@@ -388,6 +448,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   compareCell: { width: 46, alignItems: 'center' },
   compareFreeVal: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
   compareProVal: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.primary, lineHeight: 20 },
+
+  timelineCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, padding: Spacing.lg, paddingBottom: Spacing.md },
+  timelineHead: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, marginBottom: Spacing.md },
+  timelineRow: { flexDirection: 'row', gap: Spacing.md },
+  timelineRail: { alignItems: 'center', width: 32 },
+  timelineDot: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  timelineLine: { flex: 1, width: 2, backgroundColor: C.outlineVariant, marginVertical: 2 },
+  timelineRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
+  timelineRowBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
 
   valueStatement: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, textAlign: 'center' },
   trustRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.md, marginTop: 2 },

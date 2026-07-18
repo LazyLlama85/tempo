@@ -101,6 +101,12 @@ you moving."*
   registration happens here on grant, never at sign-in) `→ profile-setup` (name, avatar, and an
   **optional starting weight** that seeds the weight trend + goal countdown on day one; the weight
   field is now a real drag-to-set `Slider`, not a bare text input — see §3.3).
+  **Post-onboarding paywall (2026-07-18):** `profile-setup.postOnboardingRoute()` presents `/paywall`
+  (`context: 'onboarding'`) as a dismissible modal over Home right as a NEW user enters the app — the
+  highest-converting placement per category benchmarks. Dormant-safe: gated on `useProAccess().locked`
+  (`proEnabled && !isPro`), so while Pro is off it never fires and the free flow is byte-for-byte
+  unchanged. Replan users skip it (they never reach `profile-setup`), and custom-build users skip it
+  (they go straight to `split-editor`); both hit Pro gates naturally later instead.
   **Plan generation gets a real "Personalizing your plan…" screen** (2026-07-17): a full-screen
   `SvgProgressRing` tracking `BUILD_STEPS`' real progress through the save → generate → auto-schedule
   → reminders chain replaces the old small footer text row, which could read as stuck on a slow
@@ -1118,7 +1124,10 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
   StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
-  **Free-vs-Pro comparison table** (kept honest to the real gating in `proFeatures.ts`) → the live
+  **Free-vs-Pro comparison table** (kept honest to the real gating in `proFeatures.ts`) → a **"how
+  your N-day free trial works" timeline** (2026-07-18 — Today unlock / Day N-2 reminder / Day N billing
+  begins; `trialDaysOf()` normalizes the store's WEEK/DAY intro period, and the whole block only
+  renders when the selected plan actually carries a $0 intro offer) → the live
   plan cards + trial note → a "less than a coffee a week" value line → **trust indicators** (Secure ·
   Private · No ads · Cancel anytime). No fake testimonials (deliberately — real ones can be dropped
   in later). All purchase/restore/offering logic unchanged. Everything ships DORMANT — flip

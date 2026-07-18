@@ -17,6 +17,7 @@ import { logMeasurement } from '@/lib/bodyMeasurements'
 import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
 import { Slider } from '@/components/Slider'
 import { track } from '@/lib/analytics'
+import { useProAccess } from '@/stores/entitlements'
 
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
@@ -31,6 +32,10 @@ export default function ProfileSetupScreen() {
   const { buildMode } = useLocalSearchParams<{ buildMode?: string }>()
   const isCustomBuild = buildMode === 'custom'
   const { session, profile, refreshProfile } = useAuthStore()
+  // Post-onboarding paywall gate. `locked` is only true once Pro is LIVE and the user
+  // hasn't subscribed — while Pro is dormant it's always false, so the onboarding flow
+  // is byte-for-byte unchanged until launch.
+  const { locked } = useProAccess()
 
   // Pre-fill from anything we already know (e.g. a Google display name), and match
   // the current avatar to a preset so returning users see their existing choice.
@@ -64,7 +69,17 @@ export default function ProfileSetupScreen() {
   // (tabs)/welcome with no new navigation behavior to reason about.
   const postOnboardingRoute = () => {
     router.replace('/(tabs)')
-    if (isCustomBuild) router.push('/split-editor' as any)
+    // Custom-build users go straight to their split editor (the whole point of that
+    // path) — they hit Pro gates naturally later, so no onboarding paywall for them.
+    if (isCustomBuild) { router.push('/split-editor' as any); return }
+    // The value-moment paywall, right after onboarding — the highest-converting
+    // placement (benchmark: onboarding paywalls with a trial lead the category). It's
+    // a dismissible modal on top of Home, so it never traps the user. Dormant-safe:
+    // `locked` is false while Pro is off, so this simply never fires pre-launch.
+    if (locked) {
+      track('paywall_shown', { context: 'onboarding' })
+      router.push({ pathname: '/paywall', params: { context: 'onboarding' } } as any)
+    }
   }
   const enterApp = () => { track('profile_setup_skipped'); postOnboardingRoute() }
 
