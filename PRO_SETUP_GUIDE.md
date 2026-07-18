@@ -7,6 +7,23 @@
 > **Companion files:** `MONETIZATION_PLAN.md` (what/why), `PRO_LAUNCH_CHECKLIST.md` (earlier
 > checklist), `ARCHITECTURE.md` (§ Pro), `mobile/src/lib/purchases.ts` + `proConfig.ts` (the code).
 
+> **✅ STATUS (audited live 2026-07-18 — most of this is already DONE):**
+> - **RevenueCat:** entitlement `Tempo: Fitness Planner Pro` (exact match ✓), real products
+>   **`tempo_pro_month`** + **`tempo_pro_year`** attached, current offering **`default`** wires
+>   `$rc_monthly`→month and `$rc_annual`→year, In-App-Purchase Key + App-Store-Connect API key both
+>   "Valid credentials". **Complete.**
+> - **App Store Connect:** subscription group *Tempo Pro* with Monthly **$4.99** + Yearly **$34.99**
+>   (all 175 territories), localizations + review screenshots present, and the **7-day free trial**
+>   (Introductory Offer → Free for the first week, all territories) is **live on the annual plan**.
+>   **Complete.**
+> - **Supabase:** `app_config.pro_enabled` configured; the founder's uid is in `test_user_ids`
+>   (`tester_tools: true`) → Pro is live for their account only. **Complete.**
+> - **⛔ REMAINING (founder-only, blocks go-live):** (1) **Paid Apps Agreement** is *Pending User Info*
+>   — add a bank account + tax info under Business → Agreements; until it's **Active, no purchase
+>   works**. (2) **Submit an app version with the subscriptions attached** (see §C3–C4) — for App
+>   Review to approve them and reach the paywall.
+> The rest of this doc is the reference for how each piece was set up (and how to redo/verify it).
+
 ---
 
 ## 0. How Tempo's Pro system works (read first — it explains every step)
@@ -50,17 +67,19 @@ App Store Connect → your app → **Monetization → Subscriptions → Create**
 ### A3. Create the two auto-renewable subscriptions
 Inside the group, **Create** each of these:
 
-| Plan | Product ID (suggested) | Price | Duration |
+| Plan | Product ID (as actually created) | Price | Duration |
 |---|---|---|---|
-| Annual | `tempo_pro_annual` | **$34.99** | 1 Year |
-| Monthly | `tempo_pro_monthly` | **$4.99** | 1 Month |
+| Annual | `tempo_pro_year` | **$34.99** | 1 Year |
+| Monthly | `tempo_pro_month` | **$4.99** | 1 Month |
 
 For **each** subscription fill in:
 - **Reference Name** (internal): e.g. "Tempo Pro Annual".
 - **Subscription Duration** + **Price** (pick the price tier, all territories).
-- **Localization** (App Store Display Name + Description) — e.g. Display Name "Tempo Pro (Annual)",
-  Description "Unlimited custom plans, workouts & exercises, one-tap reschedule-my-week, multi-calendar
-  scheduling, travel mode, and premium themes."
+- **Localization** (App Store Display Name + Description). ⚠️ The Description field caps at **~55
+  characters**, so keep it tight and *accurate* (Apple rejects over-claims). What's live now:
+  Display Name "Tempo Pro (Yearly)" / "Tempo Pro (Monthly)", Description
+  **"Unlimited custom plans, workouts & smart scheduling."** (Do NOT advertise unbuilt features like
+  "AI coaching" or free ones like "photos".)
 - **Review Information:** a screenshot of the Tempo paywall + a note ("Subscription unlocks Tempo Pro
   features; see review notes"). Apple requires a paywall screenshot per product.
 
@@ -85,7 +104,9 @@ later without touching app code.
 - Your app's **privacy policy URL** and **terms (EULA)** — Tempo links to `/legal` in-app; make sure
   the App Store Connect fields are filled too. Apple requires functional Terms + Privacy links on any
   subscription app.
-- Subscriptions can be submitted **with a new app version**. They stay "Ready to Submit" until then.
+- The first subscription **must be submitted WITH an app version** — it can't be submitted standalone.
+  See §C3–C4 for the (build → attach → add subscriptions → submit) flow, including the fact that you
+  probably **don't need a fresh EAS build**.
 
 ---
 
@@ -109,21 +130,24 @@ RevenueCat → **Entitlements → New**:
   `EXPO_PUBLIC_PRO_ENTITLEMENT` in `eas.json`. Copy-paste it. This is the #1 thing that silently
   breaks Pro if it's off by a character.
 
-### B4. Import the products + attach to the entitlement
-- RevenueCat → **Products → + New / Import** → import `tempo_pro_annual`, `tempo_pro_monthly` (and
-  `tempo_pro_lifetime` if created) from App Store Connect.
-- Open each product → **attach it to the `Tempo: Fitness Planner Pro` entitlement.** All three grant
-  the same entitlement.
+### B4. Import the products + attach to the entitlement *(done)*
+- RevenueCat → **Products → + New / Import** → import `tempo_pro_year`, `tempo_pro_month` (and
+  `tempo_pro_lifetime` if you add one) from App Store Connect.
+- Open each product → **attach it to the `Tempo: Fitness Planner Pro` entitlement.** They all grant
+  the same entitlement. *(Note: two old "Test Store" products — `monthly`/`yearly` — are also attached
+  from early testing; harmless in production, delete anytime.)*
 
-### B5. Create the Offering (this is what the paywall reads)
-RevenueCat → **Offerings → New** (make it the **Current** offering):
-- **Identifier:** `default` (any name; "current" is what matters).
-- Add **Packages** — use RevenueCat's standard package identifiers so the app's `offering.annual` /
+### B5. Create the Offering (this is what the paywall reads) *(done)*
+RevenueCat → **Offerings** — the **Current** offering is **`default`** (marked with the check).
+- Its packages use RevenueCat's standard identifiers so the app's `offering.annual` /
   `offering.monthly` accessors light up:
   | Package | Identifier | Product |
   |---|---|---|
-  | Annual | `$rc_annual` | `tempo_pro_annual` |
-  | Monthly | `$rc_monthly` | `tempo_pro_monthly` |
+  | Annual | `$rc_annual` | `tempo_pro_year` |
+  | Monthly | `$rc_monthly` | `tempo_pro_month` |
+- *(Cleanup: there's a stray unused offering literally named `offerings.current` — it is NOT the
+  current one and can be deleted to avoid confusion. The SDK's `getOfferings().current` returns
+  whatever is flagged Current in the dashboard — i.e. `default` — not an offering named that.)*
   | Lifetime (optional) | `$rc_lifetime` | `tempo_pro_lifetime` |
 - **Set this offering as Current.** `paywall.tsx` reads `offerings.current` and shows the annual as the
   default-selected best-value option automatically, computes the savings %, and shows the trial.
@@ -158,15 +182,36 @@ With `test_user_ids` set, **your** account sees the real paywall + gates + caps;
 unchanged. `tester_tools: true` also gives you an in-app Pro on/off toggle (Profile → Tester Tools) so
 you can flip between the free and Pro experience without buying.
 
-### C3. Build + install via TestFlight
-RevenueCat is a **native module** — an OTA update won't pick up a first-time config. Build and ship to
-TestFlight:
+### C3. Get a build with the RevenueCat module (you probably ALREADY have one)
+RevenueCat is a **native module**, so it must be compiled into a build — but **that's already true of
+your existing TestFlight builds** (RevenueCat is reporting live SDK usage from them). Everything added
+since (paywall, free-tier caps, multi-calendar scope) is **JavaScript-only** and ships **over-the-air**:
 ```
 cd mobile
-npx eas build --profile production --platform ios   # or a preview profile
+npx eas update --branch production      # pushes latest JS to existing builds — does NOT use build quota
 ```
-Then install that build from TestFlight on a real device (StoreKit/sandbox doesn't work in the
-simulator or Expo Go).
+Only cut a **fresh native build** if you changed native config/plugins:
+```
+npx eas build --profile production --platform ios
+```
+> **Out of free EAS builds?** You most likely don't need one for Pro. If you truly do: `eas build
+> --local` needs **macOS + Xcode** (won't run on Windows), so either wait for the monthly quota to
+> reset, buy on-demand builds / upgrade at **expo.dev/pricing**, or build on a Mac (`expo prebuild` →
+> Xcode Archive).
+
+Install/test on a **real device** (StoreKit/sandbox doesn't work in the simulator or Expo Go).
+
+### C3b. Submit the app version WITH the subscriptions (required for Apple to approve them)
+The build alone does **not** submit the subscriptions, and the first subscription can't be submitted
+on its own. In App Store Connect:
+1. Open the **1.0 app version** → select a build for it (an existing TestFlight build is fine).
+2. Add the two subscriptions to the submission — the **"Add for Review"** button on the *Tempo Pro*
+   subscription group, or the version's **In-App Purchases and Subscriptions** section.
+3. **Submit** — the app + subscriptions are reviewed together.
+> ⚠️ The App Review tester must be able to **reach the paywall**. While Pro is dormant (only your uid
+> in `test_user_ids`) a reviewer can't find the purchase → likely rejection. Before submitting, either
+> flip `pro_enabled → enabled: true` (§C5) so the paywall is reachable, or add reviewer notes with
+> exact steps to trigger it (e.g. "create a 2nd custom plan to see the paywall").
 
 ### C4. Sandbox-test everything
 On the device, signed into a **Sandbox Apple ID** (Settings → App Store → Sandbox Account):
