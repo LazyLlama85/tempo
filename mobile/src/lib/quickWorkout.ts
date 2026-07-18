@@ -382,6 +382,52 @@ export function injuriesToRestrictions(injuries: string[] | undefined): QuickRes
   return { avoidMuscles: Array.from(new Set(avoidMuscles)), avoidPatterns: Array.from(new Set(avoidPatterns)) }
 }
 
+// The movement patterns a plan "focus" label trains — used to avoid pre-empting a
+// scheduled session (leg day tomorrow → don't burn legs on a Quick Workout today).
+function focusToPatterns(focus: string): MovementPattern[] {
+  const f = focus.toLowerCase()
+  if (f.includes('leg') || f.includes('lower')) return ['squat', 'hinge']
+  if (f.includes('upper')) return ['push', 'pull']
+  if (f.includes('push') || f.includes('chest') || f.includes('shoulder')) return ['push']
+  if (f.includes('pull') || f.includes('back')) return ['pull']
+  return []
+}
+
+/**
+ * Schedule-aware restrictions: avoid the movement patterns that are coming up SOON
+ * (a session scheduled today→+2 days — don't pre-empt it) or were just trained
+ * (completed since yesterday — still recovering), so a Quick Workout targets the next
+ * READY thing instead. The caller merges this with injury restrictions. Best-effort:
+ * any failure returns no restrictions (a workout is always produced).
+ */
+export async function getScheduleRestrictions(
+  client: SupabaseClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<QuickRestrictions> {
+  const avoid = new Set<MovementPattern>()
+  try {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const todayStr = ymd(now)
+    const soon = new Date(now); soon.setDate(now.getDate() + 2)
+    const yest = new Date(now); yest.setDate(now.getDate() - 1)
+    const { data } = await client
+      .from('scheduled_workouts')
+      .select('focus, planned_date, status')
+      .eq('user_id', userId)
+      .gte('planned_date', ymd(yest))
+      .lte('planned_date', ymd(soon))
+    for (const row of (data ?? []) as { focus: string | null; planned_date: string; status: string }[]) {
+      const upcoming = row.status === 'scheduled' && row.planned_date >= todayStr  // don't pre-empt it
+      const recent = row.status === 'completed' && row.planned_date >= ymd(yest)   // still recovering
+      if (!upcoming && !recent) continue
+      for (const p of focusToPatterns(row.focus ?? '')) avoid.add(p)
+    }
+  } catch { /* best-effort — a Quick Workout must always be producible */ }
+  return { avoidMuscles: [], avoidPatterns: [...avoid] }
+}
+
 export async function generateQuickWorkout(
   client: SupabaseClient,
   userId: string,

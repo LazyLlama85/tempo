@@ -13,8 +13,9 @@ import { PressableScale } from '@/components/motion'
 import { describeSaveError } from '@/lib/saveErrors'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
+  getScheduleRestrictions, injuriesToRestrictions,
   goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
-  type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern,
+  type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern, type QuickRestrictions,
 } from '@/lib/quickWorkout'
 
 const PURPOSE_ORDER: QuickPurpose[] = [
@@ -48,6 +49,7 @@ export default function QuickWorkoutScreen() {
   const [starting, setStarting] = useState(false)
   const [empty, setEmpty] = useState(false)
   const profileRef = useRef<ProfileForQuick | null>(null)
+  const restrictionsRef = useRef<QuickRestrictions | null>(null)
 
   const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null) => {
     if (!userId) return
@@ -58,10 +60,24 @@ export default function QuickWorkoutScreen() {
         profileRef.current = await getProfileForQuick(supabase, userId)
       }
       const profile = profileRef.current
+      // Merge injury avoidance with schedule awareness (fetched once): skip what's
+      // scheduled soon (don't pre-empt tomorrow's leg day) or was just trained.
+      if (!restrictionsRef.current) {
+        const injuryR = injuriesToRestrictions(profile.injuries)
+        const schedR = await getScheduleRestrictions(supabase, userId)
+        restrictionsRef.current = {
+          avoidMuscles: [...new Set([...injuryR.avoidMuscles, ...schedR.avoidMuscles])],
+          avoidPatterns: [...new Set([...injuryR.avoidPatterns, ...schedR.avoidPatterns])],
+        }
+      }
+      const restrictions = restrictionsRef.current
+      // If the requested target (e.g. a missed "leg day") is now avoided because it's
+      // scheduled soon, drop it so the "why" copy doesn't claim to build around it.
+      const effectiveTarget = targetPattern && restrictions.avoidPatterns.includes(targetPattern) ? undefined : targetPattern
       const effectivePurpose = p ?? goalToPurpose(profile.goal)
       const w = await generateQuickWorkout(
         supabase, userId,
-        { minutes: m, purpose: effectivePurpose, targetPattern, daysSinceTrained, fromCalendarGap },
+        { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, daysSinceTrained, fromCalendarGap, restrictions },
         profile,
       )
       setWorkout(w)

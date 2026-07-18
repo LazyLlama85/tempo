@@ -1249,8 +1249,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   a branded **"LEVEL UP" celebration** on `workout-complete` (gold card + a second confetti fall);
   onboarding's experience step tells users up front that Tempo advances them automatically, so
   picking "Beginner" carries no penalty.
-- **Scheduling:** `quickWorkout` (time-boxed session engine), `quickSuggestion` (feeds Home's
-  contextual Quick Workout row), `smartSchedule` /
+- **Scheduling:** `quickWorkout` (time-boxed session engine — sizes a purposeful session to a
+  free-time window from the curated pool, matched to equipment/experience/injuries; **schedule-aware
+  as of 2026-07-18**: `getScheduleRestrictions` avoids patterns scheduled in the next ~2 days or just
+  trained, so a Quick Workout picks the next *ready* thing instead of pre-empting tomorrow's leg day),
+  `quickSuggestion` (feeds Home's contextual Quick Workout row — the calendar-gap branch only fires
+  when a real event bounds the window via `FreeWindow.endIsEvent`, so an empty calendar no longer
+  claims "N free minutes before your next event"), `smartSchedule` /
   `autoSchedule` (place workouts around calendar free time; `autoSchedulingEnabled` gates this by
   `scheduling_mode`), **`moveWorkout`** (`resyncMovedWorkout` — the single re-sync path every
   reschedule flows through: re-points the synced calendar event *and* the local reminder at a
