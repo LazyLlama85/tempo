@@ -247,6 +247,46 @@ paywall reflect it on next launch. Revisit pricing the day Tempo Coach ships (se
 
 ---
 
+## Part D2 — Android / Google Play (all founder-only; audited 2026-07-18)
+
+The app is `com.fittempo.app` on Play (name "Tempo: Fitness Scheduling"), in **Closed testing**. The
+same RevenueCat entitlement + offering serve Android — Android just needs its own products + credential
+wired in. **None of this is set up yet, and the whole chain is blocked on two founder-only financial /
+credential steps I can't do.** Do them in order:
+
+1. **⛔ Set up a Google Play merchant account** — Play Console → *Monetize with Play* shows "To monetize
+   this app, set up a merchant account → Get started". This is the Android equivalent of Apple's Paid
+   Apps Agreement: business + tax + bank details. **Until it exists you cannot create any priced
+   subscription.** *(founder — financial data)*
+2. **Create the subscriptions** (Play Console → Monetize with Play → *Products → Subscriptions → Create
+   subscription*). Play's model differs from Apple's: create **one subscription per product ID**, each
+   with a **base plan** (billing period + price), then add **offers** on a base plan:
+   - `tempo_pro_month` — base plan: monthly, **$4.99**.
+   - `tempo_pro_year` — base plan: yearly, **$34.99**, + a **Free trial offer → 1 week** (the 7-day
+     trial). Give it the same accurate description: *"Unlimited custom plans, workouts & smart
+     scheduling."* *(I can drive this once step 1 is done.)*
+3. **⛔ RevenueCat → Play Store app → Service account credentials JSON** — currently **empty**. RevenueCat
+   needs a Google Cloud **service-account JSON** (with Play Android Publisher API access, granted under
+   Play Console → Users and permissions / API access), plus **Real-time developer notifications**
+   (Pub/Sub) for renewals. Without it, RevenueCat can't validate Android purchases *and can't even
+   import the Play products.* *(founder — credential; RevenueCat's "Google Play" setup docs walk it.)*
+4. **RevenueCat wiring** (after 2–3): import `tempo_pro_month` / `tempo_pro_year`, **attach both to the
+   `Tempo: Fitness Planner Pro` entitlement**, and add them to the **`default` offering**'s `$rc_monthly`
+   / `$rc_annual` packages (so the packages hold *both* the App Store and Play products). *(I can do
+   this once the credential is set.)*
+5. **Android SDK key — DONE (verify):** `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` is now in `eas.json`
+   (`goog_oxlGATTCFaOSINDjTcKnkPbPBSp`). ⚠️ **Verify this matches RevenueCat → Apps → Play Store → Public
+   API Key exactly** — it was read off-screen; a single wrong character silently breaks Android purchases
+   (same class of failure as the entitlement id). `purchases.ts` already uses this key on Android.
+6. **Build + test:** Android builds **can** be done on Windows (`eas build --profile production
+   --platform android`, or `--local`), unlike iOS. Test purchases on the **Closed testing** track with a
+   **License tester** account (Play Console → Setup → License testing) — no need to go to production.
+
+The `pro_enabled` flag and the paywall/caps code are already cross-platform — once 1–5 are done and an
+Android build ships, Pro works on Android identically to iOS.
+
+---
+
 ## Part E — Gotchas checklist
 - [ ] **Entitlement identifier** in RevenueCat is *exactly* `Tempo: Fitness Planner Pro` (Part B3).
       This is the most common silent failure.
@@ -259,3 +299,6 @@ paywall reflect it on next launch. Revisit pricing the day Tempo Coach ships (se
 - [ ] Each product has a **paywall screenshot** in its Review Information (Apple rejects otherwise).
 - [ ] Terms + Privacy URLs are set in App Store Connect (subscription apps require them).
 - [ ] After launch, `tester_tools` is `false` so the public never sees the in-app Pro override.
+- [ ] **Android (Part D2):** merchant account set up, Play subscriptions created, RevenueCat service-
+      account credential uploaded, Play products attached to the entitlement + offering, and the
+      `goog_` key in `eas.json` verified. All still open.

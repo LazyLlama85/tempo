@@ -16,6 +16,7 @@
         "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab",
         "EXPO_PUBLIC_SENTRY_DSN": "https://8ef67fc3edb6686f5785a708bfc84514@o4511699645300736.ingest.us.sentry.io/4511699648512000",
         "EXPO_PUBLIC_REVENUECAT_KEY": "appl_GkKqdQbhrRmYuPsFcquklZsSJOf",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_oxlGATTCFaOSINDjTcKnkPbPBSp",
         "EXPO_PUBLIC_PRO_ENTITLEMENT": "Tempo: Fitness Planner Pro",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_tvY9sRfvjiqvTzFgJMorP29zJMxZoT7aLKJPs54CP2pm",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
@@ -32,6 +33,7 @@
         "EXPO_PUBLIC_RAPIDAPI_KEY": "3e093d9793mshdf4ad98e1ebdb83p127429jsn0b1f53a307ab",
         "EXPO_PUBLIC_SENTRY_DSN": "https://8ef67fc3edb6686f5785a708bfc84514@o4511699645300736.ingest.us.sentry.io/4511699648512000",
         "EXPO_PUBLIC_REVENUECAT_KEY": "appl_GkKqdQbhrRmYuPsFcquklZsSJOf",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_oxlGATTCFaOSINDjTcKnkPbPBSp",
         "EXPO_PUBLIC_PRO_ENTITLEMENT": "Tempo: Fitness Planner Pro",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_tvY9sRfvjiqvTzFgJMorP29zJMxZoT7aLKJPs54CP2pm",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
@@ -43,7 +45,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
-        "track": "internal"
+        "track": "alpha"
       }
     }
   }
