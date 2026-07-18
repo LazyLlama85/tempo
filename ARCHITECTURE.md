@@ -1651,11 +1651,18 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   OR a real `onError` — unlike the runner thumbnail below, this one does treat a 404 as a
   fallback trigger) — used in `exercise-library.tsx` (family + variant rows, replacing the old
   flat icon), `ExercisePickerSheet` (the "Add exercises" sheet — had no icon at all before), and
-  `workout-builder.tsx`'s staged-exercise cards (same). Not yet applied to the workout runner's
-  own thumbnail (`(tabs)/plan.tsx`) or Focus Mode's form preview, which pre-date this component
-  and only branch on source-presence, not load-success — a 404'd (not-yet-backfilled) exercise
-  renders a blank image there rather than the icon fallback; left alone this pass since the
-  runner is the highest-traffic/highest-regression-risk screen and it wasn't in scope.
+  `workout-builder.tsx`'s staged-exercise cards (same). **Follow-up (2026-07-17):** the workout
+  runner's own thumbnail (`(tabs)/plan.tsx`) and Focus Mode's form preview had the same
+  source-presence-only gap — fixed without adopting `ExerciseThumb` itself (both have a second
+  fallback chain worth preserving: a legacy live RapidAPI lookup via `gifIds`/`gifSource` for
+  custom exercises with no embedded id, which `ExerciseThumb` doesn't need). `plan.tsx` now tracks
+  a `thumbFailed: Record<exerciseId, boolean>` map — the primary Supabase Storage source gets an
+  `onError` that flips it, gating both the runner card's `<Image>` and the `formImage` passed into
+  Focus Mode, so a 404'd exercise falls through to the `gifIds` tier (or the barbell icon) instead
+  of a blank image, and Focus Mode is never handed a known-bad source in the first place. Focus
+  Mode also gained its own independent guard (`failedImageKey`, keyed on `formImage`'s
+  `uri`/asset-number rather than object identity, since `getExerciseGifSource` returns a fresh
+  object every call) for whenever it does receive a source that fails to load.
 - **Analytics/crash:** PostHog + Sentry.
 
 ---

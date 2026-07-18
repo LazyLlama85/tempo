@@ -70,6 +70,14 @@ export function FocusMode({
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const [savedTick, setSavedTick] = useState(false)
+  // getExerciseGifSource builds a fresh { uri, headers } object every call, so a
+  // remote formImage never keeps referential identity across renders — key on the
+  // uri (or the local asset number) instead of the object itself, so a load
+  // failure reliably falls back to "Form guide" instead of retrying/flashing a
+  // broken image whenever this component happens to re-render.
+  const formImageKey = typeof formImage === 'number' ? formImage : formImage?.uri ?? null
+  const [failedImageKey, setFailedImageKey] = useState<string | number | null>(null)
+  const showFormImage = formImage != null && formImageKey !== failedImageKey
   const saveLastSet = () => {
     onSaveLastSet?.()
     setSavedTick(true)
@@ -161,9 +169,14 @@ export function FocusMode({
           </View>
         )}
 
-        {formImage ? (
+        {showFormImage ? (
           <TouchableOpacity style={styles.formPreview} onPress={onViewForm} activeOpacity={0.85}>
-            <Image source={formImage} style={styles.formImage} contentFit="contain" />
+            <Image
+              source={formImage}
+              style={styles.formImage}
+              contentFit="contain"
+              onError={() => setFailedImageKey(formImageKey)}
+            />
             <View style={styles.formLabelRow}>
               <Ionicons name="play-circle" size={16} color="#fff" />
               <Text style={styles.formLabelText}>View form video</Text>

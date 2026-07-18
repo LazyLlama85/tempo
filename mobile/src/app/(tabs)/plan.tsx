@@ -577,6 +577,11 @@ export default function WorkoutsScreen() {
   const [formSheetEx, setFormSheetEx] = useState<ExerciseRow | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [gifIds, setGifIds] = useState<Record<string, string | null>>({})
+  // Cached Supabase Storage GIFs 404 for the ~640 exercises not yet backfilled
+  // (scripts/backfill-exercise-media.mjs runs monthly, quota-limited) — track a
+  // failed load per exercise so those rows fall back to the barbell icon instead
+  // of a blank/broken image.
+  const [thumbFailed, setThumbFailed] = useState<Record<string, boolean>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
   const [bias, setBias] = useState<IntensityBias>(0)
   const unit = useUnitStore(s => s.unit)
@@ -2223,11 +2228,12 @@ export default function WorkoutsScreen() {
               >
                 {/* GIF thumbnail */}
                 <View style={styles.thumbWrap}>
-                  {getExerciseGifSource(ex.id) ? (
+                  {!thumbFailed[ex.id] && getExerciseGifSource(ex.id) ? (
                     <Image
                       source={getExerciseGifSource(ex.id)!}
                       style={styles.thumb}
                       contentFit="contain"
+                      onError={() => setThumbFailed(m => ({ ...m, [ex.id]: true }))}
                     />
                   ) : gifIds[ex.id] ? (
                     <Image
@@ -2584,7 +2590,8 @@ export default function WorkoutsScreen() {
         const setLabel = focusSet
           ? (focusSet.warmup ? 'WARM-UP SET' : `SET ${setLabels[focusIdx]} OF ${totalWorking}`)
           : ''
-        const formImage = getExerciseGifSource(focusEx.id) ?? (gifIds[focusEx.id] ? gifSource(gifIds[focusEx.id]!) : null)
+        const primaryFormSource = thumbFailed[focusEx.id] ? null : getExerciseGifSource(focusEx.id)
+        const formImage = primaryFormSource ?? (gifIds[focusEx.id] ? gifSource(gifIds[focusEx.id]!) : null)
 
         // "How much weight did you do?" — only while resting, only for the set
         // that just logged (not the upcoming one focusSet/focusIdx track).
