@@ -61,15 +61,18 @@ export async function getQuickSuggestion(
     // ── 1) Free calendar gap today ───────────────────────────────────────────
     if ((await getCalendarPermissionStatus()) === 'granted') {
       const windows = await findFreeWindows(now, 15)
-      // The next window that is still ahead of (or currently open) right now.
+      // The next window that's still ahead of (or currently open) right now AND is
+      // bounded by a real event — otherwise "N free minutes before your next event"
+      // is a lie on an empty day (the window just ran to 9pm). Empty/open calendars
+      // fall through to the missed-workout / restart nudges below instead.
       const upcoming = windows
         .map(w => {
           const ongoing = w.start <= now && now < w.end
           const start = ongoing ? now : w.start
           const minsLeft = Math.round((w.end.getTime() - start.getTime()) / 60000)
-          return { start, minsLeft, startsLater: w.start > now }
+          return { start, minsLeft, startsLater: w.start > now, endIsEvent: w.endIsEvent }
         })
-        .filter(w => (w.startsLater || w.minsLeft >= 15) && w.minsLeft >= 15)
+        .filter(w => w.endIsEvent && w.minsLeft >= 15 && (w.startsLater || w.minsLeft >= 15))
         .sort((a, b) => a.start.getTime() - b.start.getTime())[0]
 
       if (upcoming && upcoming.minsLeft >= 15) {
@@ -78,8 +81,8 @@ export async function getQuickSuggestion(
           minutes,
           fromCalendarGap: true,
           icon: 'time-outline',
-          headline: `You have ${upcoming.minsLeft} free minutes`,
-          sub: `Want a ${minutes}-minute workout before your next event?`,
+          headline: `${upcoming.minsLeft} min free before your next event`,
+          sub: `A ${minutes}-minute session fits right in.`,
         }
       }
     }
@@ -102,9 +105,9 @@ export async function getQuickSuggestion(
         minutes: 15,
         purpose: 'recovery',
         targetPattern: pattern,
-        icon: 'refresh-outline',
-        headline: `Missed ${focus}?`,
-        sub: `Here's a lighter 15-minute version to stay on track.`,
+        icon: 'home-outline',
+        headline: 'You missed your workout',
+        sub: `No gym needed — try a quick 15-minute version at home.`,
       }
     }
 

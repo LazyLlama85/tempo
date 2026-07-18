@@ -1454,8 +1454,8 @@ export default function ScheduleScreen() {
             <Ionicons name={quickSuggestion.icon as IconName} size={18} color={C.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.quickTitle} numberOfLines={1}>{quickSuggestion.headline}</Text>
-            <Text style={styles.quickSub} numberOfLines={1}>{quickSuggestion.sub}</Text>
+            <Text style={styles.quickTitle} numberOfLines={2}>{quickSuggestion.headline}</Text>
+            <Text style={styles.quickSub} numberOfLines={2}>{quickSuggestion.sub}</Text>
           </View>
           <Ionicons name="flash" size={18} color={C.primary} />
         </PressableScale>

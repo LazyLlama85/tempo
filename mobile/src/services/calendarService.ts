@@ -59,7 +59,10 @@ export async function createDeviceEvent(
 // ── Reading the calendar (schedule around real life) ──────────────────────────
 
 export interface BusyBlock { start: Date; end: Date }
-export interface FreeWindow { start: Date; end: Date; durationMin: number }
+// `endIsEvent` = the window is bounded by a REAL calendar event (a genuine
+// "squeeze it in before X" gap), vs. false when it just runs to the end of the
+// waking-hours window (an open/empty day — not a real "before your next event").
+export interface FreeWindow { start: Date; end: Date; durationMin: number; endIsEvent: boolean }
 
 // All timed events on a given day, sorted by start. Returns [] without permission.
 export async function getBusyBlocks(date: Date): Promise<BusyBlock[]> {
@@ -98,7 +101,7 @@ export async function findFreeWindows(
     if (block.start > cursor) {
       const gapMin = (block.start.getTime() - cursor.getTime()) / 60000
       if (gapMin >= neededMin) {
-        windows.push({ start: new Date(cursor), end: new Date(block.start), durationMin: Math.round(gapMin) })
+        windows.push({ start: new Date(cursor), end: new Date(block.start), durationMin: Math.round(gapMin), endIsEvent: true })
       }
     }
     if (block.end > cursor) cursor.setTime(block.end.getTime())
@@ -107,7 +110,7 @@ export async function findFreeWindows(
   if (cursor < dayEnd) {
     const gapMin = (dayEnd.getTime() - cursor.getTime()) / 60000
     if (gapMin >= neededMin) {
-      windows.push({ start: new Date(cursor), end: new Date(dayEnd), durationMin: Math.round(gapMin) })
+      windows.push({ start: new Date(cursor), end: new Date(dayEnd), durationMin: Math.round(gapMin), endIsEvent: false })
     }
   }
 
