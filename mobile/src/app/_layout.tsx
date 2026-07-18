@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AppState, Text, TextInput } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, router } from 'expo-router'
@@ -154,7 +154,7 @@ function RootLayout() {
       primary: C.primary,
     },
   }
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_700Bold,
@@ -164,6 +164,20 @@ function RootLayout() {
     JetBrainsMono_500Medium,
     JetBrainsMono_700Bold,
   })
+
+  // Cold-start safety net (fixes the intermittent "app won't load, have to kill and
+  // reopen" hang): the app gates its first render on fonts. If `useFonts` ever
+  // errors (fontError) or stalls without resolving, the old code left `fontsLoaded`
+  // false forever → `return null` behind a splash that never hides. Now a font
+  // ERROR counts as ready (render with system fonts rather than block), and a 5s
+  // timeout force-proceeds even if useFonts never settles at all. Normal loads are
+  // unaffected — `ready` still flips the instant fonts finish.
+  const [timedOut, setTimedOut] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 5000)
+    return () => clearTimeout(t)
+  }, [])
+  const ready = fontsLoaded || !!fontError || timedOut
 
   useEffect(() => {
     initialize()
@@ -196,12 +210,12 @@ function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync()
+    if (ready) {
+      SplashScreen.hideAsync().catch(() => {})
     }
-  }, [fontsLoaded])
+  }, [ready])
 
-  if (!fontsLoaded) return null
+  if (!ready) return null
 
   const app = (
     <ThemeProvider value={NavTheme}>

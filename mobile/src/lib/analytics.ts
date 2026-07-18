@@ -23,6 +23,26 @@ const APP_VERSION = Constants.expoConfig?.version ?? 'unknown'
 
 let posthog: PostHog | null = null
 
+// On web (`expo start --web`, used for quick dev), posthog-react-native can't find
+// its native storage (expo-file-system / async-storage) and throws "No storage
+// available" — which, because init runs at module load, crashes the whole app.
+// Give web a localStorage-backed store (falling back to in-memory); native keeps
+// its own default storage untouched (we return undefined there).
+type MinimalStorage = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void }
+function webCustomStorage(): MinimalStorage | undefined {
+  if (Platform.OS !== 'web') return undefined
+  const ls = (globalThis as { localStorage?: Storage }).localStorage
+  const mem = new Map<string, string>()
+  return {
+    getItem: (k) => {
+      try { return ls ? ls.getItem(k) : (mem.get(k) ?? null) } catch { return mem.get(k) ?? null }
+    },
+    setItem: (k, v) => {
+      try { if (ls) ls.setItem(k, v); else mem.set(k, v) } catch { mem.set(k, v) }
+    },
+  }
+}
+
 /**
  * The canonical set of product events and their payloads. Add new events here
  * — the typed `track()` signature is derived from this map, so every call site
@@ -140,14 +160,22 @@ function superProperties() {
  */
 export function initAnalytics(): void {
   if (posthog || !POSTHOG_KEY) return
-  posthog = new PostHog(POSTHOG_KEY, {
-    host: POSTHOG_HOST,
-    // Don't capture the very first app session synchronously; let the batch
-    // queue flush on its own schedule so startup stays cheap.
-    flushAt: 20,
-    flushInterval: 30_000,
-  })
-  posthog.register(superProperties())
+  try {
+    posthog = new PostHog(POSTHOG_KEY, {
+      host: POSTHOG_HOST,
+      // Don't capture the very first app session synchronously; let the batch
+      // queue flush on its own schedule so startup stays cheap.
+      flushAt: 20,
+      flushInterval: 30_000,
+      // undefined on native (use the default device storage); localStorage on web.
+      customStorage: webCustomStorage(),
+    })
+    posthog.register(superProperties())
+  } catch {
+    // Analytics must never break the app. If init throws (e.g. no storage
+    // provider on an unusual platform), leave it disabled — every track() no-ops.
+    posthog = null
+  }
 }
 
 /**
