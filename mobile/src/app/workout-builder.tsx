@@ -22,6 +22,7 @@ import { scheduleWorkoutReminders, requestPermissions } from '@/lib/notification
 import { suggestTimeOnDate } from '@/lib/reschedule'
 import { useWeightUnit, unitLabel, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
+import { ExerciseThumb } from '@/components/ExerciseThumb'
 import { useExerciseLibrary } from '@/lib/exerciseSearch'
 import { OptionSheet } from '@/components/OptionSheet'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
@@ -267,6 +268,7 @@ export default function WorkoutBuilderScreen() {
         {items.map((it, i) => (
           <View key={it.exercise.id} style={styles.exCard}>
             <View style={styles.exHead}>
+              <ExerciseThumb exerciseId={it.exercise.id} isCustom={it.exercise.is_custom} size={36} C={C} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.exName} numberOfLines={1}>{it.exercise.name}</Text>
                 <Text style={styles.exMeta} numberOfLines={1}>{it.exercise.category ?? it.exercise.movement_pattern}</Text>

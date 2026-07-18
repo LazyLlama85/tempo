@@ -1645,7 +1645,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   curated/derived clip's `<Image>` in `ExerciseFormSheet` had **no `onError` handler at all** —
   since almost every one of the ~1,300 imported rows takes this path, a single failed request
   rendered nothing with no fallback. Now retries the same request once, then falls back to the
-  "form video coming soon" illustration only after both attempts fail.
+  "form video coming soon" illustration only after both attempts fail. **List-row thumbnails
+  (2026-07-17):** `src/components/ExerciseThumb.tsx` is a small shared preview (resolves via the
+  same `getExerciseGifSource`, falls back to the generic barbell/custom-tool icon on no-source
+  OR a real `onError` — unlike the runner thumbnail below, this one does treat a 404 as a
+  fallback trigger) — used in `exercise-library.tsx` (family + variant rows, replacing the old
+  flat icon), `ExercisePickerSheet` (the "Add exercises" sheet — had no icon at all before), and
+  `workout-builder.tsx`'s staged-exercise cards (same). Not yet applied to the workout runner's
+  own thumbnail (`(tabs)/plan.tsx`) or Focus Mode's form preview, which pre-date this component
+  and only branch on source-presence, not load-success — a 404'd (not-yet-backfilled) exercise
+  renders a blank image there rather than the icon fallback; left alone this pass since the
+  runner is the highest-traffic/highest-regression-risk screen and it wasn't in scope.
 - **Analytics/crash:** PostHog + Sentry.
 
 ---

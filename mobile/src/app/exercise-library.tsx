@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { ExerciseFormSheet, type FormExercise } from '@/components/ExerciseFormSheet'
+import { ExerciseThumb } from '@/components/ExerciseThumb'
 import {
   useExerciseLibrary, searchLibrary, groupFamilies, muscleGroupOf, MUSCLE_GROUPS,
   type ExerciseFamily,
@@ -218,9 +219,7 @@ function FamilyRow({ family, styles, C, isOpen, onToggle, onPress, isPicked, onT
   const equip = equipLabelFor(item)
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.rowIcon}>
-        <Ionicons name={item.is_custom ? 'construct-outline' : 'barbell-outline'} size={17} color={C.primary} />
-      </View>
+      <ExerciseThumb exerciseId={item.id} isCustom={item.is_custom} size={40} C={C} />
       <View style={{ flex: 1 }}>
         <View style={styles.nameRow}>
           <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
@@ -248,6 +247,7 @@ function VariantRow({ ex, styles, C, onPress, isPicked, onTogglePick }: {
   return (
     <TouchableOpacity style={styles.variantRow} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.variantTick} />
+      <ExerciseThumb exerciseId={ex.id} isCustom={ex.is_custom} size={32} C={C} />
       <View style={{ flex: 1 }}>
         <Text style={styles.variantName} numberOfLines={1}>{ex.name}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>{[equip, ex.experience_level].filter(Boolean).join(' · ')}</Text>
@@ -306,10 +306,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1, borderBottomColor: C.surfaceContainerHigh,
-  },
-  rowIcon: {
-    width: 32, height: 32, borderRadius: Radius.md,
-    backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   rowName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text, flexShrink: 1 },

@@ -25,6 +25,7 @@ import {
 } from '@/lib/exerciseSearch'
 import { CustomExerciseSheet } from '@/components/CustomExerciseSheet'
 import { ExerciseFormSheet, type FormExercise } from '@/components/ExerciseFormSheet'
+import { ExerciseThumb } from '@/components/ExerciseThumb'
 import type { Exercise, MuscleGroup } from '@/types'
 
 interface Props {
@@ -207,6 +208,7 @@ export function ExercisePickerSheet({ visible, userId, client, existingIds, onCl
                 return (
                   <View style={styles.variantRow}>
                     <View style={styles.variantTick} />
+                    <ExerciseThumb exerciseId={ex.id} isCustom={ex.is_custom} size={32} C={C} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.variantName} numberOfLines={1}>{ex.name}</Text>
                       <Text style={styles.exMeta} numberOfLines={1}>{[equip, ex.experience_level].filter(Boolean).join(' · ')}</Text>
@@ -224,6 +226,7 @@ export function ExercisePickerSheet({ visible, userId, client, existingIds, onCl
               const equip = EQUIP_SHORT[ex.required_equipment?.[0] ?? ''] ?? ''
               return (
                 <View style={styles.row}>
+                  <ExerciseThumb exerciseId={ex.id} isCustom={ex.is_custom} size={40} C={C} />
                   <View style={{ flex: 1 }}>
                     <View style={styles.nameRow}>
                       <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
