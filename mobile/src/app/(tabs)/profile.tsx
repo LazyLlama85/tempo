@@ -32,6 +32,8 @@ import {
 } from '@/lib/units'
 import { useProAccess } from '@/stores/entitlements'
 import { ProGate } from '@/components/ProGate'
+import { TARGET } from '@/lib/tutorial'
+import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { restampFuturePlanForExperience } from '@/lib/generatePlan'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { pickAndUploadProgressPhoto, progressPhotoUrl } from '@/lib/progressPhotos'
@@ -138,6 +140,11 @@ export default function ProfileScreen() {
   const userId = session?.user.id ?? ''
   const queryClient = useQueryClient()
   const { stats, workouts, logTimes } = useProgressStats(userId)
+  // Concepts tour's `concept_equipment` step spotlights the whole Training card
+  // (goal/experience/days/equipment all live under it) — scrollIntoView since
+  // it can sit below the fold depending on how much renders above it.
+  const trainingTarget = useTutorialTarget(TARGET.profileTraining, { scrollIntoView: true })
+  const { scrollRef: tourScrollRef, onScroll: tourOnScroll } = useTutorialScrollContainer()
 
   // Consistency badges (lib/badges): derived from my session history + any stored
   // competitive/social badges. Stored keys refresh on focus so a just-awarded
@@ -586,7 +593,13 @@ export default function ProfileScreen() {
         }
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        ref={tourScrollRef}
+        onScroll={tourOnScroll}
+        scrollEventThrottle={32}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         {/* ── Profile card — dark, modular: header · XP · stats grid ───────── */}
         <View style={styles.hero}>
           <View style={styles.heroHeader}>
@@ -787,7 +800,7 @@ export default function ProfileScreen() {
         {/* ── Training ────────────────────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Training</Text>
-          <View style={styles.card}>
+          <View ref={trainingTarget} style={styles.card}>
             <SettingRow icon="construct-outline" label="MY WORKOUTS" value="Build, save & schedule" onPress={() => router.push('/my-workouts' as any)} />
             <View style={styles.divider} />
             <SettingRow icon="repeat-outline" label="MY SPLITS" value="Your weekly schedule" onPress={() => router.push('/my-splits' as any)} />

@@ -293,14 +293,14 @@ export default function PlanPreviewScreen() {
       // (below) IS the welcome moment now — there's no separate /welcome screen to
       // force-close out of (removed 2026-07-17: it repeated the same plan facts this
       // reveal already shows). 'welcome_done' is a gate several other screens check
-      // before their own first-run tours fire (Home/Plan spotlight tours,
-      // how-tempo-works) — mark it satisfied right here, atomically with the other
+      // before their own first-run tours fire (Home/Plan spotlight tours, the
+      // Concepts tour) — mark it satisfied right here, atomically with the other
       // arms, so it can never get stuck false. Re-planners are NOT armed — they've
       // seen the app.
       if (!isReplan) {
         const tut = useTutorialStore.getState()
         tut.init(session.user.id)
-        tut.arm(T.homeTour); tut.arm(T.firstWorkout); tut.arm(T.planTour)
+        tut.arm(T.homeTour); tut.arm(T.firstWorkout); tut.arm(T.planTour); tut.arm(T.conceptsTour)
         tut.completeStep('welcome_done')
         tut.setFirstPlanCreated()
       }

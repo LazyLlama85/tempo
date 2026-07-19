@@ -11,7 +11,7 @@ import { useFocusEffect } from 'expo-router'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { useTutorialStore } from '@/stores/tutorial'
-import { T, HOME_TOUR_STEPS, TARGET, shouldShowTip } from '@/lib/tutorial'
+import { T, HOME_TOUR_STEPS, CONCEPTS_TOUR_STEPS, TARGET } from '@/lib/tutorial'
 import { Colors, Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
@@ -304,6 +304,10 @@ export default function ScheduleScreen() {
   // itself — the old separate "this is your calendar" step (a different
   // target) was folded into this one when the multi-day calendar left Home.
   const todayCardTarget = useTutorialTarget(TARGET.homeToday, { scrollIntoView: true })
+  // Home's "+" FAB — the `concept_add` step of the Concepts tour spotlights it.
+  // Fixed position (outside the ScrollView), so no scrollIntoView needed, same
+  // as the tab bar's targets.
+  const addFabTarget = useTutorialTarget(TARGET.homeAddFab)
   // Registers Home's ScrollView so a below-the-fold tour step scrolls itself into
   // view before its spotlight measures it.
   const { scrollRef: tourScrollRef, onScroll: tourOnScroll } = useTutorialScrollContainer()
@@ -311,14 +315,16 @@ export default function ScheduleScreen() {
     useCallback(() => {
       const t = setTimeout(() => {
         const s = useTutorialStore.getState()
+        const lastConceptStep = CONCEPTS_TOUR_STEPS[CONCEPTS_TOUR_STEPS.length - 1].id
         const lastStep = HOME_TOUR_STEPS[HOME_TOUR_STEPS.length - 1].id
         if (!s.isStepDone('welcome_done')) return
         // Definitions (workout/split/generates-vs-schedules/etc.) come before the
         // spotlight tour — it explains WHAT things are; the tour then shows WHERE.
-        // A one-off tip, not part of HOME_TOUR_STEPS, so it can't re-trigger the
-        // spotlight tour for users who already completed it.
-        if (shouldShowTip('how_tempo_works')) {
-          router.push('/how-tempo-works' as any)
+        // This used to push a separate slideshow screen (how-tempo-works.tsx,
+        // deleted 2026-07-18) — now it's just another tour, taught on the real
+        // screens, so it's gated/started exactly like every other tour here.
+        if (s.isArmed(T.conceptsTour) && !s.isStepDone(lastConceptStep) && !s.activeTour) {
+          s.startTour(T.conceptsTour)
           return
         }
         if (s.isArmed(T.homeTour) && !s.isStepDone(lastStep) && !s.activeTour) {
@@ -1910,14 +1916,16 @@ export default function ScheduleScreen() {
           land right under the dock's hitSlop-expanded touch zone on some devices,
           making the bottom of the FAB visually crowd (and sometimes lose taps to)
           the Profile tab behind it. */}
-      <PressableScale
-        style={[styles.fab, { bottom: insets.bottom + 84 }]}
-        onPress={() => setAddWorkoutOpen(true)}
-        scaleTo={0.9}
-        accessibilityLabel="Add a workout"
-      >
-        <Ionicons name="add" size={30} color={C.onPrimary} />
-      </PressableScale>
+      <View ref={addFabTarget} style={[styles.fab, { bottom: insets.bottom + 84 }]}>
+        <PressableScale
+          style={styles.fabPressable}
+          onPress={() => setAddWorkoutOpen(true)}
+          scaleTo={0.9}
+          accessibilityLabel="Add a workout"
+        >
+          <Ionicons name="add" size={30} color={C.onPrimary} />
+        </PressableScale>
+      </View>
 
       <AddWorkoutSheet
         visible={addWorkoutOpen}
@@ -2454,4 +2462,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     shadowRadius: 20,
     elevation: 8,
   },
+  // Fills the `fab` wrapper exactly (which now owns the position/size/shadow so
+  // its ref can be measured for the Concepts tour) — same rendered circle as
+  // before, just with the touchable moved one level in.
+  fabPressable: { width: '100%', height: '100%', borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
 })

@@ -162,7 +162,7 @@ you moving."*
   gated by `(tabs)/_layout` and re-shown on reopen until completed. Genuine, felt redundancy, not a
   taste call. Now there's exactly one reveal (`plan-preview`'s), and its own "Enter Tempo →" tap calls
   `completeStep('welcome_done')` directly — same force-close-proof completion flag several other
-  screens gate their own first-run tours on (Home/Plan spotlight tours, `how-tempo-works`), just
+  screens gate their own first-run tours on (Home/Plan spotlight tours, the Concepts tour), just
   satisfied one screen earlier instead of via a second screen. `T.welcome` is no longer armed at all;
   the constant stays defined (existing persisted state safely deserializes) but nothing arms or reads
   it anymore. **`home_tour`** is a 5-step spotlight (calendar → today's card → GO → Progress →
@@ -249,9 +249,8 @@ you moving."*
   path. `plan-preview.tsx` now checks `isGoogleCalendarConnected()` /
   `getCalendarPermissionStatus()` when the reveal mounts: connected → keeps that
   copy; not connected (most new users) → **"Your first week, planned."** with a
-  subtitle carrying forward the concept `how-tempo-works` previously only
-  explained several screens later ("Tempo schedules every session around your
-  real life..."). Underneath the 7-day list, an **optional, skippable calendar
+  subtitle carrying forward the same "Tempo schedules every session around your
+  real life..." concept the Concepts tour now teaches, in place, on Home/Plan. Underneath the 7-day list, an **optional, skippable calendar
   tap-in** ("See it with your real calendar") offers Google or device connect
   right there — reusing `connectGoogleCalendar`/`requestCalendarPermissions`
   and the SAME error-copy mapping `calendar-setup.tsx` uses (extracted to
@@ -264,18 +263,7 @@ you moving."*
   of the 6 onboarding screens now fires `onboarding_step_completed` on advance —
   previously only `onboarding_complete` (the very end) existed, so there was zero
   visibility into where users actually dropped off.
-  **Profile → Replay App Tour** re-arms it (and also clears the
-  `how_tempo_works` one-off tip below, via its localStorage key directly). Analytics:
-  `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` + `first_workout_*`
-  (experience-tagged; platform/app_version are auto super-props). **`how-tempo-works`** (new screen,
-  triggered via the lighter `shouldShowTip`/`markTipSeen` one-off mechanism rather than
-  `HOME_TOUR_STEPS`, specifically so it doesn't restart the spotlight tour for users who'd already
-  completed it) fires once for every user — new or existing — right before `home_tour`, defining the
-  vocabulary the spotlight tour assumes: what a workout/split is, and the previously-conflated
-  distinction between Tempo **generating** a workout's exercises and Tempo **scheduling** its day/time.
-  It's an **interactive, swipeable tutorial** (one concept per page — swipe or Next, progress dots,
-  Back — with small inline visuals for the split + generate/schedule concepts), not the old static
-  scroll of stacked cards. **`plan_tour` (new, 2026-07-17):** a second spotlight tour for the Plan
+  **`plan_tour` (2026-07-17):** a second spotlight tour for the Plan
   tab — calendar (Week/Month + reschedule), current split, and the library doors — armed at the same
   new-user moment as the others and fired independently on Plan's own first post-welcome focus (a
   user may open Plan before ever settling on Home, so it doesn't wait on `home_tour` completing).
@@ -283,8 +271,39 @@ you moving."*
   `activeTour === T.homeTour ? HOME_TOUR_STEPS : EMPTY_STEPS` ternary into one lookup,
   `lib/tutorial.ts`'s new `TOUR_STEPS: Record<TutorialId, TutorialStep[]>` — the single place both
   the overlay and `stores/tutorial.ts`'s step-completion/skip/replay logic now read from, so adding
-  a future tour is purely "new id + new step array," no ternary to touch. **Profile → Replay App
-  Tour** now re-arms both `home_tour` and `plan_tour` together.
+  a future tour is purely "new id + new step array," no ternary to touch.
+  **`concepts_tour` (replaces the `how-tempo-works.tsx` slideshow, 2026-07-18):** the old screen
+  taught the same vocabulary the spotlight tours assume — what a workout/split is, the
+  previously-conflated distinction between Tempo **generating** a workout's exercises and Tempo
+  **scheduling** its day/time, adding/editing workouts, the calendar, equipment & goals — as a
+  separate 7-page swipe deck, triggered via the lighter `shouldShowTip`/`markTipSeen` one-off
+  mechanism. It's now taught IN PLACE, as a genuine cross-screen `TutorialStep[]` tour
+  (`CONCEPTS_TOUR_STEPS`, `lib/tutorial.ts`) spotlighting the real Home/Plan/Profile UI the concepts
+  describe, ordered to minimize screen hops (Home ×3 → Plan ×3 → Profile ×1 — 2 navigations total,
+  not the slideshow's original linear order). Required one new capability in
+  `TutorialOverlay.tsx`: each `TutorialStep` may now carry an optional `screen` href; a ref-tracked
+  effect pushes the router there the first time the tour lands on a step whose screen differs from
+  the last one it pushed to (tracked via plain refs — `lastScreenRef`/`lastTourRef` — rather than
+  `usePathname`, since the only question that matters is "did this overlay already navigate here for
+  this tour," which needs no pathname-format assumptions). Because all four tabs mount eagerly
+  (`(tabs)/_layout.tsx`'s `lazy: false`), a Home→Plan hop is just the tab becoming visible, not a
+  fresh mount — but Profile's own screen still needs its target's ref actually laid out, so the
+  target re-measure effect polls the store's live `measurers` map several times over ~1.5s (200ms /
+  450ms / 800ms / 1300ms) instead of the single one-shot retry same-screen steps needed, reading
+  fresh each attempt so a target that registers mid-poll is still caught. Two new spotlight targets
+  needed adding: `home.add_fab` (Home's "+" FAB — now wrapped in a plain ref-able `View`, since
+  `PressableScale` is a function component and can't take a ref directly, same reason the GO button
+  wraps itself in `TempoTabBar.tsx`) and `profile.training` (the whole Training card — goal/
+  experience/days/equipment — on Profile, which also gained its own `useTutorialScrollContainer`
+  wiring since that card can sit below the fold). `concept_generate` deliberately reuses the
+  `plan.split` target (not the workout runner) — spotlighting a real in-progress session would mean
+  starting one just to teach a definition, a genuine side effect the tour has no business causing.
+  `how-tempo-works.tsx` is deleted; its `Stack.Screen` registration and Home's push-on-first-focus
+  effect are gone with it. **Profile → Replay App Tour** re-arms `concepts_tour`, `home_tour`, and
+  `plan_tour` together, then drops the user on Home, where `concepts_tour` auto-starts exactly like
+  every other tour (armed + not-done + no active tour) — no manual `startTour` call needed from
+  Settings. Analytics: `tutorial_started`/`step_completed`/`skipped`/`completed`/`replayed` +
+  `first_workout_*` (experience-tagged; platform/app_version are auto super-props).
 - **Other screens/modals:** `sign-in`, `quick-workout`, `availability`,
   **`settings`** (new, 2026-07-16/17 — every "how the app behaves" row moved off Profile: Calendar &
   Scheduling, Notifications, Subscription, Tester Tools, App, Account, sign-out/delete; reached via
@@ -319,11 +338,7 @@ you moving."*
   for Google + Device Calendar, replacing the old `Alert.alert` checklist; shows a "needs
   reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`calendar-picker`**
   (B1.5 — Pro-gated "Choose calendars" modal, reached from `calendar-setup`'s Google card once
-  connected; dormant until the calendar-list OAuth scope is granted), **`how-tempo-works`**
-  (one-time — then replayable from Profile → Replay App Tour — explainer defining workout / split /
-  **Tempo *generates* the exercises vs Tempo *schedules* the day & time** / adding & editing /
-  calendar / equipment & goals; shown once per device via `shouldShowTip('how_tempo_works')`, right
-  before the Home spotlight tour), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
+  connected; dormant until the calendar-list OAuth scope is granted), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
   the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
   exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
   targets), **`social`** (Friends home — decluttered so the scroll is only content: requests →

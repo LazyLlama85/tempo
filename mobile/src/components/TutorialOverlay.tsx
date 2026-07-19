@@ -13,6 +13,7 @@ import {
   type View as RNView, type ScrollView, type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale, useReducedMotion } from '@/components/motion'
@@ -126,9 +127,9 @@ export function TutorialOverlay() {
   const activeTour = useTutorialStore(s => s.activeTour)
   const stepIndex = useTutorialStore(s => s.stepIndex)
   const targets = useTutorialStore(s => s.targets)
-  const measurers = useTutorialStore(s => s.measurers)
   const nextStep = useTutorialStore(s => s.nextStep)
   const endTour = useTutorialStore(s => s.endTour)
+  const router = useRouter()
 
   // Derive steps from a STABLE module constant (`TOUR_STEPS`, keyed by tour id) —
   // selecting `activeSteps()` from the store returned a fresh array every render,
@@ -139,15 +140,44 @@ export function TutorialOverlay() {
   const step = activeTour ? steps[stepIndex] : null
   const rect: TargetRect | undefined = step?.target ? targets[step.target] : undefined
 
-  // Re-measure the active target when the step changes (layout may lag a frame).
+  // Cross-screen tours (T.conceptsTour): navigate to a step's screen the first
+  // time we land on it. Tracked with refs rather than usePathname so this never
+  // depends on how expo-router formats a given route's pathname (group segments
+  // stripped or not) — we only need to know "did THIS overlay already push here
+  // for THIS tour", which a plain ref answers exactly. Reset whenever the active
+  // tour changes so a fresh run always re-navigates its first step.
+  const lastScreenRef = useRef<string | null>(null)
+  const lastTourRef = useRef<typeof activeTour>(null)
+  useEffect(() => {
+    if (activeTour !== lastTourRef.current) {
+      lastTourRef.current = activeTour
+      lastScreenRef.current = null
+    }
+    if (step?.screen && step.screen !== lastScreenRef.current) {
+      lastScreenRef.current = step.screen
+      router.push(step.screen as never)
+    }
+  }, [activeTour, step?.screen, router])
+
+  // Re-measure the active target when the step changes. A same-screen target is
+  // usually ready within a frame (the 260ms retry below covers it); a
+  // cross-screen target may need longer — the destination tab has to actually
+  // become visible (or, for a real navigation, mount) first — so this polls a
+  // few times over ~1.5s rather than giving up after one retry. Reads the
+  // measurer fresh from the store each attempt (not a subscribed selector) so a
+  // target that registers mid-poll (a screen mounting late) is still caught.
   useEffect(() => {
     if (!step?.target) return
-    const m = measurers[step.target]
-    if (!m) return
-    m()
-    const t = setTimeout(m, 260)
-    return () => clearTimeout(t)
-  }, [step?.target, measurers, stepIndex])
+    const targetId = step.target
+    let cancelled = false
+    const attempt = () => {
+      if (cancelled) return
+      useTutorialStore.getState().measurers[targetId]?.()
+    }
+    attempt()
+    const timers = [200, 450, 800, 1300].map(ms => setTimeout(attempt, ms))
+    return () => { cancelled = true; timers.forEach(clearTimeout) }
+  }, [step?.target, stepIndex])
 
   // Gentle pulse on the highlight ring (skipped under reduced motion).
   const pulse = useRef(new Animated.Value(0)).current

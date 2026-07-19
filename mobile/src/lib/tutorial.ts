@@ -16,15 +16,20 @@ export const T = {
   homeTour: 'home_tour',
   firstWorkout: 'first_workout',
   planTour: 'plan_tour',
+  conceptsTour: 'concepts_tour',
 } as const
 export type TutorialId = (typeof T)[keyof typeof T]
 
-// A spotlight step in an overlay-driven tour (currently the Home tour). `target`
-// is a registered element id (see useTutorialTarget); a missing/unmeasured target
-// falls back to a centered card so the tour never breaks.
+// A spotlight step in an overlay-driven tour. `target` is a registered element id
+// (see useTutorialTarget); a missing/unmeasured target falls back to a centered
+// card so the tour never breaks. `screen` is an optional router href — when a
+// step's screen differs from wherever the user currently is, the overlay
+// navigates there before spotlighting (see TutorialOverlay's cross-screen
+// effect), which is what lets one tour span multiple tabs (T.conceptsTour).
 export interface TutorialStep {
   id: string
   target?: string
+  screen?: string
   title: string
   body: string
   placement?: 'top' | 'bottom' | 'auto'
@@ -51,6 +56,25 @@ export const PLAN_TOUR_STEPS: TutorialStep[] = [
   { id: 'plan_library', target: 'plan.library', title: 'Everything else lives here', body: 'Browse the exercise library or manage your saved workouts, without cluttering the hub above.', placement: 'top' },
 ]
 
+// The Concepts tour — replaces the old how-tempo-works.tsx slideshow (deleted
+// 2026-07-18). Same 7 concepts, same copy, but taught IN PLACE on the real
+// screens they describe instead of a separate swipe deck, and replayable like
+// any other tour. Ordered to minimize screen hops (Home x3, then Plan x3, then
+// Profile x1 — 2 navigations total) rather than the slideshow's original
+// linear order, since hopping tabs back-and-forth per step would feel janky.
+// `concept_generate` deliberately reuses the `plan.split` target rather than
+// spotlighting an in-progress workout runner — starting a real session just to
+// teach a definition would be a genuine side effect, not a demo.
+export const CONCEPTS_TOUR_STEPS: TutorialStep[] = [
+  { id: 'concept_workout', screen: '/(tabs)', target: 'home.today', title: 'A workout', body: 'One training session — a list of exercises with sets, reps, and weight. You do one workout per training day.', placement: 'bottom' },
+  { id: 'concept_add', screen: '/(tabs)', target: 'home.add_fab', title: 'Adding & editing workouts', body: 'Tap the + to build a workout from the Exercise Library. Tap any scheduled workout to move it, edit it, or mark it done.', placement: 'top' },
+  { id: 'concept_calendar', screen: '/(tabs)', target: 'home.today', title: 'Your calendar', body: 'Shows what’s scheduled each day — a missed workout just gets marked MISSED, no shame, reschedule it anytime. Connect your real calendar in Settings so Tempo can plan around your actual free time.', placement: 'bottom' },
+  { id: 'concept_split', screen: '/(tabs)/plan', target: 'plan.split', title: 'A split', body: 'Your recurring weekly pattern — which workout you do on which day (Push / Pull / Legs / Rest). Tempo can build one for you, or you can create your own in My Splits.', placement: 'bottom' },
+  { id: 'concept_generate', screen: '/(tabs)/plan', target: 'plan.split', title: '“Tempo generates” = the exercises', body: 'Generating picks what to actually do — exercises, sets, reps, and how hard — based on your goal, experience, and recent performance.', placement: 'bottom' },
+  { id: 'concept_schedule', screen: '/(tabs)/plan', target: 'plan.calendar', title: '“Tempo schedules” = the day & time', body: 'Scheduling places it on your calendar around your real life. Generating and scheduling are separate — build your own workout and still let Tempo schedule it, or vice versa.', placement: 'bottom' },
+  { id: 'concept_equipment', screen: '/(tabs)/profile', target: 'profile.training', title: 'Equipment & goals', body: 'Change your goal, experience, equipment, or days per week anytime from Profile — Tempo re-tunes every future workout automatically.', placement: 'bottom' },
+]
+
 // Target ids screens register via useTutorialTarget, referenced by steps above.
 export const TARGET = {
   homeToday: 'home.today',
@@ -60,6 +84,8 @@ export const TARGET = {
   planCalendar: 'plan.calendar',
   planSplit: 'plan.split',
   planLibrary: 'plan.library',
+  homeAddFab: 'home.add_fab',
+  profileTraining: 'profile.training',
 } as const
 
 // Every tour's step array, keyed by id — the one lookup the overlay and the
@@ -70,6 +96,7 @@ export const TOUR_STEPS: Record<TutorialId, TutorialStep[]> = {
   [T.homeTour]: HOME_TOUR_STEPS,
   [T.firstWorkout]: [],
   [T.planTour]: PLAN_TOUR_STEPS,
+  [T.conceptsTour]: CONCEPTS_TOUR_STEPS,
 }
 
 // ── Persisted state ────────────────────────────────────────────────────────────

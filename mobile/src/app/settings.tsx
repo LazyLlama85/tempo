@@ -198,19 +198,24 @@ export default function SettingsScreen() {
   const setDevProOverride = useEntitlementStore((s) => s.setDevProOverride)
   const openPaywall = () => { track('paywall_shown', { context: 'settings' }); router.push({ pathname: '/paywall', params: { context: 'settings' } } as never) }
 
-  // Replay the guided walkthrough: re-arm the Home + Plan tours + re-show the
-  // first-session coach overlay, then drop the user on Home where the tour re-fires.
+  // Replay the guided walkthrough: re-arm the Concepts tour (the definitions —
+  // what a workout/split is, generate vs. schedule, etc. — taught across Home /
+  // Plan / Profile) plus the Home + Plan spotlight tours ("where things are") +
+  // re-show the first-session coach overlay, then drop the user on Home where
+  // Concepts auto-starts (it's gated identically to the other tours, so simply
+  // being armed + not-yet-done + no active tour is enough — no manual startTour
+  // call needed here).
   const replayTour = () => {
     const tut = useTutorialStore.getState()
     tut.completeStep('welcome_done') // ensure the welcome gate stays satisfied
+    tut.replay(T.conceptsTour)
     tut.replay(T.homeTour)
     tut.replay(T.planTour)
     try {
       const ls = (globalThis as { localStorage?: Storage }).localStorage
       ls?.removeItem('tempo.coach.session')
-      ls?.removeItem('tempo.tip.how_tempo_works') // re-show the concepts explainer too
     } catch { /* best-effort */ }
-    Alert.alert('Tour reset', 'The guided walkthrough will play again on Home, Plan, and in your next workout.', [
+    Alert.alert('Tour reset', 'The guided walkthrough will play again on Home, Plan, and Profile.', [
       { text: 'Show me', onPress: () => router.push('/(tabs)') },
     ])
   }
