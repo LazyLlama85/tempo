@@ -25,6 +25,7 @@ import { useSessionActiveStore } from '@/stores/sessionActive'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { getProfileForQuick, generateQuickWorkout, persistQuickWorkout, goalToPurpose } from '@/lib/quickWorkout'
+import { GoChooserSheet } from '@/components/GoChooserSheet'
 import type { ScheduledWorkout } from '@/lib/notifications'
 
 function toDateStr(d: Date): string {
@@ -151,16 +152,20 @@ function GoButton() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('scheduled_workouts')
-        .select('id, status, planned_start_time')
+        .select('id, status, planned_start_time, focus')
         .eq('user_id', userId)
         .eq('planned_date', todayStr)
         .order('planned_start_time')
       if (error) throw error
-      return (data ?? []) as { id: string; status: string; planned_start_time: string }[]
+      return (data ?? []) as { id: string; status: string; planned_start_time: string; focus: string }[]
     },
     enabled: !!userId,
     staleTime: 60 * 1000,
   })
+
+  // GO now offers a real choice when a session is due today (see handlePress) —
+  // this holds that session's info while the chooser sheet is open.
+  const [chooser, setChooser] = useState<{ id: string; focus: string; time: string } | null>(null)
 
   // A slow breathing halo — the dock keeps time even at rest.
   useEffect(() => {
@@ -180,18 +185,20 @@ function GoButton() {
 
   const goRef = useTutorialTarget(TARGET.tabGo)
 
-  // GO's whole point: one thumb away from training, not another decision.
-  // Today's actual session (if one is still due) wins outright — straight into
-  // the runner, no customization screen, no exercise-list preview first. Only
-  // when today has nothing left to do (already completed, or a genuine rest
-  // day with nothing scheduled) does it fall back to an instant, sensibly-
-  // defaulted Quick Workout — generated and started immediately, same reasoning
-  // (skip the picker + preview; the point here is momentum, not more choices).
+  // GO's whole point: one thumb away from training, not another decision — but
+  // when today's actual session is still due, that's now a genuine CHOICE
+  // (2026-07-18: plans change — a busy day might call for a shorter session
+  // instead of the scheduled one), surfaced via GoChooserSheet rather than
+  // silently assuming the scheduled session is still what they want. Only when
+  // today has nothing left to do (already completed, or a genuine rest day with
+  // nothing scheduled) does GO fall back to an instant, sensibly-defaulted Quick
+  // Workout — generated and started immediately, no picker (momentum, not more
+  // choices — that path is unchanged).
   const handlePress = async () => {
     if (starting) return
     const due = (todayRows ?? []).find(w => w.status === 'scheduled')
     if (due) {
-      router.push({ pathname: '/(tabs)/plan', params: { workoutId: due.id } })
+      setChooser({ id: due.id, focus: due.focus, time: due.planned_start_time })
       return
     }
     if (!userId) { router.push('/quick-workout'); return }
@@ -243,6 +250,22 @@ function GoButton() {
           )}
         </Animated.View>
       </Pressable>
+
+      <GoChooserSheet
+        visible={!!chooser}
+        focus={chooser?.focus ?? ''}
+        time={chooser?.time ?? ''}
+        onClose={() => setChooser(null)}
+        onContinue={() => {
+          const c = chooser
+          setChooser(null)
+          if (c) router.push({ pathname: '/(tabs)/plan', params: { workoutId: c.id } })
+        }}
+        onQuick={() => {
+          setChooser(null)
+          router.push('/quick-workout')
+        }}
+      />
     </View>
   )
 }

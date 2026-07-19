@@ -619,6 +619,15 @@ you moving."*
   its local `sessionActive` state into it on mount/change and resets it false on unmount; siblings
   can't share React state directly, hence the store. `components/TempoTabBar.tsx`'s GO button reads
   it and hides (`pointerEvents:'none'`) while a session is live.
+  **GO chooser + more Quick Workout entry points (2026-07-18):** GO used to jump straight into
+  today's due session with no way to choose otherwise. New `components/GoChooserSheet.tsx` — when
+  `todayRows` has a `status:'scheduled'` row, `TempoTabBar`'s `GoButton.handlePress` now opens this
+  sheet (two cards: continue today's session, or "Quick Workout instead" → `/quick-workout`) instead
+  of navigating immediately. The no-session fallback path (auto-generate + start instantly, no
+  picker) is untouched — the chooser only inserts itself when there's a real choice to make.
+  `AddWorkoutSheet` also gained a **Quick Workout row** (flash icon, under "Build a new workout"),
+  shown only when the sheet is open on **today** (`isToday(date)`) — Quick Workout always schedules
+  for right now, so it's hidden when the tapped calendar day is some other date.
   **Active-session Focus Mode (2026-07-16/17):** a new full-screen, ADDITIVE view for whichever set is
   currently in play — `components/FocusMode.tsx`, built after the founder's own reference screenshot
   (large center ring, rest timer with −/+ adjust, form-reference preview, Skip/Done taking up the

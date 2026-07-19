@@ -27,6 +27,15 @@ interface Props {
   onClose: () => void
 }
 
+// Quick Workout always starts "right now" (persistQuickWorkout schedules for the
+// current date/time) — only offer it when the sheet is open on TODAY, not some
+// other calendar day the user tapped ahead or behind.
+function isToday(date: string): boolean {
+  const d = new Date()
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return date === todayStr
+}
+
 export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -50,8 +59,13 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
     onClose()
     setTimeout(() => router.push({ pathname: '/workout-builder', params: { date, ...params } } as any), 80)
   }
+  const goQuick = () => {
+    onClose()
+    setTimeout(() => router.push('/quick-workout'), 80)
+  }
 
   const niceDate = new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  const showQuick = isToday(date)
 
   return (
     // `scroll`: content is one flat scrollable flow (not a BottomSheetScrollView
@@ -80,6 +94,17 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.onPrimary} />
         </TouchableOpacity>
+
+        {showQuick && (
+          <TouchableOpacity style={styles.quickRow} onPress={goQuick} activeOpacity={0.85}>
+            <View style={styles.quickIconWrap}><Ionicons name="flash" size={19} color={C.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickRowTitle}>Quick Workout</Text>
+              <Text style={styles.quickRowSub}>Pick your time — Tempo builds a session that fits right now</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.primary} />
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.section}>YOUR SAVED WORKOUTS</Text>
         {loading ? (
@@ -134,6 +159,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   iconWrap: { width: 34, height: 34, borderRadius: Radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   primaryRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
   primaryRowSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  quickRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1.5, borderColor: C.outlineVariant,
+  },
+  quickIconWrap: { width: 34, height: 34, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  quickRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  quickRowSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1, lineHeight: 16 },
   section: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
   empty: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   card: { backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant, overflow: 'hidden' },
