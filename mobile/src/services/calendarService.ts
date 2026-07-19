@@ -78,7 +78,14 @@ export async function getBusyBlocks(date: Date): Promise<BusyBlock[]> {
 
   const events = await Calendar.getEventsAsync(ids, dayStart, dayEnd)
   return events
-    .filter(e => !e.allDay)
+    // All-day events (vacation, flight, OOO) count as busy for scheduling
+    // purposes too — they used to be silently invisible here (only timed
+    // events blocked a slot), so a workout could get auto-scheduled straight
+    // into a day the user is fully unavailable. expo-calendar doesn't reliably
+    // expose a "doesn't block my calendar" flag the way Google's transparency
+    // does, so every all-day event defaults to busy — the safer direction for
+    // a scheduling feature to be wrong in. startDate/endDate already span the
+    // event's full day(s) for an all-day event, same shape as a timed one.
     .map(e => ({ start: new Date(e.startDate as string | number | Date), end: new Date(e.endDate as string | number | Date) }))
     .sort((a, b) => a.start.getTime() - b.start.getTime())
 }

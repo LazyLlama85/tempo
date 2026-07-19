@@ -176,14 +176,24 @@ export async function fetchUserBusySlots(daysAhead = 7, calendarIds: string[] = 
   }))
 
   return perCalendar.flat()
-    // Timed events only (skip all-day), skip ones the user marked "free", skip
-    // cancelled, and skip Tempo's own workouts (colorId 11) — those are tracked
-    // as scheduled_workouts, so counting them here would double-book / double-show.
-    .filter(e =>
-      !!e.start?.dateTime && !!e.end?.dateTime &&
-      e.transparency !== 'transparent' && e.status !== 'cancelled' &&
-      e.colorId !== WORKOUT_EVENT_COLOR_ID)
-    .map(e => ({ start: new Date(e.start!.dateTime!), end: new Date(e.end!.dateTime!) }))
+    // Skip ones the user marked "free" (transparency:'transparent' — Google's own
+    // "doesn't block my calendar" flag, e.g. how a lot of people tag birthdays),
+    // skip cancelled, and skip Tempo's own workouts (colorId 11) — those are
+    // tracked as scheduled_workouts, so counting them here would double-book.
+    .filter(e => e.transparency !== 'transparent' && e.status !== 'cancelled' && e.colorId !== WORKOUT_EVENT_COLOR_ID)
+    // Timed events (dateTime) AND all-day events (date) both count as busy — an
+    // all-day "Vacation"/"Flight"/"Out of Office" used to be silently invisible
+    // to scheduling (only .dateTime events were read), so Tempo would happily
+    // auto-schedule a workout into a day the user is fully unavailable.
+    .filter(e => (!!e.start?.dateTime && !!e.end?.dateTime) || (!!e.start?.date && !!e.end?.date))
+    .map(e => e.start?.dateTime
+      // Google's all-day `date` fields have no time zone — treat them as local
+      // calendar days (midnight to midnight). `end.date` is already the day
+      // AFTER the last all-day day (Google's own exclusive-end convention), so
+      // this span is already the correct full-day (or multi-day) busy window
+      // with no off-by-one adjustment needed.
+      ? { start: new Date(e.start!.dateTime!), end: new Date(e.end!.dateTime!) }
+      : { start: new Date(`${e.start!.date}T00:00:00`), end: new Date(`${e.end!.date}T00:00:00`) })
     .sort((a, b) => a.start.getTime() - b.start.getTime())
 }
 

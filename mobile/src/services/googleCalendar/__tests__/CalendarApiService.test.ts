@@ -105,3 +105,53 @@ describe('CalendarApiService — Google read-failure diagnosis (not silence)', (
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })
+
+// MASTER_FIX_PLAN.md F2: all-day events (vacation, flight, OOO) used to be
+// silently invisible to scheduling — only .dateTime events were read, so an
+// all-day busy day never blocked auto-scheduling from placing a workout in it.
+describe('CalendarApiService — all-day events count as busy (F2)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(getGoogleAccessToken as jest.Mock).mockResolvedValue('fake-token')
+    global.fetch = jest.fn() as any
+  })
+
+  it('a plain all-day event (date, no dateTime) is included as a full-day busy slot', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(fakeResponse(200, {
+      items: [{ id: '1', status: 'confirmed', start: { date: '2026-08-10' }, end: { date: '2026-08-11' } }],
+    }))
+    const slots = await fetchUserBusySlots(7)
+    expect(slots).toHaveLength(1)
+    expect(slots[0].start.toISOString().slice(0, 10)).toBe('2026-08-10')
+    // Google's end.date is already exclusive (the day after the last all-day
+    // day) — a single-day event's busy window should span exactly that day.
+    expect(slots[0].end.getTime() - slots[0].start.getTime()).toBe(24 * 60 * 60 * 1000)
+  })
+
+  it('a multi-day all-day event (e.g. a vacation) spans every day it covers', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(fakeResponse(200, {
+      items: [{ id: '1', status: 'confirmed', start: { date: '2026-08-10' }, end: { date: '2026-08-13' } }],
+    }))
+    const slots = await fetchUserBusySlots(7)
+    expect(slots).toHaveLength(1)
+    expect(slots[0].end.getTime() - slots[0].start.getTime()).toBe(3 * 24 * 60 * 60 * 1000)
+  })
+
+  it('an all-day event marked transparent ("doesn\'t block my calendar") is NOT busy', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(fakeResponse(200, {
+      items: [{ id: '1', status: 'confirmed', transparency: 'transparent', start: { date: '2026-08-10' }, end: { date: '2026-08-11' } }],
+    }))
+    await expect(fetchUserBusySlots(7)).resolves.toEqual([])
+  })
+
+  it('a timed event alongside an all-day event both contribute busy time on the same day', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(fakeResponse(200, {
+      items: [
+        { id: '1', status: 'confirmed', start: { date: '2026-08-10' }, end: { date: '2026-08-11' } },
+        { id: '2', status: 'confirmed', start: { dateTime: '2026-08-10T14:00:00Z' }, end: { dateTime: '2026-08-10T15:00:00Z' } },
+      ],
+    }))
+    const slots = await fetchUserBusySlots(7)
+    expect(slots).toHaveLength(2)
+  })
+})
