@@ -14,7 +14,23 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-19): a full codebase review produced `MASTER_FIX_PLAN.md` — execute its P0
+- **NEW (2026-07-19, later): founder device-testing batch, mostly Focus Mode — 10 real fixes shipped,
+  4 items flagged for a follow-up decision.** The founder tested the app and reported a dense list of
+  issues, most concentrated in Focus Mode (unreachable buttons once the "how much did you do?" card
+  appeared — no ScrollView existed; no RPE prompt; the auto-close effect closed the instant an
+  exercise's LAST set logged, before rest/RPE/weight-entry ever got a chance to render for it — the
+  same bug behind "abrupt switching"; a dead rest-timer-ring tap target; a confusing double-checkmark
+  edit affordance) plus several across Home/Quick Workout/search/progression (no "Continue" copy for a
+  paused session; an awkward empty dock notch when GO hides; no "Core" option in Quick Workout;
+  "inner thigh" search not matching "hip adductor"; calf raises getting the same generic rep default
+  as everything else). All fixed, each its own commit, `tsc` + full suite green throughout (218 tests).
+  Full detail + what's still open (drag-to-reorder, a first-workout rest-time prompt, whether
+  swap/remove should sync to the split like Add already does, a swipe-animation nice-to-have) is in
+  `MASTER_FIX_PLAN.md`'s "2026-07-19 addendum" section — **read that before starting the next session**,
+  since it names concrete next steps for the open items rather than leaving them vague. None of this
+  touched the P0 ship-blockers (F1-F10) below — do those next, in order.
+
+- **2026-07-19: a full codebase review produced `MASTER_FIX_PLAN.md` — execute its P0
   ship-blockers next, in order (F1→ F10).** A complete read of every screen, every domain-logic
   module, and the full platform layer (requested as "go through the product, treat today as publish
   day") found real, concrete defects independent of the M0-M6 strategy ledger below: a plan-generation
@@ -269,6 +285,30 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 
 ## Session Log *(newest first)*
 
+- **2026-07-19 (later) — Founder device-testing batch: Focus Mode overhaul + 9 other fixes.** Same
+  day as the codebase review below, the founder actually used the app and reported a dense list of
+  real issues. Fixed 7 batches, each its own commit: (1) Focus Mode's ScrollView/KeyboardAvoidingView
+  fix for unreachable bottom buttons + the keyboard-covers-screen bug; the auto-close-during-rest fix
+  (root cause of "abrupt switching" AND "no RPE on the last set" — Focus Mode was closing itself
+  before either could render); RPE added to Focus Mode; the rest ring made tappable-to-skip; "View
+  form video"→"View form guide"; the exercise-actions row wrap fix (unilateral toggle clipping); the
+  set-edit pencil-vs-checkmark fix; a new Settings "Workout Focus Mode" on/off toggle; the dead
+  `done ? 'DONE' : 'DONE'` ternary fixed to `'ALL DONE'`/`'DONE'`. (2) Home's "Continue" copy for a
+  paused session (new in-progress-`workout_logs` query) + an animated-closed GO-gone dock gap.
+  (3) Quick Workout's new "Target Area" chip row (Core/Legs/Push/Pull/Cardio), reusing
+  `generateQuickWorkout`'s existing `targetPattern` override. (4) Exercise search aliases for "inner/
+  outer thigh" → adductors/abductors. (5) A calf-specific rep-range bump in `progression.ts`/
+  `exerciseProgramming.ts` (10-16 → 15-24 for muscle_gain), on top of the existing isolation bump.
+  Also verified 4 other reported items were already correct by design (progressive-overload weight
+  suggestion, blank-workout streak exclusion, PREV showing last-actually-done not last-skipped,
+  cross-workout exercise history) — no change needed, confirmed via code read. `tsc` clean, full suite
+  green (218/218) throughout. **4 items intentionally not built** — drag-to-reorder (real feature,
+  needs its own gesture-handling pass), a first-workout rest-time prompt (capability exists, just not
+  proactively surfaced — risked colliding with the existing tutorial system), whether swap/remove
+  should sync to the split like Add already does (a real asymmetry, but changing it needs the
+  founder's product call, not a guess), and a swipe-completion animation (pure polish, the underlying
+  bug is fixed). All four documented with concrete next steps in `MASTER_FIX_PLAN.md`'s new
+  "2026-07-19 addendum" section.
 - **2026-07-19 — Full codebase review + `MASTER_FIX_PLAN.md` + honest re-score.** Requested to go
   through the entire product (code, logic, UI) as if publishing today, independent of the M0-M6
   strategy ledger, and produce an execution-ready fix plan. Ran three parallel deep-dive reviews

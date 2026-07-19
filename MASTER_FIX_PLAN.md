@@ -1399,6 +1399,109 @@ prompt) instead.
 
 ---
 
+## 2026-07-19 addendum — founder device-testing batch (Focus Mode + runner)
+
+Real on-device feedback arrived the same day this plan was written, concentrated on Focus Mode and
+the workout runner. Worked through it directly rather than re-filing it as new P0/P1 rows, since it
+was mostly concrete bugs the founder had already diagnosed by using the app. **Fixed and shipped
+this session** (each its own commit, `tsc` + full suite green throughout):
+
+- **Focus Mode's bottom SKIP/DONE buttons could render below the screen**, unreachable, once the
+  "how much did you do?" card appeared — no ScrollView existed, just a fixed `View` that silently
+  overflowed. Wrapped the scrollable content in a `ScrollView` + `KeyboardAvoidingView`; SKIP/DONE
+  now live in a fixed footer outside the scroll area, always reachable.
+- **The numeric keyboard had no way to dismiss** — same root cause (no ScrollView means no natural
+  tap-to-dismiss); fixed by the same change.
+- **The "×2 per side" unilateral toggle could clip off-screen** on narrower phones — the exercise-
+  actions row (Focus/Form guide/Swap/Per side?) had no `flexWrap`; added it.
+- **Focus Mode never asked for RPE at all** — the RPE follow-up bar existed in the runner's list view
+  but was never rendered inside Focus Mode. Added it, wired to the same `attachRpe` path.
+- **"Last set should be able to put in RPE"** — root-caused to a real bug, not a missing feature:
+  Focus Mode's auto-close effect closed the instant an exercise's last set logged, before rest (or
+  the RPE/weight editor) ever got a chance to render for that final set. Fixed the effect to wait for
+  rest to end, matching every other set — this is also what fixes the "abrupt switching" complaint.
+- **The rest-timer ring was a dead tap target** — made it tappable (skips rest, same as the SKIP
+  button) with a "TAP RING TO SKIP REST" hint underneath so the interaction is discoverable.
+- **"View form video" renamed to "View form guide"** — the preview isn't always a video.
+- **The "checking twice" confusion** — a completed set's edit-entry icon was a checkmark (tap to
+  edit), and confirming that edit was a *different* checkmark (`checkmark-done`) — reads as
+  "check it again." Changed the edit-entry icon to a pencil and the confirm icon to a single plain
+  checkmark, so there's exactly one checkmark in the whole flow and it always means "confirm."
+  Also fixed `FocusMode.tsx`'s dead `done ? 'DONE' : 'DONE'` ternary (found independently, same file)
+  to `'ALL DONE'` / `'DONE'`, and disabled the button in the done state since pressing it was already
+  a no-op.
+- **Focus Mode made optional** — new Settings toggle ("Workout Focus Mode"); off means the classic
+  scrolling list only, for anyone who prefers it.
+- **Home said "Start Session" even for a workout already paused mid-session** — added a query for
+  today's in-progress `workout_logs` rows (created only on explicit start, never completed) and
+  threaded a `started` flag through `workoutState()`; both the hero CTA and the second-session ghost
+  button now say "Continue" when applicable.
+- **The GO-button-gone dock looked broken** — the center gap stayed reserved at full width with
+  nothing raised above it during a live session, reading as an empty notch. Animated it closed
+  instead (respecting Reduced Motion).
+- **"Core should be an option" in Quick Workout** — added a "Target Area" chip row (Core, Legs, Push,
+  Pull, Cardio) on top of the existing training-goal purposes, using `generateQuickWorkout`'s
+  existing (previously route-param-only, never user-facing) `targetPattern` override.
+- **Exercise search couldn't find "hip adductor" for "inner thigh"** — added colloquial-name aliases
+  to the existing `ALIASES` table (`inner thigh(s)` → `adductors`, `outer thigh(s)` → `abductors`).
+- **"Autofill reps should be more accurate (e.g. ~20 for standing calf raises)"** — the exercise
+  classifier already tags calf raises with a dedicated `'calf'` slot; added a further rep-range bump
+  specifically for that slot on top of the existing isolation-role bump (10-16 → 15-24 for
+  muscle_gain), threaded through `buildPrescription`'s three call sites.
+- **Verified already correct, no change needed:** "suggest more to increase previous weight" (already
+  autofills `topWeight + increment` when the top rep range clears at good RPE); "blank workouts
+  shouldn't count toward streak/stats" (already blocked — `handleCompleteWorkout` refuses to finish
+  with zero working sets logged, and streaks only read `status:'completed'`, which that guard makes
+  unreachable at zero); "PREV should show the last time actually done, not a skipped session" (already
+  true by construction — `set_logs` rows only exist for genuinely completed sets, so a skipped
+  session has none and is naturally skipped over); "exercises tracked individually across different
+  workouts" (already true — the PREV/prescription history query filters by `exercise_id` alone, never
+  by workout template).
+
+**Not fixed this session — needs either more scope or a product decision, flagged so it isn't lost:**
+
+- **Drag-to-reorder exercises within a session.** The founder: "don't reorder people's workouts, make
+  it easier to reorder, maybe if exercise is held down and dragged." Investigated first: nothing in
+  the app currently auto-reorders exercises within an active session (the load path explicitly
+  "restores the plan's original order"), so this is a pure feature request, not a bug — drag-to-
+  reorder doesn't exist yet. Scoped out of this session because it needs real gesture-handling work
+  (long-press-and-drag with autoscroll) that deserves its own dedicated pass with on-device testing,
+  not a rushed addition at the end of a long session. **Next step:** a small `P1` batch — likely
+  reordering `ExerciseFormSheet`/the runner's exercise list via `react-native-draggable-flatlist` or
+  a Reanimated-based long-press handler, persisted through the existing `persistOrder()` function
+  (already session-scoped by design, so no split-sync question here).
+- **A first-workout rest-time preference prompt.** The founder: "in first workout, allow people to
+  set their optimal rest time, recommended 2 min." Investigated: the capability already exists in
+  full (the runner's rest-length `OptionSheet` already suggests "2 minutes" and lets the user pick
+  60/90/120/180/custom, and every new exercise silently defaults to that same suggested value) — the
+  gap is that it's never *proactively surfaced*, only reachable by tapping the timer-outline floating
+  tool. Didn't build an automatic first-time prompt this session because the app already has a
+  dedicated tutorial/spotlight system (`useTutorialStore`, `T.firstWorkout`) that owns first-workout
+  UX moments, and bolting on a second, independent auto-opening modal risked colliding with it in ways
+  that need an on-device check, not a guess. **Next step:** either add a step to the existing
+  `T.firstWorkout` tour pointing at the rest-timer tool, or gate a one-time auto-open of the rest
+  `OptionSheet` on `!firstWorkoutCompleted` inside `beginSession` — either is a small, contained batch,
+  but should be built and reviewed on its own, with the founder confirming it doesn't fight the
+  existing tutorial.
+- **Whether swapping/removing an exercise should also update the underlying split template.** The
+  founder: "if workout is updated, it should update... the auto split." Investigated: *adding* an
+  exercise "permanently" already does correctly sync into the split (`addExerciseToSession`, when
+  `workout.source === 'split'`) — but *swapping* an exercise (`replaceExercise`) and *removing* one
+  (via `persistOrder`) are both explicitly, deliberately session-only by existing design (their own
+  code comments say so: "Persist the swap into the plan so it sticks for this workout" / "Never
+  touches the split template — that's a session-level tweak"). This looks like a real asymmetry, but
+  changing it unilaterally risks reversing an intentional decision (should a same-day equipment-taken
+  swap really rewrite every future week of your split? reasonable people could land either way) — this
+  needs the founder's call, not a guess, exactly like Add already offers an explicit "just today, or
+  permanently?" choice rather than assuming. **Next step:** ask the founder whether swap/remove should
+  get the same explicit choice Add already has, then extend `replaceExercise`/`persistOrder` to match.
+- **A checkmark + swipe animation when an exercise completes**, instead of the current instant
+  transition. The root *bug* behind "abrupt switching" is fixed (the auto-close-during-rest fix
+  above) — what's left is pure animation polish, not a defect. Deferred as a P1 nice-to-have; would
+  need a Reanimated-based transition on the exercise-name/ring swap in `FocusMode.tsx`.
+
+---
+
 ## How this document relates to the others
 
 - **`EXECUTION.md`/`EXECUTION_STATUS.md`** sequence *product-market-fit strategy* (what to build to
