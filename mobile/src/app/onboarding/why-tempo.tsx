@@ -29,6 +29,7 @@ import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView, useReducedMotion } from '@/components/motion'
+import { TempoLottie } from '@/components/TempoLottie'
 import { track } from '@/lib/analytics'
 import { connectGoogleCalendar, isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { requestCalendarPermissions, getCalendarPermissionStatus } from '@/services/calendarService'
@@ -196,7 +197,14 @@ export default function WhyTempoScreen() {
           <Text style={styles.title}>Most apps just log workouts.</Text>
           <Text style={styles.subtitle}>Tempo schedules them — around your real week, and moves them when life does.</Text>
 
-          <ScheduleAnimation />
+          {/* Tempo Coach pointing at the schedule — additive alongside the
+              existing hand-built ScheduleAnimation, not a replacement. */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm }}>
+            <TempoLottie source={require('@/assets/lottie/coach/pointing.json')} width={44} height={64} />
+            <View style={{ flex: 1 }}>
+              <ScheduleAnimation />
+            </View>
+          </View>
 
           <View style={styles.calCard}>
             <View style={styles.calCardHeader}>

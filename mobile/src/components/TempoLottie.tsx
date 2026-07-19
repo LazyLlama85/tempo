@@ -26,7 +26,11 @@ import { captureException } from '@/lib/crashReporting'
 export interface TempoLottieProps {
   /** A `require('../assets/lottie/whatever.json')` result, or a remote {uri}. */
   source: string | AnimationObject | { uri: string }
+  /** Square box side length. Ignored if `width`/`height` are given. */
   size?: number
+  /** Non-square box — use for a source whose own aspect ratio isn't 1:1 (most of the Tempo Coach poses aren't). */
+  width?: number
+  height?: number
   style?: StyleProp<ViewStyle>
   loop?: boolean
   /** Recolor specific layers — see this file's header comment for how to find keypaths. */
@@ -43,7 +47,7 @@ export interface TempoLottieProps {
 // (content must never just vanish because an accessibility setting is on).
 const REDUCED_MOTION_FRAME = 0
 
-export function TempoLottie({ source, size = 64, style, loop = true, colorFilters, progress }: TempoLottieProps) {
+export function TempoLottie({ source, size = 64, width, height, style, loop = true, colorFilters, progress }: TempoLottieProps) {
   const reduce = useReducedMotion()
   const [failed, setFailed] = useState(false)
   const ref = useRef<LottieView>(null)
@@ -56,7 +60,7 @@ export function TempoLottie({ source, size = 64, style, loop = true, colorFilter
   if (failed) return null
 
   return (
-    <View style={[{ width: size, height: size }, style]}>
+    <View style={[{ width: width ?? size, height: height ?? size }, style]}>
       <LottieView
         ref={ref}
         source={source}

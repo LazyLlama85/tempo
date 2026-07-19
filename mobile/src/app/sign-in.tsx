@@ -109,20 +109,19 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Logo area — a subtle Lottie pulse behind the static logo (the "live
-          logo" moment); a placeholder until a real animation replaces it, see
-          assets/lottie/README.md. Purely decorative and additive: the real
-          logo image is untouched, and a failed/missing animation just renders
-          nothing behind it (TempoLottie's own onAnimationFailure guard). */}
+      {/* Logo area — Tempo Coach (the same blue runner from the app icon,
+          traced into a real vector Lottie from the founder's reference sheet —
+          see assets/lottie/README.md) waves hello above the static logo mark.
+          Purely additive: the logo image itself is completely untouched, so a
+          failed/missing animation just leaves an empty space above it, never
+          a broken or missing logo (TempoLottie's own onAnimationFailure guard). */}
       <View style={styles.logoArea}>
-        <View style={styles.logoStack}>
-          <TempoLottie source={require('@/assets/lottie/pulse.json')} size={110} style={styles.logoPulse} />
-          <Image
-            source={require('@/assets/images/tempo-logo.png')}
-            style={styles.logoImage}
-            accessibilityLabel="Tempo logo"
-          />
-        </View>
+        <TempoLottie source={require('@/assets/lottie/coach/wave.json')} width={68} height={100} style={styles.coachWave} />
+        <Image
+          source={require('@/assets/images/tempo-logo.png')}
+          style={styles.logoImage}
+          accessibilityLabel="Tempo logo"
+        />
       </View>
 
       {/* Hero text */}
@@ -209,14 +208,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: Spacing['2xl'],
   },
-  logoStack: {
-    width: 110,
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoPulse: {
-    position: 'absolute',
+  coachWave: {
+    marginBottom: Spacing.xs,
   },
   logoImage: {
     width: 88,

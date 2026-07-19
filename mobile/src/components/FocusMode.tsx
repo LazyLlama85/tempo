@@ -101,12 +101,11 @@ export function FocusMode({
           <Text style={styles.setPillText}>{setLabel}</Text>
         </View>
 
-        {/* "Tempo Coach" — a placeholder until a real running-coach animation
-            exists (see assets/lottie/README.md); only shown while resting,
-            purely decorative above the ring, so a failed/missing animation
-            never affects the countdown itself. */}
+        {/* Tempo Coach, running in place while you rest — only shown while
+            resting, purely decorative above the ring, so a failed/missing
+            animation never affects the countdown itself. */}
         {resting && restSecondsLeft != null && (
-          <TempoLottie source={require('@/assets/lottie/pulse.json')} size={48} style={styles.coachBadge} />
+          <TempoLottie source={require('@/assets/lottie/coach/sprinting.json')} width={46} height={56} style={styles.coachBadge} />
         )}
 
         <View

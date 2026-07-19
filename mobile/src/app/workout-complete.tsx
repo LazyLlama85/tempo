@@ -25,6 +25,7 @@ import { useTutorialStore } from '@/stores/tutorial'
 import * as haptics from '@/lib/haptics'
 import { ConfettiBurst, CountUp } from '@/components/celebration'
 import { AnimatedRing } from '@/components/AnimatedRing'
+import { TempoLottie } from '@/components/TempoLottie'
 
 
 const GOAL_LABELS: Record<string, string> = {
@@ -247,6 +248,15 @@ export default function WorkoutCompleteScreen() {
       />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Tempo Coach high-fiving — additive alongside the confetti/badge
+            below, not a replacement; plays once (non-looping "pop" style),
+            never blocks anything if it fails to load. */}
+        <TempoLottie
+          source={require('@/assets/lottie/coach/highfive.json')}
+          width={67} height={72}
+          loop={false}
+          style={styles.coachCelebrate}
+        />
         <PopIn style={styles.badge}>
           <Ionicons name={isFirstSession ? 'sparkles' : 'checkmark'} size={44} color={C.onPrimary} />
         </PopIn>
@@ -449,6 +459,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
     shadowColor: '#4E8BFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.32, shadowRadius: 24, elevation: 8,
   },
+  coachCelebrate: { alignSelf: 'center', marginBottom: Spacing.xs },
   title: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center', marginTop: Spacing.sm },
   lead: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xs },
 
