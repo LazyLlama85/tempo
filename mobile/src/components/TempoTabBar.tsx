@@ -16,8 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { BlurView } from 'expo-blur'
 import { Radius, Spacing } from '@/constants/theme'
-import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { useTheme, useThemedStyles, useThemeStore, type Palette } from '@/theme'
 import { useReducedMotion } from '@/components/motion'
 import { useTutorialTarget } from '@/components/TutorialOverlay'
 import { TARGET } from '@/lib/tutorial'
@@ -275,6 +276,7 @@ function GoButton() {
 export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
+  const mode = useThemeStore(s => s.mode)
   const [keyboardUp, setKeyboardUp] = useState(false)
   // Quick Workout is a "only have a few minutes?" escape hatch, not an
   // alternative to the session you're already in the middle of — showing GO
@@ -311,10 +313,24 @@ export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
     // every ancestor's bounds — RN drops touches outside them, and a half-dead
     // button is exactly the kind of jank this bar exists to kill.
     <View style={[styles.dockWrap, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
-      <View style={styles.dock}>
-        {items.slice(0, 2)}
-        <View style={styles.goSpacer} />
-        {items.slice(2)}
+      <View style={styles.dockShadow}>
+        <View style={styles.dockClip}>
+          {/* iOS-only glass treatment: expo-blur's BlurView over a translucent
+              tint, real UIVisualEffectView blur — not Apple's iOS-26-only
+              UIGlassEffect API, but a genuine glass LOOK. Android keeps the
+              existing opaque background: expo-blur's Android path needs a
+              BlurTargetView + blurMethod wired to a specific host view, which
+              can't be verified without a device on hand — scoped to the
+              platform this was actually asked for and proven to just work. */}
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={78} tint={mode === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          <View style={styles.dock}>
+            {items.slice(0, 2)}
+            <View style={styles.goSpacer} />
+            {items.slice(2)}
+          </View>
+        </View>
       </View>
       <View style={styles.goOverlay} pointerEvents={sessionActive ? 'none' : 'box-none'}>
         {!sessionActive && <GoButton />}
@@ -330,22 +346,35 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingTop: 30,           // headroom for the raised GO button (touch bounds)
     alignItems: 'center',
   },
-  dock: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Shadow lives on its own outer view — RN clips box-shadow to nothing on a
+  // sibling view that also has `overflow: 'hidden'` (needed below so the
+  // blur/border respect the rounded corners), so the two can't be the same view.
+  dockShadow: {
     alignSelf: 'stretch',
-    backgroundColor: C.background,
     borderRadius: 30,
-    borderWidth: 1,
-    borderColor: C.outlineVariant,
-    paddingHorizontal: Spacing.xs,
-    paddingTop: 10,
-    paddingBottom: 8,
     shadowColor: '#0B0D12',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 24,
     elevation: 12,
+  },
+  // Clips the BlurView + border to the pill shape. Opaque background on
+  // Android (unchanged look); a translucent tint on iOS so the blur underneath
+  // actually shows through.
+  dockClip: {
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: C.outlineVariant,
+    overflow: 'hidden',
+    backgroundColor: Platform.OS === 'ios' ? `${C.background}A6` : C.background,
+  },
+  dock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    paddingHorizontal: Spacing.xs,
+    paddingTop: 10,
+    paddingBottom: 8,
   },
   item: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 2 },
   itemLabel: { fontFamily: 'Inter_700Bold', fontSize: 10.5, letterSpacing: 0.2 },

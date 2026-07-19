@@ -48,14 +48,30 @@ you moving."*
   hub + workout runner), **`progress`**, **`profile`** ("You"). All four mount at startup
   (`lazy: false`) so switches are instant and nothing mounts mid-transition; the stock bar is replaced by
   **`TempoTabBar`** (floating dock, animated active states, raised amber **GO** button →
-  quick-workout; hides while the keyboard is up).
+  quick-workout; hides while the keyboard is up). **iOS glass treatment (2026-07-18):** the dock's
+  background is now `expo-blur`'s `BlurView` (a real `UIVisualEffectView` blur, `intensity=78`,
+  `tint` following the app's light/dark mode) layered behind a translucent tint
+  (`` `${C.background}A6` ``) instead of the flat opaque `C.background` it used before — a genuine
+  glass LOOK, though not Apple's literal iOS-26 `UIGlassEffect` API (not exposed through
+  `expo-blur`). **iOS only, deliberately** — Android's blur path needs a `BlurTargetView` wired to a
+  specific host view via a `blurMethod` prop, which can't be verified without a physical Android
+  device on hand; Android keeps its unchanged opaque look rather than risk shipping unverified native
+  blur config. Required splitting what was one `dock` view into three nested ones — `dockShadow`
+  (shadow only, unchanged values) → `dockClip` (the rounded pill's `borderRadius`/border/
+  `overflow:'hidden'`, needed to clip the blur to the shape) → `dock` (the original flex row, now
+  layout-only) — because RN clips a view's own box-shadow to nothing the moment `overflow:'hidden'`
+  is set on that same view, so the shadow and the clip can't live on one node. Needs `expo-blur`
+  (added, `npx expo install`) and one native rebuild before it's visible on a device — pure
+  background swap, otherwise: same GO button, same active-state animations, same tutorial spotlight
+  targets, same `sessionActive`-hide behavior, all untouched.
 - **Data freshness (the "stale tab" fix):** tab switches are neither mounts nor window focus, so
   screens use `useRefreshOnFocus(...roots)` (`src/hooks/useRefreshOnFocus.ts`) to invalidate their
   query roots on every re-focus, and every workout-state mutation calls
   `invalidateTrainingData(queryClient)` (`src/lib/queryInvalidation.ts`). Route modals blur/refocus
   the tab beneath them, so closing a mutating modal also triggers a refresh.
-- **Onboarding stack** `onboarding/`: `goal → schedule → sleep → work-school → train-time →
-  plan-preview` — **6 numbered steps (2026-07-17 restructure, up from 4)**. The founder's own
+- **Onboarding stack** `onboarding/`: `goal → why-tempo → schedule → sleep → work-school →
+  train-time → plan-preview` — **7 numbered steps (2026-07-17 restructure to 6, then 2026-07-18
+  added `why-tempo`)**. The founder's own
   device-testing feedback drove this: the old `schedule` screen packed Days/Minutes/scheduling-mode/
   a calendar-preview mockup onto one screen, and the old `availability` screen packed Sleep/Work
   hours/School hours/Preferred time/Off-days onto another — both read as "squished together." Each
