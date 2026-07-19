@@ -18,7 +18,7 @@ import { InsightsGrid, type InsightTile } from '@/components/ProfileCards'
 import { computeLevel } from '@/lib/achievements'
 import { ACTIVATION_SESSIONS } from '@/lib/activation'
 import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, unviewedBadgeCount } from '@/lib/badges'
-import { AVATAR_PRESETS, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
+import { AVATAR_PRESETS, CUSTOM_AVATAR_ID, parseAvatar, buildAvatarValue, uploadAvatar } from '@/lib/avatar'
 import {
   getSavedSwaps, getAlternatives, saveSubstitution, removeSubstitution,
   type SavedSwap, type AltExercise,
@@ -329,6 +329,9 @@ export default function ProfileScreen() {
       try {
         await supabase.from('user_profiles').update({ avatar_url: res.url }).eq('user_id', userId)
         await refreshProfile()
+        // So the Edit Profile grid (if open) immediately shows the photo tile as
+        // selected instead of whatever preset was picked before.
+        setAvatarId(CUSTOM_AVATAR_ID)
       } catch {
         Alert.alert('Couldn’t save', 'Your photo uploaded but saving it to your profile failed. Please try again.')
       }
@@ -417,15 +420,24 @@ export default function ProfileScreen() {
   const openEdit = () => {
     setNameInput(profile?.display_name ?? '')
     setUsernameInput(profile?.username ?? '')
-    const match = AVATAR_PRESETS.find(p => p.icon === avatar.icon && p.color === avatar.color)
-    setAvatarId(match?.id ?? AVATAR_PRESETS[0].id)
+    // A real photo takes precedence — show the photo tile selected, not whichever
+    // preset's icon/color happen to be left behind in avatar_url's sentinel form.
+    if (avatar.imageUri) {
+      setAvatarId(CUSTOM_AVATAR_ID)
+    } else {
+      const match = AVATAR_PRESETS.find(p => p.icon === avatar.icon && p.color === avatar.color)
+      setAvatarId(match?.id ?? AVATAR_PRESETS[0].id)
+    }
     setEditing(true)
   }
 
   const saveProfile = async () => {
     if (!userId || saving) return
     setSaving(true)
-    const preset = AVATAR_PRESETS.find(p => p.id === avatarId) ?? AVATAR_PRESETS[0]
+    // A custom photo is already persisted the moment it's uploaded (handleAvatarPress)
+    // — Save only needs to (re-)write avatar_url when a PRESET is the active choice,
+    // so it never clobbers an uploaded photo with whatever preset was selected before.
+    const preset = avatarId === CUSTOM_AVATAR_ID ? null : (AVATAR_PRESETS.find(p => p.id === avatarId) ?? AVATAR_PRESETS[0])
     try {
       // Username first — it can fail validation/uniqueness independently, and
       // the user should hear about exactly that instead of a generic error.
@@ -448,7 +460,7 @@ export default function ProfileScreen() {
         .from('user_profiles')
         .update({
           display_name: nameInput.trim() || null,
-          avatar_url: buildAvatarValue(preset.icon, preset.color),
+          ...(preset ? { avatar_url: buildAvatarValue(preset.icon, preset.color) } : {}),
         })
         .eq('user_id', userId)
       await refreshProfile()
@@ -942,6 +954,32 @@ export default function ProfileScreen() {
 
             <Text style={styles.modalLabel}>AVATAR</Text>
             <View style={styles.avatarPickRow}>
+              {/* Upload your own photo — reuses the exact same immediate upload +
+                  save flow as tapping the hero avatar above. */}
+              <TouchableOpacity
+                style={[
+                  styles.avatarPick, styles.avatarPickCustom,
+                  !avatar.imageUri && styles.avatarPickCustomEmpty,
+                  avatarId === CUSTOM_AVATAR_ID && styles.avatarPickSel,
+                ]}
+                onPress={handleAvatarPress}
+                disabled={avatarUploading}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={avatar.imageUri ? 'Change your profile photo' : 'Upload a profile photo'}
+              >
+                {avatarUploading ? (
+                  <ActivityIndicator color={C.primary} size="small" />
+                ) : avatar.imageUri ? (
+                  <Image source={{ uri: avatar.imageUri }} style={styles.avatarPickImg} contentFit="cover" />
+                ) : (
+                  <Ionicons name="image-outline" size={20} color={C.outline} />
+                )}
+                <View style={styles.avatarPickCamera}>
+                  <Ionicons name="camera" size={10} color="#fff" />
+                </View>
+              </TouchableOpacity>
+
               {AVATAR_PRESETS.map((p) => {
                 const sel = p.id === avatarId
                 return (
@@ -1241,6 +1279,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   avatarPick: { width: 52, height: 52, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   avatarPickSel: { borderWidth: 3, borderColor: C.text },
   avatarPickCheck: { position: 'absolute', bottom: -3, right: -3, backgroundColor: '#fff', borderRadius: Radius.full },
+  avatarPickCustom: { backgroundColor: C.surfaceContainerHigh, overflow: 'hidden' },
+  avatarPickCustomEmpty: { borderWidth: 1.5, borderColor: C.outlineVariant, borderStyle: 'dashed' },
+  avatarPickImg: { width: 52, height: 52, borderRadius: Radius.full },
+  avatarPickCamera: {
+    position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: C.surface,
+  },
   saveBtn: { height: 52, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.md },
   saveBtnText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.onPrimary },
 })

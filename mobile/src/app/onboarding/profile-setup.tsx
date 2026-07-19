@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import {
   StyleSheet, TouchableOpacity, View, Text, ScrollView, TextInput,
-  Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -12,7 +13,7 @@ import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { AVATAR_PRESETS, buildAvatarValue, parseAvatar } from '@/lib/avatar'
+import { AVATAR_PRESETS, CUSTOM_AVATAR_ID, buildAvatarValue, parseAvatar, uploadAvatar } from '@/lib/avatar'
 import { logMeasurement } from '@/lib/bodyMeasurements'
 import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
 import { Slider } from '@/components/Slider'
@@ -45,7 +46,12 @@ export default function ProfileSetupScreen() {
   const [name, setName] = useState(
     profile?.display_name ?? (session?.user.user_metadata?.full_name as string | undefined) ?? ''
   )
-  const [avatarId, setAvatarId] = useState(presetMatch?.id ?? AVATAR_PRESETS[0].id)
+  // A real uploaded photo takes precedence over the preset match — a returning
+  // user (or one already Google-linked) with a photo sees IT selected, not
+  // whichever preset happens to be first.
+  const [avatarId, setAvatarId] = useState(existing.imageUri ? CUSTOM_AVATAR_ID : (presetMatch?.id ?? AVATAR_PRESETS[0].id))
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(existing.imageUri)
+  const [avatarUploading, setAvatarUploading] = useState(false)
   // Starting weight (optional): the seed for the weight-trend engine and the goal
   // countdown — without it those flagship surfaces stay dark until the user finds
   // "Log entry" in Profile → Body Stats, which most never do.
@@ -83,6 +89,27 @@ export default function ProfileSetupScreen() {
   }
   const enterApp = () => { track('profile_setup_skipped'); postOnboardingRoute() }
 
+  // Photo upload commits to Storage immediately (same as Profile's), but the DB
+  // write itself waits for handleSave — onboarding's whole screen commits together
+  // on "Enter Tempo", not field-by-field.
+  const handleUploadPhoto = async () => {
+    if (avatarUploading) return
+    setAvatarUploading(true)
+    const res = await uploadAvatar(supabase, session.user.id)
+    setAvatarUploading(false)
+    if (res.status === 'ok') {
+      setCustomPhotoUrl(res.url)
+      setAvatarId(CUSTOM_AVATAR_ID)
+    } else if (res.status === 'denied') {
+      Alert.alert('Photo access needed', 'Allow photo access in Settings to upload a profile picture.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ])
+    } else if (res.status === 'error') {
+      Alert.alert('Upload failed', 'Could not upload that photo. Please try again.')
+    }
+  }
+
   const handleSave = async () => {
     if (saving) return
     setSaving(true)
@@ -90,11 +117,14 @@ export default function ProfileSetupScreen() {
       // Input arrives in the display unit; storage is always lbs.
       const weightLbs = inputToLbs(weight, unit)
       const validWeight = weightLbs != null && weightLbs >= 50 && weightLbs <= 1000
+      const avatarUrl = avatarId === CUSTOM_AVATAR_ID && customPhotoUrl
+        ? customPhotoUrl
+        : buildAvatarValue(preset.icon, preset.color)
       const { error } = await supabase
         .from('user_profiles')
         .update({
           display_name: name.trim() || null,
-          avatar_url: buildAvatarValue(preset.icon, preset.color),
+          avatar_url: avatarUrl,
           ...(validWeight ? { bodyweight_lbs: weightLbs } : {}),
         })
         .eq('user_id', session.user.id)
@@ -137,9 +167,15 @@ export default function ProfileSetupScreen() {
 
         {/* Live preview */}
         <View style={styles.preview}>
-          <View style={[styles.avatarLarge, { backgroundColor: preset.color }]}>
-            <Ionicons name={preset.icon as any} size={40} color="#fff" />
-          </View>
+          {avatarId === CUSTOM_AVATAR_ID && customPhotoUrl ? (
+            <View style={styles.avatarLargePhotoWrap}>
+              <Image source={{ uri: customPhotoUrl }} style={styles.avatarLargePhoto} contentFit="cover" />
+            </View>
+          ) : (
+            <View style={[styles.avatarLarge, { backgroundColor: preset.color }]}>
+              <Ionicons name={preset.icon as any} size={40} color="#fff" />
+            </View>
+          )}
           <Text style={styles.previewName}>{firstName || 'Athlete'}</Text>
         </View>
 
@@ -165,6 +201,7 @@ export default function ProfileSetupScreen() {
           min={weightRange.min}
           max={weightRange.max}
           onChange={(v) => setWeight(String(v))}
+          formatValue={(v) => `${v} ${unitLabel(unit)}`}
           accessibilityLabel="Current weight"
         />
         <TouchableOpacity onPress={() => setWeightEditing(true)} hitSlop={8}>
@@ -193,6 +230,32 @@ export default function ProfileSetupScreen() {
 
         <Text style={styles.fieldLabel}>AVATAR</Text>
         <View style={styles.avatarGrid}>
+          {/* Upload your own photo — a blank placeholder when none is set yet, or
+              the current photo with a camera badge to change it. */}
+          <TouchableOpacity
+            style={[
+              styles.avatarPick, styles.avatarPickCustom,
+              !customPhotoUrl && styles.avatarPickCustomEmpty,
+              avatarId === CUSTOM_AVATAR_ID && styles.avatarPickSel,
+            ]}
+            onPress={handleUploadPhoto}
+            disabled={avatarUploading}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={customPhotoUrl ? 'Change your profile photo' : 'Upload a profile photo'}
+          >
+            {avatarUploading ? (
+              <ActivityIndicator color={C.primary} size="small" />
+            ) : customPhotoUrl ? (
+              <Image source={{ uri: customPhotoUrl }} style={styles.avatarPickImg} contentFit="cover" />
+            ) : (
+              <Ionicons name="image-outline" size={22} color={C.outline} />
+            )}
+            <View style={styles.avatarPickCamera}>
+              <Ionicons name="camera" size={11} color="#fff" />
+            </View>
+          </TouchableOpacity>
+
           {AVATAR_PRESETS.map((p) => {
             const sel = p.id === avatarId
             return (
@@ -274,6 +337,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   avatarPick: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   avatarPickSel: { borderWidth: 3, borderColor: C.text },
   avatarPickCheck: { position: 'absolute', bottom: -3, right: -3, backgroundColor: '#fff', borderRadius: Radius.full },
+  avatarPickCustom: { backgroundColor: C.surfaceContainerHigh, overflow: 'hidden' },
+  avatarPickCustomEmpty: { borderWidth: 1.5, borderColor: C.outlineVariant, borderStyle: 'dashed' },
+  avatarPickImg: { width: 56, height: 56, borderRadius: Radius.full },
+  avatarPickCamera: {
+    position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: 10,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: C.surface,
+  },
+  avatarLargePhotoWrap: { width: 84, height: 84, borderRadius: Radius.full, overflow: 'hidden', ...Elevation.e1 },
+  avatarLargePhoto: { width: 84, height: 84 },
 
   footer: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
   continueBtn: { height: 56, backgroundColor: C.primary, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },

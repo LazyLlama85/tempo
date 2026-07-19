@@ -18,6 +18,11 @@ export interface AvatarPreset {
   color: string
 }
 
+// Sentinel id for "the uploaded photo is the active avatar" in any screen's avatar
+// picker grid (onboarding, Edit Profile) — never a real preset id, so `avatarId ===
+// CUSTOM_AVATAR_ID` is an unambiguous check for which tile should show selected.
+export const CUSTOM_AVATAR_ID = 'custom'
+
 // Curated set — distinct, athletic, all legible on white text.
 export const AVATAR_PRESETS: AvatarPreset[] = [
   { id: 'bolt', icon: 'flash', color: '#0058BC' },

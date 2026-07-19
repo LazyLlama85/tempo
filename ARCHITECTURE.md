@@ -197,6 +197,35 @@ you moving."*
   drag-to-set control (big number + slider, "type an exact number" fallback for
   precision) — an untouched slider never writes a value, so leaving it alone
   still skips the optional weigh-in exactly like before.
+  **Slider bug fix + redesign (2026-07-19):** dragging the weight slider inside
+  onboarding's `ScrollView` used to scroll the PAGE instead of moving the thumb —
+  `PanResponder` claimed the responder on `onStartShouldSetPanResponder`, but
+  without ALSO claiming it in the capture phase and refusing every termination
+  request, the ancestor ScrollView's own native pan recognizer could still win
+  mid-drag. Fixed with `onStartShouldSetPanResponderCapture` /
+  `onMoveShouldSetPanResponderCapture` (claim before any ancestor gets a say) +
+  `onPanResponderTerminationRequest: () => false` (never hand the gesture back
+  once granted). Same pass gave the slider a real redesign: a floating value
+  bubble (`formatValue` prop) pops above the thumb while dragging, the thumb
+  scales up + its shadow deepens on grab, a subtle top-highlight gradient on the
+  fill, and faint tick marks at 0/25/50/75/100%. **Custom avatar photo made
+  first-class in every avatar picker (2026-07-19):** both onboarding's grid and
+  Profile's Edit-Profile grid only ever showed the 8 icon presets — uploading a
+  real photo (already supported via `lib/avatar.uploadAvatar`) had no presence in
+  the grid itself, and re-opening Edit Profile after uploading one incorrectly
+  showed the FIRST preset as "selected" (icon/color match failed against a photo
+  URL) — worse, hitting Save in that state would silently overwrite the uploaded
+  photo with that preset. New `CUSTOM_AVATAR_ID` sentinel (`lib/avatar.ts`) fixes
+  both: each grid now has an extra tile *before* the presets — a dashed-border
+  blank "image-outline" placeholder when no photo is set, or the real photo with
+  a small camera badge (matching the hero avatar's existing edit affordance) once
+  one exists; tapping it opens the picker. Onboarding stages the upload in local
+  state (`customPhotoUrl`) and commits it on "Enter Tempo" like every other field
+  there; Profile's grid reuses `handleAvatarPress` as-is (immediate upload + save,
+  matching the hero avatar's existing behavior) and now also sets `avatarId` to
+  the sentinel on success so the tile shows selected. `saveProfile()` only writes
+  a preset's `tempo:` value when a preset (not the photo) is the active choice, so
+  Save can never again clobber an uploaded photo.
   **The wedge, made honest and felt at the reveal (2026-07-17):** the reveal's title
   used to read *"Already on your calendar"* unconditionally — literally untrue for
   the common case, since calendar connection isn't part of onboarding's required
