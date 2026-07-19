@@ -14,6 +14,22 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+- **NEW (2026-07-19): a full codebase review produced `MASTER_FIX_PLAN.md` — execute its P0
+  ship-blockers next, in order (F1→ F10).** A complete read of every screen, every domain-logic
+  module, and the full platform layer (requested as "go through the product, treat today as publish
+  day") found real, concrete defects independent of the M0-M6 strategy ledger below: a plan-generation
+  bug (`week_index` overloaded to mean two things) that can silently empty a paying user's schedule;
+  all-day calendar events not blocking auto-scheduling; five silent-write-failure sites; a likely
+  RevenueCat entitlement-ID mismatch (paying users may never unlock Pro); a leaked RapidAPI key; no
+  crash-fallback UI; no offline write queue; and a long tail of craft/accessibility/architecture debt
+  (full detail + file:line refs in `MASTER_FIX_PLAN.md`). `PRODUCT_AUDIT.html` is re-scored to match —
+  split into a **Product Score** (5.9/10, potential 8.2 — delivered quality) and a **Market Proof
+  Score** (4.3/10, potential 7.8 — retention/conversion/PMF, unchanged), with 9 scorecard rows moved
+  down on this session's newly-found evidence. **Next session's work is `MASTER_FIX_PLAN.md`'s P0
+  batches (F1–F10), one at a time, each with its own copy-paste Sonnet prompt** — this takes priority
+  over the M0-M6 ledger below until P0 is clear, since these are correctness bugs, not strategy bets.
+  No app code was changed in this session — it was diagnosis + planning only.
+
 - **Milestone:** M0 nearly closed (Google Calendar's root-cause reliability issue is fixed;
   retention instrumentation is the one real gap left). M1–M3's Claude-buildable scope is essentially
   **done** — the bottleneck has moved from "what to build" to **"verify what's built, then measure
@@ -253,6 +269,23 @@ Each row names the **metric it moves** (per EXECUTION.md §9 — a batch that mo
 
 ## Session Log *(newest first)*
 
+- **2026-07-19 — Full codebase review + `MASTER_FIX_PLAN.md` + honest re-score.** Requested to go
+  through the entire product (code, logic, UI) as if publishing today, independent of the M0-M6
+  strategy ledger, and produce an execution-ready fix plan. Ran three parallel deep-dive reviews
+  (UI/screens across all 45 routes; every `lib`/`services` domain-logic module; the full platform
+  layer — monetization, analytics, crash reporting, Supabase/RLS, push, performance, auth, config,
+  offline). Wrote `MASTER_FIX_PLAN.md` (new, repo root): P0 ship-blockers (F1-F10, e.g. the
+  `week_index` plan-cliff bug, all-day-events not blocking scheduling, 5 silent-write-failure sites,
+  no ErrorBoundary, no offline queue, the entitlement-ID risk, a leaked RapidAPI key), P1 craft/
+  coherence (C1-C10), P2 wedge amplifiers, P3 table stakes, P4 explicitly deferred/M4-gated — every
+  batch scoped with files, edge cases, done-when, tests, and a copy-paste Sonnet prompt. Re-scored
+  `PRODUCT_AUDIT.html` honestly: split the single headline into Product Score (5.9/10, potential 8.2)
+  and Market Proof Score (4.3/10, potential 7.8); recomputed all 48 rows for real (not an estimate);
+  9 rows moved down on this session's newly-found evidence (Reliability, Accessibility, Polish,
+  Engineering Architecture, Scheduling Experience, Personalization, Fitness Science, Notifications,
+  Monetization), none moved up (this was a hunt for defects, not a chance to claim credit). Republished
+  the artifact to its existing URL. **No app code changed — diagnosis + planning only.** Next session:
+  start `MASTER_FIX_PLAN.md`'s P0 batches in order.
 - **2026-07-17 — Phase 9: full audit re-review + this compaction.** New info: Google Calendar
   approved for production (B0.2 → ✅, B1.5 unblocked). Re-reviewed every section of
   `PRODUCT_AUDIT.html` against everything shipped this session; updated scores/notes honestly (see

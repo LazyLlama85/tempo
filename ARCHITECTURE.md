@@ -2,6 +2,12 @@
 
 A detailed description of everything Tempo is — frontend, backend, features, data, integrations.
 
+> **Active fix roadmap:** `MASTER_FIX_PLAN.md` (repo root) is a 2026-07-19 full-codebase review's
+> ordered, execution-ready inventory of everything wrong in the code/logic/UI described below, with
+> per-batch files/edge-cases/tests/Sonnet prompts. `PRODUCT_AUDIT.html` carries the honest re-score
+> that review produced (a separate Product Score vs. Market Proof Score). Read `MASTER_FIX_PLAN.md`
+> before starting new work on any system this document describes.
+
 ---
 
 ## 1. What Tempo is
