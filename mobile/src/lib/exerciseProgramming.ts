@@ -221,6 +221,19 @@ export function isIsolation(slot: Slot): boolean {
   return ISOLATION_SLOTS.has(slot)
 }
 
+// A handful of slots are under-served even by the ISOLATION rep bump — calves
+// are small, fatigue-resistant, and short-ROM, so a generic "isolation" 10-16
+// range (goal 8-12 + the isolation delta) still reads low next to how calf
+// work is actually programmed (15-20+ is standard). Applied ON TOP of
+// roleRepMod, not instead of it, and deliberately scoped to this one slot for
+// now rather than guessing deltas for every isolation — extend here if the
+// same "the default rep count is wrong for this movement" report comes in for
+// another slot.
+export function slotRepMod(slot: Slot): { repLowDelta: number; repHighDelta: number } | null {
+  if (slot === 'calf') return { repLowDelta: 5, repHighDelta: 8 }
+  return null
+}
+
 // ── Dev audit (Step 0) ────────────────────────────────────────────────────────
 // Summarise how a pool classifies, so misclassifications can be eyeballed against
 // real rows. Not shipped in any screen — called from a scratch script / test.

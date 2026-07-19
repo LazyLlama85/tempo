@@ -108,6 +108,24 @@ describe('progression — buildPrescription autoregulation', () => {
     expect(p.sets).toBeGreaterThanOrEqual(2)
     expect(p.sets).toBeLessThanOrEqual(6)
   })
+
+  it('the calf slot gets a further rep bump on top of the isolation role (founder: "20 reps for calf raises")', () => {
+    // No slot passed: isolation role alone (goal 8-12 + isolation delta 2/4) → 10-16.
+    const generic = buildPrescription([], 'muscle_gain', 'squat', false, 0, null, 'isolation', null)
+    expect(generic.repLow).toBe(10)
+    expect(generic.repHigh).toBe(16)
+    // Calf slot on top of the same isolation role → 15-24, in the 15-20+ range
+    // calf work is actually programmed at, not a generic accessory's range.
+    const calf = buildPrescription([], 'muscle_gain', 'squat', false, 0, null, 'isolation', null, 'calf')
+    expect(calf.repLow).toBe(15)
+    expect(calf.repHigh).toBe(24)
+  })
+
+  it('the calf bump never applies to an unrelated slot', () => {
+    const biceps = buildPrescription([], 'muscle_gain', 'pull', false, 0, null, 'isolation', null, 'biceps')
+    expect(biceps.repLow).toBe(10)
+    expect(biceps.repHigh).toBe(16)
+  })
 })
 
 describe('progression — volume-landmark cap (B5.4)', () => {

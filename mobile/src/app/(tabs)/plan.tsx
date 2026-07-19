@@ -895,7 +895,7 @@ export default function WorkoutsScreen() {
               restSeconds: 90, suggestedWeight: cfg.weight_lbs, direction: 'new',
               reason: 'Your target for this workout.', lastSummary: null,
             }
-          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience })
+          : buildPrescription(perf, goal, ex.movement_pattern, readinessLow, intensityBias, progression, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience }, classifyExercise(ex).slot)
       }
     } else {
       for (const ex of ordered) {
@@ -1297,7 +1297,7 @@ export default function WorkoutsScreen() {
   // the scheduled row (so an app restart keeps it) and — when the session came
   // from a split — into the split day itself, so every future week has it.
   const addExerciseToSession = async (ex: ExerciseRow, permanent: boolean) => {
-    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience })
+    const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience }, classifyExercise(ex).slot)
     restDefaults.current[ex.id] = prescription.restSeconds
     if (!reduceMotion) {
       LayoutAnimation.configureNext(
@@ -1452,7 +1452,7 @@ export default function WorkoutsScreen() {
   }
 
   const replaceExercise = async (oldId: string, next: ExerciseRow) => {
-    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role, { group: next.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(next.muscle_group ?? '') ?? 0, experience })
+    const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role, { group: next.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(next.muscle_group ?? '') ?? 0, experience }, classifyExercise(next).slot)
     restDefaults.current[next.id] = prescription.restSeconds
 
     setExercises(prev => prev.map(e => e.id === oldId ? next : e))

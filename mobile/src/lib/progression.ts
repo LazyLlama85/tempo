@@ -5,7 +5,7 @@
 
 import type { Goal, Experience } from '@/types'
 import type { WeekProgression } from '@/lib/periodization'
-import { roleRepMod, type Role } from '@/lib/exerciseProgramming'
+import { roleRepMod, slotRepMod, type Role, type Slot } from '@/lib/exerciseProgramming'
 import { titrateForWeeklyVolume, isLandmarkMuscleGroup } from '@/lib/volumeLandmarks'
 
 export interface SetPerformance {
@@ -113,6 +113,7 @@ export function buildPrescription(
   period?: WeekProgression | null,
   role?: Role | null,
   weeklyVolume?: { group: string | null; setsThisWeek: number; experience?: Experience } | null,
+  slot?: Slot | null,
 ): ExercisePrescription {
   const scheme = GOAL_SCHEME[goal] ?? GOAL_SCHEME.general_fitness
   const inc = weightIncrement(pattern)
@@ -141,8 +142,11 @@ export function buildPrescription(
   }
 
   // Role- then periodization-adjusted rep target (deload trims the range).
-  let repLow = Math.max(1, scheme.repLow + mod.repLowDelta)
-  let repHigh = Math.max(repLow + 1, scheme.repHigh + mod.repHighDelta)
+  // A few slots (currently just calves) need a further bump on top of the
+  // generic isolation range — see slotRepMod's own comment for why.
+  const slotMod = slot ? slotRepMod(slot) : null
+  let repLow = Math.max(1, scheme.repLow + mod.repLowDelta + (slotMod?.repLowDelta ?? 0))
+  let repHigh = Math.max(repLow + 1, scheme.repHigh + mod.repHighDelta + (slotMod?.repHighDelta ?? 0))
   if (period?.repBias) {
     repLow = Math.max(1, repLow + period.repBias)
     repHigh = Math.max(repLow + 1, repHigh + period.repBias)
