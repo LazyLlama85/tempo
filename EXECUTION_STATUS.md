@@ -14,7 +14,17 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-19, latest): `MASTER_FIX_PLAN.md`'s entire P0 (F1–F10) is done — 10 batches, each
+- **NEW (2026-07-19, latest): C1 (shared date utilities) is also done — the first P1 batch.**
+  Added `lib/dates.ts` (DST-safe, local-time `todayStr`/`toDateStr`/`addDays`/`daysBetween`/
+  `atMinute`) and migrated 18 modules that each had their own duplicate date-string helper,
+  finding two real bugs along the way (not just duplication): `adaptation.ts`'s `weeksBetween`
+  parsed dates as UTC while everything else is local; `social.ts`'s `syncSocialOnOpen` and
+  `fetchFriendOverview` both computed "today" via `.toISOString().slice(0,10)` (UTC), which could
+  misjudge a streak a day early for users behind UTC. `tsc` clean, full suite green (245/245).
+  **Next up: C2 (theme sweep) through C10 (dependency hygiene)** — see `MASTER_FIX_PLAN.md`'s P1
+  section, each with its own Sonnet prompt.
+
+- **2026-07-19: `MASTER_FIX_PLAN.md`'s entire P0 (F1–F10) is done — 10 batches, each
   its own commit, `tsc` clean and the full suite green (237 tests) throughout.** In order: F1 fixed
   the plan-cliff bug (`week_offset` column, per-row rollover inserts) and F5 fixed the app-open race
   that caused it (removed the racing sweep from the auth listener, consolidated into one documented

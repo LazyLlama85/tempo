@@ -768,7 +768,7 @@ These don't lose data or money, but they're the difference between "an impressiv
 solo project" and something that reads as obsessively polished — the thing that makes someone say
 "this is clearly better made than Fitbod." Work these after all P0 items are done and verified.
 
-### C1 — Shared date utilities (`lib/dates.ts`)
+### C1 — Shared date utilities (`lib/dates.ts`) — ✅ DONE 2026-07-19
 
 **The problem:** ~15 modules (`generatePlan.ts`, `planRollover.ts`, `splitSchedule.ts`,
 `autoSchedule.ts`, `reschedule.ts`, `weekReschedule.ts`, `smartSchedule.ts`, `trainingLoad.ts`,
