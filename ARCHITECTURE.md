@@ -69,6 +69,23 @@ you moving."*
   query roots on every re-focus, and every workout-state mutation calls
   `invalidateTrainingData(queryClient)` (`src/lib/queryInvalidation.ts`). Route modals blur/refocus
   the tab beneath them, so closing a mutating modal also triggers a refresh.
+  **Real gap found and fixed (2026-07-19):** `train_splits` — the query behind Plan's "Current
+  Split" card, carrying its own 5-minute `staleTime` — was missing from `TRAINING_KEYS` entirely.
+  A Change Plan replan deactivates the old split and activates the new Tempo-generated one, but
+  Plan (already mounted all session via `lazy:false`) kept its stale pre-replan `hubSplits` cache
+  for up to 5 minutes, or until the app fully restarted — reported as "plan takes a long time until
+  you reload." Added `['train_splits']` to `TRAINING_KEYS`. Also hardened the first-ever entry into
+  `(tabs)` for a brand-new user: `onboarding/profile-setup.tsx`'s `postOnboardingRoute()` (the one
+  choke point both Save and Skip funnel through) now calls `invalidateTrainingData(queryClient)`
+  immediately before `router.replace('/(tabs)')`, so nothing mounting for the first time can read a
+  cache entry any earlier onboarding step happened to leave behind.
+  **Change Plan now visibly confirms the switch (2026-07-19):** replan's exit
+  (`onboarding/plan-preview.tsx`'s `enterApp()`) used to silently drop the user on Home — the only
+  proof the new plan was active was going to Plan and checking. Now lands on `/(tabs)/plan` directly
+  (with a one-shot `justSwitched` param) and Plan shows a brief, self-dismissing "Switched to your
+  new Tempo-generated plan" banner above the split card (`PopIn`, auto-hides after 5s, the param is
+  cleared via `router.setParams` the instant it's read so it can't re-fire on an unrelated later
+  focus).
 - **Onboarding stack** `onboarding/`: `goal → why-tempo → schedule → sleep → work-school →
   train-time → plan-preview` — **7 numbered steps (2026-07-17 restructure to 6, then 2026-07-18
   added `why-tempo`)**. The founder's own
@@ -364,7 +381,12 @@ you moving."*
   with no scheduling UI; **schedule** = opened with a `date` param from Add Workout, adds date/time +
   a Schedule action — the time is **smart-pre-filled** from the free-slot engine
   (`reschedule.suggestTimeOnDate`) with a "you're free at this time" hint, and a manually picked
-  time is never overwritten), **`my-workouts`** (manage templates +
+  time is never overwritten. **Fixed (2026-07-19):** tapping Schedule used to show a blocking
+  `Alert` with a "Done" button gating the actual `router.back()` — meaning the one piece of proof
+  it worked (the new entry on the calendar right behind this screen) was hidden behind a dialog the
+  user had to dismiss first. Now closes immediately on success (a haptic replaces the modal;
+  failure still alerts, since a real error should interrupt), same as the actual point of the
+  action), **`my-workouts`** (manage templates +
   custom exercises), **`my-splits`** (the Program/Split layer — list/activate/edit splits),
   **`split-editor`** (author a weekly split: name + 7-day weekday→workout pattern),
   **`workout-history`** (the training log — every completed session, newest first, with

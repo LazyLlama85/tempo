@@ -35,6 +35,7 @@ import { useCreateLimit } from '@/lib/proLimits'
 import { WORKOUT_PRESETS, workoutPresetById, hydrateWorkoutPreset } from '@/lib/starterTemplates'
 import { setSplitHandoff } from '@/lib/handoff'
 import { track } from '@/lib/analytics'
+import * as haptics from '@/lib/haptics'
 import type { Exercise, WorkoutTemplate } from '@/types'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -221,10 +222,12 @@ export default function WorkoutBuilderScreen() {
           ])
         })
         .catch(() => {})
-      const when = new Date(`${scheduleDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-      Alert.alert('Workout scheduled', `“${name.trim()}” is set for ${when} at ${formatTime12(time)}.`, [
-        { text: 'Done', onPress: () => router.back() },
-      ])
+      // Close immediately instead of gating on an Alert dismiss — the whole
+      // point of scheduling is seeing it land on the calendar right behind
+      // this screen, and a modal "Done" tap was just standing in the way of
+      // that. A success haptic is the confirmation now, not a dialog.
+      haptics.success()
+      router.back()
     } else Alert.alert('Could not schedule', 'Please try again.')
   }
 

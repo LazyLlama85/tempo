@@ -248,12 +248,14 @@ export default function WorkoutCompleteScreen() {
       />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Tempo Coach high-fiving — additive alongside the confetti/badge
-            below, not a replacement; plays once (non-looping "pop" style),
-            never blocks anything if it fails to load. */}
+        {/* Tempo Coach celebrating — jumping jack for the biggest moment on
+            this screen (a level-up), a high-five otherwise. Additive
+            alongside the confetti/badge below, not a replacement; plays once
+            (non-looping "pop" style), never blocks anything if it fails to load. */}
         <TempoLottie
-          source={require('@/assets/lottie/coach/highfive.json')}
-          width={67} height={72}
+          source={hero === 'levelup' ? require('@/assets/lottie/coach/jumpjack.json') : require('@/assets/lottie/coach/highfive.json')}
+          width={hero === 'levelup' ? 64 : 67}
+          height={72}
           loop={false}
           style={styles.coachCelebrate}
         />

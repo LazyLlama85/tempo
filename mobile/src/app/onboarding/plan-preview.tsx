@@ -8,6 +8,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
+import { TempoLottie } from '@/components/TempoLottie'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -351,7 +352,11 @@ export default function PlanPreviewScreen() {
     if (isReplan) {
       // Pop the whole onboarding stack so back-swipe can't land on a stale step.
       if (router.canDismiss()) router.dismissAll()
-      router.replace('/(tabs)')
+      // Land on Plan (not Home) so the new split is immediately visible —
+      // silently dropping a just-switched user on Home meant the only proof
+      // the change worked was going to go look for it themselves. `justSwitched`
+      // triggers Plan's own brief confirmation banner, then clears itself.
+      router.replace({ pathname: '/(tabs)/plan', params: { justSwitched: '1' } })
     } else {
       // Tutorials were already armed in handleConfirm, before the reveal.
       // Forward buildMode so profile-setup knows whether to drop a custom-build
@@ -479,6 +484,9 @@ export default function PlanPreviewScreen() {
         // chain — not fake, each step really is a phase of it — so it never looks
         // frozen even on a slow connection.
         <View style={styles.generatingWrap}>
+          {/* Tempo Coach, thinking it through while the plan actually builds —
+              additive alongside the (real, not fake) progress ring below. */}
+          <TempoLottie source={require('@/assets/lottie/coach/pondering.json')} width={62} height={130} />
           <SvgProgressRing
             value={((buildStep + 1) / BUILD_STEPS.length) * 100}
             size={180}

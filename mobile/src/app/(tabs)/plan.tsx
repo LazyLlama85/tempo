@@ -23,6 +23,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
 import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
+import { TempoLottie } from '@/components/TempoLottie'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
@@ -258,11 +259,25 @@ export default function WorkoutsScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const params = useLocalSearchParams<{ workoutId?: string; quick?: string }>()
+  const params = useLocalSearchParams<{ workoutId?: string; quick?: string; justSwitched?: string }>()
   // Params are consumed (cleared) once acted on, so pushing the same workoutId
   // twice still re-triggers; '' therefore means "no param".
   const workoutIdParam = params.workoutId || undefined
   const quickParam = params.quick || undefined
+  // Landed here right after Change Plan (plan-preview.tsx's replan exit) — a
+  // brief, self-dismissing confirmation that the switch actually happened,
+  // instead of silently dropping the user on Home to go find out for
+  // themselves. Consumed once (param cleared) so it can't re-show on a later
+  // unrelated focus of this same screen.
+  const [justSwitchedBanner, setJustSwitchedBanner] = useState(false)
+  useEffect(() => {
+    if (params.justSwitched !== '1') return
+    setJustSwitchedBanner(true)
+    router.setParams({ justSwitched: '' })
+    const t = setTimeout(() => setJustSwitchedBanner(false), 5000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.justSwitched])
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const experience = useAuthStore(s => s.profile?.experience)
@@ -2048,6 +2063,18 @@ export default function WorkoutsScreen() {
             </View>
           )}
 
+          {/* Landed here right after Change Plan — confirms the switch
+              actually happened and which split is now active, instead of
+              silently dropping the user on Home to go check for themselves. */}
+          {justSwitchedBanner && (
+            <PopIn style={styles.switchedBanner}>
+              <Ionicons name="checkmark-circle" size={18} color={C.success} />
+              <Text style={styles.switchedBannerText}>
+                Switched to your new {activeSplit?.kind === 'auto' ? 'Tempo-generated' : ''} plan
+              </Text>
+            </PopIn>
+          )}
+
           {/* Current split — the audit's "one Programs door," condensed from
               the old full Splits list to just the active one. */}
           <View style={styles.splitCard} ref={planSplitTarget}>
@@ -2075,14 +2102,17 @@ export default function WorkoutsScreen() {
                 )}
               </>
             ) : (
-              <EmptyState
-                kind="barbell"
-                compact
-                title="No split yet"
-                body="A split is your weekly training pattern — Push/Pull/Legs, Upper/Lower, and more."
-                actionLabel="Create a split"
-                onAction={() => router.push('/my-splits' as any)}
-              />
+              <>
+                <TempoLottie source={require('@/assets/lottie/coach/idle.json')} width={38} height={98} style={styles.coachIdle} />
+                <EmptyState
+                  kind="barbell"
+                  compact
+                  title="No split yet"
+                  body="A split is your weekly training pattern — Push/Pull/Legs, Upper/Lower, and more."
+                  actionLabel="Create a split"
+                  onAction={() => router.push('/my-splits' as any)}
+                />
+              </>
             )}
           </View>
 
@@ -3069,6 +3099,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   dayCardRest: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   dayCardRestText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.outline },
   dayCardAddText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, marginTop: Spacing.xs },
+
+  switchedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  switchedBannerText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
+  coachIdle: { alignSelf: 'center', marginBottom: Spacing.xs },
 
   // ── Current split card ────────────────────────────────────────────────────--
   splitCard: {

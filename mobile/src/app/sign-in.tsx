@@ -109,32 +109,43 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Logo area — Tempo Coach (the same blue runner from the app icon,
-          traced into a real vector Lottie from the founder's reference sheet —
-          see assets/lottie/README.md) waves hello above the static logo mark.
-          Purely additive: the logo image itself is completely untouched, so a
-          failed/missing animation just leaves an empty space above it, never
-          a broken or missing logo (TempoLottie's own onAnimationFailure guard). */}
-      <View style={styles.logoArea}>
-        <TempoLottie source={require('@/assets/lottie/coach/wave.json')} width={68} height={100} style={styles.coachWave} />
-        <Image
-          source={require('@/assets/images/tempo-logo.png')}
-          style={styles.logoImage}
-          accessibilityLabel="Tempo logo"
-        />
-      </View>
-
-      {/* Hero text */}
-      <View style={styles.hero}>
-        <View style={{ alignItems: 'center' }}>
-          <TempoWordmark size={40} mark={false} />
+      {/* Logo + Tempo Coach + wordmark, grouped and vertically centered in the
+          space above the buttons — was 3 separate top-level children spread
+          apart by the container's own `space-between`, which read as three
+          giant dead gaps (founder screenshot). Grouping them means that
+          space-between only sees this group and `actions` now, and centering
+          within the group brings the logo/coach down out of the empty area
+          at the very top instead of pinning them there. */}
+      <View style={styles.topGroup}>
+        {/* Logo area — the static logo mark, untouched. */}
+        <View style={styles.logoArea}>
+          <Image
+            source={require('@/assets/images/tempo-logo.png')}
+            style={styles.logoImage}
+            accessibilityLabel="Tempo logo"
+          />
         </View>
-        {/* The one true sentence (audit §03/§22): a first-time visitor should know
-            in 5 seconds why this isn't just another workout logger — Tempo fits
-            training into your real week and moves it when life does. */}
-        <Text style={styles.tagline}>
-          Training that fits your real week{'\n'}— and moves when life does.
-        </Text>
+
+        {/* Tempo Coach (the same blue runner from the app icon, traced into a
+            real vector Lottie from the founder's reference sheet — see
+            assets/lottie/README.md) waves hello in the gap between the logo
+            and the wordmark. Purely additive: a failed/missing animation just
+            leaves that gap empty, never a broken or missing logo/wordmark
+            (TempoLottie's own onAnimationFailure guard). */}
+        <TempoLottie source={require('@/assets/lottie/coach/wave.json')} width={68} height={100} style={styles.coachWave} />
+
+        {/* Hero text */}
+        <View style={styles.hero}>
+          <View style={{ alignItems: 'center' }}>
+            <TempoWordmark size={40} mark={false} />
+          </View>
+          {/* The one true sentence (audit §03/§22): a first-time visitor should know
+              in 5 seconds why this isn't just another workout logger — Tempo fits
+              training into your real week and moves it when life does. */}
+          <Text style={styles.tagline}>
+            Training that fits your real week{'\n'}— and moves when life does.
+          </Text>
+        </View>
       </View>
 
       {/* Actions */}
@@ -204,12 +215,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: Spacing.xl,
   },
+  topGroup: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: Spacing.lg,
+  },
   logoArea: {
     alignItems: 'center',
-    paddingTop: Spacing['2xl'],
   },
   coachWave: {
-    marginBottom: Spacing.xs,
+    alignSelf: 'center',
   },
   logoImage: {
     width: 88,

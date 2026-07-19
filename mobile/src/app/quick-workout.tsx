@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { PressableScale } from '@/components/motion'
+import { TempoLottie } from '@/components/TempoLottie'
 import { describeSaveError } from '@/lib/saveErrors'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
@@ -199,6 +200,7 @@ export default function QuickWorkoutScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <TempoLottie source={require('@/assets/lottie/coach/walking.json')} width={46} height={82} style={styles.coachWalking} />
         <Text style={styles.lead}>How much time do you have?</Text>
         <Text style={styles.leadSub}>
           No setup. Tempo builds the highest-impact session for your window and goal.
@@ -412,6 +414,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: 120, gap: Spacing.md },
 
   lead: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginTop: Spacing.xs },
+  coachWalking: { marginBottom: Spacing.xs },
   leadSub: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
 
   durationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },

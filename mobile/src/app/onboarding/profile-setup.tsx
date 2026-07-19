@@ -7,6 +7,7 @@ import { Image } from 'expo-image'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useQueryClient } from '@tanstack/react-query'
 import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
@@ -19,6 +20,7 @@ import { useUnitStore, unitLabel, inputToLbs } from '@/lib/units'
 import { Slider } from '@/components/Slider'
 import { track } from '@/lib/analytics'
 import { useProAccess } from '@/stores/entitlements'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
 
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
@@ -33,6 +35,7 @@ export default function ProfileSetupScreen() {
   const { buildMode } = useLocalSearchParams<{ buildMode?: string }>()
   const isCustomBuild = buildMode === 'custom'
   const { session, profile, refreshProfile } = useAuthStore()
+  const queryClient = useQueryClient()
   // Post-onboarding paywall gate. `locked` is only true once Pro is LIVE and the user
   // hasn't subscribed — while Pro is dormant it's always false, so the onboarding flow
   // is byte-for-byte unchanged until launch.
@@ -74,6 +77,15 @@ export default function ProfileSetupScreen() {
   // pattern my-splits.tsx already uses, so its own Close/back button lands back on
   // (tabs)/welcome with no new navigation behavior to reason about.
   const postOnboardingRoute = () => {
+    // Home/Plan/Progress mount for the very first time the instant this
+    // fires (lazy:false) — without this, a query key that happened to get
+    // cached anywhere during onboarding (or restored from the persisted
+    // cache) could read as "fresh enough" under the client's 30s staleTime
+    // and just sit there empty/stale until something else forced a refetch
+    // (the reported "takes a long time until you reload" bug). Force every
+    // training query to refetch the instant the tabs exist, same fix this
+    // codebase already applies at every other workout-data mutation point.
+    invalidateTrainingData(queryClient)
     router.replace('/(tabs)')
     // Custom-build users go straight to their split editor (the whole point of that
     // path) — they hit Pro gates naturally later, so no onboarding paywall for them.

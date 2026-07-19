@@ -22,6 +22,13 @@ const TRAINING_KEYS = [
   // (often empty) picture until an unrelated refetch happened to catch up.
   ['range_events'],
   ['plan_cal_workouts'],
+  // Plan's "Current Split" card — a genuine gap this key was missing
+  // entirely: `train_splits` carries a 5-minute staleTime, so a Change Plan
+  // replan (which deactivates the old split and activates the new
+  // Tempo-generated one) could leave Plan showing the OLD split for up to 5
+  // minutes, or until the app fully restarted — read by a founder as "the
+  // plan takes a long time to show up."
+  ['train_splits'],
 ] as const
 
 export function invalidateTrainingData(queryClient: QueryClient) {
