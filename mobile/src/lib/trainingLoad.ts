@@ -8,23 +8,34 @@
 
 export type Region = 'push' | 'pull' | 'legs' | 'core' | 'other'
 
-const REGION_KEYWORDS: { region: Region; keys: string[] }[] = [
-  { region: 'push', keys: ['chest', 'pec', 'shoulder', 'delt', 'tricep'] },
-  { region: 'pull', keys: ['back', 'lat', 'trap', 'rhomboid', 'bicep', 'forearm'] },
-  { region: 'legs', keys: ['quad', 'hamstring', 'glute', 'calf', 'calves', 'adductor', 'abductor', 'hip'] },
-  { region: 'core', keys: ['core', 'ab', 'oblique', 'lower_back', 'erector', 'spine'] },
-]
+// Exact-match lookup, not substring — a naive .includes() check misclassified
+// 'lateral_deltoids' as PULL (it contains "lat", pull's keyword for "lats")
+// alongside its correct PUSH tag, and 'abductor' as CORE in addition to its
+// correct LEGS tag (it contains "ab", core's keyword for "abs"). Both muscles
+// ended up double-counted against the wrong region, corrupting the 48h
+// recovery scoring, day-suggestion logic, and (via the shared mapping) the
+// volume-landmark MRV cap. Every muscle name the `exercises` table actually
+// uses (primary_muscles/secondary_muscles — see exerciseSearch.ts's
+// muscleGroupOf and exerciseProgramming.ts's MUSCLE_SLOT for the same
+// vocabulary) maps to exactly one region here.
+const MUSCLE_REGION: Record<string, Region> = {
+  chest: 'push', upper_chest: 'push', serratus: 'push',
+  shoulders: 'push', lateral_deltoids: 'push', front_deltoids: 'push',
+  rear_delts: 'push', rotator_cuff: 'push', triceps: 'push',
+  lats: 'pull', back: 'pull', upper_back: 'pull', rhomboids: 'pull',
+  traps: 'pull', mid_traps: 'pull', upper_traps: 'pull', teres_major: 'pull',
+  biceps: 'pull', brachialis: 'pull', forearms: 'pull',
+  quads: 'legs', hamstrings: 'legs', glutes: 'legs', calves: 'legs', legs: 'legs',
+  inner_thighs: 'legs', adductors: 'legs', abductors: 'legs', hip_flexors: 'legs',
+  core: 'core', abs: 'core', obliques: 'core', transverse_abdominis: 'core',
+  lower_back: 'core', erectors: 'core',
+}
 
 // Coarse muscle regions a set of muscles touches (a workout usually spans a couple).
 export function musclesToRegions(muscles: string[]): Set<Region> {
   const out = new Set<Region>()
   for (const raw of muscles) {
-    const m = raw.toLowerCase()
-    let matched = false
-    for (const { region, keys } of REGION_KEYWORDS) {
-      if (keys.some(k => m.includes(k))) { out.add(region); matched = true }
-    }
-    if (!matched) out.add('other')
+    out.add(MUSCLE_REGION[raw.toLowerCase()] ?? 'other')
   }
   return out
 }

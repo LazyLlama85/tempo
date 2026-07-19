@@ -107,12 +107,16 @@ export async function evaluateAdaptationMode(
         .eq('trigger', 'workout_feedback')
         .order('created_at', { ascending: false })
         .limit(4),
+      // checkMissedWorkouts (missedWorkouts.ts) marks BOTH plan rows
+      // (user_plan_id set) and active-split rows (source='split') as missed
+      // — filtering to source='plan' alone meant a split user who missed
+      // every session for weeks never triggered recovery/deload at all.
       client
         .from('scheduled_workouts')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('status', 'missed')
-        .eq('source', 'plan')
+        .in('source', ['plan', 'split'])
         .gte('planned_date', twoWeeksAgo),
     ])
 
