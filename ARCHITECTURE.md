@@ -139,6 +139,23 @@ you moving."*
   an app upgrade never resets them (a `version` retires steps without wiping progress). Tutorials are
   **armed only at the new-user moment** (`plan-preview`, non-replan), so existing users / re-planners /
   reinstalls never see them.
+  **Auto-scroll fix for below-the-fold steps (2026-07-19):** a step whose target was scrolled out of
+  view (e.g. Plan tour's `plan_split`/`plan_library`, further down the hub than `plan_calendar`) used
+  to just point at empty space or fail to render sensibly at all — `measureInWindow` reports a target's
+  TRUE window position regardless of scroll, so an off-screen target produced a wildly out-of-range
+  rect, and the tooltip's `sh - hole.y` math could push the card off the top of the screen entirely
+  (read by the founder as "step 3 doesn't show"). Fixed with a new opt-in **scroll-into-view**: screens
+  call `useTutorialScrollContainer()` (`components/TutorialOverlay.tsx`) once and spread
+  `{scrollRef, onScroll}` onto their main `ScrollView`, registering a `{scrollTo, getScrollY}` pair in
+  `stores/tutorial.ts` (a plain interface, not the raw ScrollView instance — sidesteps RN-version-
+  specific native-method names like `getScrollableNode`/`getInnerViewNode`). `useTutorialTarget(id,
+  {scrollIntoView: true})` then scrolls the container to bring the target to ~30% down the screen
+  before measuring, re-measuring once the scroll settles. **Opt-in, not automatic**: the tab bar's
+  GO/Progress/Profile targets (`TempoTabBar.tsx`) are fixed-position and live OUTSIDE any scrollable
+  content, so they don't pass the flag — scrolling the page could never move them, and attempting to
+  would just be a pointless animation on Home-tour steps that already worked fine. Wired into Plan
+  (`plan.calendar`/`plan.split`/`plan.library`, all `scrollIntoView: true`) and Home (`home.today`,
+  same).
   **Single reveal (fixed 2026-07-17 — `app/welcome.tsx` deleted):** a fresh account used to see the
   plan summarized TWICE in a row — `plan-preview`'s own 7-day animated reveal, then a separate
   `/welcome` screen repeating Goal/Schedule/Program/First-workout with its own "Explore My Plan" CTA,

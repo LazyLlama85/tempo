@@ -13,6 +13,15 @@ import { track } from '@/lib/analytics'
 
 export interface TargetRect { x: number; y: number; width: number; height: number }
 
+// A screen's main ScrollView, registered by useTutorialScrollContainer — a plain
+// {scrollTo, getScrollY} shape rather than the raw ScrollView instance, so this
+// never depends on RN-version-specific native-method names (getScrollableNode,
+// getInnerViewNode, etc. have shifted across RN releases).
+export interface TutorialScrollContainer {
+  scrollTo: (y: number) => void
+  getScrollY: () => number
+}
+
 interface TutorialStoreState {
   userId: string | null
   data: TutorialData
@@ -22,6 +31,13 @@ interface TutorialStoreState {
   // Active overlay tour.
   activeTour: TutorialId | null
   stepIndex: number
+  // The current screen's main scroll container — lets a step whose target is
+  // below the fold scroll it into view before measuring, instead of spotlighting
+  // empty space. Only one tour runs at a time, on one screen, so an un-keyed
+  // single slot is enough; each screen clears it on unmount so a stale container
+  // never leaks into a different screen's tour.
+  scrollContainer: TutorialScrollContainer | null
+  setScrollContainer: (c: TutorialScrollContainer | null) => void
 
   init: (userId: string) => void
   // Durable ops (persist).
@@ -59,6 +75,8 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     targets: {},
     activeTour: null,
     stepIndex: 0,
+    scrollContainer: null,
+    setScrollContainer: (c) => set({ scrollContainer: c }),
 
     init: (userId) => {
       // Reload the durable slice for this user (sign-in swaps users on a device).

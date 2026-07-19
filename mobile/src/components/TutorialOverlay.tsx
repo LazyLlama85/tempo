@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import {
   Animated, Easing, Modal, StyleSheet, Text, View, useWindowDimensions,
-  type View as RNView,
+  type View as RNView, type ScrollView, type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
@@ -23,29 +23,84 @@ import { shouldShowTip, markTipSeen, TOUR_STEPS, type TutorialStep } from '@/lib
 // Stable empty reference so the "no active tour" case never mints a new array.
 const EMPTY_STEPS: TutorialStep[] = []
 
+// Only scroll when the target is meaningfully off from the comfortable spot
+// (avoids a jittery micro-scroll for something already roughly in place).
+const SCROLL_THRESHOLD_PX = 40
+
 // ── Target registry hook ──────────────────────────────────────────────────────
 // Attach the returned ref to a host View; the overlay can then measure it into
 // window coordinates on demand.
-export function useTutorialTarget(id: string | null) {
+//
+// `scrollIntoView: true` additionally scrolls the screen's registered scroll
+// container (useTutorialScrollContainer) to bring an off-screen/awkwardly-placed
+// target into a comfortable spot BEFORE measuring — fixes steps that used to just
+// point at empty space when their target was below the fold. Opt-in and false by
+// default: targets that live OUTSIDE any scrollable content (the tab bar's GO /
+// Progress / Profile buttons — always visible, fixed position) must never trigger
+// a scroll attempt, since scrolling the page can't move them and would just be a
+// pointless animation.
+export function useTutorialTarget(id: string | null, opts?: { scrollIntoView?: boolean }) {
   const ref = useRef<RNView>(null)
   const register = useTutorialStore(s => s.registerTarget)
   const unregister = useTutorialStore(s => s.unregisterTarget)
   const setRect = useTutorialStore(s => s.setTargetRect)
+  const { height: winH } = useWindowDimensions()
+  const scrollIntoView = !!opts?.scrollIntoView
 
   useEffect(() => {
     if (!id) return
     const measure = () => {
       requestAnimationFrame(() => {
         ref.current?.measureInWindow?.((x, y, width, height) => {
-          if (width > 0 && height > 0) setRect(id, { x, y, width, height })
+          if (width <= 0 || height <= 0) return
+          const container = scrollIntoView ? useTutorialStore.getState().scrollContainer : null
+          const desiredY = winH * 0.3
+          const delta = y - desiredY
+          if (container && Math.abs(delta) > SCROLL_THRESHOLD_PX) {
+            container.scrollTo(Math.max(0, container.getScrollY() + delta))
+            // Re-measure once the scroll animation has settled, so the stored
+            // rect matches where the element actually ends up.
+            setTimeout(() => {
+              ref.current?.measureInWindow?.((x2, y2, w2, h2) => {
+                if (w2 > 0 && h2 > 0) setRect(id, { x: x2, y: y2, width: w2, height: h2 })
+              })
+            }, 340)
+            return
+          }
+          setRect(id, { x, y, width, height })
         })
       })
     }
     register(id, measure)
     return () => unregister(id)
-  }, [id, register, unregister, setRect])
+  }, [id, register, unregister, setRect, winH, scrollIntoView])
 
   return ref
+}
+
+// ── Scroll container registration ─────────────────────────────────────────────
+// A screen that hosts tour targets calls this once and spreads the result onto
+// its main ScrollView: `<ScrollView ref={scrollRef} onScroll={onScroll} ...>`.
+// Registers/clears a {scrollTo, getScrollY} pair the store exposes to
+// useTutorialTarget above, so a below-the-fold step can bring itself into view.
+export function useTutorialScrollContainer() {
+  const scrollRef = useRef<ScrollView>(null)
+  const scrollY = useRef(0)
+  const setContainer = useTutorialStore(s => s.setScrollContainer)
+
+  useEffect(() => {
+    setContainer({
+      scrollTo: (y: number) => scrollRef.current?.scrollTo({ y, animated: true }),
+      getScrollY: () => scrollY.current,
+    })
+    return () => setContainer(null)
+  }, [setContainer])
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollY.current = e.nativeEvent.contentOffset.y
+  }, [])
+
+  return { scrollRef, onScroll }
 }
 
 // ── One-off contextual tip hook ───────────────────────────────────────────────

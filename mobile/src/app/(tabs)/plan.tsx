@@ -28,7 +28,7 @@ import { supabase } from '@/lib/supabase'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
-import { useTutorialTarget } from '@/components/TutorialOverlay'
+import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { T, TARGET, PLAN_TOUR_STEPS } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
@@ -268,9 +268,13 @@ export default function WorkoutsScreen() {
   const preferredTimeOfDay = useAuthStore(s => s.profile?.preferred_time_of_day)
 
   // Plan tour targets (Phase 6) — calendar, current split, library doors.
-  const planCalendarTarget = useTutorialTarget(TARGET.planCalendar)
-  const planSplitTarget = useTutorialTarget(TARGET.planSplit)
-  const planLibraryTarget = useTutorialTarget(TARGET.planLibrary)
+  const planCalendarTarget = useTutorialTarget(TARGET.planCalendar, { scrollIntoView: true })
+  const planSplitTarget = useTutorialTarget(TARGET.planSplit, { scrollIntoView: true })
+  const planLibraryTarget = useTutorialTarget(TARGET.planLibrary, { scrollIntoView: true })
+  // Registers this screen's ScrollView so a below-the-fold step (e.g. plan_library,
+  // "the split" further down) scrolls itself into view instead of pointing at
+  // whatever happened to already be on screen.
+  const { scrollRef: tourScrollRef, onScroll: tourOnScroll } = useTutorialScrollContainer()
 
   // ── Plan hub (IA redesign, 2026-07-16 Phase 2) ──────────────────────────────
   // Was a 4-way segmented control (Session/Readiness/Splits/Workouts); now Plan
@@ -1783,7 +1787,13 @@ export default function WorkoutsScreen() {
             </HeaderActions>
           }
         />
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView
+          ref={tourScrollRef}
+          onScroll={tourOnScroll}
+          scrollEventThrottle={32}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+        >
           {/* Week / Month + range nav + "Reschedule my whole week" — moved from
               Home; Plan now owns all multi-day scheduling. */}
           <View style={styles.segment} ref={planCalendarTarget}>

@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useFocusEffect } from 'expo-router'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
-import { useTutorialTarget } from '@/components/TutorialOverlay'
+import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { useTutorialStore } from '@/stores/tutorial'
 import { T, HOME_TOUR_STEPS, TARGET, shouldShowTip } from '@/lib/tutorial'
 import { Colors, Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
@@ -303,7 +303,10 @@ export default function ScheduleScreen() {
   // Anchors the merged "your day, in real time" tour step to the timeline
   // itself — the old separate "this is your calendar" step (a different
   // target) was folded into this one when the multi-day calendar left Home.
-  const todayCardTarget = useTutorialTarget(TARGET.homeToday)
+  const todayCardTarget = useTutorialTarget(TARGET.homeToday, { scrollIntoView: true })
+  // Registers Home's ScrollView so a below-the-fold tour step scrolls itself into
+  // view before its spotlight measures it.
+  const { scrollRef: tourScrollRef, onScroll: tourOnScroll } = useTutorialScrollContainer()
   useFocusEffect(
     useCallback(() => {
       const t = setTimeout(() => {
@@ -1573,6 +1576,9 @@ export default function ScheduleScreen() {
       />
 
       <ScrollView
+        ref={tourScrollRef}
+        onScroll={tourOnScroll}
+        scrollEventThrottle={32}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
