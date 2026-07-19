@@ -19,7 +19,7 @@
 
 import { Platform } from 'react-native'
 import type { CustomerInfo, PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
-import { captureApiError } from '@/lib/crashReporting'
+import { captureApiError, captureException } from '@/lib/crashReporting'
 
 // The entitlement that unlocks Pro. Change via env to match your dashboard.
 export const PRO_ENTITLEMENT = process.env.EXPO_PUBLIC_PRO_ENTITLEMENT || 'pro'
@@ -92,8 +92,30 @@ export async function resetPurchasesUser(): Promise<void> {
   }
 }
 
+// MASTER_FIX_PLAN.md F9a: EXPO_PUBLIC_PRO_ENTITLEMENT (eas.json) is a display-
+// style string ("Tempo: Fitness Planner Pro"); RevenueCat entitlement
+// identifiers are conventionally short slugs. If the dashboard's real
+// identifier doesn't match this constant exactly, every purchase succeeds
+// and NOTHING here ever unlocks — silently, forever, with zero signal. This
+// can't be guessed or auto-corrected (only the founder can check the
+// dashboard), but it can be made loud: if the user has ANY active
+// entitlement but none match PRO_ENTITLEMENT, that's exactly this bug's
+// signature — report it so it surfaces in Sentry instead of just looking
+// like "conversion is low."
+function reportPossibleEntitlementMismatch(info: CustomerInfo): void {
+  const activeIds = Object.keys(info.entitlements.active)
+  if (activeIds.length > 0 && !activeIds.includes(PRO_ENTITLEMENT)) {
+    captureException(
+      new Error('RevenueCat entitlement mismatch: user has active entitlement(s) but none match EXPO_PUBLIC_PRO_ENTITLEMENT'),
+      { configuredEntitlement: PRO_ENTITLEMENT, activeEntitlementIds: activeIds },
+    )
+  }
+}
+
 function infoIsPro(info: CustomerInfo): boolean {
-  return !!info.entitlements.active[PRO_ENTITLEMENT]
+  const isPro = !!info.entitlements.active[PRO_ENTITLEMENT]
+  if (!isPro) reportPossibleEntitlementMismatch(info)
+  return isPro
 }
 
 /** True when the entitlement is currently in a free-trial period (for analytics). */
