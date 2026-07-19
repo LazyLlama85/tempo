@@ -574,12 +574,17 @@ export async function importSplitShare(
   return { id: error ? null : (data?.id ?? null), dropped }
 }
 
+// Throws on a real read failure (network/RLS) so the caller can distinguish
+// that from a genuine "no share matches this code" — both used to collapse
+// into the same `null`, so a transient offline moment read as "this link is
+// dead," actively misinforming the user about a link that's actually fine.
 export async function fetchWorkoutShare(client: SupabaseClient, code: string): Promise<WorkoutShare | null> {
-  const { data } = await client
+  const { data, error } = await client
     .from('workout_shares')
     .select('*')
     .eq('code', code.trim().toLowerCase())
     .maybeSingle()
+  if (error) throw error
   return (data as WorkoutShare) ?? null
 }
 

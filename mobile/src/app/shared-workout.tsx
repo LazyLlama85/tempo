@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ErrorBanner'
 import * as haptics from '@/lib/haptics'
 import { WEEKDAY_LABELS } from '@/lib/splits'
 import {
@@ -37,15 +38,24 @@ export default function SharedWorkoutScreen() {
 
   const [share, setShare] = useState<WorkoutShare | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
+  const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
     if (!code || !userId) { setLoading(false); return }
+    setLoading(true)
+    setLoadError(false)
     fetchWorkoutShare(supabase, code)
       .then(setShare)
+      // A thrown read failure (network/RLS) is NOT the same as "no share
+      // matches this code" — collapsing them used to tell the user a
+      // perfectly good link "may have been deleted" over a transient
+      // connection hiccup.
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [code, userId])
+  }, [code, userId, retryTick])
 
   const isSplit = share?.kind === 'split'
 
@@ -82,6 +92,13 @@ export default function SharedWorkoutScreen() {
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Opening…" /></View>
+      ) : loadError ? (
+        <View style={[styles.center, { paddingHorizontal: Spacing.lg }]}>
+          <ErrorBanner
+            message="Couldn't load this share. Check your connection and try again."
+            onRetry={() => setRetryTick(t => t + 1)}
+          />
+        </View>
       ) : !share ? (
         <View style={styles.center}>
           <EmptyState

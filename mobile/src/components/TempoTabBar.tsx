@@ -148,7 +148,7 @@ function GoButton() {
   // shared with Home's fuller query) so this stays correct even when Home isn't
   // mounted — e.g. GO tapped straight from Plan/Progress/Profile.
   const todayStr = toDateStr(new Date())
-  const { data: todayRows } = useQuery({
+  const { data: todayRows, isLoading: todayLoading } = useQuery({
     queryKey: ['go_today_workouts', userId, todayStr],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -196,7 +196,12 @@ function GoButton() {
   // Workout — generated and started immediately, no picker (momentum, not more
   // choices — that path is unchanged).
   const handlePress = async () => {
-    if (starting) return
+    // An eager tap in the first instant after mount (or after switching users)
+    // used to read todayRows as undefined -> [] -> "nothing due," falling
+    // through to auto-generating a Quick Workout even when a real scheduled
+    // session existed — just because the query hadn't resolved yet. Wait for
+    // the real answer instead of guessing wrong.
+    if (starting || todayLoading) return
     const due = (todayRows ?? []).find(w => w.status === 'scheduled')
     if (due) {
       setChooser({ id: due.id, focus: due.focus, time: due.planned_start_time })
@@ -236,7 +241,7 @@ function GoButton() {
         onPress={handlePress}
         onPressIn={() => to(0.9)}
         onPressOut={() => to(1)}
-        disabled={starting}
+        disabled={starting || todayLoading}
         accessibilityRole="button"
         accessibilityLabel="Train now"
       >

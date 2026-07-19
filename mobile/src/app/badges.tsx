@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { BadgeShelf } from '@/components/BadgeShelf'
 import { badgeStatsFromSessions, computeEarnedBadges, fetchStoredBadges, markBadgesSeen, BADGES } from '@/lib/badges'
+import { captureApiError } from '@/lib/crashReporting'
 
 export default function BadgesScreen() {
   const styles = useThemedStyles(makeStyles)
@@ -25,7 +26,16 @@ export default function BadgesScreen() {
 
   const [stored, setStored] = useState<string[]>([])
   useEffect(() => {
-    if (userId) fetchStoredBadges(supabase, userId).then(setStored).catch(() => {})
+    // Low-stakes by design (badges are recomputed live from badgeStats;
+    // `stored` only backstops previously-recorded ones so a badge earned
+    // under an old formula still shows as earned) — but a silently-swallowed
+    // failure was previously invisible even to monitoring. Reported, not
+    // surfaced as a blocking error UI, since the screen degrades gracefully.
+    if (userId) {
+      fetchStoredBadges(supabase, userId).then(setStored).catch((err) => {
+        captureApiError('badges.fetchStoredBadges', err, { userId })
+      })
+    }
   }, [userId])
 
   const today = new Date().toISOString().slice(0, 10)

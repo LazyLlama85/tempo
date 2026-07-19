@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -37,13 +38,18 @@ export default function MyWorkoutsScreen() {
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [editEx, setEditEx] = useState<Exercise | null>(null)
   const [editOpen, setEditOpen] = useState(false)
 
   const load = useCallback(() => {
     if (!userId) return
+    setLoadError(false)
     Promise.all([fetchTemplates(supabase, userId), fetchCustomExercises(supabase, userId)])
       .then(([t, e]) => { setTemplates(t); setExercises(e) })
+      // A failed fetch used to leave templates/exercises at their initial []
+      // — indistinguishable from "you haven't created anything yet."
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
   }, [userId])
   useFocusEffect(load)
@@ -110,6 +116,10 @@ export default function MyWorkoutsScreen() {
         <View style={styles.center}><PulseLoader caption="Loading your workouts…" /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          {loadError && (
+            <ErrorBanner message="Couldn't load your workouts. What's shown may be incomplete." onRetry={load} />
+          )}
+
           <PressableScale style={styles.bigBtn} onPress={() => router.push('/workout-builder' as any)}>
             <Ionicons name="add" size={20} color={C.onPrimary} />
             <Text style={styles.bigBtnText}>Build a new workout</Text>

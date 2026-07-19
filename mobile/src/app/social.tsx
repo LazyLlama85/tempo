@@ -10,6 +10,7 @@ import * as Clipboard from 'expo-clipboard'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { track } from '@/lib/analytics'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -73,6 +74,12 @@ export default function SocialScreen() {
 
   const [friends, setFriends] = useState<FriendEntry[]>([])
   const [loading, setLoading] = useState(true)
+  // One combined flag, not 7 granular ones — this screen merges 7 independent
+  // fetches, and every single one used to catch(()=>{}) into a silent empty
+  // state indistinguishable from "genuinely nothing here." A real failure
+  // (offline, a bad response) now surfaces as a dismissible notice with a
+  // retry instead of quietly looking like an empty friends list/feed/board.
+  const [loadError, setLoadError] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SocialProfile[]>([])
   const [searching, setSearching] = useState(false)
@@ -95,14 +102,16 @@ export default function SocialScreen() {
 
   const load = useCallback(() => {
     if (!userId) return
-    fetchFriends(supabase, userId).then(setFriends).finally(() => setLoading(false))
-    fetchPrivacy(supabase, userId).then(setPrivacy).catch(() => {})
-    fetchMyIdentity(supabase, userId).then(setIdentity).catch(() => {})
-    fetchFriendFeed(supabase).then(setFeed).catch(() => {})
-    fetchFriendEvents(supabase).then(setEvents).catch(() => {})
-    fetchLeaderboardV2(supabase).then(setBoard).catch(() => {})
-    listMyGroups(supabase).then(setGroups).catch(() => {})
-    listWorkoutInvites(supabase).then(setInvites).catch(() => {})
+    setLoadError(false)
+    const onFail = () => setLoadError(true)
+    fetchFriends(supabase, userId).then(setFriends).catch(onFail).finally(() => setLoading(false))
+    fetchPrivacy(supabase, userId).then(setPrivacy).catch(onFail)
+    fetchMyIdentity(supabase, userId).then(setIdentity).catch(onFail)
+    fetchFriendFeed(supabase).then(setFeed).catch(onFail)
+    fetchFriendEvents(supabase).then(setEvents).catch(onFail)
+    fetchLeaderboardV2(supabase).then(setBoard).catch(onFail)
+    listMyGroups(supabase).then(setGroups).catch(onFail)
+    listWorkoutInvites(supabase).then(setInvites).catch(onFail)
   }, [userId])
   useFocusEffect(load)
 
@@ -281,6 +290,13 @@ export default function SocialScreen() {
         <View style={styles.center}><PulseLoader caption="Loading your people…" /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {loadError && (
+            <ErrorBanner
+              message="Some of this couldn't load. What's shown below may be incomplete."
+              onRetry={load}
+            />
+          )}
+
           {/* Incoming requests */}
           {incoming.length > 0 && (
             <>

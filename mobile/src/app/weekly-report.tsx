@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Redirect } from 'expo-router'
@@ -34,17 +35,25 @@ export default function WeeklyReportScreen() {
 
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reportError, setReportError] = useState(false)
   const [cards, setCards] = useState<WrappedCard[]>([])
   const [impact, setImpact] = useState<SchedulingImpact | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
     if (!userId) return
     track('weekly_report_viewed')
-    computeWeeklyReport(supabase, userId).then((r) => { setReport(r); setLoading(false) })
+    setLoading(true)
+    setReportError(false)
+    computeWeeklyReport(supabase, userId)
+      .then((r) => { setReport(r); setLoading(false) })
+      // A missing .catch here used to leave `loading` stuck true forever on
+      // any failure — the screen showed "Building your report…" permanently.
+      .catch(() => { setLoading(false); setReportError(true) })
     buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
     fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})
-  }, [userId])
+  }, [userId, retryTick])
 
   if (!session) return <Redirect href="/sign-in" />
 
@@ -67,6 +76,13 @@ export default function WeeklyReportScreen() {
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Building your report…" /></View>
+      ) : reportError ? (
+        <View style={[styles.center, { paddingHorizontal: Spacing.lg }]}>
+          <ErrorBanner
+            message="Couldn't build your report. Check your connection and try again."
+            onRetry={() => setRetryTick(t => t + 1)}
+          />
+        </View>
       ) : !report || !reportHasContent(report) ? (
         <View style={styles.center}>
           <EmptyState kind="chart" title="No report yet" body="Finish a workout this week and your report fills in — volume, PRs, and momentum vs. last week." />

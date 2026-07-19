@@ -12,6 +12,8 @@ import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { LeaderboardBoard } from '@/components/LeaderboardBoard'
 import { OptionSheet } from '@/components/OptionSheet'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ErrorBanner'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
@@ -32,14 +34,24 @@ export default function GroupDetailScreen() {
   const [group, setGroup] = useState<GroupSummary | null>(null)
   const [rows, setRows] = useState<LeaderboardV2Row[] | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  // A fetch failure and a genuinely-deleted/nonexistent group both used to
+  // collapse into the same `group === null` — the code card correctly hid,
+  // but the leaderboard section still rendered its own "0 members" empty
+  // state, a soft dead-end that never told the user the group itself was
+  // gone (or that it just failed to load and a retry might fix it).
+  const [groupLoadError, setGroupLoadError] = useState(false)
+  const [groupChecked, setGroupChecked] = useState(false)
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!groupId) return
-      listMyGroups(supabase).then((gs) => setGroup(gs.find((g) => g.id === groupId) ?? null)).catch(() => {})
-      fetchGroupLeaderboard(supabase, groupId).then(setRows).catch(() => setRows([]))
-    }, [groupId]),
-  )
+  const loadGroup = useCallback(() => {
+    if (!groupId) return
+    setGroupLoadError(false)
+    listMyGroups(supabase)
+      .then((gs) => setGroup(gs.find((g) => g.id === groupId) ?? null))
+      .catch(() => setGroupLoadError(true))
+      .finally(() => setGroupChecked(true))
+    fetchGroupLeaderboard(supabase, groupId).then(setRows).catch(() => setRows([]))
+  }, [groupId])
+  useFocusEffect(loadGroup)
 
   const isOwner = !!group && group.owner_id === userId
 
@@ -71,8 +83,16 @@ export default function GroupDetailScreen() {
         size="sm"
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
       />
-      {rows === null ? (
+      {rows === null || !groupChecked ? (
         <View style={styles.center}><PulseLoader caption="Loading group…" /></View>
+      ) : groupLoadError ? (
+        <View style={[styles.center, { paddingHorizontal: Spacing.lg }]}>
+          <ErrorBanner message="Couldn't load this group. Check your connection and try again." onRetry={loadGroup} />
+        </View>
+      ) : !group ? (
+        <View style={styles.center}>
+          <EmptyState kind="flash" title="Group not found" body="This group may have been deleted, or you're no longer a member." />
+        </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           {!!group && (
