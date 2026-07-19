@@ -736,6 +736,10 @@ you moving."*
   free-running, non-square sizing (`width`/`height`, not just a square `size`), and an
   `onAnimationFailure` guard that hides the view rather than crashing whatever screen embedded it —
   new infrastructure alongside the existing hand-built primitives, not a replacement for them.
+  `@lottiefiles/dotlottie-react` is also required (`lottie-react-native`'s own web-platform
+  fallback imports it directly — this project's `app.json` still exposes a `web` target for local
+  `expo start` preview, and Metro resolves platform-specific files even for a module that's really
+  only meant to run on iOS/Android here, so the dependency has to exist regardless).
   **The character itself is the blue runner from the app icon** (`brand-assets/app-icon-512.png`) —
   the founder identified it as "Tempo Coach" and supplied a reference sheet
   (`brand-assets/tempo-coach-reference-sheet.jpeg`) extending it into 8 poses (idle, walking,
