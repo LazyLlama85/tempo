@@ -17,6 +17,10 @@ import {
   goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
   type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern, type QuickRestrictions,
 } from '@/lib/quickWorkout'
+import { useProGate } from '@/stores/entitlements'
+import { fetchPresets, savePresets, describeEquipment, type EquipmentPreset } from '@/lib/equipmentPresets'
+import { EquipmentPresetSheet } from '@/components/EquipmentPresetSheet'
+import type { Equipment } from '@/types'
 
 const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
@@ -51,7 +55,28 @@ export default function QuickWorkoutScreen() {
   const profileRef = useRef<ProfileForQuick | null>(null)
   const restrictionsRef = useRef<QuickRestrictions | null>(null)
 
-  const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null) => {
+  // ── Equipment presets (Pro): build a session around a saved setup ("Home",
+  // "Hotel gym"). Free users can use their default gear; a saved preset's
+  // custom-equipment regeneration is the Pro gate (consistent with Travel Mode).
+  const { locked } = useProGate()
+  const [presets, setPresets] = useState<EquipmentPreset[]>([])
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
+  const [presetSheet, setPresetSheet] = useState<{ open: boolean; edit: EquipmentPreset | null }>({ open: false, edit: null })
+  useEffect(() => {
+    if (!userId) return
+    fetchPresets(supabase, userId).then(setPresets).catch(() => {})
+  }, [userId])
+
+  const selectedPreset = selectedPresetId ? presets.find((p) => p.id === selectedPresetId) ?? null : null
+  const isCustomEquipment = !!selectedPreset
+  const teased = isCustomEquipment && locked && !empty   // ready, but gated behind Pro
+
+  const openPaywall = () => {
+    track('paywall_shown', { context: 'quick_equipment' })
+    router.push({ pathname: '/paywall', params: { context: 'quick_equipment' } } as never)
+  }
+
+  const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null) => {
     if (!userId) return
     setGenerating(true)
     setEmpty(false)
@@ -59,11 +84,13 @@ export default function QuickWorkoutScreen() {
       if (!profileRef.current) {
         profileRef.current = await getProfileForQuick(supabase, userId)
       }
-      const profile = profileRef.current
+      // A selected preset overrides the profile's equipment for this session.
+      const base = profileRef.current
+      const profile = equipOverride ? { ...base, equipment: equipOverride } : base
       // Merge injury avoidance with schedule awareness (fetched once): skip what's
       // scheduled soon (don't pre-empt tomorrow's leg day) or was just trained.
       if (!restrictionsRef.current) {
-        const injuryR = injuriesToRestrictions(profile.injuries)
+        const injuryR = injuriesToRestrictions(base.injuries)
         const schedR = await getScheduleRestrictions(supabase, userId)
         restrictionsRef.current = {
           avoidMuscles: [...new Set([...injuryR.avoidMuscles, ...schedR.avoidMuscles])],
@@ -96,21 +123,45 @@ export default function QuickWorkoutScreen() {
 
   // Pre-generate on open so a Start button is ready immediately (<10s to start).
   useEffect(() => {
-    regenerate(minutes, purpose)
+    regenerate(minutes, purpose, null)
   }, [regenerate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const currentEquip = () => selectedPreset?.equipment ?? null
   const handlePickMinutes = (m: QuickMinutes) => {
     setMinutes(m)
-    regenerate(m, purpose)
+    regenerate(m, purpose, currentEquip())
   }
   const handlePickPurpose = (p: QuickPurpose) => {
     const next = p === purpose ? null : p
     setPurpose(next)
-    regenerate(minutes, next)
+    regenerate(minutes, next, currentEquip())
+  }
+  const handlePickPreset = (id: string | null) => {
+    setSelectedPresetId(id)
+    const pr = id ? presets.find((p) => p.id === id) ?? null : null
+    regenerate(minutes, purpose, pr?.equipment ?? null)
+  }
+  const handleSavePreset = async (preset: EquipmentPreset) => {
+    const next = presets.some((p) => p.id === preset.id)
+      ? presets.map((p) => (p.id === preset.id ? preset : p))
+      : [...presets, preset]
+    setPresets(next)
+    setPresetSheet({ open: false, edit: null })
+    setSelectedPresetId(preset.id)
+    regenerate(minutes, purpose, preset.equipment)
+    await savePresets(supabase, userId, next)
+  }
+  const handleDeletePreset = async (id: string) => {
+    const next = presets.filter((p) => p.id !== id)
+    setPresets(next)
+    setPresetSheet({ open: false, edit: null })
+    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null) }
+    await savePresets(supabase, userId, next)
   }
 
   const handleStart = async () => {
     if (!workout || starting || !workout.exercises.length) return
+    if (teased) { openPaywall(); return }  // custom-equipment session is a Pro gate
     setStarting(true)
     let id: string | null = null
     try {
@@ -171,6 +222,45 @@ export default function QuickWorkoutScreen() {
           })}
         </View>
 
+        {/* Equipment presets — build the session around a saved setup (Pro) */}
+        <View style={styles.rowBetween}>
+          <Text style={styles.sectionLabel}>EQUIPMENT</Text>
+          {locked && <View style={styles.proTag}><Text style={styles.proTagText}>PRO</Text></View>}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+          <TouchableOpacity
+            style={[styles.presetChip, !selectedPresetId && styles.presetChipActive]}
+            onPress={() => handlePickPreset(null)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="home" size={14} color={!selectedPresetId ? C.onPrimary : C.primary} />
+            <Text style={[styles.presetChipText, !selectedPresetId && styles.presetChipTextActive]}>All my gear</Text>
+          </TouchableOpacity>
+          {presets.map((pr) => {
+            const on = selectedPresetId === pr.id
+            return (
+              <TouchableOpacity
+                key={pr.id}
+                style={[styles.presetChip, on && styles.presetChipActive]}
+                onPress={() => handlePickPreset(pr.id)}
+                onLongPress={() => setPresetSheet({ open: true, edit: pr })}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
+                <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
+                {locked && <Ionicons name="lock-closed" size={11} color={on ? 'rgba(255,255,255,0.9)' : C.gold} />}
+              </TouchableOpacity>
+            )
+          })}
+          <TouchableOpacity style={styles.presetNew} onPress={() => setPresetSheet({ open: true, edit: null })} activeOpacity={0.85}>
+            <Ionicons name="add" size={15} color={C.primary} />
+            <Text style={styles.presetNewText}>New</Text>
+          </TouchableOpacity>
+        </ScrollView>
+        {presets.length > 0 && (
+          <Text style={styles.presetHint}>Long-press a preset to edit. Use “All my gear” for your usual setup.</Text>
+        )}
+
         {/* Purpose chips (defaults from goal; tap to steer) */}
         <Text style={styles.sectionLabel}>FOCUS</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposeRow}>
@@ -205,6 +295,33 @@ export default function QuickWorkoutScreen() {
                 No moves match your equipment for this focus. Try another focus or add equipment in your profile.
               </Text>
             </View>
+          ) : teased && workout ? (
+            <>
+              <View style={styles.previewTop}>
+                <View style={styles.proBadgeRow}>
+                  <Ionicons name="lock-closed" size={11} color={C.gold} />
+                  <Text style={styles.proBadgeText}>PRO</Text>
+                </View>
+                <Text style={styles.previewEst}>~{workout.estimatedMinutes} min</Text>
+              </View>
+              <Text style={styles.previewTitle}>Your {selectedPreset?.name} session is ready</Text>
+              <View style={styles.whyBox}>
+                <Ionicons name="sparkles" size={14} color={C.primary} style={{ marginTop: 1 }} />
+                <Text style={styles.whyText}>
+                  {workout.exercises.length} moves built around {describeEquipment(selectedPreset?.equipment ?? [])}, sized to your {minutes} minutes.
+                </Text>
+              </View>
+              {/* Redacted list — shows it's really built, hides the details */}
+              <View style={styles.exList}>
+                {workout.exercises.slice(0, 5).map((ex, i) => (
+                  <View key={ex.id} style={styles.exRow}>
+                    <Text style={styles.exIndex}>{i + 1}</Text>
+                    <View style={[styles.teaseBar, { width: `${64 - i * 7}%` as `${number}%` }]} />
+                    <Ionicons name="lock-closed" size={13} color={C.outline} />
+                  </View>
+                ))}
+              </View>
+            </>
           ) : workout ? (
             <>
               <View style={styles.previewTop}>
@@ -259,6 +376,11 @@ export default function QuickWorkoutScreen() {
         >
           {starting ? (
             <ActivityIndicator color={C.onPrimary} />
+          ) : teased ? (
+            <>
+              <Ionicons name="sparkles" size={16} color={C.onPrimary} />
+              <Text style={styles.startBtnText}>Unlock to Start</Text>
+            </>
           ) : (
             <>
               <Ionicons name="play" size={16} color={C.onPrimary} />
@@ -267,6 +389,14 @@ export default function QuickWorkoutScreen() {
           )}
         </PressableScale>
       </View>
+
+      <EquipmentPresetSheet
+        visible={presetSheet.open}
+        preset={presetSheet.edit}
+        onClose={() => setPresetSheet({ open: false, edit: null })}
+        onSave={handleSavePreset}
+        onDelete={handleDeletePreset}
+      />
     </SafeAreaView>
   )
 }
@@ -306,6 +436,30 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   purposeChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   purposeText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text },
   purposeTextActive: { color: C.onPrimary },
+
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.xs },
+  proTag: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  proTagText: { fontFamily: 'Inter_800ExtraBold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.6 },
+  presetRow: { gap: Spacing.xs, paddingRight: Spacing.lg, paddingVertical: 2 },
+  presetChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 170,
+    backgroundColor: C.background, borderWidth: 1.5, borderColor: C.outlineVariant,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+  },
+  presetChipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  presetChipText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, flexShrink: 1 },
+  presetChipTextActive: { color: C.onPrimary },
+  presetNew: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1.5, borderColor: C.primaryLine, borderStyle: 'dashed',
+    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+  },
+  presetNewText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  presetHint: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.outline, lineHeight: 16 },
+
+  proBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.gold + '22', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, color: C.gold, letterSpacing: 0.5 },
+  teaseBar: { flex: 1, height: 11, borderRadius: Radius.sm, backgroundColor: C.surfaceContainerHigh },
 
   previewCard: {
     backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
