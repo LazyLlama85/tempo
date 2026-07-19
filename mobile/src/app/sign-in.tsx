@@ -12,6 +12,7 @@ import { describeSaveError } from '@/lib/saveErrors'
 import { Colors, Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, useThemeMode, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
+import { TempoLottie } from '@/components/TempoLottie'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -108,13 +109,20 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Logo area */}
+      {/* Logo area — a subtle Lottie pulse behind the static logo (the "live
+          logo" moment); a placeholder until a real animation replaces it, see
+          assets/lottie/README.md. Purely decorative and additive: the real
+          logo image is untouched, and a failed/missing animation just renders
+          nothing behind it (TempoLottie's own onAnimationFailure guard). */}
       <View style={styles.logoArea}>
-        <Image
-          source={require('@/assets/images/tempo-logo.png')}
-          style={styles.logoImage}
-          accessibilityLabel="Tempo logo"
-        />
+        <View style={styles.logoStack}>
+          <TempoLottie source={require('@/assets/lottie/pulse.json')} size={110} style={styles.logoPulse} />
+          <Image
+            source={require('@/assets/images/tempo-logo.png')}
+            style={styles.logoImage}
+            accessibilityLabel="Tempo logo"
+          />
+        </View>
       </View>
 
       {/* Hero text */}
@@ -200,6 +208,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   logoArea: {
     alignItems: 'center',
     paddingTop: Spacing['2xl'],
+  },
+  logoStack: {
+    width: 110,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoPulse: {
+    position: 'absolute',
   },
   logoImage: {
     width: 88,

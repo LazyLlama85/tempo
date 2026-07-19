@@ -727,6 +727,34 @@ you moving."*
   `eas update`, the simulator, or by reading the code; the founder's on-device pass after the next EAS
   build is what actually proves the layout, the Dynamic Island regions, and the countdown all render
   correctly.
+  **Lottie for character/celebration animation (2026-07-19):** the founder wants a genuine
+  "Duolingo feel" — a recurring mascot ("Tempo Coach"), a live logo moment at sign-in — which the
+  app's existing hand-built `Animated`+SVG house style (`SvgProgressRing`, `TempoPulse`,
+  `celebration.tsx`'s `ConfettiBurst`) isn't suited to: rigged character animation is what Lottie
+  exists for, and hand-rolling it procedurally wouldn't reach the same quality. Added
+  `lottie-react-native` + `components/TempoLottie.tsx`, a thin wrapper handling Reduced Motion
+  (freezes on a static frame rather than vanishing), a `progress` prop for driving playback from real
+  app state instead of free-running, and an `onAnimationFailure` guard that hides the view rather than
+  crashing whatever screen embedded it — this is genuinely new infrastructure alongside the existing
+  hand-built primitives, not a replacement for them. **Built for the free tier of Lottie sourcing**
+  (the founder's own constraint): recoloring a free LottieFiles asset to Tempo's palette doesn't need
+  their paid recolor tool — `colorFilters` (free, part of the open-source library) recolors by layer
+  keypath, findable in LottieFiles' own free preview. `assets/lottie/README.md` has the full
+  free-tier workflow + where the eventual "Tempo Coach" character should go once designed.
+  **Wired to two placeholders today** (`assets/lottie/pulse.json`, hand-authored — a single breathing
+  circle in Tempo blue, since no real character design exists yet): a subtle accent behind the
+  wordmark on `sign-in.tsx` (the "live logo" moment), and a small badge above `FocusMode.tsx`'s rest
+  ring while resting (stands in for "the coach running while the timer spins" until a real animation
+  replaces it — ideally then driven by the same `progress` prop, synced to
+  `restSecondsLeft / restTotal`, the same idea as `SvgProgressRing`'s `value` prop). Also bundled
+  (not wired into any screen): `assets/lottie/LottieLogo1.json`, the official example animation from
+  the `lottie-react-native` repo itself (Apache 2.0, same repo as the dependency) — a real, complex,
+  known-good file kept purely as an on-device test fixture, to isolate whether a rendering problem is
+  the native Lottie setup itself or specifically the hand-authored `pulse.json`. **Needs the same
+  native rebuild as the Live Activity/tab-bar-blur work above** before any of it renders — like
+  those, code-verified only; the hand-authored `pulse.json` in particular has not been confirmed to
+  actually render correctly by any tool available in this environment (verified as valid JSON and
+  matched against the bodymovin schema by hand, not by an actual Lottie renderer).
   **Offline honesty:** starting a session verifies the `workout_logs` row actually inserted
   (otherwise an alert + stay on the hub — never a session where nothing can save); a set whose
   `set_logs` insert fails is visibly un-checked (one "didn't save" alert per session, the

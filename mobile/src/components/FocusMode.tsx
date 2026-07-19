@@ -21,6 +21,7 @@ import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale } from '@/components/motion'
 import { SvgProgressRing } from '@/components/SvgProgressRing'
+import { TempoLottie } from '@/components/TempoLottie'
 
 export interface FocusModeField {
   key: string
@@ -99,6 +100,14 @@ export function FocusMode({
         <View style={styles.setPill}>
           <Text style={styles.setPillText}>{setLabel}</Text>
         </View>
+
+        {/* "Tempo Coach" — a placeholder until a real running-coach animation
+            exists (see assets/lottie/README.md); only shown while resting,
+            purely decorative above the ring, so a failed/missing animation
+            never affects the countdown itself. */}
+        {resting && restSecondsLeft != null && (
+          <TempoLottie source={require('@/assets/lottie/pulse.json')} size={48} style={styles.coachBadge} />
+        )}
 
         <View
           style={styles.ringWrap}
@@ -212,6 +221,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
   setPillText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary, letterSpacing: 0.6 },
+  coachBadge: { alignSelf: 'center', marginTop: Spacing.md },
   ringWrap: { marginTop: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   ringCaption: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline, letterSpacing: 0.8, marginBottom: 6 },
   ringBig: { fontFamily: C.fontDisplay, fontSize: 44, color: C.text, letterSpacing: -1 },
