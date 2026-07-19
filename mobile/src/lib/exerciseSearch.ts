@@ -137,6 +137,15 @@ const ALIASES: Record<string, string> = {
   'delts': 'shoulders',
   'abs': 'abs core',
   'glute': 'glutes',
+  // Anatomical names vs. what people actually call these muscles — "hip
+  // adductor" exercises should surface for "inner thigh" (and the reverse),
+  // same idea for the outer-thigh/abductor pair.
+  'inner thigh': 'adductors',
+  'inner thighs': 'adductors',
+  'adductor': 'adductors',
+  'outer thigh': 'abductors',
+  'outer thighs': 'abductors',
+  'abductor': 'abductors',
 }
 
 function expandAliases(normalized: string): string {
