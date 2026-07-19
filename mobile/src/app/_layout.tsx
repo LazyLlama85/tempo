@@ -15,6 +15,7 @@ import { TutorialOverlay } from '@/components/TutorialOverlay'
 import { useTheme, useThemeStore, ThemeTransitionOverlay } from '@/theme'
 import { initAnalytics, track } from '@/lib/analytics'
 import { initCrashReporting, wrapWithCrashReporting, captureApiError } from '@/lib/crashReporting'
+import { TempoErrorBoundary } from '@/components/TempoErrorBoundary'
 import { supabase } from '@/lib/supabase'
 import {
   configurePurchases, identifyPurchases, resetPurchasesUser,
@@ -223,6 +224,7 @@ function RootLayout() {
   if (!ready) return null
 
   const app = (
+    <TempoErrorBoundary>
     <ThemeProvider value={NavTheme}>
         <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
         {/* Default push = native slide; modals below override with slide-up. */}
@@ -261,6 +263,7 @@ function RootLayout() {
         <ThemeTransitionOverlay />
         <TutorialOverlay />
       </ThemeProvider>
+    </TempoErrorBoundary>
   )
 
   // Persisted cache when storage is available (native); plain provider otherwise.
