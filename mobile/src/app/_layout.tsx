@@ -22,6 +22,7 @@ import {
 } from '@/lib/purchases'
 import { fetchProState } from '@/lib/proConfig'
 import { useEntitlementStore } from '@/stores/entitlements'
+import { endStaleRestActivities } from '@/widgets/RestTimerActivity'
 import {
   useFonts,
   Inter_400Regular,
@@ -182,6 +183,10 @@ function RootLayout() {
   useEffect(() => {
     initialize()
     track('app_open')
+    // Force-quit mid-rest safety net: don't leave a stale Live Activity on the
+    // Lock Screen any longer than it takes to reopen the app (iOS also
+    // auto-expires them on its own timeout, but this is faster and explicit).
+    endStaleRestActivities()
   }, [])
 
   // React Native has no "window focus" — tell React Query when the app comes

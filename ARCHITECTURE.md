@@ -702,6 +702,31 @@ you moving."*
   rehydrated** (stale ones are zero-length-closed) so no duplicate `workout_logs` rows are ever
   minted. **Complete Workout has guardrails**: a 0-set completion is blocked and a <50%-logged one
   asks first — an accidental tap can't mint a fake session into streak/consistency/adaptation.
+  **Rest-timer Live Activity, iOS only (2026-07-18, device-untested):** `src/widgets/RestTimerActivity.tsx`
+  — Lock Screen + Dynamic Island via `expo-widgets` (config-plugin driven; `expo-live-activity`, the
+  package this was originally researched against, turned out deprecated on npm mid-session, hence the
+  pivot). Shows the resting exercise's name and a countdown ring/digits that tick via SwiftUI's own
+  native `Text`/`ProgressView` `timerInterval`+`countsDown` props (the OS animates these itself from a
+  start/end `Date` pair — no per-second JS push, sidestepping ActivityKit's own update-rate limits).
+  Wired at exactly the 3 places the wall-clock rest timer already lives in `(tabs)/plan.tsx`:
+  `startRest`/`adjustRest`/`stopRest` call `startRestActivity`/`updateRestActivity`/`endRestActivity`
+  respectively (the tick effect's own auto-end-at-zero branch calls `endRestActivity` too); every
+  session-ending path (`finishWorkout`, `discardSession`, `onPauseChoice`'s pause branch) already
+  routed through `stopRest`, so all of them end the Activity for free. `_layout.tsx`'s app-open effect
+  calls `endStaleRestActivities()` as a force-quit-mid-rest safety net (iOS auto-expires stale
+  Activities on its own timeout regardless, but this is faster and explicit). **A real architectural
+  constraint, not a style choice:** the widget file imports ONLY from `expo-widgets` and
+  `@expo/ui/swift-ui*` — never Tempo's own theme/constants modules — because `expo-widgets` compiles
+  its `'widget'`-directive-marked layout function into native SwiftUI via an isolated build-time
+  bundling pass that stubs out `react`/`react-native`/`expo` entirely (see the package's own
+  `metro.config.js`); pulling in a normal RN module there would break that pass. Colors are hardcoded
+  hex literals for the same reason. **Deliberately iOS-only for now** (the founder's own call, given
+  a choice, after learning Android 16's "Live Updates" equivalent has no library at all — genuine
+  from-scratch Kotlin, sequenced as a later follow-up once this is proven on a device). **Needs one
+  new native rebuild before ANY of this is visible or testable** — nothing here can be verified by
+  `eas update`, the simulator, or by reading the code; the founder's on-device pass after the next EAS
+  build is what actually proves the layout, the Dynamic Island regions, and the countdown all render
+  correctly.
   **Offline honesty:** starting a session verifies the `workout_logs` row actually inserted
   (otherwise an alert + stay on the hub — never a session where nothing can save); a set whose
   `set_logs` insert fails is visibly un-checked (one "didn't save" alert per session, the

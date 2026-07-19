@@ -72,7 +72,8 @@
         }
       ],
       "expo-sharing",
-      "@sentry/react-native/expo"
+      "@sentry/react-native/expo",
+      "expo-widgets"
     ],
     "experiments": {
       "typedRoutes": true,

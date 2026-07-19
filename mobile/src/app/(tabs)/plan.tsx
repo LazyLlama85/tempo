@@ -43,6 +43,7 @@ import { FocusMode } from '@/components/FocusMode'
 import { OptionSheet } from '@/components/OptionSheet'
 import * as haptics from '@/lib/haptics'
 import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
+import { startRestActivity, updateRestActivity, endRestActivity } from '@/widgets/RestTimerActivity'
 import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
 import { useSessionActiveStore } from '@/stores/sessionActive'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
@@ -1089,7 +1090,7 @@ export default function WorkoutsScreen() {
     setRpeFollowUp({ exId, idx })
 
     // Auto-start the rest timer using this exercise's effective rest
-    startRest(restFor(exId))
+    startRest(restFor(exId), exercises.find(e => e.id === exId)?.name)
     // Rest deserves the whole screen — nothing else to do while it counts
     // down. Only auto-OPENS; never auto-closes an already-open Focus Mode
     // on a different exercise mid-flow.
@@ -1612,6 +1613,11 @@ export default function WorkoutsScreen() {
   // The countdown derives from the wall-clock end time, so backgrounding never
   // freezes it; the scheduled OS notification covers a locked phone. In the
   // foreground, completion is a vibration — not an Alert that steals the screen.
+  // Name of whatever's resting right now — set alongside restEndsAt so
+  // adjustRest (which only has a delta, not an exercise id) can still push a
+  // correctly-labeled Live Activity update.
+  const restExerciseName = useRef('Resting')
+
   useEffect(() => {
     if (restEndsAt === null) { setRestSecondsLeft(null); return }
     const tick = () => {
@@ -1621,6 +1627,7 @@ export default function WorkoutsScreen() {
         setRestSecondsLeft(null)
         haptics.warning()
         cancelRestDoneNotification().catch(() => {})
+        endRestActivity()
       } else {
         setRestSecondsLeft(left)
       }
@@ -1630,14 +1637,18 @@ export default function WorkoutsScreen() {
     return () => clearInterval(iv)
   }, [restEndsAt])
 
-  const startRest = (seconds: number) => {
+  const startRest = (seconds: number, exerciseName?: string) => {
+    restExerciseName.current = exerciseName ?? workout?.focus ?? 'Resting'
+    const endsAt = Date.now() + seconds * 1000
     setRestTotal(seconds)
-    setRestEndsAt(Date.now() + seconds * 1000)
+    setRestEndsAt(endsAt)
     scheduleRestDoneNotification(seconds).catch(() => {})
+    startRestActivity(restExerciseName.current, endsAt, seconds)
   }
   const stopRest = () => {
     setRestEndsAt(null)
     cancelRestDoneNotification().catch(() => {})
+    endRestActivity()
   }
 
   // Rest-length choices in a sheet, not Alert.alert (Android caps alerts at 3
@@ -1674,8 +1685,10 @@ export default function WorkoutsScreen() {
   const adjustRest = (deltaSec: number) => {
     if (restEndsAt === null) return
     haptics.tapLight()
-    setRestEndsAt(prev => (prev == null ? prev : Math.max(Date.now() + 1000, prev + deltaSec * 1000)))
+    const next = Math.max(Date.now() + 1000, restEndsAt + deltaSec * 1000)
+    setRestEndsAt(next)
     setRestTotal(t => Math.max(1, t + deltaSec))
+    updateRestActivity(restExerciseName.current, next, Math.max(1, restTotal + deltaSec))
   }
 
   const focusSkip = () => {
@@ -1698,7 +1711,7 @@ export default function WorkoutsScreen() {
     if (!Number.isFinite(secs) || secs <= 0) return
     setRestOverride(secs)
     if (workout) setRestPref(workout.focus, secs)
-    startRest(secs)
+    startRest(secs, exercises.find(e => e.id === focusExId)?.name)
   }
   const pickRest = (key: string) => {
     setRestSheet(false)
