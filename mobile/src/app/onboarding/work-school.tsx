@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 type PickerField = 'start' | 'end'
 
 export default function OnboardingWorkSchoolScreen() {
@@ -30,7 +30,7 @@ export default function OnboardingWorkSchoolScreen() {
   const router = useRouter()
   const { profile } = useAuthStore()
   const params = useLocalSearchParams<{
-    goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string; wake?: string; bed?: string
+    goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string; wake?: string; bed?: string; preferredCalendar?: string
   }>()
 
   // Pre-fill from whichever of the two fields is already set (Change Plan re-entry).
@@ -67,11 +67,11 @@ export default function OnboardingWorkSchoolScreen() {
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${(4 / TOTAL_STEPS) * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${(5 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 4 OF {TOTAL_STEPS}</Text>
+        <Text style={styles.stepLabel}>STEP 5 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>Work or school hours?</Text>
         <Text style={styles.subtitle}>Tempo schedules around this window instead of on top of it.</Text>
 

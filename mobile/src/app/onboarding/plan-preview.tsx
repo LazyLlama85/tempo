@@ -568,7 +568,7 @@ export default function PlanPreviewScreen() {
       ) : (
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView>
-          <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 6 OF 6'}</Text>
+          <Text style={styles.stepLabel}>{isReplan ? 'NEW PLAN' : 'STEP 7 OF 7'}</Text>
           <Text style={styles.title}>
             {isCustomBuild ? "You're all set." : isReplan ? 'Your new plan is ready.' : "Here's your plan."}
           </Text>

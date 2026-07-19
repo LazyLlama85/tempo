@@ -260,9 +260,43 @@ you moving."*
   blocks "Enter Tempo →". New `onboarding_calendar_prompt` analytics event
   (`connected_google`/`connected_device`/`failed`/`skipped`) tracks the offer's
   real conversion once a build ships. **Per-step funnel analytics (B0.3):** each
-  of the 6 onboarding screens now fires `onboarding_step_completed` on advance —
+  of the 7 onboarding screens now fires `onboarding_step_completed` on advance —
   previously only `onboarding_complete` (the very end) existed, so there was zero
   visibility into where users actually dropped off.
+  **`why-tempo.tsx` — the differentiator screen (new, 2026-07-18):** the wedge
+  fix above only reaches a user at step 6 of 6, right before they enter the app —
+  by then they've already answered five questions with no idea Tempo works
+  differently from a plain workout logger. New screen, new-users-only (a
+  re-planner skips straight from Basics to Schedule — they already know the app,
+  and this screen doesn't check for an existing calendar connection), inserted
+  right after Basics while attention is highest: **"Most apps just log
+  workouts. Tempo schedules them — around your real week."**, a small hand-built
+  entrance animation (a workout block sliding into the gap between two calendar
+  commitments — `Animated.spring` + `Animated.timing`, same house style as
+  `SvgProgressRing`/`TempoPulse`, no Lottie, with the same "never stuck
+  invisible" safety net every entrance in `components/motion.tsx` uses: values
+  start at rest, dip to hidden only in the same synchronous tick the animation
+  starts, and a JS deadline force-snaps to rest if the native driver ever
+  stalls), and the SAME optional calendar tap-in the reveal offers — reusing
+  `connectGoogleCalendar`/`requestCalendarPermissions`/`friendlyConnectError`
+  verbatim, not a second implementation. The one real constraint this screen
+  has that the reveal doesn't: no `user_profiles` row is guaranteed to exist
+  yet this early (`train-time.tsx` does the first upsert, several screens
+  later), so it never writes `preferred_calendar` directly — it forwards the
+  connected provider through the same params chain every other onboarding
+  answer already rides (`schedule.tsx` now explicitly threads a
+  `preferredCalendar` param it didn't need before; `sleep`/`work-school`/
+  `train-time` already forward unlisted params via `{...params}`/`params`
+  wholesale, so they needed no change beyond a type annotation), and
+  `plan-preview.tsx`'s existing upsert — which already read a
+  `preferredCalendar` param before this change, evidently built with this
+  exact follow-up in mind — persists it. `trackCalendarConnected` (already
+  de-duped per user+provider) fires from here too, so `calendar_connected` is
+  now captured at the earliest true moment rather than only at the reveal.
+  Onboarding is 7 steps end to end now, not 6 — every screen's `TOTAL_STEPS`
+  and `STEP N OF` label shifted accordingly (`goal.tsx` 1, `why-tempo.tsx` 2,
+  `schedule.tsx` 3, `sleep.tsx` 4, `work-school.tsx` 5, `train-time.tsx` 6,
+  `plan-preview.tsx` 7).
   **`plan_tour` (2026-07-17):** a second spotlight tour for the Plan
   tab — calendar (Week/Month + reschedule), current split, and the library doors — armed at the same
   new-user moment as the others and fired independently on Plan's own first post-welcome focus (a

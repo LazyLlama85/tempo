@@ -17,7 +17,7 @@ import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 type PickerField = 'wake' | 'bed'
 
 export default function OnboardingSleepScreen() {
@@ -26,7 +26,7 @@ export default function OnboardingSleepScreen() {
   const router = useRouter()
   const { profile } = useAuthStore()
   const params = useLocalSearchParams<{
-    goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string
+    goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string; includeCardio?: string; preferredCalendar?: string
   }>()
 
   const [wake, setWake] = useState<string | null>(profile?.wake_time ?? '06:30:00')
@@ -54,11 +54,11 @@ export default function OnboardingSleepScreen() {
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${(3 / TOTAL_STEPS) * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${(4 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 3 OF {TOTAL_STEPS}</Text>
+        <Text style={styles.stepLabel}>STEP 4 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>When do you sleep?</Text>
         <Text style={styles.subtitle}>Tempo never places a workout between bedtime and wake-up. You can change this later.</Text>
 

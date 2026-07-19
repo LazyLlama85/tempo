@@ -98,16 +98,18 @@ export default function BasicsScreen() {
     if (!canContinue) return
     if (cardIndex < cardCount - 1) { setCardIndex(cardIndex + 1); return }
     track('onboarding_step_completed', { step: 'basics', substeps: cardCount })
-    router.push({
-      pathname: '/onboarding/schedule',
-      params: { goal: goalSel!, experience: expSel, equipment: equipSel.join(','), buildMode: isReplan ? 'guided' : buildMode },
-    })
+    const nextParams = { goal: goalSel!, experience: expSel, equipment: equipSel.join(','), buildMode: isReplan ? 'guided' : buildMode }
+    // The "why Tempo" differentiator screen is for brand-new users only — a
+    // re-planner already knows the app (and may already have a calendar
+    // connected, which that screen doesn't check for) — straight to Schedule.
+    if (isReplan) router.push({ pathname: '/onboarding/schedule', params: nextParams })
+    else router.push({ pathname: '/onboarding/why-tempo', params: nextParams })
   }
 
   // Step 1 of 6 overall (2026-07-17: 6 lighter screens, up from 4 denser ones);
   // fill that first sixth across however many basics cards this account gets
   // (4 for a new user, 3 for a replan — no build-mode card).
-  const TOTAL_STEPS = 6
+  const TOTAL_STEPS = 7
   const progressPct = `${((cardIndex + 1) / cardCount) * (100 / TOTAL_STEPS)}%` as `${number}%`
 
   return (

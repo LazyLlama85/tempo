@@ -21,7 +21,7 @@ import { describeSaveError, isAuthError } from '@/lib/saveErrors'
 import type { TimeOfDay, UnavailableBlock, Equipment } from '@/types'
 
 const genId = () => `${Date.now()}-${Math.round(Math.random() * 1e6)}`
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 
 const DAYS: { iso: number; label: string }[] = [
   { iso: 1, label: 'Mon' }, { iso: 2, label: 'Tue' }, { iso: 3, label: 'Wed' },
@@ -39,7 +39,7 @@ export default function OnboardingTrainTimeScreen() {
   const { session, profile, refreshProfile } = useAuthStore()
   const params = useLocalSearchParams<{
     goal: string; experience: string; equipment: string; daysPerWeek: string; schedulingMode?: string; sessionMinutes?: string; buildMode?: string
-    includeCardio?: string; wake?: string; bed?: string; workSchoolStart?: string; workSchoolEnd?: string
+    includeCardio?: string; wake?: string; bed?: string; workSchoolStart?: string; workSchoolEnd?: string; preferredCalendar?: string
   }>()
 
   const [tod, setTod] = useState<TimeOfDay | null>(profile?.preferred_time_of_day ?? null)
@@ -139,11 +139,11 @@ export default function OnboardingTrainTimeScreen() {
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${(5 / TOTAL_STEPS) * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${(6 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 5 OF {TOTAL_STEPS}</Text>
+        <Text style={styles.stepLabel}>STEP 6 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>When do you want to train?</Text>
         <Text style={styles.subtitle}>Tempo aims for this window consistently, and never schedules a day you rule out.</Text>
 

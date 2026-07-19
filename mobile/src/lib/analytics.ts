@@ -61,13 +61,16 @@ export type EventProperties = {
   // PostHog funnel can localize drop-off to a step (B0.3 granularity) instead of
   // only knowing the start (signup) and end (onboarding_complete).
   onboarding_step_completed: {
-    step: 'basics' | 'schedule' | 'sleep' | 'work_school' | 'train_time' | 'plan_confirmed'
+    step: 'basics' | 'why_tempo' | 'schedule' | 'sleep' | 'work_school' | 'train_time' | 'plan_confirmed'
     substeps?: number
   }
-  // The optional calendar tap-in at the plan-preview reveal (B1.5-adjacent —
-  // this is the onboarding-time offer, not the Settings connect flow).
+  // The optional calendar tap-in — offered twice, at most: the early "why Tempo"
+  // differentiator screen (`context: 'why_tempo'`) and, if still unconnected, the
+  // plan-preview reveal (`context` omitted — kept optional so the reveal's
+  // existing call sites didn't need touching).
   onboarding_calendar_prompt: {
     action: 'connected_google' | 'connected_device' | 'failed' | 'skipped'
+    context?: 'why_tempo'
   }
   // A workout session was started (Quick Workout or a planned session).
   session_start: {

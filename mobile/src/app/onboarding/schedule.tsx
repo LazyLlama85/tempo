@@ -16,13 +16,13 @@ const SESSION_MINUTES = [30, 45, 60, 75, 90] as const
 // Onboarding step count (2026-07-17 restructure): 6 lighter, single-purpose
 // screens instead of 4 dense ones — Basics / Schedule / Sleep / Work-School /
 // Train Time / Plan Preview. Each screen keeps its own literal "STEP N OF 6".
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 
 export default function ScheduleScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
-  const { goal, experience, equipment, buildMode } = useLocalSearchParams<{ goal: string; experience: string; equipment: string; buildMode?: string }>()
+  const { goal, experience, equipment, buildMode, preferredCalendar } = useLocalSearchParams<{ goal: string; experience: string; equipment: string; buildMode?: string; preferredCalendar?: string }>()
   const { profile } = useAuthStore()
   // Change Plan re-entry keeps the user's current cadence.
   const [daysPerWeek, setDaysPerWeek] = useState(() => {
@@ -59,6 +59,7 @@ export default function ScheduleScreen() {
       params: {
         goal, experience, equipment, daysPerWeek: String(daysPerWeek), schedulingMode, sessionMinutes: String(sessionMinutes), buildMode,
         includeCardio: cardioMatters && includeCardio ? 'true' : 'false',
+        preferredCalendar,
       },
     })
   }
@@ -76,11 +77,11 @@ export default function ScheduleScreen() {
 
       {/* Progress bar */}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${(2 / TOTAL_STEPS) * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${(3 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.stepLabel}>STEP 2 OF {TOTAL_STEPS}</Text>
+        <Text style={styles.stepLabel}>STEP 3 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>Your training rhythm.</Text>
         <Text style={styles.subtitle}>How many days a week, and how long each session realistically is.</Text>
 
