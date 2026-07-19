@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter } from 'expo-router'
-import { Colors, Spacing, Radius } from '@/constants/theme'
+import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
 
@@ -120,11 +120,6 @@ export default function LegalScreen() {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
-  },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl },
 
   h1: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.4, marginTop: Spacing.sm },

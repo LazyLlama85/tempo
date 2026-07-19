@@ -3,7 +3,7 @@ import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, Spacing, Radius, Elevation } from '@/constants/theme'
+import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'

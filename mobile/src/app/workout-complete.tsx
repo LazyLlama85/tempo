@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
-import { Colors, Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
+import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
@@ -13,8 +13,9 @@ import { maybePromoteExperience, LEVEL_UP_COPY, type ExperiencePromotion } from 
 import { track } from '@/lib/analytics'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
-import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
+import { detectSessionPRs, type SessionPR } from '@/lib/prs'
 import { useWeightUnit } from '@/lib/units'
+import { PRCard } from '@/components/PRCard'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { SaveProgressSheet } from '@/components/SaveProgressSheet'
 import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
@@ -296,18 +297,7 @@ export default function WorkoutCompleteScreen() {
 
         {/* PRs — celebrate them aggressively, but only as the top-ranked card */}
         {hero === 'pr' && prs.length > 0 && (
-          <PopIn delay={260} style={styles.prCard}>
-            <View style={styles.prHeader}>
-              <Ionicons name="trophy" size={18} color="#fff" />
-              <Text style={styles.prHeaderText}>{prs.length === 1 ? 'NEW PERSONAL RECORD' : `${prs.length} NEW PERSONAL RECORDS`}</Text>
-            </View>
-            {prs.slice(0, 3).map((pr) => (
-              <View key={pr.exercise + pr.kind} style={styles.prRow}>
-                <Ionicons name="arrow-up-circle" size={16} color="#fff" />
-                <Text style={styles.prText}>{prLine(pr, unit)}</Text>
-              </View>
-            ))}
-          </PopIn>
+          <PRCard prs={prs} unit={unit} variant="hero" delay={260} />
         )}
 
         {/* Streak + stat tiles — the default "moment" when nothing higher-ranked fired */}
@@ -315,7 +305,7 @@ export default function WorkoutCompleteScreen() {
           <>
             <FadeInView delay={280} style={[styles.card, styles.streakCard]}>
               <View style={styles.streakRow}>
-                <Ionicons name="flame" size={22} color="#fff" />
+                <Ionicons name="flame" size={22} color={C.onPrimary} />
                 <Text style={styles.streakTag}>STREAK</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
@@ -459,7 +449,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   badge: {
     width: 88, height: 88, borderRadius: Radius.full, backgroundColor: C.primary,
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
-    shadowColor: '#4E8BFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.32, shadowRadius: 24, elevation: 8,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.32, shadowRadius: 24, elevation: 8,
   },
   coachCelebrate: { alignSelf: 'center', marginBottom: Spacing.xs },
   title: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.5, textAlign: 'center', marginTop: Spacing.sm },
@@ -481,7 +471,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   levelCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.primary, borderRadius: Radius.xl, padding: Spacing.lg, marginTop: Spacing.xs,
-    shadowColor: '#4E8BFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.34, shadowRadius: 22, elevation: 9,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.34, shadowRadius: 22, elevation: 9,
   },
   levelBadge: {
     width: 52, height: 52, borderRadius: Radius.full, backgroundColor: C.gold,
@@ -489,17 +479,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     shadowColor: C.gold, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 10, elevation: 4,
   },
   levelTag: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.gold, letterSpacing: 1.2 },
-  levelTitle: { fontFamily: C.fontDisplay, fontSize: 19, color: '#fff', letterSpacing: -0.3, marginTop: 2, marginBottom: 4 },
+  levelTitle: { fontFamily: C.fontDisplay, fontSize: 19, color: C.onPrimary, letterSpacing: -0.3, marginTop: 2, marginBottom: 4 },
   levelBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: 'rgba(255,255,255,0.86)', lineHeight: 19 },
 
-  prCard: { backgroundColor: '#B8860B', borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.xs, marginTop: Spacing.xs },
-  prHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  prHeaderText: { fontFamily: C.fontDisplay, fontSize: 12, color: '#fff', letterSpacing: 0.6 },
-  prRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  prText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: '#fff' },
   streakRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   streakTag: { fontFamily: 'Inter_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.6 },
-  streakNum: { fontFamily: C.fontDisplay, fontSize: 44, color: '#fff', letterSpacing: -1.5, lineHeight: 48 },
+  streakNum: { fontFamily: C.fontDisplay, fontSize: 44, color: C.onPrimary, letterSpacing: -1.5, lineHeight: 48 },
   streakUnit: { fontFamily: 'Inter_400Regular', fontSize: 22, color: 'rgba(255,255,255,0.8)' },
   streakCaption: { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 20 },
 

@@ -13,11 +13,12 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { PressableScale } from '@/components/motion'
+import { PRCard } from '@/components/PRCard'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { detectSessionPRs, prLine, type SessionPR } from '@/lib/prs'
+import { detectSessionPRs, type SessionPR } from '@/lib/prs'
 import { useWeightUnit, unitLabel, formatWeight, displayVolume, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
 import { describeSaveError } from '@/lib/saveErrors'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
@@ -239,19 +240,7 @@ export default function SessionDetailScreen() {
             )}
           </View>
 
-          {prs.length > 0 && (
-            <View style={styles.prCard}>
-              <View style={styles.prHeader}>
-                <Ionicons name="trophy" size={15} color="#fff" />
-                <Text style={styles.prHeaderText}>
-                  {prs.length === 1 ? 'PERSONAL RECORD' : `${prs.length} PERSONAL RECORDS`}
-                </Text>
-              </View>
-              {prs.slice(0, 3).map(pr => (
-                <Text key={pr.exercise + pr.kind} style={styles.prText}>{prLine(pr, unit)}</Text>
-              ))}
-            </View>
-          )}
+          {prs.length > 0 && <PRCard prs={prs} unit={unit} variant="compact" />}
 
           {groups.length === 0 ? (
             <Text style={styles.emptyText}>No sets were logged in this session.</Text>
@@ -363,11 +352,6 @@ export default function SessionDetailScreen() {
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
-  },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.sm },
   eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 26, color: C.text, letterSpacing: -0.3, marginTop: -4 },
@@ -378,10 +362,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingHorizontal: Spacing.sm, paddingVertical: 5,
   },
   statChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
-  prCard: { backgroundColor: '#B8860B', borderRadius: Radius.lg, padding: Spacing.md, gap: 4 },
-  prHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  prHeaderText: { fontFamily: C.fontDisplay, fontSize: 11, color: '#fff', letterSpacing: 0.6 },
-  prText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: '#fff' },
   exCard: {
     backgroundColor: C.background, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: C.outlineVariant, padding: Spacing.md, gap: 6, ...CardShadow,

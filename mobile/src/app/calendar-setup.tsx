@@ -261,11 +261,6 @@ export default function CalendarSetupScreen() {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
-  },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.md },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
   reconnectBanner: {

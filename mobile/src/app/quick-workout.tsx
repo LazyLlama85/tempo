@@ -4,7 +4,7 @@ import { TempoPulse, ScreenHeader, DismissButton } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
-import { Colors, Spacing, Radius, CardShadow } from '@/constants/theme'
+import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -452,12 +452,6 @@ export default function QuickWorkoutScreen() {
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
-  },
-  iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: 120, gap: Spacing.md },
 
   lead: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.3, marginTop: Spacing.xs },

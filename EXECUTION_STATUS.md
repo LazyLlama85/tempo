@@ -14,7 +14,22 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-19, latest): C1 (shared date utilities) is also done — the first P1 batch.**
+- **NEW (2026-07-19, latest): C2 (theme sweep) is done — the second P1 batch.** Built a shared
+  `components/PRCard.tsx` (themed via `C.gold`/`C.onPrimary`, `variant="hero"` animated for
+  `workout-complete.tsx`, `variant="compact"` static for `session-detail.tsx`) and replaced both
+  files' duplicated, hardcoded `#B8860B` gold-card blocks with it — the bug was real: `#B8860B`
+  doesn't adapt to the light "Paper" theme, rendering as a muddy dark gold. Also fixed
+  `workout-complete.tsx`'s two `shadowColor: '#4E8BFF'` shadows to `C.primary` and its opaque
+  `'#fff'` text/icons on brand-colored cards to `C.onPrimary` (left the established
+  `rgba(255,255,255,x)` partial-opacity overlays alone — that pattern is already used the same way
+  in 10+ other files, not a theme bug). Removed the dead `Colors` import from 14 files and dead
+  `header`/`headerTitle`/`iconBtn` StyleSheet leftovers (from the earlier `ScreenHeader` migration)
+  from 20 files — confirmed every removal was genuinely unused (grepped for `styles.header`-style
+  references) before deleting, not a blind sweep. `tsc` clean, full suite green (245/245).
+  **Next up: C3 (shared ProPill + unified loading component)** through C10 (dependency hygiene) —
+  see `MASTER_FIX_PLAN.md`'s P1 section, each with its own Sonnet prompt.
+
+- **2026-07-19: C1 (shared date utilities) is also done — the first P1 batch.**
   Added `lib/dates.ts` (DST-safe, local-time `todayStr`/`toDateStr`/`addDays`/`daysBetween`/
   `atMinute`) and migrated 18 modules that each had their own duplicate date-string helper,
   finding two real bugs along the way (not just duplication): `adaptation.ts`'s `weeksBetween`
@@ -225,7 +240,7 @@
   (needs the founder's per-screen judgment, not a unilateral cut); B4.x (accountability loop,
   referral) and Tempo Coach — all correctly blocked by the M4 freeze until B0.3 has real data.
 
-- **Last updated:** 2026-07-17
+- **Last updated:** 2026-07-19
 
 ---
 

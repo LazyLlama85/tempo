@@ -837,7 +837,7 @@ if the diff is large (e.g. scheduling modules in one commit, adaptation/streak/r
 
 ---
 
-### C2 — Theme sweep (kill hardcoded colors + dead imports/styles)
+### C2 — Theme sweep (kill hardcoded colors + dead imports/styles) — ✅ DONE 2026-07-19
 
 **The problem:**
 - A PR-celebration gold card is duplicated verbatim between `workout-complete.tsx:495` and

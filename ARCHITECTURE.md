@@ -1080,6 +1080,10 @@ bug).
 buttons over `lib/accountLinking`, shared by the Profile card and the post-3rd-workout modal;
 account-protection wording, never a hard gate),
 `WrappedCard`, `TimePickerSheet`, `LoadingCard` (shimmer skeleton), `ErrorBanner`,
+**`PRCard`** (personal-record celebration card, themed via `C.gold`/`C.onPrimary` — `variant="hero"`
+animated w/ icon rows for `workout-complete`, `variant="compact"` static for `session-detail`;
+replaces the two files' formerly-duplicated, hardcoded-`#B8860B` inline blocks — MASTER_FIX_PLAN.md
+C2),
 **`CustomExerciseSheet`** (create/edit a custom exercise), **`ExercisePickerSheet`** (search library +
 custom, add to a workout — the fast in-context picker used by `split-editor`/`edit-session`; the
 main workout-builder flow now opens `exercise-library` directly instead, for its richer equipment

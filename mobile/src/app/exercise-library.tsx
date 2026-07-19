@@ -274,11 +274,6 @@ function Chip({ label, on, onPress, styles, small }: { label: string; on: boolea
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm,
-  },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
     marginHorizontal: Spacing.containerPadding, marginBottom: Spacing.xs,

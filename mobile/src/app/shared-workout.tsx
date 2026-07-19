@@ -204,8 +204,6 @@ function MetaChip({ C, styles, icon, label }: { C: Palette; styles: any; icon: s
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.containerPadding, paddingVertical: Spacing.sm },
-  headerTitle: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.2 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   hero: { gap: 4, paddingTop: Spacing.sm },
   shareBadge: {
