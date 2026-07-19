@@ -222,9 +222,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   logoArea: {
     alignItems: 'center',
+    marginTop: -Spacing.xl,
+    marginBottom: Spacing.md,
   },
   coachWave: {
     alignSelf: 'center',
+    marginTop: Spacing.md,
   },
   logoImage: {
     width: 88,
