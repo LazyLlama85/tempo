@@ -27,6 +27,7 @@ import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/Calendar
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
+import { refreshAdaptation } from '@/lib/adaptation'
 import { resolveCalendarConflicts, autoScheduleUpcoming } from '@/lib/autoSchedule'
 import { refreshActiveSplit } from '@/lib/splitSchedule'
 import { extendActivePlan } from '@/lib/generatePlan'
@@ -40,6 +41,7 @@ import {
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { describeSaveError } from '@/lib/saveErrors'
 import { dedupeScheduledWorkouts } from '@/lib/dedupeSchedule'
+import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { suggestNextSlot, rescheduleWorkout, type SlotSuggestion } from '@/lib/reschedule'
 import { getQuickSuggestion } from '@/lib/quickSuggestion'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
@@ -557,10 +559,26 @@ export default function ScheduleScreen() {
     }
   }
 
-  // On entry: collapse duplicate days, then mark past-due 'scheduled' as 'missed'.
+  // On entry: the single owner of the full app-open sweep (previously also
+  // triggered independently from the auth listener, with no ordering
+  // guarantee against this effect — the race behind MASTER_FIX_PLAN.md F1's
+  // plan-cliff bug). Fixed sequence, documented once here so it can't drift:
+  //   dedupe -> missed -> adaptation -> extend -> autoschedule -> splits ->
+  //   travel -> conflicts.
+  // Dedupe and the missed-workout sweep both run BEFORE extendActivePlan on
+  // purpose: either can clear a stale 'scheduled' row that would otherwise
+  // block the rollover's insert for that date (dedupe removes it outright;
+  // marking it 'missed' takes it out of the partial unique index's scope,
+  // since that index only covers status='scheduled'). Adaptation runs before
+  // extend too, so any mode change settles before rollover reads week_offset.
   useEffect(() => {
     if (!userId) return
     ;(async () => {
+      await dedupeScheduledWorkouts(supabase, userId)
+      await checkMissedWorkouts(supabase, userId)
+      // Let real signals (missed sessions, repeated "too hard") feed the
+      // mesocycle — enough misses shifts the coming weeks into recovery/deload.
+      try { await refreshAdaptation(supabase, userId) } catch { /* ignore */ }
       // The plan never just ends: when the active plan's runway is short, lay the
       // next mesocycle block onto the calendar, then place its times around the
       // user's real day. Best-effort; a no-op while weeks of plan remain.
@@ -576,23 +594,20 @@ export default function ScheduleScreen() {
       }
       // If a custom split is active, roll its rolling horizon forward so upcoming
       // weeks are always populated. Best-effort; no-op when no split is active.
-      let splitAdded = 0
-      try { splitAdded = await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null) } catch { /* ignore */ }
+      try { await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null) } catch { /* ignore */ }
       // Travel mode: adapt (or restore) every upcoming session to the equipment the
       // user has right now. Runs after plan/split materialization so freshly-added
       // rows get adapted too. Best-effort.
-      let travelChanged = 0
-      try { travelChanged = await syncTravelSchedule(supabase, userId) } catch { /* ignore */ }
-      const removed = await dedupeScheduledWorkouts(supabase, userId)
-      const missedCount = await checkMissedWorkouts(supabase, userId)
+      try { await syncTravelSchedule(supabase, userId) } catch { /* ignore */ }
       // Quietly re-slot only the workouts a real calendar event now overlaps (same
       // day). Best-effort — a calendar/network hiccup never blocks the feed.
-      let conflictsMoved = 0
-      try { conflictsMoved = await resolveCalendarConflicts(supabase, userId) } catch { /* leave times as-is */ }
-      if (removed > 0 || missedCount > 0 || conflictsMoved > 0 || splitAdded > 0 || planAdded > 0 || travelChanged > 0) {
-        queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-      }
-      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+      try { await resolveCalendarConflicts(supabase, userId) } catch { /* leave times as-is */ }
+      // A partial 2-key invalidation here used to leave block_phase/next_workout/
+      // goal_projection stale after a rollover or adaptation restamp — this sweep
+      // can change any of them (including refreshAdaptation's restamp, which has
+      // no tracked count), so it invalidates the full training-data set every
+      // time it runs. Runs once per Home mount, so the extra cost is negligible.
+      invalidateTrainingData(queryClient)
 
       // Auto-add upcoming workouts to the user's calendar (when on + connected).
       // Best-effort; refresh the event layer if anything new landed.

@@ -5,7 +5,8 @@
 // This is NOT a general Postgrest mock. It supports exactly the filter/write
 // shapes the modules under test actually use (eq/gte/lt/in, the one .or()
 // shape shared by retireWorkouts.ts + missedWorkouts.ts, delete, update,
-// insert, maybeSingle, select-after-update). Extend it only when a new
+// insert, maybeSingle, select-after-update, plus order/limit/is/count for
+// generatePlan.test.ts's rollover coverage). Extend it only when a new
 // integration test needs a new shape — a bigger mock than the tests require
 // is exactly the kind of unrequested abstraction CLAUDE.md's guardrails warn
 // against.
@@ -47,21 +48,33 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
     const filters: ((r: Row) => boolean)[] = []
     let op: { kind: 'select' } | { kind: 'delete' } | { kind: 'update'; patch: Row } | { kind: 'insert'; rows: Row[] } = { kind: 'select' }
     let single = false
+    let wantCount = false
+    let headOnly = false
+    let orderCol: string | null = null
+    let orderAsc = true
+    let limitN: number | null = null
 
     const api: any = {
-      select: () => api,
+      select: (_cols?: string, opts?: { count?: 'exact'; head?: boolean }) => {
+        if (opts?.count === 'exact') wantCount = true
+        if (opts?.head) headOnly = true
+        return api
+      },
       eq: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
       neq: (col: string, val: any) => { filters.push((r) => r[col] !== val); return api },
+      is: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
       gte: (col: string, val: any) => { filters.push((r) => r[col] >= val); return api },
       lte: (col: string, val: any) => { filters.push((r) => r[col] <= val); return api },
       lt: (col: string, val: any) => { filters.push((r) => r[col] < val); return api },
       in: (col: string, vals: any[]) => { filters.push((r) => vals.includes(r[col])); return api },
       or: (expr: string) => { filters.push(parseOrClause(expr)); return api },
+      order: (col: string, opts?: { ascending?: boolean }) => { orderCol = col; orderAsc = opts?.ascending !== false; return api },
+      limit: (n: number) => { limitN = n; return api },
       delete: () => { op = { kind: 'delete' }; return api },
       update: (patch: Row) => { op = { kind: 'update', patch }; return api },
       insert: (rows: Row | Row[]) => { op = { kind: 'insert', rows: Array.isArray(rows) ? rows : [rows] }; return api },
       maybeSingle: () => { single = true; return api },
-      then: (resolve: (v: { data: any; error: any }) => void, reject?: (e: any) => void) => {
+      then: (resolve: (v: { data: any; error: any; count?: number }) => void, reject?: (e: any) => void) => {
         try {
           const opKey = `${table}.${op.kind}`
           if (failOps.has(opKey)) {
@@ -74,7 +87,17 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
             return
           }
           const all = tables[table] ?? []
-          const matched = all.filter((r) => filters.every((f) => f(r)))
+          let matched = all.filter((r) => filters.every((f) => f(r)))
+          if (orderCol) {
+            const col = orderCol
+            matched = [...matched].sort((a, b) => {
+              if (a[col] === b[col]) return 0
+              const cmp = a[col] > b[col] ? 1 : -1
+              return orderAsc ? cmp : -cmp
+            })
+          }
+          if (limitN != null) matched = matched.slice(0, limitN)
+
           let result: any
           if (op.kind === 'select') {
             result = matched
@@ -85,7 +108,9 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
             for (const r of matched) Object.assign(r, op.patch)
             result = matched
           }
-          resolve({ data: single ? (result[0] ?? null) : result, error: null })
+          const data = headOnly ? null : (single ? (result[0] ?? null) : result)
+          if (wantCount) { resolve({ data, error: null, count: result.length }); return }
+          resolve({ data, error: null })
         } catch (e) {
           if (reject) reject(e); else throw e
         }

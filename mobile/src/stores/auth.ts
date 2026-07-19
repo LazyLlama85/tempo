@@ -2,8 +2,6 @@ import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import type { UserProfile } from '@/types'
-import { checkMissedWorkouts } from '@/lib/missedWorkouts'
-import { refreshAdaptation } from '@/lib/adaptation'
 import { identifyUser, resetUser, track } from '@/lib/analytics'
 import { setCrashUser } from '@/lib/crashReporting'
 import { registerPushToken, unregisterPushToken } from '@/lib/pushTokens'
@@ -39,11 +37,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         registerPushToken(supabase, session.user.id).catch(() => {})
         // Social: award competitive badges for the closed week/month + publish streak milestones.
         syncSocialOnOpen(supabase, session.user.id, profile?.days_per_week).catch(() => {})
-        // Mark past-due workouts missed, then let those misses feed the mesocycle
-        // (enough missed sessions shifts the coming weeks into recovery/deload).
-        checkMissedWorkouts(supabase, session.user.id)
-          .then(() => refreshAdaptation(supabase, session.user.id))
-          .catch(() => {})
+        // Missed-workout + adaptation used to also run here, racing Home's own
+        // app-open sweep with no ordering guarantee between the two — the exact
+        // mechanism behind a plan-cliff bug (MASTER_FIX_PLAN.md F1/F5). Home's
+        // sweep ((tabs)/index.tsx) now owns both, in the order that matters.
       }
     })
 
@@ -77,9 +74,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         })
         registerPushToken(supabase, session.user.id).catch(() => {})
         syncSocialOnOpen(supabase, session.user.id, profile?.days_per_week).catch(() => {})
-        checkMissedWorkouts(supabase, session.user.id)
-          .then(() => refreshAdaptation(supabase, session.user.id))
-          .catch(() => {})
+        // Missed-workout + adaptation: see the comment in the getSession() path
+        // above — both now run once, from Home's own app-open sweep.
       }
     })
   },

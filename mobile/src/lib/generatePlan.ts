@@ -8,6 +8,7 @@ import { sweepScheduledPlanRows } from '@/lib/retireWorkouts'
 import { ensureAutoSplit } from '@/lib/splits'
 import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgramming'
 import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
+import { captureApiError } from '@/lib/crashReporting'
 
 export interface PlanProfile {
   goal: Goal
@@ -680,6 +681,11 @@ function buildBlockRows(
         source: 'plan',
         exercise_ids: exerciseIds,
         week_index: week,
+        // The pure date-offset meaning of `week` — never rewritten by
+        // adaptation.applyAdaptationMode (only week_index is), so rollover
+        // can always trust it to mean "weeks since plan start" (see
+        // add_week_offset.sql / MASTER_FIX_PLAN.md F1).
+        week_offset: week,
         progression,
       })
 
@@ -726,15 +732,18 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
     today.setHours(0, 0, 0, 0)
     if (!planNeedsExtension(lastRow.planned_date as string, today, PLAN_RUNWAY_DAYS)) return 0
 
+    // week_offset (not week_index — see add_week_offset.sql) is the field that
+    // actually means "weeks since plan start"; week_index can have been
+    // re-anchored by adaptation.applyAdaptationMode and no longer means that.
     const { data: lastWeekRow } = await client
       .from('scheduled_workouts')
-      .select('week_index')
+      .select('week_offset')
       .eq('user_id', userId)
       .eq('user_plan_id', plan.id)
-      .order('week_index', { ascending: false })
+      .order('week_offset', { ascending: false })
       .limit(1)
       .maybeSingle()
-    const lastWeek = (lastWeekRow?.week_index as number | null) ?? (BLOCK_WEEKS - 1)
+    const lastWeek = (lastWeekRow?.week_offset as number | null) ?? (BLOCK_WEEKS - 1)
 
     const { data: p } = await client
       .from('user_profiles')
@@ -775,17 +784,35 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
     )
     if (!rows.length) return 0
 
-    const { error } = await client.from('scheduled_workouts').insert(rows)
-    if (error) return 0
+    // One row at a time, not one bulk insert: a single stale row already
+    // occupying a target date (scheduled_workouts_one_plan_per_day) used to
+    // fail the WHOLE statement, silently voiding the entire block. Each row
+    // now succeeds or fails independently, so one blocked date can't cost the
+    // other ~27. Failures are reported (not swallowed) so a persistent block
+    // is at least visible in Sentry instead of silently reopening the cliff
+    // on every app open.
+    let inserted = 0
+    for (const row of rows) {
+      const { error } = await client.from('scheduled_workouts').insert(row)
+      if (error) {
+        captureApiError('extendActivePlan.insert', error, { userId, planId: plan.id, row })
+      } else {
+        inserted++
+      }
+    }
+    if (inserted === 0) return 0
 
     // Push the plan's bookkeeping end-date out to cover the new block (best-effort).
     const endDate = new Date(startMonday)
     endDate.setDate(startMonday.getDate() + (weekFrom + weekCount) * 7)
     await client.from('user_plans').update({ end_date: formatDate(endDate) }).eq('id', plan.id)
 
-    return rows.length
-  } catch {
-    return 0 // rollover must never break app open
+    return inserted
+  } catch (err) {
+    // Rollover must never break app open — but a silent catch{return 0} here
+    // was exactly how the plan-cliff bug went unnoticed; report it now.
+    captureApiError('extendActivePlan', err, { userId })
+    return 0
   }
 }
 
