@@ -702,8 +702,14 @@ you moving."*
   rehydrated** (stale ones are zero-length-closed) so no duplicate `workout_logs` rows are ever
   minted. **Complete Workout has guardrails**: a 0-set completion is blocked and a <50%-logged one
   asks first — an accidental tap can't mint a fake session into streak/consistency/adaptation.
-  **Rest-timer Live Activity, iOS only (2026-07-18, device-untested):** `src/widgets/RestTimerActivity.tsx`
-  — Lock Screen + Dynamic Island via `expo-widgets` (config-plugin driven; `expo-live-activity`, the
+  **Rest-timer Live Activity, iOS only (2026-07-18, device-untested):**
+  `src/widgets/RestTimerActivity.ios.tsx` (real implementation) + a bare `RestTimerActivity.tsx`
+  no-op sibling for Android/web (2026-07-19 fix — `@expo/ui/swift-ui`'s components call into a
+  native view manager that doesn't exist off iOS, and merely *importing* the file broke Android AND
+  web bundling even behind a `Platform.OS` runtime check, since the import itself executes before
+  any guard can run; Metro's platform-extension resolution keeps the two files apart instead, the
+  standard fix for this class of problem). — Lock Screen + Dynamic Island via `expo-widgets`
+  (config-plugin driven; `expo-live-activity`, the
   package this was originally researched against, turned out deprecated on npm mid-session, hence the
   pivot). Shows the resting exercise's name and a countdown ring/digits that tick via SwiftUI's own
   native `Text`/`ProgressView` `timerInterval`+`countsDown` props (the OS animates these itself from a
@@ -739,7 +745,14 @@ you moving."*
   `@lottiefiles/dotlottie-react` is also required (`lottie-react-native`'s own web-platform
   fallback imports it directly — this project's `app.json` still exposes a `web` target for local
   `expo start` preview, and Metro resolves platform-specific files even for a module that's really
-  only meant to run on iOS/Android here, so the dependency has to exist regardless).
+  only meant to run on iOS/Android here, so the dependency has to exist regardless). That package's
+  own player is WASM-based (`@lottiefiles/dotlottie-web`'s `dotlottie-player.wasm`) — Metro's default
+  resolver doesn't treat `.wasm` as a bundleable asset, so **this project's first-ever
+  `metro.config.js`** exists solely to push `'wasm'` onto `resolver.assetExts`. Verified end to end
+  with a real `npx expo export --platform web` (not just a guess) — first failed on the wasm
+  resolution, then (after the metro.config fix) failed differently on
+  `requireNativeViewManager is not available on web` from the Live Activity widget file below, then
+  succeeded cleanly once that was also split by platform.
   **The character itself is the blue runner from the app icon** (`brand-assets/app-icon-512.png`) —
   the founder identified it as "Tempo Coach" and supplied a reference sheet
   (`brand-assets/tempo-coach-reference-sheet.jpeg`) extending it into 8 poses (idle, walking,
