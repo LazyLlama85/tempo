@@ -19,6 +19,7 @@ import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSch
 import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
+import { captureApiError } from '@/lib/crashReporting'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
@@ -167,13 +168,22 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
     const start = new Date(slot.startTime)
     const newTime = fmtClock(start)
     if (newTime !== w.planned_start_time) {
-      await client.from('scheduled_workouts')
+      // Best-effort by design (this is a quiet re-optimization, not a user
+      // action to fail loudly on) — but a silently-discarded error here used
+      // to mean the calendar event/reminder could get resynced to a time the
+      // DB row never actually moved to. Only resync + count it on success,
+      // and report a failure so DB/calendar divergence is at least visible.
+      const { error } = await client.from('scheduled_workouts')
         .update({ planned_start_time: newTime })
         .eq('id', w.id)
         .eq('user_id', userId)
-      // Keep the synced calendar event + local reminder pointed at the new time.
-      await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
-      moved++
+      if (error) {
+        captureApiError('autoScheduleUpcoming.updateTime', error, { userId, workoutId: w.id })
+      } else {
+        // Keep the synced calendar event + local reminder pointed at the new time.
+        await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
+        moved++
+      }
     }
     occupied.push({ start, end: new Date(start.getTime() + w.planned_duration_min * 60_000) })
   }
@@ -264,13 +274,19 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
     const ns = new Date(slot.startTime)
     const newTime = fmtClock(ns)
     if (newTime !== w.planned_start_time) {
-      await client.from('scheduled_workouts')
+      // Same reasoning as autoScheduleUpcoming above: only resync + count on
+      // a confirmed write, and report a failure instead of discarding it.
+      const { error } = await client.from('scheduled_workouts')
         .update({ planned_start_time: newTime })
         .eq('id', w.id)
         .eq('user_id', userId)
-      // Keep the synced calendar event + local reminder pointed at the new time.
-      await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
-      moved++
+      if (error) {
+        captureApiError('resolveCalendarConflicts.updateTime', error, { userId, workoutId: w.id })
+      } else {
+        // Keep the synced calendar event + local reminder pointed at the new time.
+        await resyncMovedWorkout(client, userId, { ...w, planned_start_time: newTime })
+        moved++
+      }
     }
     occupied.push({ start: ns, end: new Date(ns.getTime() + w.planned_duration_min * 60_000) })
   }

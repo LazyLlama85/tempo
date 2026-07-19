@@ -8,6 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Experience } from '@/types'
 import { weekProgression, type AdaptationMode } from '@/lib/periodization'
+import { captureApiError } from '@/lib/crashReporting'
 
 export type WorkoutFeel = 'too_easy' | 'just_right' | 'too_hard'
 
@@ -179,13 +180,18 @@ export async function applyAdaptationMode(
       ? mondayOf(new Date(plan.start_date + 'T00:00:00'))
       : mondayOf(new Date(future[0].planned_date + 'T00:00:00'))
 
+  // Each row updates independently (no transaction) — if one fails partway
+  // through, the plan is left with SOME rows on the new mode and some not.
+  // Reporting failures (rather than silently ignoring them, as before) at
+  // least makes a partial restamp visible instead of an invisible split state.
+  let failedIds: string[] = []
   for (const w of future) {
     const weekIndex = Math.max(0, weeksBetween(anchorMonday, mondayOf(new Date(w.planned_date + 'T00:00:00'))))
     const progression = weekProgression(weekIndex, experience, mode)
     const focus = progression.isDeload
       ? `${stripDeload(w.focus)} (Deload)`
       : stripDeload(w.focus)
-    await client
+    const { error } = await client
       .from('scheduled_workouts')
       .update({
         week_index: weekIndex,
@@ -194,6 +200,12 @@ export async function applyAdaptationMode(
         planned_duration_min: progression.isDeload ? Math.round(baseDuration * 0.85) : baseDuration,
       })
       .eq('id', w.id)
+    if (error) failedIds.push(w.id)
+  }
+  if (failedIds.length) {
+    captureApiError('applyAdaptationMode.restamp', new Error('partial restamp failure'), {
+      userId, mode, failedCount: failedIds.length, totalCount: future.length, failedIds,
+    })
   }
 
   await client.from('user_plans').update({ adaptation_mode: mode }).eq('id', plan.id)

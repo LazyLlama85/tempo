@@ -271,11 +271,17 @@ export async function rescheduleWorkout(
   workoutId: string,
   slot: SlotSuggestion,
 ): Promise<void> {
-  await client
+  // Supabase returns { error } rather than throwing — this used to be
+  // destructured and discarded, so a failed write (offline, RLS) left the UI
+  // showing the workout "moved" while the DB row never changed. Throwing here
+  // routes the failure through the caller's existing try/catch (index.tsx's
+  // confirmMoveWorkout already shows a real "Could not reschedule" alert).
+  const { error } = await client
     .from('scheduled_workouts')
     .update({ planned_date: slot.date, planned_start_time: slot.start_time, status: 'scheduled' })
     .eq('id', workoutId)
     .eq('user_id', userId)
+  if (error) throw error
 
   try {
     await client.from('adaptation_events').insert({

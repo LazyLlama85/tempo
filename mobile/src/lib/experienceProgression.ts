@@ -138,7 +138,12 @@ export async function maybePromoteExperience(
     const earned = earnedLevel(current, completed, tooEasy)
     if (earned === current) return null
 
-    await client.from('user_profiles').update({ experience: earned }).eq('user_id', userId)
+    // If this write fails, the celebration + restamp below must NOT fire —
+    // otherwise the user sees "LEVEL UP" and gets tomorrow's session restamped
+    // against a level the profile was never actually updated to, and the whole
+    // promotion evaporates the next time the profile is read from the server.
+    const { error } = await client.from('user_profiles').update({ experience: earned }).eq('user_id', userId)
+    if (error) return null
 
     // Best-effort audit; mirrors how adaptation.ts records its decisions.
     client

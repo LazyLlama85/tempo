@@ -14,6 +14,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience } from '@/types'
 import { effectiveEquipment } from '@/lib/travelMode'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
+import { resyncMovedWorkout } from '@/lib/moveWorkout'
+import { captureApiError } from '@/lib/crashReporting'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -507,7 +509,7 @@ export async function persistQuickWorkout(
   try {
     const { data: todayPlanned } = await client
       .from('scheduled_workouts')
-      .select('id, focus')
+      .select('id, focus, planned_start_time, planned_duration_min, calendar_event_id, calendar_provider')
       .eq('user_id', userId)
       .eq('planned_date', planned_date)
       .eq('status', 'scheduled')
@@ -521,14 +523,53 @@ export async function persistQuickWorkout(
       const overlaps = Array.from(quickPatterns).some(p => plannedFocus.includes(p) || plannedFocus.includes('full body'))
 
       if (overlaps) {
-        // Move the planned workout to the day after tomorrow (skip tomorrow to avoid back-to-back)
-        const nextSlot = new Date(now)
-        nextSlot.setDate(now.getDate() + 2)
-        const nextDate = `${nextSlot.getFullYear()}-${pad(nextSlot.getMonth() + 1)}-${pad(nextSlot.getDate())}`
-        await client
-          .from('scheduled_workouts')
-          .update({ planned_date: nextDate, status: 'scheduled' })
-          .eq('id', todayPlanned[0].id)
+        const planned = todayPlanned[0] as {
+          id: string; focus: string; planned_start_time: string; planned_duration_min: number
+          calendar_event_id: string | null; calendar_provider: 'google' | 'device' | null
+        }
+        // Move the planned workout out — day after tomorrow by default (skip
+        // tomorrow to avoid back-to-back), but the one-plan-per-day partial
+        // unique index means that date might already hold another 'scheduled'
+        // plan row. Try a few candidate dates rather than letting the move
+        // fail silently and leave the planned workout stranded on today.
+        let moved: { date: string } | null = null
+        for (let offset = 2; offset <= 9; offset++) {
+          const candidate = new Date(now)
+          candidate.setDate(now.getDate() + offset)
+          const candidateDate = `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}`
+          const { data: occupied } = await client
+            .from('scheduled_workouts')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('planned_date', candidateDate)
+            .eq('status', 'scheduled')
+            .not('user_plan_id', 'is', null)
+            .limit(1)
+          if (occupied?.length) continue
+          const { error } = await client
+            .from('scheduled_workouts')
+            .update({ planned_date: candidateDate, status: 'scheduled' })
+            .eq('id', planned.id)
+          if (!error) moved = { date: candidateDate }
+          break
+        }
+        if (moved) {
+          // Keep the calendar event + pre-workout reminder pointed at wherever
+          // the plan workout actually landed — the move used to skip this
+          // entirely, leaving a "ghost" calendar event on today and a
+          // reminder buzz for a session that's no longer there.
+          resyncMovedWorkout(client, userId, {
+            id: planned.id,
+            focus: planned.focus,
+            planned_date: moved.date,
+            planned_start_time: planned.planned_start_time,
+            planned_duration_min: planned.planned_duration_min,
+            calendar_event_id: planned.calendar_event_id,
+            calendar_provider: planned.calendar_provider,
+          }).catch(() => {})
+        } else {
+          captureApiError('persistQuickWorkout.moveConflictingPlan', new Error('no open date found'), { userId })
+        }
       }
     }
   } catch {
