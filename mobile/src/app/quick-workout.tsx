@@ -27,6 +27,21 @@ const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
 ]
 
+// Optional body-area override, on top of the training-goal "purpose" above —
+// "I just want a Core session" is a real, common ask that a goal-driven
+// purpose (Strength/Muscle/Recovery/…) can't express on its own. Each maps to
+// a real MovementPattern the generator already knows how to prioritize
+// (generateQuickWorkout moves it to the front of the exercise-selection
+// order) — no new engine concept, just a user-facing way to set the one it
+// already supports.
+const FOCUS_AREA_OPTIONS: { key: MovementPattern; label: string; icon: string }[] = [
+  { key: 'core', label: 'Core', icon: 'body-outline' },
+  { key: 'squat', label: 'Legs', icon: 'walk-outline' },
+  { key: 'push', label: 'Push', icon: 'arrow-up-circle-outline' },
+  { key: 'pull', label: 'Pull', icon: 'arrow-down-circle-outline' },
+  { key: 'cardio', label: 'Cardio', icon: 'heart-outline' },
+]
+
 export default function QuickWorkoutScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -39,7 +54,6 @@ export default function QuickWorkoutScreen() {
   }>()
 
   const initialMinutes = (Number(params.minutes) as QuickMinutes) || 15
-  const targetPattern = (params.targetPattern as MovementPattern) || undefined
   const daysSinceTrained = params.daysSinceTrained ? Number(params.daysSinceTrained) : undefined
   const fromCalendarGap = params.fromCalendarGap === '1'
 
@@ -48,6 +62,13 @@ export default function QuickWorkoutScreen() {
   )
   const [purpose, setPurpose] = useState<QuickPurpose | null>(
     (params.purpose as QuickPurpose) || null
+  )
+  // A missed "leg day" suggestion arrives via route param; the user can also
+  // pick (or change) one manually via the Target Area chips below — both
+  // paths flow through the same state, so regenerate() never has to know
+  // which one set it.
+  const [targetPattern, setTargetPattern] = useState<MovementPattern | undefined>(
+    (params.targetPattern as MovementPattern) || undefined
   )
   const [workout, setWorkout] = useState<QuickWorkout | null>(null)
   const [generating, setGenerating] = useState(true)
@@ -77,7 +98,7 @@ export default function QuickWorkoutScreen() {
     router.push({ pathname: '/paywall', params: { context: 'quick_equipment' } } as never)
   }
 
-  const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null) => {
+  const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null, tp: MovementPattern | undefined) => {
     if (!userId) return
     setGenerating(true)
     setEmpty(false)
@@ -99,9 +120,10 @@ export default function QuickWorkoutScreen() {
         }
       }
       const restrictions = restrictionsRef.current
-      // If the requested target (e.g. a missed "leg day") is now avoided because it's
-      // scheduled soon, drop it so the "why" copy doesn't claim to build around it.
-      const effectiveTarget = targetPattern && restrictions.avoidPatterns.includes(targetPattern) ? undefined : targetPattern
+      // If the requested target (e.g. a missed "leg day", or a manually-picked
+      // Target Area) is now avoided because it's scheduled soon, drop it so the
+      // "why" copy doesn't claim to build around it.
+      const effectiveTarget = tp && restrictions.avoidPatterns.includes(tp) ? undefined : tp
       const effectivePurpose = p ?? goalToPurpose(profile.goal)
       const w = await generateQuickWorkout(
         supabase, userId,
@@ -118,29 +140,34 @@ export default function QuickWorkoutScreen() {
     } finally {
       setGenerating(false)
     }
-  // targetPattern / daysSinceTrained / fromCalendarGap are stable per-mount params
+  // daysSinceTrained / fromCalendarGap are stable per-mount params
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // Pre-generate on open so a Start button is ready immediately (<10s to start).
   useEffect(() => {
-    regenerate(minutes, purpose, null)
+    regenerate(minutes, purpose, null, targetPattern)
   }, [regenerate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentEquip = () => selectedPreset?.equipment ?? null
   const handlePickMinutes = (m: QuickMinutes) => {
     setMinutes(m)
-    regenerate(m, purpose, currentEquip())
+    regenerate(m, purpose, currentEquip(), targetPattern)
   }
   const handlePickPurpose = (p: QuickPurpose) => {
     const next = p === purpose ? null : p
     setPurpose(next)
-    regenerate(minutes, next, currentEquip())
+    regenerate(minutes, next, currentEquip(), targetPattern)
+  }
+  const handlePickFocusArea = (fp: MovementPattern) => {
+    const next = fp === targetPattern ? undefined : fp
+    setTargetPattern(next)
+    regenerate(minutes, purpose, currentEquip(), next)
   }
   const handlePickPreset = (id: string | null) => {
     setSelectedPresetId(id)
     const pr = id ? presets.find((p) => p.id === id) ?? null : null
-    regenerate(minutes, purpose, pr?.equipment ?? null)
+    regenerate(minutes, purpose, pr?.equipment ?? null, targetPattern)
   }
   const handleSavePreset = async (preset: EquipmentPreset) => {
     const next = presets.some((p) => p.id === preset.id)
@@ -149,14 +176,14 @@ export default function QuickWorkoutScreen() {
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
     setSelectedPresetId(preset.id)
-    regenerate(minutes, purpose, preset.equipment)
+    regenerate(minutes, purpose, preset.equipment, targetPattern)
     await savePresets(supabase, userId, next)
   }
   const handleDeletePreset = async (id: string) => {
     const next = presets.filter((p) => p.id !== id)
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
-    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null) }
+    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null, targetPattern) }
     await savePresets(supabase, userId, next)
   }
 
@@ -278,6 +305,26 @@ export default function QuickWorkoutScreen() {
               >
                 <Ionicons name={pm.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
                 <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{pm.label}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+
+        {/* Optional body-area override — "just give me a Core session" is a
+            real, common ask a training-goal purpose alone can't express. */}
+        <Text style={styles.sectionLabel}>TARGET AREA</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposeRow}>
+          {FOCUS_AREA_OPTIONS.map(f => {
+            const active = f.key === targetPattern
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.purposeChip, active && styles.purposeChipActive]}
+                onPress={() => handlePickFocusArea(f.key)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={f.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
+                <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{f.label}</Text>
               </TouchableOpacity>
             )
           })}
