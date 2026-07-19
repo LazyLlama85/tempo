@@ -200,6 +200,11 @@ export default function PlanPreviewScreen() {
         // quit produced an "onboarded" account with no plan at next launch.
         // Connecting a calendar doesn't force auto — persist the user's choice.
         scheduling_mode: schedulingMode === 'manual' ? 'manual' : 'auto',
+        // Real IANA timezone (e.g. 'America/Los_Angeles') — lets retention-push
+        // (the server-side notification engine) judge "is it evening for THIS
+        // user" against their actual local time instead of the server's UTC
+        // clock (MASTER_FIX_PLAN.md F10). Standard JS Intl, no native module.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         // Persist the calendar the user connected during onboarding as the default
         // sync target (only when it's a known provider).
         ...(preferredCalendar === 'google' || preferredCalendar === 'device'

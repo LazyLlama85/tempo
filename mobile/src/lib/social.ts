@@ -578,14 +578,20 @@ export async function importSplitShare(
 // that from a genuine "no share matches this code" — both used to collapse
 // into the same `null`, so a transient offline moment read as "this link is
 // dead," actively misinforming the user about a link that's actually fine.
+//
+// Goes through the get_workout_share_by_code RPC (SECURITY DEFINER), not a
+// direct table select — workout_shares' own RLS is owner-only (F10: the
+// previous "any signed-in user" policy let anyone enumerate every user's
+// shares directly via PostgREST). The share-by-code model is a capability
+// URL ("if you have the code, you're meant to see it"), which only the RPC
+// can express — a direct .select().eq('code', ...) would now correctly find
+// nothing for a share you don't own.
 export async function fetchWorkoutShare(client: SupabaseClient, code: string): Promise<WorkoutShare | null> {
   const { data, error } = await client
-    .from('workout_shares')
-    .select('*')
-    .eq('code', code.trim().toLowerCase())
-    .maybeSingle()
+    .rpc('get_workout_share_by_code', { p_code: code.trim().toLowerCase() })
   if (error) throw error
-  return (data as WorkoutShare) ?? null
+  const rows = (data ?? []) as WorkoutShare[]
+  return rows[0] ?? null
 }
 
 /** Import a shared workout into the viewer's library, with attribution. */

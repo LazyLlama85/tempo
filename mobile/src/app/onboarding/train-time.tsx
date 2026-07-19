@@ -100,6 +100,13 @@ export default function OnboardingTrainTimeScreen() {
         preferred_time_of_day: tod,
         unavailable_blocks: unavailable,
         scheduling_mode: params.schedulingMode === 'manual' ? 'manual' : 'auto',
+        // Real IANA timezone — lets retention-push (server-side notifications)
+        // judge "is it evening for THIS user" against their actual local time
+        // instead of the server's UTC clock (MASTER_FIX_PLAN.md F10). Standard
+        // JS Intl, no native module. Set here since this is the actual FIRST
+        // write to user_profiles (plan-preview.tsx's later upsert also sets it,
+        // redundantly but harmlessly, in case some onboarding path skips this step).
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
       if (error) throw error
       await refreshProfile().catch(() => {})

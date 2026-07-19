@@ -32,7 +32,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const INACTIVE_DAYS = 5            // reactivation threshold
-const EVENING_HOUR_UTC_FALLBACK = 18 // used only if we can't infer local hour
+const EVENING_HOUR = 18 // "evening" threshold, applied to each user's LOCAL hour (see localHourFor)
 
 type NotificationType =
   | 'weekly_report' | 'missed_workout' | 'streak_at_risk' | 'free_time_gap' | 'reactivation'
@@ -53,6 +53,36 @@ interface DeviceToken {
 
 function todayStr(d = new Date()): string {
   return d.toISOString().slice(0, 10)
+}
+
+// MASTER_FIX_PLAN.md F10 part 4 — EVENING_HOUR used to be judged against the
+// SERVER's UTC clock for every user identically, so an "evening" push could
+// land at 10am in California or 3am in Tokyo. user_profiles.timezone (IANA
+// string, e.g. 'America/Los_Angeles') lets each user's hour/weekday be
+// computed against their OWN local time; falls back to the server's UTC
+// hour/day only for accounts with no timezone set yet (pre-migration) or an
+// invalid value.
+function localHourFor(date: Date, timezone: string | null): number {
+  if (!timezone) return date.getUTCHours()
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: 'numeric', hourCycle: 'h23' }).formatToParts(date)
+    const hour = parts.find((p) => p.type === 'hour')?.value
+    return hour ? parseInt(hour, 10) : date.getUTCHours()
+  } catch {
+    return date.getUTCHours() // an invalid/unrecognized IANA string
+  }
+}
+
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+function localDayFor(date: Date, timezone: string | null): number {
+  if (!timezone) return date.getUTCDay()
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' }).formatToParts(date)
+    const wd = parts.find((p) => p.type === 'weekday')?.value
+    return wd && wd in WEEKDAY_INDEX ? WEEKDAY_INDEX[wd] : date.getUTCDay()
+  } catch {
+    return date.getUTCDay()
+  }
 }
 
 // Per-rule opt-out (audit §6.1). `reactivation` is always on (low-frequency
@@ -125,24 +155,34 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
       .select('user_id, type')
       .gte('created_at', today + 'T00:00:00Z')
       .in('user_id', userIds),
-    // Per-user rule preferences (audit §6.1). Absent row / absent key = default.
+    // Per-user rule preferences (audit §6.1) + timezone (F10 — real quiet
+    // hours instead of one hardcoded UTC hour for everyone). Absent row /
+    // absent key = default.
     admin
       .from('user_profiles')
-      .select('user_id, notification_prefs')
+      .select('user_id, notification_prefs, timezone')
       .in('user_id', userIds),
   ])
 
   const prefsByUser = new Map<string, Record<string, unknown>>(
     (profiles ?? []).map((r) => [r.user_id as string, (r.notification_prefs ?? {}) as Record<string, unknown>]),
   )
+  const tzByUser = new Map<string, string | null>(
+    (profiles ?? []).map((r) => [r.user_id as string, (r.timezone as string | null) ?? null]),
+  )
   const sentKey = new Set((alreadySent ?? []).map((r) => `${r.user_id}:${r.type}`))
   const completedDates = byUser(logs ?? [], (r) => (r.completed_at as string | null)?.slice(0, 10))
   const sched = groupBy(scheduled ?? [], (r) => r.user_id as string)
 
-  const nowDate = new Date()
-  const nowHourUtc = nowDate.getUTCHours()
-  const nowDayUtc = nowDate.getUTCDay() // 0 = Sunday
-  const weekStartStr = addDays(today, -((nowDate.getUTCDay() + 6) % 7)) // Monday of this week
+  // Server UTC time — still used for the week-boundary date math below (which
+  // calendar day counts as "this week" is a separate, lower-stakes question
+  // than "is it evening for THIS user," and changing which day a week starts
+  // on per-timezone is a materially bigger change than this fix scopes to).
+  // Per-user local hour/day (used for the actual quiet-hours gating in the
+  // rules below) is computed inside the loop instead — see localHourFor/
+  // localDayFor.
+  const serverNowDate = new Date()
+  const weekStartStr = addDays(today, -((serverNowDate.getUTCDay() + 6) % 7)) // Monday of this week
   const tomorrow = addDays(today, 1)
 
   // ── Social accountability inputs (partner reminders + friend competition) ──────
@@ -195,6 +235,12 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const mine = sched.get(userId) ?? []
     const completedToday = completed.has(today)
     const prefs = prefsByUser.get(userId)
+    // This user's own local hour/day of week — every rule below that gates on
+    // "is it evening" now judges against the user's real local time, not the
+    // server's, falling back to server UTC time only if no timezone is set.
+    const tz = tzByUser.get(userId) ?? null
+    const nowHourUtc = localHourFor(serverNowDate, tz)
+    const nowDayUtc = localDayFor(serverNowDate, tz)
 
     const add = (c: Omit<Candidate, 'userId'>) => {
       if (!ruleEnabled(prefs, c.type)) return         // user muted this rule (§6.1)
@@ -205,7 +251,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
 
     // 0. Weekly report — Sunday evening, if they trained at all this week. The
     //    recap is the highest-value retention nudge, so it leads on Sundays.
-    if (nowDayUtc === 0 && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+    if (nowDayUtc === 0 && nowHourUtc >= EVENING_HOUR) {
       const trainedThisWeek = [...completed].some(d => d >= weekStartStr)
       if (trainedThisWeek) {
         add({
@@ -224,7 +270,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const missedToday = mine.find(
       (w) => w.planned_date === today && (w.status === 'missed' || w.status === 'scheduled'),
     )
-    if (missedToday && !completedToday && nowHourUtc < EVENING_HOUR_UTC_FALLBACK) {
+    if (missedToday && !completedToday && nowHourUtc < EVENING_HOUR) {
       add({
         type: 'missed_workout',
         title: 'Still time to train today',
@@ -239,7 +285,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     //    SESSIONS, so the rest days the plan itself schedules can't break it —
     //    nagging people to train on them would contradict Tempo's own coaching.
     const pendingToday = mine.some((w) => w.planned_date === today && w.status === 'scheduled')
-    if (pendingToday && !completedToday && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+    if (pendingToday && !completedToday && nowHourUtc >= EVENING_HOUR) {
       add({
         type: 'streak_at_risk',
         title: "Tonight's session is still open",
@@ -254,7 +300,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const partnerW = mine.find(
       (w) => w.planned_date === tomorrow && w.partner_id && w.status === 'scheduled',
     )
-    if (partnerW && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+    if (partnerW && nowHourUtc >= EVENING_HOUR) {
       const pname = firstName(nameById.get(partnerW.partner_id as string) ?? 'your friend')
       add({
         type: 'partner_reminder',
@@ -267,7 +313,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
 
     // 2c. Friend competition — you're one workout from passing a friend this week.
     //     Thursday evening only, so it's a weekly end-of-week push, not a daily nag.
-    if (nowDayUtc === 4 && nowHourUtc >= EVENING_HOUR_UTC_FALLBACK) {
+    if (nowDayUtc === 4 && nowHourUtc >= EVENING_HOUR) {
       const myWeek = weekCountByUser.get(userId) ?? 0
       let passName: string | null = null
       for (const fid of friendsByUser.get(userId) ?? []) {
@@ -287,7 +333,7 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     // 3. Free-time gap — nothing scheduled or done today, during the active part of
     //    the day → surface a Quick Workout while there's room for it.
     const hasWorkoutToday = mine.some((w) => w.planned_date === today)
-    if (!hasWorkoutToday && !completedToday && nowHourUtc >= 12 && nowHourUtc < EVENING_HOUR_UTC_FALLBACK) {
+    if (!hasWorkoutToday && !completedToday && nowHourUtc >= 12 && nowHourUtc < EVENING_HOUR) {
       add({
         type: 'free_time_gap',
         title: 'Got 20 minutes?',

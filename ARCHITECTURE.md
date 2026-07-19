@@ -1458,6 +1458,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`planRollover`** module (`PLAN_RUNWAY_DAYS` / `planNeedsExtension` / `planExtensionWeeks` +
   the shared `formatLocalDate` that `generatePlan.formatDate` delegates to); `extendActivePlan`
   now orchestrates the DB reads/writes around it. See the test suite in §8.
+  **`week_offset` (added `add_week_offset.sql`, applied 2026-07-19 — MASTER_FIX_PLAN.md F1):**
+  `week_index` was overloaded to mean both a mesocycle-phase index (`periodization.weekProgression`)
+  AND a pure date-offset from the plan's `start_date` (`extendActivePlan`'s rollover math) —
+  `adaptation.applyAdaptationMode` re-anchoring `week_index` on a recovery/deload transition (correct
+  for the phase meaning) silently corrupted the date-offset meaning, so a later rollover could compute
+  an entirely-past block and insert zero rows — an empty schedule for a paying user. `week_offset` is
+  the pure date-offset meaning, written once at insert (`buildBlockRows`) and never rewritten by
+  adaptation; `extendActivePlan` now reads/orders by it instead of `week_index`. Also hardened:
+  `extendActivePlan`'s insert is now per-row (not one bulk `.insert(rows)`), so a single stale row
+  blocking one date can't void the rest of the ~4-week block, with failures reported via
+  `captureApiError` instead of a silent `catch{return 0}`.
   `periodization` (mesocycle: overload weeks + scheduled deload; modes normal/recovery/deload/
   maintenance), `progression` (autoregulated per-exercise load via RPE + rep targets + the
   session-duration model), `adaptation` (workout-feel feedback + the engine that flips
@@ -1726,7 +1737,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 ### 4.1 Tables (~18; RLS scopes rows to the owner except where the social layer deliberately widens reads)
 - **user_profiles** — goal, experience, equipment, days/week, availability (wake/bed/work/school,
   preferred time, flexibility, training days, unavailable blocks), `bodyweight_lbs` cache,
-  `injuries`, `travel_mode`, `ignored_events`, calendar prefs, **`scheduling_mode`** (`auto`/`manual`).
+  `injuries`, `travel_mode`, `ignored_events`, calendar prefs, **`scheduling_mode`** (`auto`/`manual`),
+  **`timezone`** (IANA string, e.g. `America/Los_Angeles` — `add_user_timezone.sql`, applied
+  2026-07-19; set client-side via `Intl.DateTimeFormat().resolvedOptions().timeZone` at onboarding's
+  first `user_profiles` write in `onboarding/train-time.tsx`, re-set defensively in
+  `onboarding/plan-preview.tsx`'s later upsert; nullable — existing accounts fall back to the
+  server's UTC hour in `retention-push` until they re-onboard or the column is backfilled).
 - **programs** / **exercises** — program templates + the exercise library: **~1,360 built-in
   movements** (imported from the ExerciseDB catalog by `mobile/scripts/build-exercise-library.mjs`,
   seed `supabase/seed_exercise_library_v2.sql`) across push/pull/squat/hinge/core/cardio/carry/
@@ -1753,8 +1769,10 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `set_logs.is_warmup` flags warm-up sets (excluded from PREV/progression/volume/PRs everywhere).
 - **adaptation_events** — audit of feedback + auto-periodization decisions.
 - **exercise_substitutions** — saved per-user swaps.
-- **calendar_connections** / **google_calendar_tokens** — calendar linkage (Google refresh token is
-  service-role-only).
+- **google_calendar_tokens** — Google Calendar linkage (refresh token, service-role-only RLS). The
+  legacy **calendar_connections** table (plaintext token columns, superseded by this one) was dropped
+  2026-07-19 (`drop_legacy_calendar_connections.sql`) after confirming zero code references and 0 live
+  rows — dead weight plus a plaintext-secret liability, not just an unused column.
 - **body_measurements** — time-series weight / body-fat % / waist / progress-photo path.
 - **device_tokens** — Expo push tokens per device (`enabled` flag).
 - **notification_log** — every retention push attempt (status/error/ticket) for debugging + analytics.
@@ -1765,8 +1783,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **workout_shares** — snapshot sharing: an 8-char `code`, owner + `owner_name`, `name`,
   **`kind`** (`workout` | `split`), `exercises` jsonb ([{id,name}] so previews render even when the
   viewer can't read a custom exercise), `config`, **`days`** (jsonb split snapshot when kind='split'),
-  **`equipment`** (distinct required gear for preview chips), `est_duration_min`. Any signed-in user
-  can read (the link is the capability); owner inserts/deletes.
+  **`equipment`** (distinct required gear for preview chips), `est_duration_min`. RLS is owner-only
+  for direct table reads (`fix_workout_shares_rls.sql`, applied 2026-07-19 — the previous "any
+  signed-in user can read" policy let anyone enumerate every user's shares directly via PostgREST,
+  not just look one up by its code); a share-by-code lookup goes through the SECURITY DEFINER RPC
+  `get_workout_share_by_code(p_code)` instead (called from `lib/social.ts`'s `fetchWorkoutShare`),
+  which is the correct place to express "if you have the code, you're meant to see it." Owner still
+  inserts/deletes directly.
 - **user_profiles identity columns** — **`username`** (unique, `^[a-z0-9_]{3,20}$`) + **`friend_code`**
   (unique 6-char, no lookalikes), backfilled for existing rows and auto-set on insert by the
   `user_profiles_identity` trigger. The friend code is the out-of-band "add me" handle; the
