@@ -14,7 +14,29 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-19, later): founder device-testing batch, mostly Focus Mode — 10 real fixes shipped,
+- **NEW (2026-07-19, latest): `MASTER_FIX_PLAN.md`'s entire P0 (F1–F10) is done — 10 batches, each
+  its own commit, `tsc` clean and the full suite green (237 tests) throughout.** In order: F1 fixed
+  the plan-cliff bug (`week_offset` column, per-row rollover inserts) and F5 fixed the app-open race
+  that caused it (removed the racing sweep from the auth listener, consolidated into one documented
+  sequence in Home); F4 widened cache invalidation after that same sweep; F2 made all-day calendar
+  events (vacation/flights/OOO) actually block auto-scheduling; F3 fixed five silent-write-failure
+  sites (reschedule, experience promotion, adaptation restamp, quick-workout plan-move, auto-
+  scheduler); F6 fixed split-users never triggering adaptation and the muscle-classifier substring
+  bug (lateral delts/abductors double-tagged); F7 swept six screens' error states (weekly-report's
+  infinite spinner, shared-workout's misleading "not found," social/my-workouts/group-detail's
+  silent-empty failures) plus the GO button's stale-data race; F8 added the app's first-ever
+  ErrorBoundary (previously a render crash was a blank white screen with no recovery); F9a made a
+  RevenueCat entitlement-ID mismatch report itself loudly instead of forever looking like low
+  conversion (F9b investigated and correctly NOT changed — the "unused" RapidAPI key is actually
+  still load-bearing for 641 uncached exercises); F10 applied 4 backend migrations (hot-path
+  indexes, tightened `workout_shares` RLS to owner-only + a SECURITY DEFINER RPC for the share-by-
+  code lookup — verified live against the database before considering it done, dropped the fully-
+  dead `calendar_connections` table, added `user_profiles.timezone` so retention-push judges
+  "evening" against each user's real local time instead of the server's UTC clock) and redeployed
+  the `retention-push` edge function. Full detail + exact files in `MASTER_FIX_PLAN.md` (each F
+  section now marked ✅ DONE). **P0 is clear — P1 (craft/coherence, C1–C10) is next.**
+
+- **2026-07-19, later: founder device-testing batch, mostly Focus Mode — 10 real fixes shipped,
   4 items flagged for a follow-up decision.** The founder tested the app and reported a dense list of
   issues, most concentrated in Focus Mode (unreachable buttons once the "how much did you do?" card
   appeared — no ScrollView existed; no RPE prompt; the auto-close effect closed the instant an

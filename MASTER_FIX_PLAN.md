@@ -22,29 +22,31 @@
 
 ## 0. Publishing-today shortlist
 
-If you ship today and fix nothing else, fix these — they are the difference between "works" and
-"quietly loses user data / money":
+**Status (2026-07-19): P0 is fully done — F1 through F10 all shipped, verified, and pushed
+(`tsc` clean, full suite green at 237 tests throughout). Two items below stay open because only
+the founder can do them.**
 
-| # | Issue | Who fixes it |
-|---|---|---|
-| F1 | Plan-cliff can reopen (empty schedule for a paying user) | Sonnet |
-| F9a | Verify RevenueCat entitlement ID matches `EXPO_PUBLIC_PRO_ENTITLEMENT` exactly | **Founder** (RevenueCat dashboard) |
-| F9b | Rotate + remove the leaked `EXPO_PUBLIC_RAPIDAPI_KEY` from `eas.json` | Sonnet (remove) + **Founder** (rotate key) |
-| F2 | All-day calendar events don't block scheduling | Sonnet |
-| F3 | Several mutations ignore write errors (silent data loss) | Sonnet |
-| F8 | No crash fallback UI — a render error is a blank white screen | Sonnet |
-| — | Apply the retention-push cron SQL (currently commented out — engine is inert) | **Founder** (Supabase SQL editor) |
-| — | Ship a build with the real PostHog key, then on-device test the 🔍 backlog in `EXECUTION_STATUS.md` | **Founder** |
+| # | Issue | Who fixes it | Status |
+|---|---|---|---|
+| F1 | Plan-cliff can reopen (empty schedule for a paying user) | Sonnet | ✅ done |
+| F9a | Verify RevenueCat entitlement ID matches `EXPO_PUBLIC_PRO_ENTITLEMENT` exactly | **Founder** (RevenueCat dashboard) | 🔲 open — a loud Sentry report now fires if a mismatch exists, but only the founder can confirm the dashboard value |
+| F9b | Rotate + remove the leaked `EXPO_PUBLIC_RAPIDAPI_KEY` from `eas.json` | Sonnet (remove) + **Founder** (rotate key) | ⚠ investigated, NOT removed — see F9's own note: this key is still genuinely load-bearing (641/1,285 exercises uncached); founder should still rotate it, but eas.json's entry stays until a server-side proxy exists or the backfill completes |
+| F2 | All-day calendar events don't block scheduling | Sonnet | ✅ done |
+| F3 | Several mutations ignore write errors (silent data loss) | Sonnet | ✅ done |
+| F8 | No crash fallback UI — a render error is a blank white screen | Sonnet | ✅ done |
+| — | Apply the retention-push cron SQL (currently commented out — engine is inert) | **Founder** (Supabase SQL editor) | 🔲 open |
+| — | Ship a build with the real PostHog key, then on-device test the 🔍 backlog in `EXECUTION_STATUS.md` | **Founder** | 🔲 open |
 
 Everything below is organized P0 (ship-blockers) → P1 (craft/coherence) → P2 (wedge amplifiers) →
 P3 (table stakes) → P4 (deferred, M4-gated). **Work top to bottom.** Do not skip ahead to P2 while
 P0 items remain — a beautiful app that loses your workout data is not a #1 app.
+**P0 is now clear — P1 (craft/coherence) is next.**
 
 ---
 
 ## P0 — Ship-blockers (correctness)
 
-### F1 — Plan-cliff hardening (the plan-generation "week_index" bug)
+### F1 — Plan-cliff hardening (the plan-generation "week_index" bug) — ✅ DONE 2026-07-19
 
 **The bug:** `scheduled_workouts.week_index` is used for two different things that have quietly
 drifted apart:
@@ -130,7 +132,7 @@ diff summary and the on-device test checklist from the "Edge cases" subsection b
 
 ---
 
-### F2 — All-day calendar events don't block scheduling
+### F2 — All-day calendar events don't block scheduling — ✅ DONE 2026-07-19
 
 **The bug:** `fetchUserBusySlots` (`CalendarApiService.ts:182-183`) only keeps Google events with a
 `dateTime` field, dropping `date`-only (all-day) events entirely. The device-calendar path does the
@@ -183,7 +185,7 @@ committing.
 
 ---
 
-### F3 — Unchecked-write sweep (silent data-loss surfaces)
+### F3 — Unchecked-write sweep (silent data-loss surfaces) — ✅ DONE 2026-07-19
 
 **The bug (five separate call sites, one shared root cause):** Supabase's client returns
 `{data, error}` rather than throwing on a failed write. Several places destructure the result and
@@ -267,7 +269,7 @@ touch only these five functions' error-handling, nothing else in these files. Ru
 
 ---
 
-### F4 — Cache-invalidation sweep
+### F4 — Cache-invalidation sweep — ✅ DONE 2026-07-19
 
 **The bug:** After several mutations that change future scheduled workouts, the React Query cache is
 not invalidated, so the UI keeps showing stale data until an unrelated refetch happens to occur:
@@ -327,7 +329,7 @@ tomorrow's session updates without a force-quit) before committing.
 
 ---
 
-### F5 — App-open orchestration (concurrent sweep race)
+### F5 — App-open orchestration (concurrent sweep race) — ✅ DONE 2026-07-19
 
 **The bug:** Two independent effects fire on app launch with no ordering guarantee between them:
 - `stores/auth.ts:44-46` (auth state listener) runs `checkMissedWorkouts()` → `refreshAdaptation()`
@@ -389,7 +391,7 @@ launch with sign-in, confirming the sweep runs once in the right order) before c
 
 ---
 
-### F6 — Adaptation & recovery correctness
+### F6 — Adaptation & recovery correctness — ✅ DONE 2026-07-19
 
 **Two separate bugs, same category (the "smart" engine is wrong in specific, findable ways):**
 
@@ -458,7 +460,7 @@ committing.
 
 ---
 
-### F7 — UI failure-state sweep
+### F7 — UI failure-state sweep — ✅ DONE 2026-07-19
 
 **The bugs (grouped — same category, several screens):**
 
@@ -541,7 +543,7 @@ and what I should see) before committing.
 
 ---
 
-### F8 — Global ErrorBoundary (crash fallback UI)
+### F8 — Global ErrorBoundary (crash fallback UI) — ✅ DONE 2026-07-19
 
 **The bug:** There is no React ErrorBoundary anywhere in the app (`componentDidCatch`/
 `getDerivedStateFromError` — zero hits). The only wrapper is `Sentry.wrap` (`crashReporting.ts:48`,
@@ -593,7 +595,7 @@ throw in a screen, confirm the fallback, then revert the test-throw) before comm
 
 ---
 
-### F9 — Secrets/config hardening
+### F9 — Secrets/config hardening — ✅ F9a done, F9b investigated (not removed)
 
 **F9a — Entitlement ID likely misconfigured (founder-verification, code-assist).** `eas.json` sets
 `EXPO_PUBLIC_PRO_ENTITLEMENT="Tempo: Fitness Planner Pro"` (`eas.json:20,37`) but `purchases.ts:25`'s
@@ -666,7 +668,7 @@ ID against RevenueCat dashboard; rotate the RapidAPI key) for me to relay.
 
 ---
 
-### F10 — Backend hardening migration
+### F10 — Backend hardening migration — ✅ DONE 2026-07-19
 
 **Four independent fixes, bundled into one migration + doc pass since they're all "apply once,
 verify, done":**
