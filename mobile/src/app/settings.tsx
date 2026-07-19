@@ -26,6 +26,7 @@ import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTe
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
 import { deleteAccount } from '@/lib/account'
 import { useUnitStore, unitLabel, type WeightUnit } from '@/lib/units'
+import { useFocusModePrefStore } from '@/lib/focusModePref'
 import { setPushEnabled as applyPushEnabled } from '@/lib/pushTokens'
 import {
   loadNotificationPrefs, setServerRuleEnabled, setPreWorkoutEnabled,
@@ -83,6 +84,8 @@ export default function SettingsScreen() {
   // Weight display unit (lb/kg) — a device preference; storage stays lbs.
   const unit = useUnitStore((s) => s.unit)
   const setUnit = useUnitStore((s) => s.setUnit)
+  const focusModeEnabled = useFocusModePrefStore((s) => s.enabled)
+  const setFocusModeEnabled = useFocusModePrefStore((s) => s.setEnabled)
 
   // "Add workouts to my calendar" — default on; only acts once a calendar is connected.
   const [autoSync, setAutoSync] = useState(autoSyncEnabled(profile))
@@ -551,6 +554,24 @@ export default function SettingsScreen() {
                   )
                 })}
               </View>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingIcon}>
+                <Ionicons name="expand-outline" size={18} color={C.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>WORKOUT FOCUS MODE</Text>
+                <Text style={styles.settingValue}>
+                  {focusModeEnabled ? 'Full-screen active-set view during sets' : 'Off — use the scrolling list only'}
+                </Text>
+              </View>
+              <Switch
+                value={focusModeEnabled}
+                onValueChange={setFocusModeEnabled}
+                trackColor={{ true: C.primary, false: C.outlineVariant }}
+                thumbColor="#fff"
+              />
             </View>
             <View style={styles.divider} />
             <SettingRow icon="school-outline" label="REPLAY APP TOUR" value="Show the guided walkthrough again" onPress={replayTour} />

@@ -46,6 +46,7 @@ import * as haptics from '@/lib/haptics'
 import { getRestPref, setRestPref, SUGGESTED_REST_SEC } from '@/lib/restPrefs'
 import { startRestActivity, updateRestActivity, endRestActivity } from '@/widgets/RestTimerActivity'
 import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
+import { useFocusModeEnabled } from '@/lib/focusModePref'
 import { useSessionActiveStore } from '@/stores/sessionActive'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { describeSaveError } from '@/lib/saveErrors'
@@ -605,6 +606,7 @@ export default function WorkoutsScreen() {
   const [goal, setGoal] = useState<Goal>('general_fitness')
   const [bias, setBias] = useState<IntensityBias>(0)
   const unit = useUnitStore(s => s.unit)
+  const focusModeEnabled = useFocusModeEnabled()
   const [travel, setTravel] = useState<TravelMode | null>(null)
   const restDefaults = useRef<Record<string, number>>({})
   const startedAt = useRef(new Date())
@@ -1108,9 +1110,10 @@ export default function WorkoutsScreen() {
     startRest(restFor(exId), exercises.find(e => e.id === exId)?.name)
     // Rest deserves the whole screen — nothing else to do while it counts
     // down. Only auto-OPENS; never auto-closes an already-open Focus Mode
-    // on a different exercise mid-flow.
+    // on a different exercise mid-flow. Respects the "Workout Focus Mode"
+    // device preference — off means classic scrolling-list only.
     setFocusExId(exId)
-    setFocusOpen(true)
+    if (focusModeEnabled) setFocusOpen(true)
     setLastLoggedSet({ exId, idx })
 
     // Exercise fully banked? A firmer tick, and the next incomplete exercise
@@ -1692,10 +1695,15 @@ export default function WorkoutsScreen() {
   const focusIdx = focusSetsArr.findIndex(s => !s.done)
   const focusSet = focusIdx >= 0 ? focusSetsArr[focusIdx] : null
   const focusEx = exercises.find(e => e.id === focusExId) ?? null
-  // Auto-close once this exercise's sets are all done — nothing left to focus on.
+  // Auto-close once this exercise's sets are all done AND rest (if any) is
+  // over — nothing left to focus on. Waiting on rest here (not closing the
+  // instant the last set logs) is deliberate: closing immediately used to cut
+  // Focus Mode off mid-celebration, before the user could see the rest ring,
+  // log "how much did you do?", or rate RPE for that final set — the same
+  // window every other set in the exercise gets.
   useEffect(() => {
-    if (focusOpen && focusExId && focusIdx === -1) setFocusOpen(false)
-  }, [focusOpen, focusExId, focusIdx])
+    if (focusOpen && focusExId && focusIdx === -1 && restEndsAt === null) setFocusOpen(false)
+  }, [focusOpen, focusExId, focusIdx, restEndsAt])
 
   const adjustRest = (deltaSec: number) => {
     if (restEndsAt === null) return
@@ -2368,7 +2376,7 @@ export default function WorkoutsScreen() {
 
                   {/* Form guide + smart swap */}
                   <View style={styles.exActions}>
-                    {exSets.some(s => !s.done) && (
+                    {focusModeEnabled && exSets.some(s => !s.done) && (
                       <PressableScale
                         style={styles.exActionBtn}
                         onPress={() => { setFocusExId(ex.id); setFocusOpen(true) }}
@@ -2441,7 +2449,10 @@ export default function WorkoutsScreen() {
                             {cols.map((c) => <Text key={c.key} style={styles.setCell}>{set[c.field] || '0'}</Text>)}
                             {/* Tap to fix a wrong number after the fact — was
                                 permanently locked once logged; delete-and-redo
-                                was the only option. */}
+                                was the only option. A pencil (not a second
+                                checkmark) so "this is done, tap to edit" never
+                                reads as "check it again" — the single ✓ this
+                                flow uses means "confirm," full stop. */}
                             <PressableScale
                               style={styles.checkCircleFilled}
                               scaleTo={0.85}
@@ -2449,7 +2460,7 @@ export default function WorkoutsScreen() {
                               accessibilityRole="button"
                               accessibilityLabel={`Edit set ${idx + 1}`}
                             >
-                              <Ionicons name="checkmark" size={14} color={C.onPrimary} />
+                              <Ionicons name="pencil" size={13} color={C.onPrimary} />
                             </PressableScale>
                           </>
                         ) : set.done && isEditing ? (
@@ -2474,7 +2485,7 @@ export default function WorkoutsScreen() {
                               accessibilityRole="button"
                               accessibilityLabel={`Save edit to set ${idx + 1}`}
                             >
-                              <Ionicons name="checkmark-done" size={14} color={C.onPrimary} />
+                              <Ionicons name="checkmark" size={14} color={C.onPrimary} />
                             </PressableScale>
                           </>
                         ) : (
@@ -2677,6 +2688,8 @@ export default function WorkoutsScreen() {
             onDone={focusDone}
             lastSetFields={lastSetFields}
             onSaveLastSet={lastLoggedSet ? () => saveSetEdit(lastLoggedSet.exId, lastLoggedSet.idx) : undefined}
+            lastSetRpe={lastSet?.rpe ?? null}
+            onSetRpe={lastLoggedSet ? (n: number) => attachRpe(lastLoggedSet.exId, lastLoggedSet.idx, n) : undefined}
           />
         )
       })()}
@@ -3188,7 +3201,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   dirBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
   targetReason: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-  exActions: { flexDirection: 'row', gap: Spacing.sm },
+  exActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   exActionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
