@@ -280,10 +280,21 @@ export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
   const [keyboardUp, setKeyboardUp] = useState(false)
   // Quick Workout is a "only have a few minutes?" escape hatch, not an
   // alternative to the session you're already in the middle of — showing GO
-  // mid-workout read as the app not knowing what you're doing. The dock's
-  // shape stays put (spacer/overlay containers still reserve the space) so
-  // hiding it never causes the other four tabs to jump.
+  // mid-workout read as the app not knowing what you're doing.
   const sessionActive = useSessionActiveStore(s => s.active)
+  const reduceMotion = useReducedMotion()
+  // The center gap used to stay reserved at full width even with no button
+  // sitting in it — a dead empty notch in the middle of the bar, which read
+  // as broken rather than "no jump." Animating it closed instead means the
+  // four tabs settle into an even bar with nothing left un-explained.
+  const goSpacerWidth = useRef(new Animated.Value(sessionActive ? 0 : 68)).current
+  useEffect(() => {
+    const target = sessionActive ? 0 : 68
+    if (reduceMotion) { goSpacerWidth.setValue(target); return }
+    Animated.timing(goSpacerWidth, {
+      toValue: target, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start()
+  }, [sessionActive, reduceMotion, goSpacerWidth])
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
@@ -327,7 +338,7 @@ export function TempoTabBar({ state, descriptors, navigation }: TabBarProps) {
           )}
           <View style={styles.dock}>
             {items.slice(0, 2)}
-            <View style={styles.goSpacer} />
+            <Animated.View style={[styles.goSpacer, { width: goSpacerWidth }]} />
             {items.slice(2)}
           </View>
         </View>

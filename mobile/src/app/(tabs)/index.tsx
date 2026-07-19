@@ -725,6 +725,28 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Which of today's not-yet-done workouts already have a workout_logs row
+  // (created only on an explicit session START, per plan.tsx) with no
+  // completed_at yet — i.e. genuinely paused mid-session, not merely
+  // scheduled. Drives "Continue" vs "Start Session" below so leaving the
+  // runner and coming back to Home doesn't read as if nothing happened.
+  const { data: inProgressIds = new Set<string>() } = useQuery<Set<string>>({
+    queryKey: ['today_in_progress_logs', userId, todayStr, todayWorkouts.map(i => i.workout.id).join(',')],
+    queryFn: async () => {
+      const ids = todayWorkouts.map(i => i.workout.id)
+      if (!ids.length) return new Set<string>()
+      const { data } = await supabase
+        .from('workout_logs')
+        .select('scheduled_workout_id')
+        .eq('user_id', userId)
+        .in('scheduled_workout_id', ids)
+        .is('completed_at', null)
+      return new Set((data ?? []).map((r: { scheduled_workout_id: string }) => r.scheduled_workout_id))
+    },
+    enabled: !!userId && todayWorkouts.length > 0 && !dayComplete,
+    staleTime: 30 * 1000,
+  })
+
   // Hero tap-to-expand: a lightweight exercise-name "peek" (NOT the full
   // prescription/warmup load `(tabs)/plan.tsx`'s runner does) — fetched only
   // once the user actually expands the card, so it costs nothing until asked.
@@ -983,8 +1005,12 @@ export default function ScheduleScreen() {
     // still train now, but the button says "Do it now instead" so it doesn't
     // pretend it's go-time.
     const early = !done && !attention && (workoutStartMs(w) - nowMs) / 60000 > 45
+    // Genuinely paused mid-session (a workout_logs row exists, nothing
+    // completed it) — takes priority over overdue/early copy since resuming
+    // is a different action than starting fresh.
+    const started = !done && inProgressIds.has(w.id)
     const accent = done ? C.success : missed ? C.error : attention ? C.ember : C.primary
-    return { done, missed, overdue, conflict, attention, early, soft: attention || early, accent }
+    return { done, missed, overdue, conflict, attention, early, started, soft: attention || early, accent }
   }
 
   // A timeline block: DISPLAY ONLY. The old version crammed the badge, a
@@ -994,7 +1020,7 @@ export default function ScheduleScreen() {
   // ONE bar below the whole timeline (`renderHeroActions`); secondary actions
   // are one tap away inside the expanded state. Nothing was removed.
   function renderWorkout(w: ScheduledWorkout, hero: boolean) {
-    const { done, missed, overdue, conflict, attention, accent } = workoutState(w)
+    const { done, missed, overdue, conflict, attention, started, accent } = workoutState(w)
     const endMin = minOfTime(w.planned_start_time) + w.planned_duration_min
     const timeRange = `${formatTime(w.planned_start_time)} – ${formatMin(endMin)}`
     const origin = workoutOrigin(w.source)
@@ -1130,8 +1156,8 @@ export default function ScheduleScreen() {
               style={styles.startBtnGhost}
               onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
             >
-              <Ionicons name="play" size={14} color={C.primary} />
-              <Text style={[styles.startBtnText, { color: C.primary }]}>Start Session</Text>
+              <Ionicons name={started ? 'play-forward' : 'play'} size={14} color={C.primary} />
+              <Text style={[styles.startBtnText, { color: C.primary }]}>{started ? 'Continue' : 'Start Session'}</Text>
             </PressableScale>
           )}
         </Card>
@@ -1144,7 +1170,7 @@ export default function ScheduleScreen() {
   // primary CTA, whose label/behaviour is exactly the old inline button's (no
   // behaviour change — only its position and prominence changed).
   function renderHeroActions(w: ScheduledWorkout) {
-    const { done, missed, overdue, conflict, attention, early, soft } = workoutState(w)
+    const { done, missed, overdue, conflict, attention, early, started, soft } = workoutState(w)
     // An all-done day never reaches here — Home renders its own completion
     // screen instead (see `dayComplete`). This only guards the mixed case: one
     // session done, another still ahead, where the hero is the one still ahead.
@@ -1167,9 +1193,9 @@ export default function ScheduleScreen() {
           style={[soft ? styles.ctaBtnGhost : styles.ctaBtn]}
           onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: w.id } })}
         >
-          <Ionicons name="play" size={16} color={soft ? C.primary : C.onPrimary} />
+          <Ionicons name={started ? 'play-forward' : 'play'} size={16} color={soft ? C.primary : C.onPrimary} />
           <Text style={[styles.ctaBtnText, soft && { color: C.primary }]}>
-            {overdue ? 'Start it now anyway' : early ? 'Do it now instead' : 'Start Session'}
+            {started ? 'Continue' : overdue ? 'Start it now anyway' : early ? 'Do it now instead' : 'Start Session'}
           </Text>
         </PressableScale>
 
