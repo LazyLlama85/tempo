@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { estimate1RM } from '@/lib/progression'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
+import { toDateStr } from '@/lib/dates'
 
 export interface StrengthGain { name: string; deltaLbs: number }
 
@@ -28,9 +29,6 @@ export interface WeeklyReport {
   newPRs: number                   // weight PRs set this week
 }
 
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function mondayOf(d: Date): Date {
   const r = new Date(d); r.setHours(0, 0, 0, 0)
   r.setDate(r.getDate() - ((r.getDay() + 6) % 7))

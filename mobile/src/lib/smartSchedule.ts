@@ -14,6 +14,7 @@
 // human planned it.
 
 import type { TimeOfDay, UnavailableBlock } from '@/types'
+import { toDateStr as dateStr } from '@/lib/dates'
 
 export interface BusySlot { start: Date; end: Date }
 
@@ -67,9 +68,6 @@ function hmToMin(t: string | null | undefined, fallback: number): number {
 }
 
 function isoWeekday(d: Date): number { return ((d.getDay() + 6) % 7) + 1 } // Mon=1 … Sun=7
-function dateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 function atMinute(day: Date, min: number): Date { const x = startOfDay(day); x.setMinutes(min); return x }
 function minuteOfDay(d: Date): number { return d.getHours() * 60 + d.getMinutes() }

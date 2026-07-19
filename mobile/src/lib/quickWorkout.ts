@@ -16,6 +16,7 @@ import { effectiveEquipment } from '@/lib/travelMode'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
+import { toDateStr } from '@/lib/dates'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -409,20 +410,18 @@ export async function getScheduleRestrictions(
 ): Promise<QuickRestrictions> {
   const avoid = new Set<MovementPattern>()
   try {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    const todayStr = ymd(now)
+    const todayStr = toDateStr(now)
     const soon = new Date(now); soon.setDate(now.getDate() + 2)
     const yest = new Date(now); yest.setDate(now.getDate() - 1)
     const { data } = await client
       .from('scheduled_workouts')
       .select('focus, planned_date, status')
       .eq('user_id', userId)
-      .gte('planned_date', ymd(yest))
-      .lte('planned_date', ymd(soon))
+      .gte('planned_date', toDateStr(yest))
+      .lte('planned_date', toDateStr(soon))
     for (const row of (data ?? []) as { focus: string | null; planned_date: string; status: string }[]) {
       const upcoming = row.status === 'scheduled' && row.planned_date >= todayStr  // don't pre-empt it
-      const recent = row.status === 'completed' && row.planned_date >= ymd(yest)   // still recovering
+      const recent = row.status === 'completed' && row.planned_date >= toDateStr(yest)   // still recovering
       if (!upcoming && !recent) continue
       for (const p of focusToPatterns(row.focus ?? '')) avoid.add(p)
     }
@@ -502,7 +501,7 @@ export async function persistQuickWorkout(
 ): Promise<string | null> {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  const planned_date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const planned_date = toDateStr(now)
   const planned_start_time = `${pad(now.getHours())}:${pad(now.getMinutes())}:00`
 
   // Check for an existing plan-based workout today
@@ -536,7 +535,7 @@ export async function persistQuickWorkout(
         for (let offset = 2; offset <= 9; offset++) {
           const candidate = new Date(now)
           candidate.setDate(now.getDate() + offset)
-          const candidateDate = `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}`
+          const candidateDate = toDateStr(candidate)
           const { data: occupied } = await client
             .from('scheduled_workouts')
             .select('id')

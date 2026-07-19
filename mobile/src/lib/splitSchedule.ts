@@ -13,6 +13,7 @@ import { estimateSessionMin } from './durationEstimate'
 import { fetchActiveSplit, setActiveSplit, ensureAutoSplit, isAutoSplit } from './splits'
 import { generatePlan, type PlanProfile } from './generatePlan'
 import { sweepScheduledPlanRows } from './retireWorkouts'
+import { toDateStr } from './dates'
 
 const HORIZON_DAYS = 28
 
@@ -23,10 +24,6 @@ const START_TIMES: Record<TimeOfDay, string[]> = {
   morning:   ['07:00:00', '08:00:00', '06:30:00', '07:30:00'],
   afternoon: ['12:30:00', '15:30:00', '13:00:00', '16:00:00'],
   evening:   ['17:30:00', '18:30:00', '19:00:00', '18:00:00'],
-}
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 // 'HH:MM:SS', local time — comparable directly against planned_start_time.
 function nowTimeStr(): string {

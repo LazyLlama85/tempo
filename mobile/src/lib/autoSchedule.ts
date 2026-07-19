@@ -20,6 +20,7 @@ import { getUnavailableBlocks } from '@/lib/unavailability'
 import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
+import { toDateStr } from '@/lib/dates'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
@@ -35,9 +36,6 @@ export function autoSchedulingEnabled(
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 function sameDay(a: Date, b: Date): boolean { return startOfDay(a).getTime() === startOfDay(b).getTime() }
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function fmtClock(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00`
 }

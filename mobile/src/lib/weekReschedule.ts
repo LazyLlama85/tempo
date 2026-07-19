@@ -11,6 +11,7 @@
 
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
+import { toDateStr } from '@/lib/dates'
 
 export const RESCHEDULE_HORIZON_DAYS = 7
 
@@ -36,9 +37,6 @@ export interface PlanWeekOptions {
   allowDays?: Set<number>   // ISO weekdays 1..7; empty/undefined = any day
 }
 
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function fmtTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00`
 }

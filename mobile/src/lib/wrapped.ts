@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal } from '@/types'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { sessionStreak } from '@/lib/streak'
+import { toDateStr } from '@/lib/dates'
 
 export type WrappedCard =
   | { kind: 'weekly'; workouts: number; minutes: number; volumeLbs: number; adherencePct: number; prs: number; topExercise: string | null; topDeltaLbs: number | null }
@@ -28,9 +29,6 @@ const GOAL_TITLES: Record<Goal, string> = {
   athletic: 'ATHLETIC PERFORMANCE',
 }
 
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function mondayOf(d: Date): Date {
   const r = new Date(d); r.setHours(0, 0, 0, 0)
   r.setDate(r.getDate() - ((r.getDay() + 6) % 7))

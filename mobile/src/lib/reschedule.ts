@@ -16,6 +16,7 @@ import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { planWeekReschedule, RESCHEDULE_HORIZON_DAYS, type WeekWorkout } from '@/lib/weekReschedule'
 import { fetchActiveSplit, isAutoSplit } from '@/lib/splits'
 import { materializeSplit } from '@/lib/splitSchedule'
+import { toDateStr } from '@/lib/dates'
 import type { CalendarProvider, TimeOfDay } from '@/types'
 
 export interface SlotSuggestion {
@@ -29,12 +30,6 @@ export interface SlotSuggestion {
 // Movement pattern → coarse recovery region (complements the muscle-name mapping).
 const PATTERN_REGION: Record<string, Region> = {
   push: 'push', pull: 'pull', squat: 'legs', hinge: 'legs', core: 'core', carry: 'core', cardio: 'other',
-}
-
-function toDateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
 }
 
 function fmtTime(d: Date): string {

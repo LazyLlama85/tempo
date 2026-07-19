@@ -11,6 +11,7 @@ import type { Goal, Split, SplitDay, WorkoutExerciseConfig, WorkoutTemplate } fr
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
 import { computeTempoScore } from './tempoScore'
 import { BADGE_BY_KEY, badgeStatsFromSessions, computeEarnedBadges } from './badges'
+import { todayStr, addDays, toDateStr } from './dates'
 
 export type PrivacyLevel = 'public' | 'friends' | 'private'
 
@@ -251,13 +252,17 @@ export async function syncSocialOnOpen(client: SupabaseClient, userId: string, d
   if (!userId) return
   try { await client.rpc('claim_competitive_badges') } catch { /* pre-migration / offline */ }
   try {
-    const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10)
+    // Previously computed via new Date().toISOString().slice(0,10) — that's
+    // the UTC date, not local, so a user behind UTC could have "today"
+    // silently read as tomorrow for part of their evening, judging a
+    // not-yet-settled streak miss a day early. planned_date is always local.
+    const today = todayStr()
+    const since = addDays(today, -120)
     const { data } = await client
       .from('scheduled_workouts')
       .select('planned_date, status')
       .eq('user_id', userId)
       .gte('planned_date', since)
-    const today = new Date().toISOString().slice(0, 10)
     const streak = sessionStreak((data ?? []) as StreakRow[], today)
     const events = [7, 14, 30, 50, 100]
       .filter((n) => streak >= n)
@@ -331,17 +336,21 @@ export async function fetchFriendOverview(client: SupabaseClient, targetUserId: 
   if (!data) return null
   const raw = data as FriendOverview & { sessions?: StreakRow[] }
   const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
+  // Previously .toISOString().slice(0,10) (UTC) for both "today" and "Monday
+  // of this week" — the same class of bug already fixed in syncSocialOnOpen
+  // above: a user behind UTC could read the wrong local calendar day for
+  // part of their evening.
+  const today = todayStr(now)
   // Week starts Monday (matches the leaderboard's date_trunc('week')).
   const monday = new Date(now)
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-  const mondayStr = monday.toISOString().slice(0, 10)
-  const monthStr = `${todayStr.slice(0, 7)}-01`
+  const mondayStr = toDateStr(monday)
+  const monthStr = `${today.slice(0, 7)}-01`
   const sessions = raw.sessions ?? []
   return {
     ...raw,
-    streak: raw.sessions ? sessionStreak(sessions, todayStr) : undefined,
-    longest_streak: raw.sessions ? longestSessionStreak(sessions, todayStr) : undefined,
+    streak: raw.sessions ? sessionStreak(sessions, today) : undefined,
+    longest_streak: raw.sessions ? longestSessionStreak(sessions, today) : undefined,
     workouts_this_week: raw.sessions
       ? sessions.filter((s) => s.status === 'completed' && s.planned_date >= mondayStr).length
       : undefined,
@@ -352,7 +361,7 @@ export async function fetchFriendOverview(client: SupabaseClient, targetUserId: 
     // social badges — computed here so friend-profile just renders them.
     earned_badges: raw.sessions
       ? [...computeEarnedBadges(
-          badgeStatsFromSessions(sessions, raw.days_per_week ?? 3, todayStr, {
+          badgeStatsFromSessions(sessions, raw.days_per_week ?? 3, today, {
             totalWorkouts: raw.total_workouts, totalVolume: raw.total_volume_lbs,
           }),
           new Set(raw.stored_badges ?? []),

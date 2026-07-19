@@ -20,20 +20,15 @@
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
 import { tempoScoreInputFromSessions, clampGoal } from './tempoScore'
 import { consecutiveTrainingDays } from './trainingLoad'
+import { toDateStr as ymd, addDays } from './dates'
 
 // ── Date helpers (local, dependency-free) ───────────────────────────────────────
 
 const DAY_MS = 86_400_000
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0)
 
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 function parseYmd(s: string): Date {
   return new Date(`${s}T00:00:00`)
-}
-function addDays(s: string, n: number): string {
-  return ymd(new Date(parseYmd(s).getTime() + n * DAY_MS))
 }
 function mondayOf(s: string): string {
   const d = parseYmd(s)

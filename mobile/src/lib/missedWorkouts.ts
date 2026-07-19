@@ -1,10 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-
-function toDateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
+import { toDateStr } from '@/lib/dates'
 
 // Marks any committed scheduled_workouts whose planned_date is before today as
 // 'missed'. Plan workouts (user_plan_id set) and active-split workouts (source='split')

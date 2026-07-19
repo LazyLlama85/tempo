@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Experience } from '@/types'
 import { weekProgression, type AdaptationMode } from '@/lib/periodization'
 import { captureApiError } from '@/lib/crashReporting'
+import { toDateStr, daysBetween, addDays } from '@/lib/dates'
 
 export type WorkoutFeel = 'too_easy' | 'just_right' | 'too_hard'
 
@@ -63,22 +64,22 @@ export async function getIntensityBias(client: SupabaseClient, userId: string): 
 // re-stamps the progression on every future plan workout so the coming weeks
 // actually change — this is what makes adaptation_mode a live input, not a label.
 
-function dateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
 // Monday (ISO) of the week containing `d`, as 'YYYY-MM-DD'.
 function mondayOf(d: Date): string {
   const monBased = (d.getDay() + 6) % 7
   const monday = new Date(d)
   monday.setDate(d.getDate() - monBased)
   monday.setHours(0, 0, 0, 0)
-  return dateStr(monday)
+  return toDateStr(monday)
 }
+// Whole weeks between two 'YYYY-MM-DD' strings. Previously parsed both dates
+// as UTC midnight (Date.parse(...+'T00:00:00Z')) while every date this
+// function actually receives (mondayOf's own output, plan planned_dates) is
+// built in LOCAL time — a real mismatch that could shift a week boundary by
+// a day depending on the server/device's UTC offset. daysBetween (lib/dates)
+// is local and DST-safe.
 function weeksBetween(fromStr: string, toStr: string): number {
-  const ms = Date.parse(toStr + 'T00:00:00Z') - Date.parse(fromStr + 'T00:00:00Z')
-  return Math.floor(ms / (7 * 86_400_000))
+  return Math.floor(daysBetween(fromStr, toStr) / 7)
 }
 function stripDeload(focus: string): string {
   return focus.replace(/\s*\(Deload\)\s*$/i, '')
@@ -97,7 +98,10 @@ export async function evaluateAdaptationMode(
 ): Promise<AdaptationMode> {
   try {
     const today = new Date()
-    const twoWeeksAgo = dateStr(new Date(today.getTime() - 14 * 86_400_000))
+    // addDays (calendar-day arithmetic), not subtracting 14*86_400_000ms from
+    // a Date — the latter can land on the wrong wall-clock day across a DST
+    // transition.
+    const twoWeeksAgo = addDays(toDateStr(today), -14)
 
     const [{ data: feedback }, { count: missed }] = await Promise.all([
       client
@@ -163,7 +167,7 @@ export async function applyAdaptationMode(
   const experience = (profile?.experience ?? 'beginner') as Experience
   const baseDuration = profile?.preferred_duration_min ?? 45
 
-  const today = dateStr(new Date())
+  const today = toDateStr(new Date())
   const { data: future } = await client
     .from('scheduled_workouts')
     .select('id, planned_date, focus')
@@ -259,7 +263,7 @@ export async function refreshAdaptation(
       .eq('user_id', userId)
       .eq('source', 'plan')
       .eq('status', 'scheduled')
-      .gte('planned_date', dateStr(new Date()))
+      .gte('planned_date', toDateStr(new Date()))
       .is('progression', null)
     if (unstamped && unstamped > 0) await applyAdaptationMode(client, userId, current)
     return current

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { sessionStreak } from '@/lib/streak'
+import { toDateStr } from '@/lib/dates'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,12 +25,6 @@ type SetLogsResult = {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toDateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
 
 function getMondayOf(d: Date): Date {
   const result = new Date(d)

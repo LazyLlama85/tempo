@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { findFreeWindows, getCalendarPermissionStatus } from '@/services/calendarService'
 import { QUICK_DURATIONS, type QuickMinutes, type QuickPurpose, type MovementPattern } from '@/lib/quickWorkout'
+import { toDateStr } from '@/lib/dates'
 
 export interface QuickSuggestion {
   minutes: QuickMinutes
@@ -22,12 +23,6 @@ export interface QuickSuggestion {
   icon: string
   headline: string
   sub: string
-}
-
-function toDateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
 }
 
 // Largest preset duration that fits the available minutes (min 10 for calendar gaps).

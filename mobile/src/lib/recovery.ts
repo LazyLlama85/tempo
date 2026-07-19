@@ -7,6 +7,7 @@
 // behaves exactly as before.
 
 import { supabase } from '@/lib/supabase'
+import { todayStr } from '@/lib/dates'
 
 export interface RecoveryInputs {
   sleep: number     // 1–5, higher is better
@@ -18,13 +19,6 @@ export interface RecoveryInputs {
 export interface RecoveryCheckin extends RecoveryInputs {
   date: string
   readiness: number
-}
-
-function todayStr(): string {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
 }
 
 // Maps the four 1–5 inputs to a 0–100 readiness score. Soreness and stress are

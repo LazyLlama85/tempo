@@ -10,6 +10,7 @@
 // completed a session isn't "returning" — they get the normal first-run experience.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { toDateStr as dateStr } from '@/lib/dates'
 
 export type AbsenceTier = 'd3' | 'd7' | 'd30'
 
@@ -28,12 +29,6 @@ export function tierForDays(days: number): AbsenceTier | null {
   if (days >= 7) return 'd7'
   if (days >= 3) return 'd3'
   return null
-}
-
-function dateStr(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
 }
 
 export async function getReturningState(

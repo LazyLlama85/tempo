@@ -6,6 +6,8 @@
 // back-to-back days, avoid creating 3-in-a-row training blocks, and keep the week
 // balanced. Pure functions over the week's existing sessions, so it's unit-testable.
 
+import { toDateStr as dateStr, daysBetween } from '@/lib/dates'
+
 export type Region = 'push' | 'pull' | 'legs' | 'core' | 'other'
 
 // Exact-match lookup, not substring — a naive .includes() check misclassified
@@ -55,11 +57,11 @@ export interface DayScore {
 }
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
-function dateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// dayDiff(a,b) = a - b (in days) — daysBetween(x,y) computes y-x, so this
+// delegates as daysBetween(b,a) to keep the exact same sign convention every
+// existing call site already expects.
 function dayDiff(a: string, b: string): number {
-  return Math.round((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000)
+  return daysBetween(b, a)
 }
 function shares(a: Set<Region>, b: Set<Region>): Region | null {
   for (const r of a) if (r !== 'other' && b.has(r)) return r

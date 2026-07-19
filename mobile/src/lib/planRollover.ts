@@ -9,19 +9,17 @@
 // `extendActivePlan` calls these rather than re-deriving them.
 
 import { BLOCK_WEEKS } from '@/lib/periodization'
+import { toDateStr } from '@/lib/dates'
 
 // How much scheduled runway must remain before we materialize the next block. If
 // the plan's last session is within this many days (or already past), we roll over.
 export const PLAN_RUNWAY_DAYS = 7
 
 // Local-date 'YYYY-MM-DD' (matches how scheduled_workouts.planned_date is stored —
-// a local calendar day, never UTC-shifted). The single implementation; generatePlan
-// delegates its `formatDate` here so the two can never drift apart.
-export function formatLocalDate(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
+// a local calendar day, never UTC-shifted). Re-exported from lib/dates (the C1
+// shared module) under this historical name so generatePlan's `formatDate` and
+// every other existing caller of `formatLocalDate` keep working unchanged.
+export const formatLocalDate = toDateStr
 
 // True when the plan's last scheduled session (`lastPlannedDate`) is close enough
 // to now that we should generate the next block. `today` should be midnight-local.
