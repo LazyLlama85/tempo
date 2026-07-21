@@ -201,9 +201,48 @@ export async function purchaseProPackage(pkg: PurchasesPackage): Promise<Purchas
   }
 }
 
-/** Whether a package grants a free trial / intro offer the current user is eligible to see. */
+// §24 L3 — the store distinguishes two kinds of introductory offer, and the
+// paywall must never conflate them: a FREE TRIAL (price 0 for N days, then
+// the list price) and a PAID intro like the $19.99 founding first year (Pay
+// Up Front, a real charge, then the list price). Both come back on the same
+// `product.introPrice` field — `packageHasIntroOffer` used to assume every
+// intro was free (`price === 0`), which is silently wrong the moment a paid
+// intro offer exists: the paywall would render the LIST price ($34.99) while
+// the store actually charges $19.99. That's a conversion-killing, App-Review-
+// risking bug, not a cosmetic one — fixed by splitting "has an intro offer"
+// from "is that intro offer free."
+
+export interface IntroOffer {
+  isFree: boolean
+  priceString: string
+  price: number
+  periodUnit: string // 'DAY' | 'WEEK' | 'MONTH' | 'YEAR'
+  periodNumberOfUnits: number
+  cycles: number
+}
+
+/** Whether a package has ANY introductory offer — free trial or paid intro price. */
 export function packageHasIntroOffer(pkg: PurchasesPackage | null | undefined): boolean {
-  return !!pkg && !!pkg.product.introPrice && pkg.product.introPrice.price === 0
+  return !!pkg?.product.introPrice
+}
+
+/** Whether the package's intro offer (if any) is specifically a FREE trial. */
+export function introIsFree(pkg: PurchasesPackage | null | undefined): boolean {
+  return pkg?.product.introPrice?.price === 0
+}
+
+/** The package's intro offer, typed and normalized, or null if it has none. */
+export function introOffer(pkg: PurchasesPackage | null | undefined): IntroOffer | null {
+  const intro = pkg?.product.introPrice
+  if (!intro) return null
+  return {
+    isFree: intro.price === 0,
+    priceString: intro.priceString,
+    price: intro.price,
+    periodUnit: intro.periodUnit,
+    periodNumberOfUnits: intro.periodNumberOfUnits,
+    cycles: intro.cycles,
+  }
 }
 
 // ── Paywall + Customer Center (react-native-purchases-ui) ───────────────────────

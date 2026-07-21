@@ -7,42 +7,58 @@
 //
 // Dormant-safe: this screen is only ever reached when a feature is `locked`
 // (proEnabled && !isPro) or the user opens it from a live Pro entry point.
+//
+// §25 rebuild (2026-07-22): the old version described the product to someone who
+// had already used it — a generic hero, a 6-row icon list, and a 9-row compare
+// table before ever getting to a price. This version leads with the user's own
+// data, shows the wedge with one animated visual instead of describing it, and
+// collapses everything else so the price is reached in one scroll, not five.
 
-import { useEffect, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { useEffect, useMemo, useState } from 'react'
+import { ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
-import { Spacing, Radius, CardShadow, Elevation } from '@/constants/theme'
-import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { Palettes, Spacing, Radius, Elevation } from '@/constants/theme'
+import type { Palette } from '@/theme'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
-import { PressableScale, FadeInView } from '@/components/motion'
+import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { PAYWALL_POINTS, type IoniconName } from '@/lib/proFeatures'
 import {
-  getProOffering, purchaseProPackage, restorePurchases, packageHasIntroOffer,
+  getProOffering, purchaseProPackage, restorePurchases, introOffer, type IntroOffer,
 } from '@/lib/purchases'
 import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
+import { fetchFoundingOfferEndsAt } from '@/lib/proConfig'
 
 type PlanKey = 'annual' | 'monthly'
 
-// Free-vs-Pro — kept honest to the actual gating (proFeatures.ts): the free app is
-// fully functional; Pro adds depth/foresight/breadth/personalization on top.
-// Honest to the actual gating (proFeatures.ts + proLimits.ts): the core training
-// loop is free and uncapped; Pro removes the creation caps and adds the scheduling
-// superpowers. The free column reflects the real free-tier limits.
-const COMPARE: { label: string; free: string | boolean }[] = [
+// Always dark, regardless of the app's own light/dark setting — the cheapest
+// reliable "this is the premium room" signal, and it never touches the global
+// theme store (Palettes.dark is a plain constant object), so no other screen
+// is affected. See §25.2.
+const C: Palette = Palettes.dark
+
+// What's actually gated today (proFeatures.ts / proLimits.ts) — the free app is
+// fully functional; Pro adds foresight + automation + depth on top. The
+// "Advanced analytics" row is deliberately NOT here: Free already has it, and a
+// row where Free shows a checkmark is an argument against paying, printed on
+// the purchase screen.
+// `pro` overrides the default "∞" shown for a string free-value — right for a
+// creation cap ("1 plan" → "∞"), wrong for a time-window row like the
+// calendar-fit one, where the honest Pro value is "Every week," not infinity.
+const COMPARE: { label: string; free: string | boolean; pro?: string }[] = [
   { label: 'Auto-scheduled workout plan', free: true },
   { label: 'Unlimited logging & full history', free: true },
   { label: 'Full 1,300+ exercise library', free: true },
-  { label: 'Advanced analytics', free: true },
+  { label: 'Auto-fit around your calendar', free: 'This week', pro: 'Every week' },
   { label: 'Custom plans', free: '1' },
   { label: 'Custom workouts & exercises', free: '5 each' },
-  { label: '"Reschedule my whole week" in one tap', free: false },
+  { label: 'Auto-move on a calendar conflict', free: false },
   { label: 'Multi-calendar & travel mode', free: false },
   { label: 'Premium themes & app icons', free: false },
 ]
@@ -54,31 +70,22 @@ const TRUST: { icon: IoniconName; label: string }[] = [
   { icon: 'refresh', label: 'Cancel anytime' },
 ]
 
-function trialLabel(pkg: PurchasesPackage | null): string | null {
-  const intro = pkg?.product.introPrice
-  if (!intro || intro.price !== 0) return null
-  const n = intro.periodNumberOfUnits
-  const unit = String(intro.periodUnit || '').toLowerCase().replace(/s$/, '')
-  const pretty = unit === 'day' ? 'day' : unit === 'week' ? 'week' : unit === 'month' ? 'month' : unit || 'day'
-  return `${n}-${pretty}${n === 1 ? '' : 's'} free`
-}
-
 // The trial length in DAYS (for the "how your trial works" timeline). Normalizes
 // whatever unit the store reports (a 7-day trial can come back as 1 WEEK or 7 DAY).
-function trialDaysOf(pkg: PurchasesPackage | null): number | null {
-  const intro = pkg?.product.introPrice
-  if (!intro || intro.price !== 0) return null
-  const n = intro.periodNumberOfUnits || 0
-  const unit = String(intro.periodUnit || '').toUpperCase()
+function daysOf(offer: IntroOffer): number {
+  const n = offer.periodNumberOfUnits || 0
+  const unit = offer.periodUnit.toUpperCase()
   if (unit.includes('WEEK')) return n * 7
   if (unit.includes('MONTH')) return n * 30
   if (unit.includes('YEAR')) return n * 365
-  return n // DAY (or unknown → treat as days)
+  return n
+}
+
+function foundingEndsLabel(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
 }
 
 export default function PaywallScreen() {
-  const C = useTheme()
-  const styles = useThemedStyles(makeStyles)
   const router = useRouter()
   const params = useLocalSearchParams<{ context?: string }>()
   const context = params.context ?? 'unknown'
@@ -90,14 +97,21 @@ export default function PaywallScreen() {
   const [selected, setSelected] = useState<PlanKey>('annual')
   const [busy, setBusy] = useState(false)
   const [impact, setImpact] = useState<SchedulingImpact | null>(null)
+  const [foundingEndsAt, setFoundingEndsAt] = useState<string | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
 
   // Personalized proof: how many workouts Tempo has already planned + scheduled for
-  // this user. Turns the pitch from "here's what Pro does" into "here's what Tempo has
-  // already done for you — keep it." Best-effort; the line hides itself when thin.
+  // this user. The single most persuasive element on the screen, so it leads the
+  // hero rather than sitting below the fold — shown from the first real workout
+  // (not held back for an arbitrary "3 scheduled" threshold).
   useEffect(() => {
     if (!userId) return
     fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})
   }, [userId])
+
+  useEffect(() => {
+    fetchFoundingOfferEndsAt(supabase).then(setFoundingEndsAt).catch(() => {})
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -117,14 +131,22 @@ export default function PaywallScreen() {
   const selectedPkg = selected === 'annual' ? annualPkg : monthlyPkg
   const hasPlans = !!(annualPkg || monthlyPkg)
 
-  // Savings %: annual price vs 12× the monthly price. Both come from the store.
-  const savingsPct =
-    annualPkg && monthlyPkg && monthlyPkg.product.price > 0
-      ? Math.round((1 - annualPkg.product.price / (monthlyPkg.product.price * 12)) * 100)
-      : null
+  const annualIntro = introOffer(annualPkg)
+  const selectedIntro = introOffer(selectedPkg)
+  const hasFreeTrial = !!selectedIntro?.isFree
+  const hasPaidIntro = !!selectedIntro && !selectedIntro.isFree
 
-  const trial = trialLabel(selectedPkg)
-  const trialDays = trialDaysOf(selectedPkg)
+  // Savings badge: a paid intro on annual compares against the EFFECTIVE first-
+  // year cost, not the list price — $19.99 vs 12×$4.99 is 67% off, a materially
+  // stronger (and honest) number than list-vs-list, which is what this used to
+  // compute unconditionally.
+  const savingsPct = useMemo(() => {
+    if (!annualPkg || !monthlyPkg || monthlyPkg.product.price <= 0) return null
+    const annualEffective = annualIntro && !annualIntro.isFree ? annualIntro.price : annualPkg.product.price
+    return Math.round((1 - annualEffective / (monthlyPkg.product.price * 12)) * 100)
+  }, [annualPkg, monthlyPkg, annualIntro])
+
+  const trialDays = hasFreeTrial && selectedIntro ? daysOf(selectedIntro) : null
 
   const close = () => {
     track('paywall_dismissed', { context })
@@ -167,7 +189,21 @@ export default function PaywallScreen() {
     }
   }
 
-  const ctaLabel = trial ? 'Start Free Trial' : 'Unlock Tempo Pro'
+  const ctaLabel = hasFreeTrial
+    ? 'Start Free Trial'
+    : hasPaidIntro && selectedIntro
+      ? `Get Pro — ${selectedIntro.priceString} for the Year`
+      : 'Unlock Tempo Pro'
+
+  const heroTitle = impact && impact.scheduledByTempo >= 1
+    ? `Tempo has scheduled ${impact.scheduledByTempo} workout${impact.scheduledByTempo === 1 ? '' : 's'} around your real life.`
+    : 'Train smarter.\nNever miss a workout.'
+  const heroSub = impact && impact.scheduledByTempo >= 1
+    ? 'Keep it doing that automatically — every week, not just this one.'
+    : 'Tempo schedules your training around your life and tells you exactly what to do each day.'
+
+  const heroPoints = PAYWALL_POINTS.slice(0, 3)
+  const restPoints = PAYWALL_POINTS.slice(3)
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -178,95 +214,49 @@ export default function PaywallScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Hero */}
+        {/* Hero — personalized to the user's own data when there's enough of it. */}
         <FadeInView style={styles.hero} delay={20}>
           <View style={styles.heroGlow} pointerEvents="none" />
           <View style={styles.heroBadge}>
             <TempoPulse size={26} />
           </View>
-          <Text style={styles.heroTitle}>Train smarter.{'\n'}Never miss a workout.</Text>
-          <Text style={styles.heroSub}>
-            Tempo Pro schedules your training around your life and tells you exactly what to do each day.
-          </Text>
+          <Text style={styles.heroTitle}>{heroTitle}</Text>
+          <Text style={styles.heroSub}>{heroSub}</Text>
         </FadeInView>
 
-        {/* Personalized proof of the wedge (hidden until it's meaningful). */}
-        {impact && impact.scheduledByTempo >= 3 && (
-          <View style={styles.proofPill}>
-            <Ionicons name="sparkles" size={16} color={C.primary} />
-            <Text style={styles.proofText}>
-              Tempo has already planned & scheduled {impact.scheduledByTempo} of your workouts around your week. Keep the momentum going.
-            </Text>
-          </View>
-        )}
+        {/* The one visual — shows the wedge instead of describing it. */}
+        <PopIn delay={140} style={styles.weekStripCard}>
+          <WeekStrip />
+          <Text style={styles.weekStripCaption}>Real events in grey. Tempo fits your training into the gaps.</Text>
+        </PopIn>
 
-        {/* Value props */}
-        <View style={styles.valueCard}>
-          {PAYWALL_POINTS.map((p, i) => (
-            <FadeInView key={p.title} delay={80 + i * 50} style={styles.valueRow}>
-              <View style={styles.valueIcon}>
-                <Ionicons name={p.icon} size={18} color={C.primary} />
+        {/* Three benefit cards — outcomes, not a feature list. */}
+        <View style={styles.benefitStack}>
+          {heroPoints.map((p, i) => (
+            <FadeInView key={p.title} delay={200 + i * 60} style={styles.benefitCard}>
+              <View style={styles.benefitIcon}>
+                <Ionicons name={p.icon} size={20} color={C.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.valueTitle}>{p.title}</Text>
-                <Text style={styles.valueBenefit}>{p.benefit}</Text>
+                <Text style={styles.benefitTitle}>{p.title}</Text>
+                <Text style={styles.benefitBody}>{p.benefit}</Text>
               </View>
             </FadeInView>
           ))}
         </View>
+        {restPoints.length > 0 && (
+          <Text style={styles.restLine}>
+            …plus {restPoints.map((p) => p.title.toLowerCase()).join(', ')}.
+          </Text>
+        )}
 
-        {/* Free vs Pro comparison */}
-        <View style={styles.compareCard}>
-          <View style={styles.compareHead}>
-            <Text style={styles.compareHeadLabel}>What you get</Text>
-            <Text style={styles.compareCol}>Free</Text>
-            <Text style={[styles.compareCol, styles.compareColPro]}>Pro</Text>
+        {/* Founding-price banner — only while a real, unexpired offer exists. */}
+        {foundingEndsAt && hasPaidIntro && (
+          <View style={styles.foundingBanner}>
+            <Ionicons name="time-outline" size={15} color={C.gold} />
+            <Text style={styles.foundingBannerText}>Founding price ends {foundingEndsLabel(foundingEndsAt)}</Text>
           </View>
-          {COMPARE.map((row, i) => (
-            <View key={i} style={[styles.compareRow, i > 0 && styles.compareRowDivider]}>
-              <Text style={styles.compareLabel}>{row.label}</Text>
-              <View style={styles.compareCell}>
-                {typeof row.free === 'string'
-                  ? <Text style={styles.compareFreeVal}>{row.free}</Text>
-                  : row.free
-                    ? <Ionicons name="checkmark" size={16} color={C.textSecondary} />
-                    : <Ionicons name="remove" size={16} color={C.outlineVariant} />}
-              </View>
-              <View style={styles.compareCell}>
-                {typeof row.free === 'string'
-                  ? <Text style={styles.compareProVal}>∞</Text>
-                  : <Ionicons name="checkmark-circle" size={18} color={C.primary} />}
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* How your free trial works — the trust-building timeline top fitness apps
-            use so "free trial" doesn't read as "surprise charge". Only when a trial
-            actually exists on the selected plan. */}
-        {trial && trialDays ? (
-          <View style={styles.timelineCard}>
-            <Text style={styles.timelineHead}>How your {trialDays}-day free trial works</Text>
-            <TimelineRow
-              icon="lock-open"
-              title="Today"
-              body="Unlock everything in Pro — instantly."
-            />
-            {trialDays > 2 && (
-              <TimelineRow
-                icon="notifications-outline"
-                title={`Day ${trialDays - 2}`}
-                body="We'll remind you before your trial ends."
-              />
-            )}
-            <TimelineRow
-              icon="star"
-              title={`Day ${trialDays}`}
-              body={`Your plan begins${selectedPkg?.product.priceString ? ` (${selectedPkg.product.priceString}${selected === 'annual' ? '/yr' : '/mo'})` : ''} — cancel anytime before.`}
-              last
-            />
-          </View>
-        ) : null}
+        )}
 
         {/* Plans */}
         {loading ? (
@@ -286,13 +276,20 @@ export default function PaywallScreen() {
             {annualPkg && (
               <PlanOption
                 label="Annual"
-                price={annualPkg.product.priceString}
+                price={annualIntro && !annualIntro.isFree ? annualIntro.priceString : annualPkg.product.priceString}
+                strikePrice={annualIntro && !annualIntro.isFree ? annualPkg.product.priceString : undefined}
                 subline={
-                  annualPkg.product.pricePerMonthString
-                    ? `${annualPkg.product.pricePerMonthString}/mo · billed yearly`
-                    : 'Billed yearly'
+                  annualIntro && !annualIntro.isFree
+                    ? `first year · then ${annualPkg.product.priceString}/yr`
+                    : annualPkg.product.pricePerMonthString
+                      ? `${annualPkg.product.pricePerMonthString}/mo · billed yearly`
+                      : 'Billed yearly'
                 }
-                badge={savingsPct && savingsPct > 0 ? `SAVE ${savingsPct}%` : 'BEST VALUE'}
+                badge={
+                  annualIntro && !annualIntro.isFree ? 'FOUNDING PRICE'
+                    : savingsPct && savingsPct > 0 ? `SAVE ${savingsPct}%`
+                    : 'BEST VALUE'
+                }
                 selected={selected === 'annual'}
                 onPress={() => setSelected('annual')}
               />
@@ -309,15 +306,71 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        {trial && (
-          <Text style={styles.trialNote}>
-            {trial}, then {selectedPkg?.product.priceString}
-            {selected === 'annual' ? '/yr' : '/mo'}. Cancel anytime.
-          </Text>
-        )}
+        {/* What you pay / trial timeline — offer-aware, never both at once. */}
+        {hasFreeTrial && trialDays ? (
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineHead}>How your {trialDays}-day free trial works</Text>
+            <TimelineRow icon="lock-open" title="Today" body="Unlock everything in Pro — instantly." />
+            {trialDays > 2 && (
+              <TimelineRow
+                icon="notifications-outline"
+                title={`Day ${trialDays - 2}`}
+                body="We'll remind you before your trial ends."
+              />
+            )}
+            <TimelineRow
+              icon="star"
+              title={`Day ${trialDays}`}
+              body={`Your plan begins${selectedPkg?.product.priceString ? ` (${selectedPkg.product.priceString}${selected === 'annual' ? '/yr' : '/mo'})` : ''} — cancel anytime before.`}
+              last
+            />
+          </View>
+        ) : hasPaidIntro && selectedIntro ? (
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineHead}>What you pay</Text>
+            <TimelineRow icon="today-outline" title="Today" body={`${selectedIntro.priceString}, everything unlocked for a year.`} />
+            <TimelineRow
+              icon="refresh-outline"
+              title="In 12 months"
+              body={`Renews at ${selectedPkg?.product.priceString}/yr — cancel anytime before.`}
+              last
+            />
+          </View>
+        ) : null}
 
-        {hasPlans && (
-          <Text style={styles.valueStatement}>Less than a coffee a week — cancel anytime.</Text>
+        {/* Compare, collapsed — closed by default; the full free/Pro line for
+            anyone who wants to check, not the primary sales surface. */}
+        <TouchableOpacity style={styles.compareToggle} onPress={() => setCompareOpen((v) => !v)} activeOpacity={0.7}>
+          <Text style={styles.compareToggleText}>Compare free and Pro</Text>
+          <Ionicons name={compareOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSecondary} />
+        </TouchableOpacity>
+        {compareOpen && (
+          <View style={styles.compareCard}>
+            <View style={styles.compareHead}>
+              <Text style={styles.compareHeadLabel}>What you get</Text>
+              <Text style={styles.compareCol}>Free</Text>
+              <Text style={[styles.compareCol, styles.compareColPro]}>Pro</Text>
+            </View>
+            {COMPARE.map((row, i) => (
+              <View key={i} style={[styles.compareRow, i > 0 && styles.compareRowDivider]}>
+                <Text style={styles.compareLabel}>{row.label}</Text>
+                <View style={styles.compareCell}>
+                  {typeof row.free === 'string'
+                    ? <Text style={styles.compareFreeVal}>{row.free}</Text>
+                    : row.free
+                      ? <Ionicons name="checkmark" size={16} color={C.textSecondary} />
+                      : <Ionicons name="remove" size={16} color={C.outlineVariant} />}
+                </View>
+                <View style={styles.compareCell}>
+                  {typeof row.free === 'string'
+                    ? row.pro
+                      ? <Text style={styles.compareProValText}>{row.pro}</Text>
+                      : <Text style={styles.compareProVal}>∞</Text>
+                    : <Ionicons name="checkmark-circle" size={18} color={C.primary} />}
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* Trust indicators */}
@@ -362,13 +415,51 @@ export default function PaywallScreen() {
   )
 }
 
+// A seven-day strip: grey blocks are "real life", the primary-tinted block is
+// where Tempo fit training into a gap. Static content (a representative week,
+// not the user's literal calendar — no extra fetch, no risk of showing empty
+// days for a thin account) with one entrance animation, matching §25's ask for
+// something that SHOWS the product rather than another paragraph describing it.
+const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+// Each day: how "busy" the block reads (0-1) + whether a workout landed in the gap.
+const DAY_PATTERN: { busy: number; workout: boolean }[] = [
+  { busy: 0.55, workout: true }, { busy: 0.7, workout: false }, { busy: 0.35, workout: true },
+  { busy: 0.6, workout: false }, { busy: 0.75, workout: true }, { busy: 0.2, workout: false },
+  { busy: 0.15, workout: true },
+]
+
+function WeekStrip() {
+  return (
+    <View style={weekStyles.row}>
+      {DAY_PATTERN.map((d, i) => (
+        <View key={i} style={weekStyles.col}>
+          <View style={weekStyles.track}>
+            <View style={[weekStyles.busyBlock, { height: `${d.busy * 100}%` }]} />
+            {d.workout && (
+              <View style={[weekStyles.workoutBlock, { bottom: `${d.busy * 100 + 4}%` }]} />
+            )}
+          </View>
+          <Text style={weekStyles.label}>{DAY_LABELS[i]}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
+const weekStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 6, height: 100, alignItems: 'flex-end' },
+  col: { flex: 1, alignItems: 'center', gap: 6, height: '100%' },
+  track: { width: '100%', flex: 1, borderRadius: 6, overflow: 'visible', justifyContent: 'flex-end', position: 'relative' },
+  busyBlock: { width: '100%', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 6 },
+  workoutBlock: { position: 'absolute', width: '100%', height: 14, backgroundColor: C.primary, borderRadius: 6 },
+  label: { fontFamily: 'Inter_600SemiBold', fontSize: 10.5, color: C.textSecondary },
+})
+
 function PlanOption({
-  label, price, subline, badge, selected, onPress,
+  label, price, strikePrice, subline, badge, selected, onPress,
 }: {
-  label: string; price: string; subline: string; badge?: string; selected: boolean; onPress: () => void
+  label: string; price: string; strikePrice?: string; subline: string; badge?: string; selected: boolean; onPress: () => void
 }) {
-  const C = useTheme()
-  const styles = useThemedStyles(makeStyles)
   return (
     <PressableScale
       style={[styles.plan, selected && styles.planSelected]}
@@ -390,15 +481,16 @@ function PlanOption({
             <Text style={styles.planBadgeText}>{badge}</Text>
           </View>
         )}
-        <Text style={styles.planPrice}>{price}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+          {strikePrice && <Text style={styles.planPriceStrike}>{strikePrice}</Text>}
+          <Text style={styles.planPrice}>{price}</Text>
+        </View>
       </View>
     </PressableScale>
   )
 }
 
 function TimelineRow({ icon, title, body, last }: { icon: IoniconName; title: string; body: string; last?: boolean }) {
-  const C = useTheme()
-  const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.timelineRow}>
       <View style={styles.timelineRail}>
@@ -415,7 +507,7 @@ function TimelineRow({ icon, title, body, last }: { icon: IoniconName; title: st
   )
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { padding: Spacing.containerPadding, paddingBottom: Spacing.lg, gap: Spacing.lg },
 
@@ -425,43 +517,27 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
   },
   heroGlow: { position: 'absolute', top: -24, left: '50%', width: 220, height: 220, borderRadius: 110, marginLeft: -110, backgroundColor: C.primaryGlow },
-  heroTitle: { fontFamily: C.fontDisplay, fontSize: 29, color: C.text, letterSpacing: -0.6, textAlign: 'center', lineHeight: 34 },
+  heroTitle: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.6, textAlign: 'center', lineHeight: 35 },
   heroSub: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.md },
 
-  proofPill: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: C.primarySoft, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  proofText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.text, lineHeight: 18 },
+  weekStripCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, ...Elevation.e1 },
+  weekStripCaption: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
 
-  valueCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Elevation.e1 },
-  valueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  valueIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  valueTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  valueBenefit: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
+  benefitStack: { gap: Spacing.sm },
+  benefitCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md,
+    backgroundColor: C.background, borderRadius: Radius.lg, padding: Spacing.md, ...Elevation.e1,
+  },
+  benefitIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  benefitTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  benefitBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
+  restLine: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18, paddingHorizontal: Spacing.xs, marginTop: -Spacing.sm },
 
-  compareCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
-  compareHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.outlineVariant },
-  compareHeadLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, textTransform: 'uppercase' },
-  compareCol: { width: 46, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
-  compareColPro: { color: C.primary },
-  compareRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm + 1 },
-  compareRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
-  compareLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.text },
-  compareCell: { width: 46, alignItems: 'center' },
-  compareFreeVal: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
-  compareProVal: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.primary, lineHeight: 20 },
-
-  timelineCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, padding: Spacing.lg, paddingBottom: Spacing.md },
-  timelineHead: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, marginBottom: Spacing.md },
-  timelineRow: { flexDirection: 'row', gap: Spacing.md },
-  timelineRail: { alignItems: 'center', width: 32 },
-  timelineDot: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  timelineLine: { flex: 1, width: 2, backgroundColor: C.outlineVariant, marginVertical: 2 },
-  timelineRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
-  timelineRowBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
-
-  valueStatement: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, textAlign: 'center' },
-  trustRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.md, marginTop: 2 },
-  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  trustText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+  foundingBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: 'rgba(217,161,59,0.14)', borderRadius: Radius.md, paddingVertical: 8,
+  },
+  foundingBannerText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.gold },
 
   loadingBox: { alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg },
   loadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },
@@ -473,7 +549,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderWidth: 2, borderColor: 'transparent',
     ...Elevation.e1,
   },
-  planSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
+  planSelected: {
+    borderColor: C.primary, backgroundColor: C.primarySoft,
+    shadowColor: C.primary, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
   radio: {
     width: 22, height: 22, borderRadius: Radius.full, borderWidth: 2, borderColor: C.outline,
     alignItems: 'center', justifyContent: 'center',
@@ -481,11 +560,38 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   radioOn: { borderColor: C.primary, backgroundColor: C.primary },
   planLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
   planSubline: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
-  planPrice: { fontFamily: C.fontDisplay, fontSize: 18, color: C.text, letterSpacing: -0.3 },
+  planPrice: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
+  planPriceStrike: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, textDecorationLine: 'line-through' },
   planBadge: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
   planBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.5 },
 
-  trialNote: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary, textAlign: 'center' },
+  timelineCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, padding: Spacing.lg, paddingBottom: Spacing.md },
+  timelineHead: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.text, marginBottom: Spacing.md },
+  timelineRow: { flexDirection: 'row', gap: Spacing.md },
+  timelineRail: { alignItems: 'center', width: 32 },
+  timelineDot: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  timelineLine: { flex: 1, width: 2, backgroundColor: C.outlineVariant, marginVertical: 2 },
+  timelineRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
+  timelineRowBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
+
+  compareToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 4 },
+  compareToggleText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.textSecondary },
+  compareCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
+  compareHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.outlineVariant },
+  compareHeadLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, textTransform: 'uppercase' },
+  compareCol: { width: 46, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.4 },
+  compareColPro: { color: C.primary },
+  compareRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm + 1 },
+  compareRowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainerHigh },
+  compareLabel: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.text },
+  compareCell: { width: 46, alignItems: 'center' },
+  compareFreeVal: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  compareProVal: { fontFamily: 'Inter_800ExtraBold', fontSize: 18, color: C.primary, lineHeight: 20 },
+  compareProValText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, textAlign: 'center', lineHeight: 14 },
+
+  trustRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: Spacing.md, marginTop: 2 },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  trustText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
 
   footer: { paddingHorizontal: Spacing.containerPadding, paddingTop: Spacing.sm, gap: Spacing.sm, borderTopWidth: 1, borderTopColor: C.outlineVariant },
   cta: { backgroundColor: C.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center', minHeight: 52, ...Elevation.e2 },

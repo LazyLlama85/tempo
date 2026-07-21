@@ -72,3 +72,28 @@ export async function fetchProState(client: SupabaseClient, userId: string): Pro
 export async function fetchProEnabled(client: SupabaseClient, userId: string): Promise<boolean> {
   return (await fetchProState(client, userId)).proEnabled
 }
+
+// ── Founding-price scarcity banner (§24 L6) ─────────────────────────────────────
+//
+//   app_config row:  key = 'founding_offer'
+//                    value (jsonb) = { "ends_at": "2026-10-20" }  // 'YYYY-MM-DD'
+//
+// Deadlines convert, but only real ones — this is read from config (not
+// hardcoded on the paywall) specifically so the banner can never claim an
+// offer the store has already expired, and the date can be extended with one
+// SQL update instead of a build. Absent row / any error → no banner, same
+// fail-closed discipline as fetchProState.
+export async function fetchFoundingOfferEndsAt(client: SupabaseClient): Promise<string | null> {
+  try {
+    const { data } = await client
+      .from('app_config')
+      .select('value')
+      .eq('key', 'founding_offer')
+      .maybeSingle()
+    const endsAt = (data?.value as { ends_at?: string } | null)?.ends_at
+    if (!endsAt) return null
+    return new Date(`${endsAt}T23:59:59`) > new Date() ? endsAt : null
+  } catch {
+    return null
+  }
+}

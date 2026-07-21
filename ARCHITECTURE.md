@@ -2214,6 +2214,57 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Paywall rebuild + founding-price plumbing (2026-07-22, PRODUCT_AUDIT.html §24/§25 L3-L8)
+Founder-approved, built alongside the L1/L2 re-gating above so the paywall could sell what actually
+changed. Two classes of work: a real purchase-layer bug fix, and a full visual rebuild.
+- **L3 — `lib/purchases.ts`.** `packageHasIntroOffer` assumed every introductory offer is a FREE
+  trial (`price === 0`) — silently wrong the instant a PAID intro exists (the founding $19.99 first
+  year), which would have rendered the paywall's price as the $34.99 list price while the store
+  actually charged $19.99. Redefined `packageHasIntroOffer` to mean "has any intro offer"; added
+  `introIsFree()` and `introOffer()` (a typed, normalized `IntroOffer`) as the real API. The old
+  function had exactly one import site (`paywall.tsx`) and wasn't actually called there either — the
+  screen had its own duplicate local `trialLabel`/`trialDaysOf` doing the same wrong assumption, now
+  replaced by the shared helpers.
+- **L4/L5 — price display + savings math.** The annual plan option now shows the live intro price
+  (when one exists and isn't free) as the primary number with the list price struck through beside it
+  and a "first year · then $X/yr" subline — never a hardcoded number, always `product.priceString` /
+  `introPrice.priceString` off the live RevenueCat package. `savingsPct` now compares the *effective
+  first-year cost* against 12× monthly when a paid intro exists (67% off at $19.99 vs $4.99/mo), not
+  list-vs-list. The trial timeline card is now offer-aware: a free trial gets the existing "how your
+  trial works" steps; a paid intro gets a new two-row "what you pay" card instead — the two never
+  render together.
+- **L6 — founding-offer banner.** `lib/proConfig.ts` gained `fetchFoundingOfferEndsAt()`, reading a
+  new `app_config` row (`key='founding_offer'`, `value={"ends_at":"YYYY-MM-DD"}`) with the exact same
+  fail-closed, config-driven discipline as `fetchProState` — absent row or a past date → no banner,
+  so the app can never claim an offer the store has already expired. One SQL update extends it; no
+  build required.
+- **L7 — `lib/paywallFrequency.ts`.** A device-local 48h cooldown wired into the two genuinely
+  *automatic* paywall redirects (onboarding completion, first-workout completion) — a motivated new
+  user could otherwise complete both in one sitting and see the paywall twice. Deliberately NOT
+  applied to user-initiated opens (Settings, the Home conflict card's tap-through, any `ProGate`) —
+  those are deliberate actions, not nags, and a hard limit gate must always still explain why an
+  action was blocked regardless of this cooldown.
+- **L8 — onboarding placement, verified not rebuilt.** `onboarding/profile-setup.tsx` already calls
+  `router.replace('/(tabs)')` (landing on the populated Home day-timeline) BEFORE conditionally
+  pushing the paywall on top — the plan-preview demonstration already precedes the sell. No code
+  change needed; this was a real gap in an earlier build that had since been fixed independently.
+- **§25 — the visual rebuild (`app/paywall.tsx`).** Restructured top-to-bottom: (1) the hero now reads
+  the user's own `schedulingImpact` data ("Tempo has scheduled 14 workouts around your real life"),
+  shown from their first real workout instead of held back for a ≥3 threshold; (2) a new `WeekStrip`
+  component — seven day columns, grey blocks for "real life," a tinted block for where a workout fit
+  the gap — is the one thing on the screen that *shows* the product instead of describing it, built
+  from plain Views with one entrance animation (no new dependency); (3) the old 6-row icon list is now
+  3 outcome-framed benefit cards (still sourced from the single `PAYWALL_POINTS` registry — App
+  Review's "every paywall claim must map to a real feature" discipline is unchanged) plus a quiet
+  one-line summary of the rest; (4) the 9-row compare table is now a closed-by-default disclosure, and
+  the "Advanced analytics — Free ✓" row is gone entirely (a row where Free already has a checkmark is
+  an argument against paying, printed on the purchase screen); (5) **the screen is now always dark**
+  regardless of the app's own theme setting — done by importing `Palettes.dark` directly as a plain
+  constant (`@/constants/theme`) instead of the reactive `useTheme()` hook, so it touches zero global
+  theme state and can't affect any other screen. Every item on the §25.2 no-regressions checklist
+  (live pricing, the offline/no-plans fallback, Restore/Terms/Privacy, every `track()` call, dormant-
+  safety, dismissibility) was preserved verbatim from the original file.
+
 ### Pro re-gated onto the weekly repetition (2026-07-22, PRODUCT_AUDIT.html §24/§30 L1/L2)
 **Founder-approved change to what's free vs. Pro.** Every existing Pro gate (plate calculator, muscle
 map, travel mode, themes, creation caps) was an accessory nobody hits weekly — which is why founder

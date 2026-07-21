@@ -21,6 +21,7 @@ import { Slider } from '@/components/Slider'
 import { track } from '@/lib/analytics'
 import { useProAccess } from '@/stores/entitlements'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
+import { shouldAutoShowPaywall, markPaywallAutoShown } from '@/lib/paywallFrequency'
 
 
 // Last onboarding step — runs after the plan is built (see plan-preview). Lets a
@@ -94,7 +95,10 @@ export default function ProfileSetupScreen() {
     // placement (benchmark: onboarding paywalls with a trial lead the category). It's
     // a dismissible modal on top of Home, so it never traps the user. Dormant-safe:
     // `locked` is false while Pro is off, so this simply never fires pre-launch.
-    if (locked) {
+    // §25 L7: an automatic redirect, capped so a fast first day (onboarding
+    // AND a first workout in the same session) can't show the paywall twice.
+    if (locked && shouldAutoShowPaywall()) {
+      markPaywallAutoShown()
       track('paywall_shown', { context: 'onboarding' })
       router.push({ pathname: '/paywall', params: { context: 'onboarding' } } as any)
     }

@@ -25,6 +25,7 @@ import { SaveProgressSheet } from '@/components/SaveProgressSheet'
 import { countCompletedWorkouts, guestSavePromptSeen, markGuestSavePromptSeen, GUEST_SAVE_PROMPT_AFTER } from '@/lib/accountLinking'
 import { maybeTrackActivation, ACTIVATION_SESSIONS } from '@/lib/activation'
 import { useProAccess } from '@/stores/entitlements'
+import { shouldAutoShowPaywall, markPaywallAutoShown } from '@/lib/paywallFrequency'
 import { PopIn, FadeInView, PressableScale } from '@/components/motion'
 import { useTutorialStore } from '@/stores/tutorial'
 import * as haptics from '@/lib/haptics'
@@ -203,8 +204,12 @@ export default function WorkoutCompleteScreen() {
   // the user is already Pro, so today this changes nothing.
   const { locked } = useProAccess()
   useEffect(() => {
-    if (!isFirstSession || !locked) return
+    // §25 L7: capped alongside onboarding's own automatic redirect — a
+    // motivated new user can complete onboarding AND their first workout in
+    // one sitting, and must not see the paywall twice for it.
+    if (!isFirstSession || !locked || !shouldAutoShowPaywall()) return
     const timer = setTimeout(() => {
+      markPaywallAutoShown()
       track('paywall_shown', { context: 'first_workout' })
       router.push({ pathname: '/paywall', params: { context: 'first_workout' } } as never)
     }, 2600) // let the confetti + first-session card land first
