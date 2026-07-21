@@ -2214,6 +2214,49 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Pro re-gated onto the weekly repetition (2026-07-22, PRODUCT_AUDIT.html §24/§30 L1/L2)
+**Founder-approved change to what's free vs. Pro.** Every existing Pro gate (plate calculator, muscle
+map, travel mode, themes, creation caps) was an accessory nobody hits weekly — which is why founder
+instinct said nobody would buy it, correctly. Fix: gate the thing a real user hits every week, because
+a calendar changes every week.
+- **L1 — rolling auto-schedule horizon.** `lib/autoSchedule.ts`'s `autoScheduleUpcoming` now clamps
+  a locked (free, Pro-live) user's ambient time-placement to the end of the CURRENT week
+  (`endOfWeek()`, Monday-Sunday — matches the week boundary `useProgressStats`/the leaderboard already
+  use). Generation itself is never touched — every future week's plan always exists and is fully
+  usable; only the automatic calendar-fitting of weeks beyond this one is gated. `freeWindowEnd` is
+  `null` (full horizon, byte-identical to before) whenever `!isProLockedNow()` — dormant or Pro. This
+  is the one instance the audit's own acceptance criteria named explicitly: **while `pro_enabled` is
+  off, behavior must be byte-identical to before** — verified via the full existing test suite plus
+  the fact the clamp is a single `if (freeWindowEnd && day > freeWindowEnd) continue` that only
+  activates when `freeWindowEnd` is non-null.
+- **L2 — auto-reschedule on conflict.** `resolveCalendarConflicts` (the silent auto-move) is now
+  self-gated — `if (isProLockedNow()) return 0` at its very top — so every caller, present or future,
+  is automatically correct with no per-call-site branching to get wrong. A locked user instead gets
+  the new **`findCalendarConflicts`**, a read-only sibling that detects the identical "a real event
+  now overlaps this workout" condition (via `getCalendarEventsForRange`'s titled `DayEvent`s, not
+  `gatherBusy`'s untitled `BusySlot`s, specifically so the copy can name the actual clash) but never
+  writes anything. Home queries it only when `locked`, renders it as a new highest-non-returning-
+  priority context item — "Thursday's session now clashes with Design review" — with **Move it
+  myself** (fetches the full row, hands off to the exact same `handleReschedule` the missed-workout
+  card already uses) and **Let Tempo handle this →** (paywall, `context:'conflict'`, per this
+  document's own claim that this is the single highest-intent entry point in the app). Dismissal is
+  device-local and per-workout-id (`lib/conflictDismissal.ts`), added to `queryInvalidation.ts`'s
+  shared `TRAINING_KEYS` so a resolved conflict's stale card can't outlive the conflict.
+- **`stores/entitlements.ts` gained `isProLockedNow()`** — the same `locked` derivation
+  `useProAccess()` computes, exposed as a plain function (`useEntitlementStore.getState()`, Zustand's
+  documented non-hook escape hatch) for background sweeps that run outside any component and can't
+  call a hook.
+- **A real regression, caught by the full test suite, not shipped**: adding that one import broke
+  `splitSchedule.test.ts` — `stores/entitlements.ts` had `useRouter` (expo-router) and `track`
+  (lib/analytics, which itself pulls in `react-native` + PostHog) as static top-level imports, used
+  only inside `useProGate()`. Any file importing *anything* from this module — including just the new
+  `isProLockedNow` — pulled that whole native-dependent chain into Jest's plain-Node test environment,
+  where it doesn't exist. Fixed by lazy-`require()`-ing both inside `useProGate()` itself (the same
+  pattern `components/ShareCardSheet.tsx`'s `loadNativeShare()` already uses for native-module
+  safety) — `isProLockedNow`/`useProAccess`/the store itself now have zero RN-dependent imports.
+- `proFeatures.ts` gained `rolling_schedule` + `auto_reschedule`; `PAYWALL_POINTS` now leads with
+  these two instead of the old accessory-first ordering (kept, just demoted).
+
 ### Public share preview (2026-07-22, PRODUCT_AUDIT.html §26 L27)
 A shared workout link used to be a dead end for anyone without a Tempo account: `app/shared-workout.tsx`
 bails out (`if (!code || !userId) return`) before it ever fetches anything, so the app's only organic

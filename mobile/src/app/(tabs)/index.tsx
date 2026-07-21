@@ -28,7 +28,9 @@ import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
 import { refreshAdaptation } from '@/lib/adaptation'
-import { resolveCalendarConflicts, autoScheduleUpcoming } from '@/lib/autoSchedule'
+import { resolveCalendarConflicts, autoScheduleUpcoming, findCalendarConflicts, type CalendarConflict } from '@/lib/autoSchedule'
+import { isConflictDismissed, dismissConflict } from '@/lib/conflictDismissal'
+import { useProAccess } from '@/stores/entitlements'
 import { refreshActiveSplit } from '@/lib/splitSchedule'
 import { extendActivePlan } from '@/lib/generatePlan'
 import { ensureAutoSplit } from '@/lib/splits'
@@ -47,6 +49,7 @@ import { getQuickSuggestion } from '@/lib/quickSuggestion'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { describeSession } from '@/lib/sessionRationale'
 import { trackCalendarConnected } from '@/lib/activation'
+import { track } from '@/lib/analytics'
 import { getSeenSocialCount, setSeenSocialCount } from '@/lib/feedSeen'
 import { logFeedItem, getFeedLog, getLastReadAt, isUnread } from '@/lib/feedLog'
 import { getReturningState } from '@/lib/returningUser'
@@ -226,6 +229,7 @@ export default function ScheduleScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { session, profile, refreshProfile } = useAuthStore()
+  const { locked: proLocked } = useProAccess()
   const userId = session?.user.id ?? ''
 
   const today = new Date()
@@ -395,6 +399,36 @@ export default function ScheduleScreen() {
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
+
+  // Pro gate §24/§30 L2's free half — a Pro user gets these auto-resolved
+  // silently (resolveCalendarConflicts, in the sweep below); a free user sees
+  // them here instead, with a manual-move-or-upgrade choice. Only queried at
+  // all when locked, so a Pro/dormant user never pays for this fetch.
+  const { data: rawConflicts = [] } = useQuery<CalendarConflict[]>({
+    queryKey: ['calendar_conflicts', userId],
+    queryFn: () => findCalendarConflicts(supabase, userId),
+    enabled: !!userId && proLocked,
+    staleTime: 5 * 60 * 1000,
+  })
+  // isConflictDismissed reads localStorage directly (not itself reactive) —
+  // this tick forces the filter to re-run right after a dismiss.
+  const [dismissTick, setDismissTick] = useState(0)
+  const activeConflicts = useMemo(
+    () => rawConflicts.filter((c) => !isConflictDismissed(userId, c.workoutId)),
+    [rawConflicts, userId, dismissTick], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const handleDismissConflict = (workoutId: string) => {
+    dismissConflict(userId, workoutId)
+    setDismissTick((t) => t + 1)
+  }
+  // "Move it myself" — fetches the full row (the conflict card only carries a
+  // few fields) and hands off to the exact same reschedule flow the missed-
+  // workout card already uses, so the two never drift apart.
+  const handleMoveConflict = async (conflict: CalendarConflict) => {
+    const { data } = await supabase.from('scheduled_workouts').select('*').eq('id', conflict.workoutId).eq('user_id', userId).maybeSingle()
+    if (!data) { Alert.alert('Already changed', 'This session may have already moved.'); return }
+    handleReschedule(data as ScheduledWorkout)
+  }
 
   // Where the user is in their training block right now — the next plan workout's
   // progression directive plus the plan's adaptation mode. Drives the phase banner
@@ -1389,7 +1423,44 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'refresh', label: 'Missed workout', tint: C.primary, onPress: () => missed.length > 0 && handleReschedule(missed[0]) },
     },
-    // 3 — Google reconnect: the calendar is silently showing incomplete data.
+    // 3 — Calendar conflict, free tier only (§24/§30 L2): a real event now
+    // overlaps a session. Pro gets this auto-resolved silently instead (never
+    // reaches here — resolveCalendarConflicts already moved it before this
+    // array is built). The highest-intent paywall entry point in the app: it
+    // fires at the exact moment the user feels the pain Tempo exists to remove.
+    {
+      id: 'conflict',
+      eligible: activeConflicts.length > 0,
+      primary: () => {
+        const c = activeConflicts[0]
+        if (!c) return null
+        return (
+          <View style={styles.missedBanner}>
+            <View style={[styles.missedIcon, { backgroundColor: C.dangerSoft }]}>
+              <Ionicons name="alert-circle" size={18} color={C.error} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.missedTitle}>
+                {relativeDayLabel(c.plannedDate)}'s {c.focus} now clashes{c.eventTitle ? ` with ${c.eventTitle}` : ''}
+              </Text>
+              <Text style={styles.missedSub}>
+                <Text onPress={() => handleMoveConflict(c)} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Move it myself</Text>
+                {'  ·  '}
+                <Text onPress={() => { track('paywall_shown', { context: 'conflict' }); router.push({ pathname: '/paywall', params: { context: 'conflict' } } as never) }} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Let Tempo handle this →</Text>
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => handleDismissConflict(c.workoutId)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+              <Ionicons name="close" size={18} color={C.outline} />
+            </TouchableOpacity>
+          </View>
+        )
+      },
+      chip: {
+        icon: 'alert-circle', label: 'Calendar conflict', tint: C.error,
+        onPress: () => activeConflicts[0] && handleMoveConflict(activeConflicts[0]),
+      },
+    },
+    // 4 — Google reconnect: the calendar is silently showing incomplete data.
     {
       id: 'reconnect',
       eligible: googleNeedsReconnect,
@@ -1407,7 +1478,7 @@ export default function ScheduleScreen() {
       ),
       chip: { icon: 'warning', label: 'Reconnect calendar', tint: C.error, onPress: () => router.push('/calendar-setup' as any) },
     },
-    // 4 — Travel mode: an active adaptation affecting every upcoming session.
+    // 5 — Travel mode: an active adaptation affecting every upcoming session.
     {
       id: 'travel',
       eligible: !!travel,
@@ -1426,7 +1497,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'airplane', label: 'Travel mode', tint: C.primary, onPress: () => router.push('/travel-mode') },
     },
-    // 5 — Rest day: recovery recommendation. Outranks Quick Workout so we never push a
+    // 6 — Rest day: recovery recommendation. Outranks Quick Workout so we never push a
     // session when we're advising rest. Chip taps into the recovery check-in.
     {
       id: 'rest',
@@ -1444,7 +1515,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'bed-outline', label: 'Rest day', tint: C.success, onPress: () => setShowRecovery(true) },
     },
-    // 6 — Block phase: where the user sits in the mesocycle (overload / deload).
+    // 7 — Block phase: where the user sits in the mesocycle (overload / deload).
     {
       id: 'block',
       eligible: !!blockPhase?.progression,
@@ -1479,7 +1550,7 @@ export default function ScheduleScreen() {
         onPress: () => router.push('/plan-explainer' as any),
       },
     },
-    // 7 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
+    // 8 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
     // Only eligible when there's a REAL countdown (projection.hasEta) — the
     // "not enough signal yet" fallback ("Log your weight to see your ETA") used
     // to pass this same check and render as a "Goal ETA" chip with no actual ETA
@@ -1508,7 +1579,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: (projection?.icon as IconName) ?? 'flag', label: 'Goal ETA', tint: C.primary, onPress: () => setGoalEtaSheet(true) },
     },
-    // 8 — Weekly report: the Sun/Mon recap nudge (same gate as before).
+    // 9 — Weekly report: the Sun/Mon recap nudge (same gate as before).
     {
       id: 'report',
       eligible: stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1),
@@ -1563,7 +1634,7 @@ export default function ScheduleScreen() {
         onPress: () => router.push('/plan-explainer' as any),
       },
     },
-    // 9 — Quick Workout: opportunistic wedge (only fires when today has no actionable
+    // 10 — Quick Workout: opportunistic wedge (only fires when today has no actionable
     // session anyway, so it can safely sit last).
     {
       id: 'quick',
@@ -1582,7 +1653,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'flash', label: 'Quick workout', tint: C.primary, onPress: goQuick },
     },
-    // 10 — Connect calendar: first-time nudge for a user who never linked one, so auto
+    // 11 — Connect calendar: first-time nudge for a user who never linked one, so auto
     // scheduling can place workouts around real events. Calendar connect moved out of
     // onboarding's required path, so this is where new users are invited to do it.
     // Lowest priority — it never outranks real training context, and disappears the

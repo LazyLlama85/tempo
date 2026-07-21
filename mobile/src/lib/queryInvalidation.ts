@@ -29,6 +29,11 @@ const TRAINING_KEYS = [
   // minutes, or until the app fully restarted — read by a founder as "the
   // plan takes a long time to show up."
   ['train_splits'],
+  // §24/§30 L2's free-tier conflict card (findCalendarConflicts) — without
+  // this, resolving a conflict manually (or Tempo doing it silently for a
+  // Pro user right before this same sweep) could leave a stale card showing
+  // for a conflict that no longer exists.
+  ['calendar_conflicts'],
 ] as const
 
 export function invalidateTrainingData(queryClient: QueryClient) {

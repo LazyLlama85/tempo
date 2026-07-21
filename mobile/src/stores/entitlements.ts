@@ -12,8 +12,6 @@
 // everything — the free app is unchanged until you flip the flag.
 
 import { create } from 'zustand'
-import { useRouter } from 'expo-router'
-import { track } from '@/lib/analytics'
 
 interface EntitlementState {
   proEnabled: boolean
@@ -99,12 +97,44 @@ export function useProAccess(): { isPro: boolean; proEnabled: boolean; locked: b
  * returns false (the action doesn't proceed; the user completes purchase, which
  * unlocks the surface reactively, then taps again).
  */
+/**
+ * The same `locked` derivation as useProAccess(), for plain (non-hook) code —
+ * background sweeps like lib/autoSchedule.ts run outside any component, so
+ * they can't call a hook, but still need to know whether to apply a Pro gate.
+ * Zustand stores expose `.getState()` as the documented escape hatch for
+ * exactly this. Keep this in lock-step with useProAccess() above — same
+ * tester-override and granted-comp handling — so a background sweep and the
+ * UI it feeds never disagree about access. Named to match every other gate
+ * site's own vocabulary (`locked`), not an ambiguous "isPro" that could be
+ * misread as false while the whole Pro system is still dormant.
+ */
+export function isProLockedNow(): boolean {
+  const { isPro, granted, proEnabled, tester, devProOverride } = useEntitlementStore.getState()
+  if (tester && devProOverride !== null) return !devProOverride
+  return proEnabled && !(isPro || granted)
+}
+
 export function useProGate(): { locked: boolean; requirePro: (context?: string) => boolean } {
   const { locked } = useProAccess()
+  // Lazy requires (not static imports), matching lib/purchases-adjacent
+  // patterns like components/ShareCardSheet.tsx's loadNativeShare() — this
+  // file is also imported by plain lib code (lib/autoSchedule.ts's
+  // isProLockedNow, for the §24/§30 L1/L2 Pro gates) that runs in contexts
+  // (including the Jest unit-test suite) without expo-router's or
+  // lib/analytics' full RN/PostHog dependency chains available. Static
+  // top-level imports here broke those chains the moment anything imported
+  // this file at all, even just for isProLockedNow — require() only resolves
+  // once this hook is actually called from within a real running app.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useRouter } = require('expo-router')
   const router = useRouter()
   const requirePro = (context = 'gate'): boolean => {
     if (!locked) return true
-    track('paywall_shown', { context })
+    // Relative path (not the '@/' alias) — safer for a dynamic require, since
+    // Babel's module-resolver alias transform is proven for static imports
+    // throughout this codebase but not verified for require() call sites.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('../lib/analytics').track('paywall_shown', { context })
     router.push({ pathname: '/paywall', params: { context } } as never)
     return false
   }

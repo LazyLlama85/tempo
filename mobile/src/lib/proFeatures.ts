@@ -26,6 +26,8 @@ export type ProFeatureId =
   | 'travel_mode'
   | 'multi_calendar'
   | 'plate_calculator'
+  | 'rolling_schedule'
+  | 'auto_reschedule'
 
 export interface ProFeatureMeta {
   id: ProFeatureId
@@ -45,12 +47,12 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   },
   schedule_optimization: {
     id: 'schedule_optimization',
-    // B2.1: this is specifically the one-tap "reschedule my whole week" action
-    // (lib/reschedule.rescheduleWholeWeek) — NOT the free, always-on background
-    // auto-scheduler (lib/autoSchedule.ts) that quietly time-optimizes every user's
-    // plan around their calendar. That stays free; only the on-demand full re-plan
-    // is gated. Keep this distinction explicit here so a future call site doesn't
-    // accidentally gate the ambient engine by using this same feature id.
+    // This is specifically the one-tap "reschedule my whole week" action
+    // (lib/reschedule.rescheduleWholeWeek) — a distinct gate from
+    // rolling_schedule below, which covers the AMBIENT background
+    // auto-scheduler. (Superseded note, kept for history: this used to say the
+    // ambient scheduler "stays free" with no horizon limit at all — audit §24
+    // revised that; see rolling_schedule.)
     title: 'Smart Scheduling',
     benefit: 'One-tap "reschedule my whole week" — re-lay every session around a busy stretch, recovery-aware.',
     icon: 'sparkles',
@@ -108,6 +110,27 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'See exactly which plates to load per side for any target weight and bar.',
     icon: 'barbell',
   },
+  // The two headline gates (audit §24/§30): free auto-scheduling only fits the
+  // CURRENT week; Pro keeps every future week auto-fitted too. Generation
+  // itself (lib/generatePlan.ts) is never touched by either — every week's
+  // plan always exists and is fully usable; this only gates the AUTOMATIC
+  // time-placement pass (lib/autoSchedule.ts).
+  rolling_schedule: {
+    id: 'rolling_schedule',
+    title: 'Rolling Auto-Schedule',
+    benefit: 'Tempo keeps fitting every future week around your calendar — not just this one.',
+    icon: 'infinite',
+  },
+  // Free still DETECTS a conflict (a Home card: "your session now clashes with
+  // X") and lets the user move it manually — Pro is the silent auto-move on
+  // top. See lib/autoSchedule.ts's resolveCalendarConflicts (Pro) vs
+  // findCalendarConflicts (free, detect-only).
+  auto_reschedule: {
+    id: 'auto_reschedule',
+    title: 'Auto-Reschedule',
+    benefit: 'When a meeting lands on a workout, Tempo quietly moves it before you even notice.',
+    icon: 'shuffle',
+  },
 }
 
 export function proFeature(id: ProFeatureId): ProFeatureMeta {
@@ -126,16 +149,18 @@ export interface PaywallPoint {
   benefit: string
 }
 
-// B2.1: analytics/charts moved to free (nobody subscribes for charts) — the
-// paywall now sells the two things that are actually gated: the one-tap
-// reschedule-week action and Muscle Intelligence. Every point here still maps
-// to something a Pro user can use today; add to this list only as new gates
-// actually ship.
+// Audit §24/§30: Pro used to be entirely accessories nobody hits weekly (a
+// plate calculator, themes, creation caps most users never reach) — which is
+// exactly why founder instinct said nobody would buy it. The first two points
+// now lead because they're the ones a real user actually hits every week (a
+// calendar changes every week) — everything else stays real, still shipped,
+// but demoted to supporting cast. Every point here maps to something a Pro
+// user can use today; add to this list only as new gates actually ship.
 export const PAYWALL_POINTS: PaywallPoint[] = [
-  { icon: 'infinite', title: 'Unlimited Everything', benefit: 'Build unlimited custom plans, workouts, and exercises — no caps. (Free includes 1 plan, 5 workouts, 5 exercises.)' },
-  { icon: 'flash', title: 'Custom Quick Workouts', benefit: 'Save equipment presets (home, hotel, travel) and get a session built around exactly the gear you have on hand.' },
+  { icon: 'infinite', title: 'Your Week, Every Week', benefit: 'Tempo keeps auto-fitting your training around your calendar — not just this week, every week ahead.' },
+  { icon: 'shuffle', title: 'Never Lose a Session to a Meeting', benefit: 'A conflict lands on your calendar and Tempo quietly moves your workout before you even notice.' },
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
+  { icon: 'airplane', title: 'Travel Mode & Multi-Calendar', benefit: 'Rewrite workouts to match gear on the road, and read busy time from every calendar you use.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
-  { icon: 'airplane', title: 'Travel Mode', benefit: 'Rewrite your upcoming workouts to match whatever gear you have with you on the road.' },
-  { icon: 'barbell', title: 'Plate Calculator', benefit: 'Exactly which plates to load per side for any target weight and bar.' },
+  { icon: 'sparkles', title: 'Unlimited Everything', benefit: 'Build unlimited custom plans, workouts, and exercises, plus the plate calculator and premium themes.' },
 ]

@@ -15,15 +15,33 @@ import { getBusyBlocks, getCalendarPermissionStatus } from '@/services/calendarS
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 import { GCAL_PRIMARY } from '@/services/googleCalendar/config'
+import { getCalendarEventsForRange } from '@/services/calendarSync'
+import type { DayEvent } from '@/services/calendarService'
 import { findVariedSlot, type Availability, type BusySlot } from '@/lib/smartSchedule'
 import { getUnavailableBlocks } from '@/lib/unavailability'
-import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
+import { getIgnoredEventKeys, filterIgnoredBusy, eventKey } from '@/lib/ignoredEvents'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
 import { toDateStr } from '@/lib/dates'
+import { isProLockedNow } from '@/stores/entitlements'
 import type { CalendarProvider } from '@/types'
 
 const HORIZON_DAYS = 14
+
+// The Monday-Sunday end of the week containing `d` — matches the week
+// boundary already used elsewhere (useProgressStats' getMondayOf, the
+// leaderboard's ISO week). Free auto-scheduling (§24/§30 L1) only fits the
+// CURRENT week; a locked (free, Pro-live) user's workouts beyond this date
+// keep their generated template times untouched, rather than being silently
+// time-optimized around the calendar — that ambient optimization is the paid
+// part now, not the plan's existence, which is never gated.
+function endOfWeek(d: Date): Date {
+  const day = d.getDay() // 0=Sun..6=Sat
+  const end = new Date(d)
+  end.setDate(d.getDate() + (day === 0 ? 0 : 7 - day))
+  end.setHours(23, 59, 59, 999)
+  return end
+}
 
 // Connecting a calendar no longer forces automatic scheduling. Auto-placement and
 // conflict re-slotting only run when the user's scheduling_mode is 'auto' (the
@@ -95,6 +113,11 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
   const now = new Date()
   const today = startOfDay(now)
   const horizonEnd = new Date(today); horizonEnd.setDate(today.getDate() + HORIZON_DAYS)
+  // §24/§30 L1: a locked (free, Pro-live) user's ambient auto-scheduling only
+  // reaches the end of the current week. Dormant/Pro → null → unchanged,
+  // full-horizon behavior (the non-negotiable "byte-identical while dormant"
+  // regression this gate must never break).
+  const freeWindowEnd = isProLockedNow() ? endOfWeek(today) : null
 
   const { data: p } = await client
     .from('user_profiles')
@@ -149,6 +172,11 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
 
   for (const w of workouts as WorkoutRow[]) {
     const day = startOfDay(new Date(`${w.planned_date}T00:00:00`))
+    // Beyond the free window: the session still exists and is fully usable,
+    // just not auto-fitted around the calendar — leave its template time
+    // alone and don't let it occupy the timeline (it's chronologically after
+    // every in-window workout, so it can never block one of those placements).
+    if (freeWindowEnd && day > freeWindowEnd) continue
     const isToday = sameDay(day, now)
     const slot = findVariedSlot(
       occupied,
@@ -194,7 +222,16 @@ export async function autoScheduleUpcoming(client: SupabaseClient, userId: strin
 // workouts exactly where they are UNLESS a real calendar event now overlaps one —
 // then it quietly re-slots just that workout to a free opening on the SAME day, so
 // times the user has already planned around stay stable. Returns how many moved.
+//
+// §24/§30 L2: this silent auto-move is the Pro half of the conflict gate — a
+// locked (free, Pro-live) user gets findCalendarConflicts (below) instead,
+// which detects the exact same conflicts but never touches the DB, so Home
+// can offer "move it myself" / "let Tempo handle this" instead of moving
+// anything without asking. Self-gated (not gated at the call site) so every
+// caller — the app-open sweep, any future one — is automatically correct.
 export async function resolveCalendarConflicts(client: SupabaseClient, userId: string): Promise<number> {
+  if (isProLockedNow()) return 0
+
   const now = new Date()
   const today = startOfDay(now)
   const horizonEnd = new Date(today); horizonEnd.setDate(today.getDate() + HORIZON_DAYS)
@@ -290,4 +327,73 @@ export async function resolveCalendarConflicts(client: SupabaseClient, userId: s
   }
 
   return moved
+}
+
+export interface CalendarConflict {
+  workoutId: string
+  focus: string
+  plannedDate: string
+  plannedStartTime: string
+  plannedDurationMin: number
+  /** The real calendar event's title, when the underlying provider gives us one. */
+  eventTitle: string | null
+}
+
+// The free half of §24/§30 L2 — detects the exact same "a real event now
+// overlaps this workout" condition resolveCalendarConflicts (Pro) resolves
+// silently, but never writes anything. Uses getCalendarEventsForRange (titled
+// DayEvents, the same source Home's own visible-day timeline reads) rather
+// than gatherBusy's untitled BusySlots, specifically so the Home card this
+// feeds can say what the conflict actually is ("clashes with Design review"),
+// not just that one exists. Read-only by construction — there is no Pro gate
+// to get wrong here, only a caller's choice to show or not show the result.
+export async function findCalendarConflicts(client: SupabaseClient, userId: string): Promise<CalendarConflict[]> {
+  const now = new Date()
+  const today = startOfDay(now)
+  const horizonEnd = new Date(today); horizonEnd.setDate(today.getDate() + HORIZON_DAYS)
+
+  const { data: p } = await client
+    .from('user_profiles')
+    .select('scheduling_mode, selected_google_calendar_ids')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!p) return []
+  if (!autoSchedulingEnabled(p)) return [] // manual: Tempo doesn't touch/flag their schedule
+
+  const { data: workouts } = await client
+    .from('scheduled_workouts')
+    .select(MOVE_COLS)
+    .eq('user_id', userId)
+    .eq('status', 'scheduled')
+    .gte('planned_date', toDateStr(today))
+    .lte('planned_date', toDateStr(horizonEnd))
+    .order('planned_date')
+    .order('planned_start_time')
+  if (!workouts?.length) return []
+
+  const ignored = await getIgnoredEventKeys(client, userId)
+  let events: DayEvent[] = []
+  try {
+    events = await getCalendarEventsForRange(today, horizonEnd, p.selected_google_calendar_ids as string[] | null)
+  } catch {
+    return [] // a calendar hiccup should never surface as a false conflict
+  }
+
+  const conflicts: CalendarConflict[] = []
+  for (const w of workouts as WorkoutRow[]) {
+    const start = new Date(`${w.planned_date}T${w.planned_start_time}`)
+    const end = new Date(start.getTime() + w.planned_duration_min * 60_000)
+    const hit = events.find((e) => {
+      if (ignored.has(eventKey(e.start, e.end))) return false
+      return start.getTime() < e.end.getTime() && e.start.getTime() < end.getTime()
+    })
+    if (hit) {
+      conflicts.push({
+        workoutId: w.id, focus: w.focus, plannedDate: w.planned_date,
+        plannedStartTime: w.planned_start_time, plannedDurationMin: w.planned_duration_min,
+        eventTitle: hit.title ?? null,
+      })
+    }
+  }
+  return conflicts
 }
