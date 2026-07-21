@@ -145,6 +145,7 @@ export type EventProperties = {
   pause_mode_started: { days: number }
   pause_mode_resumed: undefined
   achievement_unlocked: { key: string; tier: string }
+  progress_photo_compared: undefined
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

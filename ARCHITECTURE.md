@@ -2214,6 +2214,23 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Progress-photo compare (2026-07-22, PRODUCT_AUDIT.html §26 L25)
+`app/progress-photos.tsx` had a timeline grid + single-photo viewer but no way to see two photos
+together — the single most shareable artifact a fitness app can produce, and the app could take
+photos in but never hand anything back out. Added a drag-to-reveal before/after:
+- `components/PhotoCompareView.tsx` — a dependency-free compare slider built on RN's own
+  `PanResponder`, copying `components/Slider.tsx`'s exact capture-phase gesture claim (`onStart/
+  MoveShouldSetPanResponderCapture` + refusing every termination request) so a drag started on the
+  handle can't be stolen by the screen's own ScrollView mid-gesture. No new native module.
+- Progress Photos gained a "Compare" mode: tap two tiles (badge-numbered as you pick), and it opens
+  the compare view with the earlier date always on the left, sorted by `measured_at` regardless of
+  tap order — never by which one you tapped first.
+- **Share as image**: `react-native-view-shot` + `expo-sharing` were already dependencies (used by
+  `ShareCardSheet.tsx` for Wrapped cards) — reused the identical lazy-require + `captureRef` +
+  `Sharing.shareAsync` pattern rather than adding anything new, so this ships via `eas update` with
+  no rebuild.
+- `analytics.ts` gained `progress_photo_compared`.
+
 ### Achievement-unlock celebration (2026-07-22, PRODUCT_AUDIT.html §26 L24)
 `lib/badges.ts`'s 12 badges were purely passive — earned/unearned status only ever appeared if you
 opened the trophy case (`/badges`) yourself; nothing celebrated the moment a badge was actually
