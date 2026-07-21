@@ -25,12 +25,15 @@ import type { Goal, Experience, Equipment } from '@/types'
 // "metabolic conditioning", "CNS optimization"). The busy-generalist persona should never
 // feel this app is for someone more serious than them at the very first screen. (Ids,
 // labels, and icons are unchanged — this only softens the descriptions.)
-const GOALS: { id: Goal; label: string; description: string; icon: string }[] = [
-  { id: 'muscle_gain', label: 'Build Muscle', description: 'Build visible size and strength.', icon: 'barbell-outline' },
-  { id: 'fat_loss', label: 'Lose Fat', description: 'Burn fat and get leaner.', icon: 'flame-outline' },
-  { id: 'strength', label: 'Gain Strength', description: 'Get stronger on the big lifts.', icon: 'battery-charging-outline' },
-  { id: 'athletic', label: 'Athletic Performance', description: 'Build speed, power, and agility.', icon: 'speedometer-outline' },
-  { id: 'general_fitness', label: 'General Fitness', description: 'Feel good and stay healthy.', icon: 'pulse-outline' },
+// `expect` sets a realistic expectation up front (audit §27 L11) — a plain
+// frequency + a first-real-result horizon, the two questions that most
+// determine whether someone sticks around long enough to see it work.
+const GOALS: { id: Goal; label: string; description: string; icon: string; expect: string }[] = [
+  { id: 'muscle_gain', label: 'Build Muscle', description: 'Build visible size and strength.', icon: 'barbell-outline', expect: '3–5x/week · first visible change ~8 weeks' },
+  { id: 'fat_loss', label: 'Lose Fat', description: 'Burn fat and get leaner.', icon: 'flame-outline', expect: '3–5x/week · first visible change ~4–6 weeks' },
+  { id: 'strength', label: 'Gain Strength', description: 'Get stronger on the big lifts.', icon: 'battery-charging-outline', expect: '3–4x/week · first PR ~3–4 weeks' },
+  { id: 'athletic', label: 'Athletic Performance', description: 'Build speed, power, and agility.', icon: 'speedometer-outline', expect: '3–4x/week · noticeable gains ~6–8 weeks' },
+  { id: 'general_fitness', label: 'General Fitness', description: 'Feel good and stay healthy.', icon: 'pulse-outline', expect: '2–4x/week · feeling the difference ~2–3 weeks' },
 ]
 
 // Years-training is the simplest, least-ambiguous way to self-place (no jargon
@@ -162,6 +165,7 @@ export default function BasicsScreen() {
                       <View style={styles.optionText}>
                         <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{goal.label}</Text>
                         <Text style={styles.optionDesc}>{goal.description}</Text>
+                        <Text style={styles.optionExpect}>{goal.expect}</Text>
                       </View>
                     </PressableScale>
                   )
@@ -327,6 +331,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   optionLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
   optionLabelSelected: { color: C.primary },
   optionDesc: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, marginTop: 2, lineHeight: 18 },
+  optionExpect: { fontFamily: 'Inter_600SemiBold', fontSize: 11.5, color: C.primary, marginTop: 3 },
   check: {
     width: 24, height: 24, borderRadius: Radius.full, borderWidth: 1.5, borderColor: C.outlineVariant,
     alignItems: 'center', justifyContent: 'center',

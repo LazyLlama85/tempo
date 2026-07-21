@@ -349,9 +349,9 @@ export default function PaywallScreen() {
         <View style={styles.footerLinks}>
           <Text style={styles.footerLink} onPress={onRestore}>Restore</Text>
           <Text style={styles.footerDot}>·</Text>
-          <Text style={styles.footerLink} onPress={() => router.push('/legal')}>Terms</Text>
+          <Text style={styles.footerLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'terms' } } as never)}>Terms</Text>
           <Text style={styles.footerDot}>·</Text>
-          <Text style={styles.footerLink} onPress={() => router.push('/legal')}>Privacy</Text>
+          <Text style={styles.footerLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'privacy' } } as never)}>Privacy</Text>
         </View>
         <Text style={styles.finePrint}>
           Payment is charged to your Apple ID. Subscriptions renew automatically unless cancelled at

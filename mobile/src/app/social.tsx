@@ -356,8 +356,13 @@ export default function SocialScreen() {
             </>
           )}
 
-          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score (shared board). */}
-          {board.length > 1 && (
+          {/* Leaderboards — Weekly Consistency · Streak · Tempo Score (shared board).
+              Own row (`board`) always includes you, even with zero friends — see
+              friends_leaderboard_v2's `union select auth.uid()`. It used to hide
+              entirely below 2 participants (a leaderboard of one read as the app
+              being empty); now it always shows your own numbers, with an invite
+              nudge underneath instead of the section just vanishing. */}
+          {board.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>LEADERBOARD</Text>
               <LeaderboardBoard
@@ -365,6 +370,12 @@ export default function SocialScreen() {
                 currentUserId={userId}
                 onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}` as any)}
               />
+              {board.length === 1 && (
+                <TouchableOpacity style={styles.inviteRow} onPress={() => setAddOpen(true)} activeOpacity={0.75}>
+                  <Ionicons name="person-add-outline" size={15} color={C.primary} />
+                  <Text style={styles.inviteRowText}>Add a friend to make this a real leaderboard</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
 
@@ -724,4 +735,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   privacyChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
   hint: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18, marginTop: Spacing.xs },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm, paddingVertical: 2 },
+  inviteRowText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary },
 })

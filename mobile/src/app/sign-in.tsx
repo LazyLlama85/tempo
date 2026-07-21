@@ -197,9 +197,9 @@ export default function SignInScreen() {
         {/* Legal */}
         <Text style={styles.legal}>
           By continuing, you agree to Tempo's{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal')}>Terms of Service</Text>
+          <Text style={styles.legalLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'terms' } } as never)}>Terms of Service</Text>
           {' '}and{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal')}>Privacy Policy</Text>
+          <Text style={styles.legalLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'privacy' } } as never)}>Privacy Policy</Text>
           .
         </Text>
       </View>

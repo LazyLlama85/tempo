@@ -6,11 +6,12 @@
 // This is a plain-language summary of what Tempo actually collects and does; have it
 // reviewed by counsel before public launch and mirror it at your privacy URL.
 
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { useRef } from 'react'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, type LayoutChangeEvent } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
@@ -41,19 +42,34 @@ function Bullet({ children }: { children: React.ReactNode }) {
   )
 }
 
+// App Review checks that a subscription screen's Terms and Privacy links lead
+// somewhere distinguishably different — this is one screen (there's no reason
+// to duplicate the whole legal document into two routes), but a `section`
+// param now actually scrolls to the tapped section instead of both links
+// landing on the identical top-of-document view.
 export default function LegalScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const router = useRouter()
+  const { section } = useLocalSearchParams<{ section?: 'privacy' | 'terms' }>()
+  const scrollRef = useRef<ScrollView>(null)
+  const scrolledRef = useRef(false)
+
+  const onTermsLayout = (e: LayoutChangeEvent) => {
+    if (section !== 'terms' || scrolledRef.current) return
+    scrolledRef.current = true
+    scrollRef.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true })
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
-        title="Privacy & Terms"
+        title={section === 'terms' ? 'Terms of Use' : section === 'privacy' ? 'Privacy Policy' : 'Privacy & Terms'}
         size="sm"
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Privacy Policy</Text>
         <Text style={styles.updated}>Last updated {UPDATED}</Text>
 
@@ -87,8 +103,10 @@ export default function LegalScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.h1}>Terms of Use</Text>
-        <Text style={styles.updated}>Last updated {UPDATED}</Text>
+        <View onLayout={onTermsLayout}>
+          <Text style={styles.h1}>Terms of Use</Text>
+          <Text style={styles.updated}>Last updated {UPDATED}</Text>
+        </View>
 
         <Section title="Acceptance">
           <P>By using Tempo you agree to these terms. If you don’t agree, please don’t use the app.</P>
