@@ -1,11 +1,14 @@
 # Tempo — App Store & Play Store Listing (draft, ready to paste)
 
-Written per `PRODUCT_AUDIT.html` §16's prescription: lead with the calendar wedge, never a workout
-card (every competitor already does that). Every claim below maps to something the app actually does
-today — no advertising unbuilt features. **Founder still needs to:** take the actual screenshots
-(the copy below tells you what to capture and in what order), paste these fields into App Store
-Connect / Play Console, and pick real device screens once B1.5's multi-calendar ships (screenshot 2
-gets stronger once that's live, but everything here already works without it).
+Written per `PRODUCT_AUDIT.html` §16/§27 L15's prescription: lead with the calendar wedge, never a
+workout card (every competitor already does that). Every claim below maps to something the app
+actually does today — no advertising unbuilt features. **Founder still needs to:** take the actual
+screenshots (the copy below tells you what to capture and in what order), paste these fields into
+App Store Connect / Play Console, and pick real device screens once multi-calendar/B1.5 is verified
+live for your own account (a one-time Google reconnect — see `ARCHITECTURE.md`).
+
+**Refreshed 2026-07-22** — added two bullets for features that shipped since the original draft
+(pause mode, progress-photo compare); everything else held up and is unchanged.
 
 ---
 
@@ -66,8 +69,9 @@ WHAT TEMPO DOES
 • Schedules every session at a specific day and time that actually fits your week.
 • Reshuffles your whole week in one tap when a busy stretch hits.
 • Adapts automatically — eases off when you're overreached, levels you up as you get stronger.
+• Going away? Pause your plan and pick up right where you left off — no broken streak, nothing to catch up on.
 • A clean, fast logger built for the gym: instant set logging, rest timers, form videos, offline-safe.
-• Free progress tracking — volume trends, personal records, consistency streaks.
+• Free progress tracking — volume trends, personal records, consistency streaks, and a before/after photo compare.
 
 WHO IT'S FOR
 Busy people who still want to train seriously, and don't want "when do I even fit this in" to be the

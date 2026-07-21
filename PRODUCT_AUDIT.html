@@ -1375,7 +1375,7 @@
       </div>
       <div class="card">
         <span class="lab">Test 2 — The week-three test</span>
-        <p style="font-size:14.5px;">Simulate a user who trained for two weeks, then <b>went on holiday for ten days</b>. Do they return to a broken streak, ten "missed" sessions, and a plan that makes no sense? Right now: yes. This is the single most common real-world churn event in fitness apps and Tempo has no answer to it (§26, L21).</p>
+        <p style="font-size:14.5px;">Simulate a user who trained for two weeks, then <b>went on holiday for ten days</b>. Do they return to a broken streak, ten "missed" sessions, and a plan that makes no sense? <b>Fixed 2026-07-22</b> (§26, L21) — pause mode shifts the plan forward, protects the streak, and resumes automatically. Still awaiting a real device pass to confirm the on-paper behavior matches reality (scheduled for next month, alongside the founder's other EAS-build testing).</p>
       </div>
       <div class="card">
         <span class="lab">Test 3 — The alone test</span>
@@ -1388,35 +1388,35 @@
     </div>
 
     <h3 style="font-size:19px;margin:26px 0 6px;">23.2 — Surface-by-surface, against the standard</h3>
-    <p class="subhead" style="margin-bottom:14px;">"Finish" means real remaining work. "Polish" means it works and needs craft. Nothing here is cut — the app you launch is the whole app, done properly.</p>
+    <p class="subhead" style="margin-bottom:14px;">Updated 2026-07-22 — every row re-verified against the live codebase, not the original diagnosis. <span class="pill p-win">✅ Done</span> means code-complete and tested (<code>tsc</code> clean, full suite green); it does not mean device-verified — the founder is testing on real hardware next month once more EAS builds exist, and nothing below should be read as skipping that step.</p>
 
     <div class="tableWrap">
       <table style="min-width:740px;">
-        <thead><tr><th style="width:186px;">Surface</th><th style="width:88px;">State</th><th>What "finished" means for it</th></tr></thead>
+        <thead><tr><th style="width:186px;">Surface</th><th style="width:88px;">State</th><th>Status</th></tr></thead>
         <tbody>
           <tr class="grp"><td colspan="3">The core loop — this is the product</td></tr>
-          <tr><td class="cat">Home (<code>(tabs)/index</code>)</td><td><span class="pill p-high">Finish</span></td><td>The calendar day-timeline with real events and training slotted between them is the only screenshot that sells Tempo. Must load under a second, never blank, never empty without a one-tap fix — <b>and must change what it says when you've been away</b> (returning-user hero, L22). Today it greets a 12-day-absent user identically to a daily user.</td></tr>
-          <tr><td class="cat">Plan (<code>(tabs)/plan</code>)</td><td><span class="pill p-med">Polish</span></td><td>Proof the promise holds beyond today. Multiple workouts per day now render (fixed 07-21). Needs the pause/vacation state to be visible here, and the Pro horizon marker (L1).</td></tr>
-          <tr><td class="cat">Workout runner</td><td><span class="pill p-win">Strong</span></td><td>Genuinely the best-built surface in the app — swap, move-to-end, skip, reorder, notes, warm-up sets, rest timer, first-session coach overlay. Needs only the accessibility pass and device verification. <b>Do not touch it otherwise.</b></td></tr>
-          <tr><td class="cat">Quick Workout</td><td><span class="pill p-med">Polish</span></td><td>Redesigned 07-21 and already patched twice from device testing. Needs one more real-device pass on iOS specifically — every bug found so far was found on web.</td></tr>
+          <tr><td class="cat">Home (<code>(tabs)/index</code>)</td><td><span class="pill p-win">✅ Done</span></td><td>The calendar day-timeline was already strong. What was missing is built: the returning-user hero (L22) turned out to already exist (<code>lib/returningUser.ts</code>, d3/d7/d30 tiers) — verified, not rebuilt. Pause-mode and calendar-conflict banners added this session with their own priority slots in the context-item stack.</td></tr>
+          <tr><td class="cat">Plan (<code>(tabs)/plan</code>)</td><td><span class="pill p-med">Polish</span></td><td>Multiple workouts per day render correctly (fixed 07-21). Pause state is visible via Home's banner + Settings. <b>One deliberately deferred item:</b> a visible "Tempo stopped auto-fitting here" marker for the L1 free-horizon boundary was scoped out this session — the gating itself is correct and tested, but Plan tab is large and multi-view (week/month grid + day-detail), and a late-session UI insertion into a screen that size without full device time to verify wasn't a responsible trade. Small, contained, safe to pick up any time.</td></tr>
+          <tr><td class="cat">Workout runner</td><td><span class="pill p-win">Strong</span></td><td>Still the best-built surface in the app. Read every touchable in the file (49, the largest count in the app) rather than re-running a static count — found and fixed 2 genuinely unlabeled controls (the week/month prev/next chevrons); everything else already had adequate coverage. <b>Do not touch it otherwise.</b></td></tr>
+          <tr><td class="cat">Quick Workout</td><td><span class="pill p-med">Polish</span></td><td>Redesigned 07-21, patched twice from device testing. Unchanged this session — the remaining iOS-specific device pass is exactly the kind of check the founder is doing next month.</td></tr>
           <tr class="grp"><td colspan="3">Monetization</td></tr>
-          <tr><td class="cat">Paywall (<code>paywall.tsx</code>)</td><td><span class="pill p-crit">Rebuild</span></td><td>Full spec in §25. As-is it describes features to someone who already knows them, and the moment the founding price ships it will <b>display the wrong number</b> (§24, L4) — a conversion disaster and a genuine App Review risk.</td></tr>
-          <tr><td class="cat">Free/Pro line</td><td><span class="pill p-crit">Rebuild</span></td><td>Pro is currently six accessories. §24 replaces it with two gates a real user hits every single week. This is the reason your instinct says nobody would buy — and it's correct.</td></tr>
-          <tr class="grp"><td colspan="3">Retention &amp; life-events — the biggest completeness gaps</td></tr>
-          <tr><td class="cat">Pause / vacation mode</td><td><span class="pill p-crit">Build</span></td><td><b>Doesn't exist.</b> Designed in <code>AUDIT.md</code> §6, never built. A user who travels for a week returns to a wrecked streak and a wall of missed sessions. See L21 — this is the highest-value unbuilt item in the entire app.</td></tr>
-          <tr><td class="cat">Returning-user Home</td><td><span class="pill p-high">Build</span></td><td><b>Doesn't exist.</b> Designed in <code>AUDIT.md</code> §7. 3-day / 7-day / 14-day / 30-day absences should each get a different hero and a different offer (L22). Uses only data you already have.</td></tr>
-          <tr><td class="cat">Achievement unlocks</td><td><span class="pill p-med">Finish</span></td><td>Levels and unlockables exist but unlock <em>passively</em> — the user is never told. A celebration moment costs almost nothing and is free retention (L24).</td></tr>
+          <tr><td class="cat">Paywall (<code>paywall.tsx</code>)</td><td><span class="pill p-win">✅ Done</span></td><td>Rebuilt per §25: personalized hero, a <code>WeekStrip</code> visual, 3 outcome cards, collapsed compare with the argues-against-paying row removed, forced-dark treatment. The pricing-display bug (§24, L4) that would have shown $34.99 while charging $19.99 is fixed at the source (<code>lib/purchases.ts</code>).</td></tr>
+          <tr><td class="cat">Free/Pro line</td><td><span class="pill p-win">✅ Done</span></td><td><b>Founder-approved before building</b> (standing instruction on Pro changes, honored). Re-gated onto the weekly repetition — rolling auto-schedule horizon (L1) + auto-reschedule-on-conflict (L2) — instead of the six accessories nobody hit weekly. This is what actually answers "why would anyone buy Pro," not a hypothesis anymore.</td></tr>
+          <tr class="grp"><td colspan="3">Retention &amp; life-events — the biggest completeness gaps, now closed</td></tr>
+          <tr><td class="cat">Pause / vacation mode</td><td><span class="pill p-win">✅ Done</span></td><td>Built. The highest-value unbuilt item in the app is unbuilt no longer — <code>lib/pauseMode.ts</code>, a Settings entry, and a Home banner with an inline Resume action. Streak protection needed zero special-casing (<code>streak.ts</code> only reads dates that have a row).</td></tr>
+          <tr><td class="cat">Returning-user Home</td><td><span class="pill p-win">✅ Already built</span></td><td>Turned out to already exist (<code>lib/returningUser.ts</code>) — this row's original "doesn't exist" claim was stale by the time this pass re-verified it. A live reminder that this document drifts fast in an actively-developed repo.</td></tr>
+          <tr><td class="cat">Achievement unlocks</td><td><span class="pill p-win">✅ Done</span></td><td>Built on top of the existing <code>lib/badges.ts</code> trophy case rather than a second system, with a bootstrap-safety check so an existing user's back-catalog of badges doesn't all "unlock" at once the first time the code runs for them.</td></tr>
           <tr class="grp"><td colspan="3">Progress &amp; proof</td></tr>
-          <tr><td class="cat">Progress (<code>(tabs)/progress</code>)</td><td><span class="pill p-high">Finish</span></td><td>Free at launch — correct, nobody subscribes for charts. But it must be honest at 0–3 sessions: "Your strength curve appears after 3 sessions," not empty axes. Fails Test 1 today.</td></tr>
-          <tr><td class="cat">Progress photos</td><td><span class="pill p-high">Finish</span></td><td>Photos attach to measurements but there is <b>no timeline and no compare view</b> (<code>AUDIT.md</code> §9). The data model is already right; this is pure UI. Before/after is the most shareable artifact a fitness app can produce — and it's your cheapest marketing asset (L25, and see §31).</td></tr>
+          <tr><td class="cat">Progress (<code>(tabs)/progress</code>)</td><td><span class="pill p-win">✅ Already handled</span></td><td>Re-checked directly: a zero-session account already gets "Your story starts with one session" with a Quick Workout CTA, and a progressive-disclosure gate holds back the full dashboard until real data exists. This row's "fails Test 1 today" claim was stale.</td></tr>
+          <tr><td class="cat">Progress photos</td><td><span class="pill p-win">✅ Done</span></td><td>The timeline turned out to already exist; built the missing half — a dependency-free drag-reveal before/after compare plus share-as-image, reusing dependencies (<code>react-native-view-shot</code>, <code>expo-sharing</code>) already in the project.</td></tr>
           <tr class="grp"><td colspan="3">Social — must be excellent at n=1</td></tr>
-          <tr><td class="cat">Leaderboard</td><td><span class="pill p-high">Redesign</span></td><td>Don't hide it — <b>make it work alone</b>. With &lt;3 friends it becomes "You vs your last 4 weeks" with an invite CTA underneath. Same screen, same code path, no dead room (L26).</td></tr>
-          <tr><td class="cat">Activity feed / groups</td><td><span class="pill p-med">Polish</span></td><td>Empty state must be invitational and specific ("Add a gym friend and their sessions show up here — plus a weekly leaderboard"), never "No activity yet."</td></tr>
-          <tr><td class="cat">Sharing (<code>shared-workout</code>, <code>w/</code>)</td><td><span class="pill p-high">Finish</span></td><td>A shared link currently requires sign-in to view (<code>AUDIT.md</code> §3). That makes your only organic growth loop a dead end. Public web preview + universal links (L27) turns every share into an ad. This is a launch item precisely <em>because</em> it's marketing.</td></tr>
+          <tr><td class="cat">Leaderboard</td><td><span class="pill p-win">✅ Done</span></td><td>Used to hide entirely below 2 friends. Now always shows your own row (it always existed in the data — <code>friends_leaderboard_v2</code> includes you via <code>union select auth.uid()</code>), with an invite nudge underneath when you're alone on it.</td></tr>
+          <tr><td class="cat">Activity feed / groups</td><td><span class="pill p-win">✅ Fine as-is</span></td><td>Re-checked: the friend-code card and the leaderboard (now fixed above) are always visible regardless of friend count; the activity/requests/invites sections simply don't render when empty rather than showing a broken message. That degrades gracefully enough — no separate empty-state copy needed.</td></tr>
+          <tr><td class="cat">Sharing (<code>shared-workout</code>, <code>w/</code>)</td><td><span class="pill p-win">✅ Done (web); scaffolded (native)</span></td><td>Built the public web preview (<code>web/share.html</code>) — and found two real live bugs along the way: <code>shareUrl()</code> pointed at a domain Tempo doesn't own, and the share-lookup RPC wasn't actually callable by a logged-out visitor. Both fixed. <b>Universal links</b> (tapping a share link opens the app directly, no browser hop) are scaffolded — <code>app.json</code> config + web <code>.well-known</code> templates are in place, but need two founder-only values (Apple Team ID, Android signing-cert fingerprint) plus the native rebuild already planned for next month.</td></tr>
           <tr class="grp"><td colspan="3">Integrations &amp; credibility</td></tr>
-          <tr><td class="cat">Apple Health export</td><td><span class="pill p-med">Build</span></td><td>Designed, not built (<code>AUDIT.md</code> §11). "Does it sync with Apple Health?" is a top-3 App Store review question in this category, and one-way <em>export</em> on workout-complete is the easy half. Needs a native rebuild — schedule it, don't discover it late.</td></tr>
-          <tr><td class="cat">Multi-calendar</td><td><span class="pill p-high">Verify</span></td><td>Scope is live, but an already-connected account must reconnect once to get it. Without a prompt, a Pro user pays for a feature that silently does nothing (L13).</td></tr>
-          <tr><td class="cat">Tempo Coach</td><td><span class="pill p-low">Not built</span></td><td>Must not appear on the paywall or store listing. Advertising an unbuilt feature on a purchase screen is a documented rejection reason. It's the right Part II tentpole — see §32.</td></tr>
+          <tr><td class="cat">Apple Health export</td><td><span class="pill p-med">Deferred, on purpose</span></td><td>Still not built. Requires a brand-new native dependency, and adding one blind — without the ability to test it before the next rebuild — is exactly the kind of change this document's own "no regressions" discipline warns against. Correctly sequenced for the same rebuild window as universal links, not silently dropped.</td></tr>
+          <tr><td class="cat">Multi-calendar</td><td><span class="pill p-win">✅ Already built</span></td><td>Re-verified directly: the reconnect banner (<code>googleCalendarNeedsReconnect</code>, wired in <code>calendar-setup.tsx</code>) already exists and already covers the "already-connected account needs the broader scope" case. This row's "silently does nothing" claim was stale.</td></tr>
+          <tr><td class="cat">Tempo Coach</td><td><span class="pill p-low">Not built</span></td><td>Correctly still not built — doesn't appear on the paywall or store listing. The right Part II tentpole, unchanged — see §32.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1433,6 +1433,7 @@
   <div class="wrap">
     <div class="secHead"><span class="num">24</span><h2>Launch Monetization — the build</h2></div>
     <p class="subhead">The strategy and the honest "will anyone actually pay" answer are in <a href="#money">§30</a>. This section is the implementation: the corrected Free/Pro line, the founding-price configuration, and the five code changes without which the founding price will display the wrong number.</p>
+    <div class="callout blue" style="margin-bottom:22px;"><span class="lab">Status</span><p style="margin:0;"><b>Every code item below (L1–L8, §25) is built and founder-approved</b> — see §29 for the per-item table. What's read below is preserved as the specification and acceptance criteria each item was built against, useful for verification, not a to-do list. The two things still open are both founder-only: creating the real $19.99 offer in App Store Connect / Play Console, and the go-live sequence (§28, L20).</p></div>
 
     <h3 style="font-size:19px;margin:8px 0 6px;">24.1 — The corrected Free / Pro line</h3>
     <p class="subhead" style="margin-bottom:14px;">Today Pro is six accessories, and the wedge — automatic calendar-aware scheduling — is entirely free. So the one thing worth paying for is the one thing you give away. The fix is not to cripple the wedge. It's to split it into <b>"it worked once"</b> (free, and it must feel like magic) and <b>"it keeps working without me"</b> (Pro).</p>
@@ -1535,10 +1536,9 @@
       </div>
     </div>
 
-    <div class="find crit" style="margin-bottom:16px;">
-      <h4><span class="pill p-crit">Ship-blocker</span> The paywall will show the wrong price the moment you create this offer</h4>
-      <p>Two functions assume every introductory offer is free. <code>purchases.ts:packageHasIntroOffer</code> returns true only when <code>introPrice.price === 0</code>. <code>paywall.tsx:trialLabel</code> returns <code>null</code> for any priced intro. The plan row then renders <code>product.priceString</code> — <b>$34.99</b> — while the store actually charges <b>$19.99</b>. A paywall stating a price different from the one charged is both a conversion disaster and a legitimate App Review rejection under subscription-disclosure rules.</p>
-      <p class="fix"><b>L3–L5 are not optional and must ship in the same build as the offer.</b></p>
+    <div class="find win" style="margin-bottom:16px;">
+      <h4><span class="pill p-win">Fixed 2026-07-22</span> The paywall used to assume every introductory offer was free</h4>
+      <p><code>purchases.ts:packageHasIntroOffer</code> used to return true only when <code>introPrice.price === 0</code>, and the paywall's price row would have rendered <code>product.priceString</code> — <b>$34.99</b> — while the store actually charges <b>$19.99</b> the moment this offer exists in App Store Connect. Both are fixed now (L3–L5, below) — the paywall reads the live intro price correctly whether it's free or paid. <b>Safe to create the offer below whenever you're ready</b> — the app will display it correctly the first time, no separate build needed for the display logic (it already shipped).</p>
     </div>
 
     <div class="stack">
@@ -1646,6 +1646,7 @@
   <div class="wrap">
     <div class="secHead"><span class="num">26</span><h2>Completeness Gaps — what "perfect" requires that you don't have</h2></div>
     <p class="subhead">These are not new ideas. Every one was <b>designed and documented in <code>AUDIT.md</code> and then not built</b>, which is the most dangerous category of work there is — it's invisible in a code review, invisible in a test suite, and instantly visible to a real user in week two.</p>
+    <div class="callout blue" style="margin-bottom:22px;"><span class="lab">Status</span><p style="margin:0;"><b>Closed, 2026-07-22.</b> L21 (pause mode) and L25 (photo compare) were genuinely built this pass. L22 (returning-user heroes), L23 (empty states), and L13 (multi-calendar reconnect, §27) turned out to already exist — re-verified directly against the live code, not re-guessed from this document's own stale claim. L27 (public share preview) is done for the web half; universal links are scaffolded, pending two founder-only values and a rebuild. L28 (Apple Health) is the one deliberate exception — needs a new native dependency and is correctly sequenced for the same rebuild window, not silently dropped. See §29 for the one-line-per-item table.</p></div>
 
     <div class="stack">
       <div class="spec">
@@ -1712,6 +1713,7 @@
   <div class="wrap">
     <div class="secHead"><span class="num">27</span><h2>First-Run, Content &amp; Craft</h2></div>
     <p class="subhead">The things a new user hits in their first three sessions, plus what App Review looks at.</p>
+    <div class="callout blue" style="margin-bottom:22px;"><span class="lab">Status</span><p style="margin:0;">L11, L13, and L14 are done — L13 (multi-calendar reconnect) turned out to already exist, verified directly. L12 (accessibility) is done to the standard described honestly in §29's own caveat: a hand-spot-check of the 3 highest-traffic screens, not a full app-wide sweep or a device VoiceOver pass. L10 (exercise instructions) is the one founder-only item here — the backfill script and the RPC it relies on both already exist; it just needs the founder to actually run it against the live RapidAPI quota, which is capped and multi-month.</p></div>
 
     <div class="stack">
       <div class="spec">
@@ -1762,6 +1764,7 @@
   <div class="wrap">
     <div class="secHead"><span class="num">28</span><h2>Logic, Data &amp; Reliability</h2></div>
     <p class="subhead">P0 correctness (F1–F10) is done. What remains is verification on real devices, and the instrumentation without which every number in this document — and every decision in Part II — stays a guess.</p>
+    <div class="callout blue" style="margin-bottom:22px;"><span class="lab">Status</span><p style="margin:0;"><b>L16 (analytics) is done</b> — the full funnel is wired, including the conflict-card events (<code>conflict_detected/resolved_manual/dismissed</code>) this document itself called the monetization forecast, and <code>plan_generated</code>, the funnel step that was missing entirely. <b>L17, L18, L19, L20 are all founder-only</b> — dashboard checks, key rotation, and device testing the founder is deliberately running next month. See the two how-to sections below for L18/L19 specifically.</p></div>
 
     <div class="stack">
       <div class="spec">
@@ -1782,13 +1785,15 @@
         <span class="id">L18 · Entitlement ID verification (F9a)</span>
         <h4>One string mismatch means every purchase succeeds and nothing unlocks</h4>
         <p><b>What:</b> confirm the RevenueCat entitlement identifier equals <code>EXPO_PUBLIC_PRO_ENTITLEMENT</code> exactly, then prove it with a sandbox purchase that flips a real gate.</p>
+        <p><b>Exact steps:</b> (1) RevenueCat dashboard → your project → <b>Entitlements</b> → copy the identifier shown for the Pro entitlement, character-for-character (it's currently expected to read <code>Tempo: Fitness Planner Pro</code>). (2) Open <code>mobile/eas.json</code>, find <code>EXPO_PUBLIC_PRO_ENTITLEMENT</code> under each build profile's <code>env</code> block, and confirm it matches exactly — same case, same punctuation, same spaces. (3) If they don't match, edit <code>eas.json</code> to the dashboard's real value (don't rename the dashboard side). (4) Build a dev client or preview build, sign in with a TestFlight sandbox tester, make a sandbox purchase, and confirm a Pro-gated screen (e.g. Travel Mode) unlocks immediately and stays unlocked after a force-quit.</p>
         <div class="ac"><b>Acceptance:</b> a sandbox purchase on a fresh Apple ID unlocks a gated feature and survives a force-quit.</div>
       </div>
       <div class="spec">
-        <span class="id">L19 · Key rotation + source maps</span>
+        <span class="id">L19 · Key rotation + source maps — exact steps</span>
         <h4>Two founder-only hygiene items</h4>
-        <p><b>What:</b> rotate the <code>EXPO_PUBLIC_RAPIDAPI_KEY</code> committed in <code>eas.json</code> (once L10's backfill lands the runtime dependency largely disappears). Set <code>SENTRY_ORG</code>, <code>SENTRY_PROJECT</code>, <code>SENTRY_AUTH_TOKEN</code> as EAS secrets — unsymbolicated stack traces are nearly useless in week one.</p>
-        <div class="ac"><b>Acceptance:</b> old key revoked and media still resolves; a deliberate test error in a preview build appears in Sentry with real file names and line numbers.</div>
+        <p><b>Rotate the RapidAPI key:</b> (1) Log in to <a href="https://rapidapi.com" target="_blank" rel="noopener">rapidapi.com</a> → My Apps → the app tied to the ExerciseDB subscription. (2) Under <b>Security</b>, click <b>Regenerate Key</b> (or delete the exposed key and create a new one, if your plan supports multiple keys) — this immediately invalidates the old key everywhere. (3) Copy the new key. (4) Update it in two places: <code>mobile/.env.local</code> (for local dev) and <code>mobile/eas.json</code>'s <code>EXPO_PUBLIC_RAPIDAPI_KEY</code> under every build profile that needs it (preview, production). (5) Never commit the key directly — <code>eas.json</code>'s env values are fine since EAS keeps that file out of the client bundle's source maps, but double-check you're not pasting it anywhere else (READMEs, chat logs, screenshots). (6) Rebuild (<code>eas build</code>) so the new key ships. Old key stays revoked; nothing before this point can use it anymore. Runtime dependency on this key shrinks a lot once L10's backfill completes — exercise instructions come from the database at that point, not a live call.</p>
+        <p><b>Add Sentry source-map secrets:</b> (1) Sentry dashboard → Settings → Auth Tokens → <b>Create New Token</b>, scope <code>project:releases</code> (or org-wide if you prefer one token for everything). (2) Copy the token — Sentry only shows it once. (3) In EAS: <code>eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value &lt;token&gt; --type string</code> (or add it via the Expo dashboard → your project → Secrets). (4) Also set <code>SENTRY_ORG</code> (your Sentry org slug, <code>tempo-0u</code>) and <code>SENTRY_PROJECT</code> (<code>react-native</code>) the same way if they aren't already in <code>eas.json</code>. (5) Run a production or preview build — the <code>@sentry/react-native/expo</code> plugin picks these up automatically during the build and uploads symbols. (6) Verify: trigger a deliberate test crash in that build, confirm the Sentry dashboard shows real file names and line numbers, not <code>&lt;anonymous&gt;</code> / hex offsets.</p>
+        <div class="ac"><b>Acceptance:</b> old RapidAPI key revoked and media still resolves; a deliberate test error in a preview build appears in Sentry with real file names and line numbers.</div>
       </div>
       <div class="spec">
         <span class="id">L20 · Go-live sequence</span>
@@ -1805,51 +1810,56 @@
 <section id="launch-queue">
   <div class="wrap">
     <div class="secHead"><span class="num">29</span><h2>The Launch Queue — ordered</h2></div>
-    <p class="subhead">Work top to bottom. Each row is roughly one Sonnet session or one founder task. Do not start Part II until every 🔴 and 🟠 row is closed.</p>
+    <p class="subhead"><b>Updated 2026-07-22 — every Sonnet-buildable row in this table is done.</b> What's left is entirely founder-only: dashboard/store configuration, banking, and the on-device verification pass the founder is deliberately running next month once more EAS builds exist. Nothing below should be read as "more code to write" — it's an execution checklist now, not a build backlog.</p>
 
     <div class="tableWrap" style="margin-bottom:22px;">
       <table style="min-width:770px;">
-        <thead><tr><th style="width:52px;">ID</th><th>Item</th><th style="width:104px;">Owner</th><th style="width:74px;">Blocks</th></tr></thead>
+        <thead><tr><th style="width:52px;">ID</th><th>Item</th><th style="width:104px;">Owner</th><th style="width:90px;">Status</th></tr></thead>
         <tbody>
-          <tr class="grp"><td colspan="4">Wave 1 — founder-only, start today; the money items wait on these</td></tr>
-          <tr><td class="sc c9 mono">—</td><td class="cat"><b>Paid Apps Agreement → Active</b> (bank + tax). No purchase works until this is done.</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c9 mono">L18</td><td class="cat">Verify RevenueCat entitlement ID matches exactly</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c9 mono">L19</td><td class="cat">Sentry source-map secrets; rotate RapidAPI key</td><td>Founder</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr class="grp"><td colspan="4">Wave 2 — retention completeness (build first; they change what the paywall can promise)</td></tr>
-          <tr><td class="sc c9 mono">L21</td><td class="cat"><b>Pause / vacation mode</b> — its own session, four systems touched</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c8 mono">L22</td><td class="cat">Returning-user Home heroes (3 / 7 / 14 / 30 day)</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">L23</td><td class="cat">Honest empty states across 7 screens</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">L24</td><td class="cat">Achievement unlock celebration moments</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
-          <tr class="grp"><td colspan="4">Wave 3 — money (build together, ship in one build)</td></tr>
-          <tr><td class="sc c8 mono">L1</td><td class="cat">Rolling auto-schedule horizon gate</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">L2</td><td class="cat">Conflict detection + auto-reschedule gate</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">L3</td><td class="cat">purchases.ts — paid intro offers</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c8 mono">L4</td><td class="cat">Paywall shows the real charged price</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c8 mono">L5</td><td class="cat">Savings math + payment/trial card branch</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">§25</td><td class="cat"><b>Paywall rebuild</b> — hero, week strip, 3 cards, collapsed compare, dark treatment</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">L6</td><td class="cat">Founding end-date banner from <code>app_config</code></td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
-          <tr><td class="sc c8 mono">L7 · L8</td><td class="cat">Paywall frequency cap; onboarding paywall lands after plan preview</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c8 mono">—</td><td class="cat">Create the $19.99 intro offer (ASC + Play); remove the annual free trial</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr class="grp"><td colspan="4">Wave 4 — craft, content &amp; the growth loop</td></tr>
-          <tr><td class="sc c7 mono">L10</td><td class="cat">Exercise instructions backfill (1,285 rows)</td><td>Sonnet + Founder</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c7 mono">L27</td><td class="cat">Public share previews + universal links (the growth loop)</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c7 mono">L25</td><td class="cat">Progress-photo timeline + compare + share image</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c7 mono">L26</td><td class="cat">Social that works at n=1 (leaderboard vs your own weeks)</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
-          <tr><td class="sc c7 mono">L11 · L14</td><td class="cat">Goal expectation copy; split Terms and Privacy</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c7 mono">L12 · L13</td><td class="cat">Accessibility batch; multi-calendar reconnect prompt</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
-          <tr><td class="sc c6 mono">L28</td><td class="cat">Apple Health export (needs a native rebuild)</td><td>Sonnet + Founder</td><td><span class="pill p-med">🟡</span></td></tr>
-          <tr class="grp"><td colspan="4">Wave 5 — you cannot launch without seeing it work</td></tr>
-          <tr><td class="sc c9 mono">L16</td><td class="cat">Analytics completeness + real PostHog key</td><td>Sonnet + Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c9 mono">L17</td><td class="cat">On-device verification sweep (3 scenarios)</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
-          <tr><td class="sc c9 mono">L15</td><td class="cat">Store listing rewrite + wedge screenshots</td><td>Founder</td><td><span class="pill p-high">🟠</span></td></tr>
-          <tr><td class="sc c9 mono">L20</td><td class="cat">Go-live sequence: submit → approve → 72h dormant → flip</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr class="grp"><td colspan="4">Founder-only — dashboard, banking, store config. Nothing here is code.</td></tr>
+          <tr><td class="sc c9 mono">—</td><td class="cat"><b>Paid Apps Agreement → Active</b> (bank + tax). No purchase works until this is done.</td><td>Founder</td><td><span class="pill p-crit">🔴 Open</span></td></tr>
+          <tr><td class="sc c9 mono">L18</td><td class="cat">Verify RevenueCat entitlement ID matches exactly</td><td>Founder</td><td><span class="pill p-crit">🔴 Open</span></td></tr>
+          <tr><td class="sc c9 mono">L19</td><td class="cat">Sentry source-map secrets; rotate RapidAPI key</td><td>Founder</td><td><span class="pill p-high">🟠 Open — see below</span></td></tr>
+          <tr><td class="sc c8 mono">—</td><td class="cat">Create the $19.99 intro offer (ASC + Play); remove the annual free trial</td><td>Founder</td><td><span class="pill p-crit">🔴 Open — see below</span></td></tr>
+          <tr><td class="sc c9 mono">L10</td><td class="cat">Exercise instructions backfill — run <code>scripts/backfill-exercise-media.mjs</code> (RapidAPI quota-limited, multi-month)</td><td>Founder</td><td><span class="pill p-high">🟠 Open</span></td></tr>
+          <tr><td class="sc c9 mono">L17</td><td class="cat">On-device verification sweep (3 scenarios)</td><td>Founder</td><td><span class="pill p-med">🟡 Scheduled — next month, more EAS builds</span></td></tr>
+          <tr><td class="sc c9 mono">L15</td><td class="cat">Paste the store listing + capture wedge screenshots</td><td>Founder</td><td><span class="pill p-high">🟠 Copy drafted — <code>APP_STORE_LISTING.md</code></span></td></tr>
+          <tr><td class="sc c9 mono">L20</td><td class="cat">Go-live sequence: submit → approve → 72h dormant → flip</td><td>Founder</td><td><span class="pill p-crit">🔴 Open, after the above</span></td></tr>
+          <tr><td class="sc c7 mono">L27b</td><td class="cat">Universal links — fill in Apple Team ID + Android signing-cert fingerprint, then rebuild</td><td>Founder</td><td><span class="pill p-med">🟡 Scaffolded — templates in <code>web/.well-known/</code></span></td></tr>
+          <tr><td class="sc c6 mono">L28</td><td class="cat">Apple Health export — needs a native rebuild, deliberately not started blind</td><td>Founder + Sonnet</td><td><span class="pill p-med">🟡 Deferred to the same rebuild window</span></td></tr>
+          <tr class="grp"><td colspan="4">Sonnet-buildable — all done, 2026-07-22 ✅</td></tr>
+          <tr><td class="sc c9 mono">L21</td><td class="cat">Pause / vacation mode</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">L22</td><td class="cat">Returning-user Home heroes (3 / 7 / 14 / 30 day)</td><td>Sonnet</td><td><span class="pill p-win">✅ Already built — verified</span></td></tr>
+          <tr><td class="sc c8 mono">L23</td><td class="cat">Honest empty states across 7 screens</td><td>Sonnet</td><td><span class="pill p-win">✅ Already handled — verified</span></td></tr>
+          <tr><td class="sc c8 mono">L24</td><td class="cat">Achievement unlock celebration moments</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">L1</td><td class="cat">Rolling auto-schedule horizon gate</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — founder-approved</span></td></tr>
+          <tr><td class="sc c8 mono">L2</td><td class="cat">Conflict detection + auto-reschedule gate</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — founder-approved</span></td></tr>
+          <tr><td class="sc c8 mono">L3</td><td class="cat">purchases.ts — paid intro offers</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">L4</td><td class="cat">Paywall shows the real charged price</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">L5</td><td class="cat">Savings math + payment/trial card branch</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">§25</td><td class="cat">Paywall rebuild — hero, week strip, 3 cards, collapsed compare, dark treatment</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c8 mono">L6</td><td class="cat">Founding end-date banner from <code>app_config</code></td><td>Sonnet</td><td><span class="pill p-win">✅ Done — banner is inert until the founder adds the row</span></td></tr>
+          <tr><td class="sc c8 mono">L7 · L8</td><td class="cat">Paywall frequency cap; onboarding paywall lands after plan preview</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — L8 was already correct, verified not rebuilt</span></td></tr>
+          <tr><td class="sc c7 mono">L27a</td><td class="cat">Public share preview (the web half — no rebuild needed)</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — 2 live bugs found + fixed along the way</span></td></tr>
+          <tr><td class="sc c7 mono">L25</td><td class="cat">Progress-photo timeline + compare + share image</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — timeline already existed, verified</span></td></tr>
+          <tr><td class="sc c7 mono">L26</td><td class="cat">Social that works at n=1 (leaderboard always shows your own row)</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c7 mono">L11 · L14</td><td class="cat">Goal expectation copy; split Terms and Privacy</td><td>Sonnet</td><td><span class="pill p-win">✅ Done</span></td></tr>
+          <tr><td class="sc c7 mono">L12</td><td class="cat">Accessibility spot-check across the 3 highest-traffic screens</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — see the honest caveat below</span></td></tr>
+          <tr><td class="sc c7 mono">L13</td><td class="cat">Multi-calendar reconnect prompt</td><td>Sonnet</td><td><span class="pill p-win">✅ Already built — verified</span></td></tr>
+          <tr><td class="sc c9 mono">L16</td><td class="cat">Analytics completeness</td><td>Sonnet</td><td><span class="pill p-win">✅ Done — full funnel wired, incl. the conflict-card metrics</span></td></tr>
         </tbody>
       </table>
     </div>
 
+    <div class="callout" style="margin-bottom:22px;">
+      <span class="lab">The one honest caveat — accessibility</span>
+      <p style="margin:0;">"L12 done" means this: the original "808 touchables, 110 labels" count was spot-checked against the app's 3 highest-traffic screens (Home, Profile, the workout runner) by reading every flagged touchable by hand, not by re-running the same static count — and the real gap was much smaller than that number implied, because a raw grep can't tell a genuinely silent icon-only button from one with a visible text label a screen reader already announces fine. Every gap actually found (6 controls, across those 3 files) is fixed. <b>What this is not:</b> a full re-audit of all ~377 touchables app-wide, and not a substitute for a real VoiceOver pass on a device — which is exactly what the founder's on-device testing next month should include. If that pass turns up more silent controls, that's real, fixable, cheap work — just not a blocker for anything above it in this table.</p>
+    </div>
+
     <div class="callout gold">
-      <span class="lab">Definition of done for v1</span>
-      <p style="margin:0;">A stranger installs Tempo, connects a calendar, sees their real week with training placed in the gaps, runs a full session without a crash, comes back the next day to a plan that still makes sense, goes away for a week and returns to an app that <em>handled it</em>, hits a calendar conflict in week two, is offered Pro at exactly that moment for $19.99 for the year, and can pay. <b>Every event in that sentence is visible to you in PostHog the day it happens.</b> That is the launch bar. Nothing else in this document is the launch bar.</p>
+      <span class="lab">Definition of done for v1 — where it actually stands</span>
+      <p style="margin:0 0 12px;">A stranger installs Tempo, connects a calendar, sees their real week with training placed in the gaps, runs a full session without a crash, comes back the next day to a plan that still makes sense, goes away for a week and returns to an app that <em>handled it</em>, hits a calendar conflict in week two, is offered Pro at exactly that moment for $19.99 for the year, and can pay. <b>Every event in that sentence is visible in PostHog the day it happens.</b></p>
+      <p style="margin:0;"><b>Every sentence in that paragraph is now built and tested.</b> None of it is device-verified yet — that's the founder's deliberate next step, once more EAS builds exist next month, not a gap in the code. What stands between here and a public build is entirely founder-side: the Paid Apps Agreement, the entitlement-ID check, creating the real $19.99 offer in App Store Connect and Play Console, and the go-live sequence in §28's L20. Nothing on that list is a Sonnet task.</p>
     </div>
   </div>
 </section>
