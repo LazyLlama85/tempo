@@ -10,6 +10,10 @@ import { useProgressStats } from '@/hooks/useProgressStats'
 import { supabase } from '@/lib/supabase'
 import { recordWorkoutFeedback, refreshAdaptation, type WorkoutFeel } from '@/lib/adaptation'
 import { maybePromoteExperience, LEVEL_UP_COPY, type ExperiencePromotion } from '@/lib/experienceProgression'
+import {
+  badgeStatsFromSessions, computeEarnedBadges, BADGE_BY_KEY,
+  getSeenBadges, markBadgesSeen, hasSeenRecord, type BadgeDef,
+} from '@/lib/badges'
 import { track } from '@/lib/analytics'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
@@ -47,7 +51,7 @@ export default function WorkoutCompleteScreen() {
   const isQuick = quick === '1'
   const mins = Number(minutes) || 0
 
-  const { stats, isLoading: statsLoading, refetch } = useProgressStats(userId)
+  const { stats, workouts, isLoading: statsLoading, refetch } = useProgressStats(userId)
   const unit = useWeightUnit()
   const [feel, setFeel] = useState<WorkoutFeel | null>(null)
   const [cards, setCards] = useState<WrappedCard[]>([])
@@ -55,6 +59,7 @@ export default function WorkoutCompleteScreen() {
   const [report, setReport] = useState<WeeklyReport | null>(null)
   const [prs, setPrs] = useState<SessionPR[]>([])
   const [promotion, setPromotion] = useState<ExperiencePromotion | null>(null)
+  const [newBadge, setNewBadge] = useState<BadgeDef | null>(null)
   const [saveSheetVisible, setSaveSheetVisible] = useState(false)
 
   // Stats were just mutated by completing the session — pull the fresh numbers so
@@ -105,6 +110,48 @@ export default function WorkoutCompleteScreen() {
   useEffect(() => {
     if (prs.length > 0) haptics.success()
   }, [prs.length])
+
+  // Achievement-unlock celebration (§26, L24): lib/badges.ts already computes
+  // earned badges and tracks which the user has "seen" (for the trophy case's
+  // NEW indicator) — this reuses that exact system rather than inventing a
+  // second one, and treats "just celebrated here" as equivalent to "opened the
+  // trophy case" so the same badge never shows as new again afterward.
+  // 'first_workout' is excluded — isFirstSession above already owns that exact
+  // moment with its own full celebration.
+  //
+  // Bootstrap safety: the very first time this runs for a user (no seen-record
+  // exists yet), it seeds the baseline silently instead of celebrating — an
+  // existing user with 50 workouts didn't just earn "30 Sessions" today, and
+  // must never be told they did.
+  const badgeChecked = useRef(false)
+  useEffect(() => {
+    if (badgeChecked.current || statsLoading || !userId) return
+    badgeChecked.current = true
+    const badgeStats = badgeStatsFromSessions(workouts, profile?.days_per_week ?? 3, new Date().toISOString().slice(0, 10), {
+      totalWorkouts: stats.totalWorkouts, totalVolume: stats.totalVolumeNum,
+    })
+    const earnedNow = computeEarnedBadges(badgeStats, new Set())
+    earnedNow.delete('first_workout')
+
+    if (!hasSeenRecord(userId)) {
+      markBadgesSeen(userId, earnedNow)
+      return
+    }
+    const seen = getSeenBadges(userId)
+    const fresh = [...earnedNow].filter((k) => !seen.has(k))
+    markBadgesSeen(userId, earnedNow)
+    if (!fresh.length) return
+    // Gold > silver > bronze when more than one unlocks in the same session.
+    const tierRank = { gold: 2, silver: 1, bronze: 0 } as const
+    const best = fresh
+      .map((k) => BADGE_BY_KEY[k])
+      .filter((b): b is BadgeDef => !!b)
+      .sort((a, b) => tierRank[b.tier] - tierRank[a.tier])[0]
+    if (best) {
+      setNewBadge(best)
+      track('achievement_unlocked', { key: best.key, tier: best.tier })
+    }
+  }, [statsLoading, stats.totalWorkouts, stats.totalVolumeNum, workouts, userId, profile?.days_per_week])
 
   // Build the shareable cards + this week's momentum + any PRs from this session.
   useEffect(() => {
@@ -198,7 +245,7 @@ export default function WorkoutCompleteScreen() {
   const tierEligible: Record<Tier, boolean> = {
     levelup: !!promotion,
     pr: prs.length > 0,
-    achievement: isFirstSession,
+    achievement: isFirstSession || !!newBadge,
     routine: true, // streak + the 2 stat tiles always show
   }
   const hero: Tier = TIER_ORDER.find((t) => tierEligible[t]) ?? 'routine'
@@ -209,7 +256,11 @@ export default function WorkoutCompleteScreen() {
       case 'pr':
         return prs.length > 0 ? [{ key: 'pr', icon: 'trophy', label: prs.length === 1 ? 'New PR' : 'New PRs', value: `${prs.length}` }] : []
       case 'achievement':
-        return [{ key: 'achievement', icon: 'footsteps', label: 'Milestone', value: 'First session' }]
+        return isFirstSession
+          ? [{ key: 'achievement', icon: 'footsteps', label: 'Milestone', value: 'First session' }]
+          : newBadge
+          ? [{ key: 'achievement', icon: newBadge.icon, label: 'Achievement', value: newBadge.label }]
+          : []
       case 'routine':
         return [
           { key: 'streak', icon: 'flame', label: 'Streak', value: `${stats.streak} ${stats.streak === 1 ? 'session' : 'sessions'}` },
@@ -268,7 +319,7 @@ export default function WorkoutCompleteScreen() {
 
         {/* First Tempo Session — an unlock moment on day one. Full treatment only
             when it's the highest-ranked eligible card this visit. */}
-        {hero === 'achievement' && (
+        {hero === 'achievement' && isFirstSession && (
           <PopIn delay={240} style={styles.firstCard}>
             <View style={styles.firstBadge}>
               <Ionicons name="footsteps" size={24} color={C.onPrimary} />
@@ -277,6 +328,22 @@ export default function WorkoutCompleteScreen() {
               <Text style={styles.firstTag}>ACHIEVEMENT UNLOCKED</Text>
               <Text style={styles.firstTitle}>First Tempo Session</Text>
               <Text style={styles.firstBody}>The hardest one is behind you. Tempo learns from this session to shape your next.</Text>
+            </View>
+          </PopIn>
+        )}
+
+        {/* A real badge unlock (lib/badges.ts) — 30 Sessions, Ton Club, a streak,
+            etc. Same treatment as the first-session card above, just driven by
+            whichever badge actually just unlocked. */}
+        {hero === 'achievement' && !isFirstSession && newBadge && (
+          <PopIn delay={240} style={styles.firstCard}>
+            <View style={styles.firstBadge}>
+              <Ionicons name={newBadge.icon as any} size={24} color={C.onPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.firstTag}>ACHIEVEMENT UNLOCKED</Text>
+              <Text style={styles.firstTitle}>{newBadge.label}</Text>
+              <Text style={styles.firstBody}>{newBadge.description}</Text>
             </View>
           </PopIn>
         )}

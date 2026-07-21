@@ -1,5 +1,17 @@
-import { badgeStatsFromSessions, computeEarnedBadges, BADGES } from '../badges'
+import { badgeStatsFromSessions, computeEarnedBadges, BADGES, getSeenBadges, markBadgesSeen, hasSeenRecord } from '../badges'
 import type { StreakRow } from '../streak'
+
+// jest's testEnvironment is 'node' — no real localStorage global. A minimal
+// in-memory stand-in, matching the Storage interface badges.ts reads via
+// `globalThis.localStorage` (same pattern as feedLog.test.ts).
+function installFakeLocalStorage() {
+  const store = new Map<string, string>()
+  ;(globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => { store.set(k, v) },
+    removeItem: (k: string) => { store.delete(k) },
+  }
+}
 
 const today = '2026-07-14' // Tuesday; ISO Monday = 2026-07-13
 const mk = (planned_date: string, status: string): StreakRow => ({ planned_date, status })
@@ -72,5 +84,41 @@ describe('badges — competitive (stored)', () => {
     const withStored = earnedKeys([mk('2026-07-13', 'completed')], 3, ['weekly_winner', 'top3_monthly'])
     expect(withStored.has('weekly_winner')).toBe(true)
     expect(withStored.has('top3_monthly')).toBe(true)
+  })
+})
+
+// Achievement-unlock celebration (§26, L24) reads this exact "seen" record to
+// distinguish a genuinely new unlock from one the user already has — these
+// lock in the distinction its bootstrap safety depends on.
+describe('badges — seen record (unlock-celebration bootstrap)', () => {
+  beforeEach(() => installFakeLocalStorage())
+
+  it('has no record for a brand-new user', () => {
+    expect(hasSeenRecord('u1')).toBe(false)
+    expect(getSeenBadges('u1')).toEqual(new Set())
+  })
+
+  it('marking badges seen creates a record and is queryable', () => {
+    markBadgesSeen('u1', ['thirty_sessions', 'ton_club'])
+    expect(hasSeenRecord('u1')).toBe(true)
+    expect(getSeenBadges('u1')).toEqual(new Set(['thirty_sessions', 'ton_club']))
+  })
+
+  it('marking seen merges with (never replaces) whatever was already recorded', () => {
+    markBadgesSeen('u1', ['thirty_sessions'])
+    markBadgesSeen('u1', ['ton_club'])
+    expect(getSeenBadges('u1')).toEqual(new Set(['thirty_sessions', 'ton_club']))
+  })
+
+  it('marking seen with an empty set still creates a (now-distinguishable) record', () => {
+    markBadgesSeen('u1', [])
+    expect(hasSeenRecord('u1')).toBe(true)
+    expect(getSeenBadges('u1').size).toBe(0)
+  })
+
+  it('records are per-user', () => {
+    markBadgesSeen('u1', ['century'])
+    expect(hasSeenRecord('u2')).toBe(false)
+    expect(getSeenBadges('u2').size).toBe(0)
   })
 })

@@ -256,6 +256,18 @@ export function getSeenBadges(userId: string): Set<string> {
   } catch { return new Set() }
 }
 
+// Distinguishes "never recorded anything" from "recorded, currently empty" —
+// getSeenBadges collapses both to an empty Set, which isn't enough to answer
+// "is this the very first time we've looked at this user's badges?" (see
+// workout-complete.tsx's unlock-celebration bootstrap, where that distinction
+// is what stops an existing user's already-earned badges from all appearing to
+// unlock at once the first time the celebration code runs for them).
+export function hasSeenRecord(userId: string): boolean {
+  try {
+    return (globalThis as { localStorage?: Storage }).localStorage?.getItem(seenKey(userId)) != null
+  } catch { return false }
+}
+
 export function markBadgesSeen(userId: string, keys: Iterable<string>): void {
   try {
     const ls = (globalThis as { localStorage?: Storage }).localStorage

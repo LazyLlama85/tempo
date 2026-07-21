@@ -2214,6 +2214,29 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Achievement-unlock celebration (2026-07-22, PRODUCT_AUDIT.html §26 L24)
+`lib/badges.ts`'s 12 badges were purely passive — earned/unearned status only ever appeared if you
+opened the trophy case (`/badges`) yourself; nothing celebrated the moment a badge was actually
+earned. Extended the existing system rather than building a second one: `workout-complete.tsx` now
+computes `earnedBadges` the exact same way Profile does (`badgeStatsFromSessions` +
+`computeEarnedBadges`), diffs it against `getSeenBadges` (the same device-local "seen" set the
+trophy case's NEW-indicator already used), and gives the highest-tier newly-unlocked badge the same
+full-card `PopIn` treatment the existing "First Tempo Session" card already had — generalizing the
+screen's `'achievement'` tier (previously hardcoded to only ever mean first-session) to also carry a
+real `BadgeDef`. `first_workout` is excluded everywhere here since `isFirstSession` already owns
+that exact moment with richer, dedicated copy.
+- **Bootstrap safety (the one real risk):** an existing user's already-earned badges must never all
+  appear to unlock at once the first time this code runs for them. Added `hasSeenRecord()` to
+  `lib/badges.ts` (distinguishes "never recorded anything" from "recorded, currently empty" — plain
+  `getSeenBadges` collapses both to an empty Set) — on a user's first encounter, the baseline is
+  seeded silently (marked seen, nothing celebrated); only unlocks after that ever fire the card.
+  Every earned badge is marked seen immediately after checking, celebrated or not, so the trophy
+  case never redundantly shows a "NEW" badge for something just celebrated here.
+- Deliberately scoped to the 6 derived milestone/consistency badges (streaks, session counts, volume
+  totals) — competitive/social badges (Weekly Winner, Top 3 Monthly, Workout Partner) are awarded via
+  a separate server RPC and still surface through the trophy case's own existing NEW indicator.
+- `analytics.ts` gained `achievement_unlocked: { key, tier }`.
+
 ### Pause / vacation mode (2026-07-22, PRODUCT_AUDIT.html §26 L21)
 "I'm away for 10 days" used to mean a broken streak and a wall of "missed" sessions — nothing told
 the plan the user was gone. `user_profiles.paused_until` (nullable date, `add_pause_mode.sql`) is
