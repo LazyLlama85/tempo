@@ -8,7 +8,14 @@
 //
 // Imported rows deliberately carry EMPTY instructions in the DB (keeps the seed
 // small); the form guide fetches steps from the ExerciseDB detail endpoint on
-// first open and caches them for the session.
+// first open and caches them in-memory for the session, PLUS persists a
+// successful fetch back to the row (via the save_exercise_instructions RPC —
+// add_exercise_instructions_backfill_rpc.sql) so every future viewer reads it
+// straight from the database instead of hitting RapidAPI's limited monthly
+// quota again. A real, lazy, real-usage-driven backfill that runs alongside
+// (not instead of) the founder's manual monthly script.
+
+import { supabase } from '@/lib/supabase'
 
 const HOST = 'exercisedb.p.rapidapi.com'
 const API_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY ?? ''
@@ -29,7 +36,10 @@ const instructionsCache = new Map<string, string[]>()
 
 // Step-by-step instructions for an imported exercise, fetched from ExerciseDB.
 // Returns [] when offline / no key / unknown id — callers fall back gracefully.
-export async function fetchRemoteInstructions(exdbId: string): Promise<string[]> {
+// `exerciseId` (the app's own row id) is only used to persist a successful
+// fetch back to the database — pass it whenever available so the fetch never
+// has to happen again for that exercise, for anyone.
+export async function fetchRemoteInstructions(exdbId: string, exerciseId?: string): Promise<string[]> {
   const cached = instructionsCache.get(exdbId)
   if (cached) return cached
   if (!API_KEY) return []
@@ -41,6 +51,14 @@ export async function fetchRemoteInstructions(exdbId: string): Promise<string[]>
       .map((s: unknown) => String(s).trim())
       .filter(Boolean)
     instructionsCache.set(exdbId, steps)
+    if (steps.length && exerciseId) {
+      // Best-effort — a failed write just means the next viewer fetches live
+      // again, same as today; never blocks the instructions from showing.
+      supabase.rpc('save_exercise_instructions', { p_exercise_id: exerciseId, p_instructions: steps }).then(
+        () => {},
+        () => {},
+      )
+    }
     return steps
   } catch {
     return []

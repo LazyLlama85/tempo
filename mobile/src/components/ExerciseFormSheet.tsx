@@ -73,7 +73,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
     if (!exdbId) { setStepsLoading(false); return }
     let cancelled = false
     setStepsLoading(true)
-    fetchRemoteInstructions(exdbId).then(steps => {
+    fetchRemoteInstructions(exdbId, exercise.id).then(steps => {
       if (cancelled) return
       setRemoteSteps(steps)
       setStepsLoading(false)
