@@ -1370,6 +1370,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   excludes the auto "By Tempo" mirror). Dormant-safe: `canCreate` always returns true while
   `proEnabled` is false, so free users are uncapped until Pro is live. `PAYWALL_POINTS` leads with
   "Unlimited Everything" and the paywall's Free-vs-Pro table shows the real caps (1 / 5-each → ∞).
+  **Plate Calculator (2026-07-21) — `lib/plateCalc.ts` + `components/PlateCalcSheet.tsx`:** a new
+  `plate_calculator` gate. Pure greedy-largest-first math (`calculatePlates(target, barWeight, unit)`)
+  over standard lb/kg plate sets — no persistence. Reached from the runner's per-exercise "…" menu
+  ("Plate Calculator"), pre-filled with that exercise's `suggestedWeight` (progression.ts) converted
+  to the display unit; `useProGate().requirePro('plate_calculator')` gates the menu action itself
+  (dormant-safe, same pattern as every other gate). In `PAYWALL_POINTS` since it's fully functional
+  today (no external dependency, unlike multi-calendar).
   **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and

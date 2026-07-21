@@ -54,6 +54,7 @@ import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import { excludeExercisePermanently } from '@/lib/exerciseExclusions'
+import { PlateCalcSheet } from '@/components/PlateCalcSheet'
 import { metricsFor } from '@/lib/customExercises'
 import { classifyExercise } from '@/lib/exerciseProgramming'
 import { describeSession } from '@/lib/sessionRationale'
@@ -307,6 +308,9 @@ export default function WorkoutsScreen() {
   const [weekRescheduling, setWeekRescheduling] = useState(false)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
   const { requirePro: requireProForSchedule } = useProGate()
+  const { requirePro: requireProForPlates } = useProGate()
+  const [plateCalcWeight, setPlateCalcWeight] = useState<number | null>(null)
+  const [plateCalcOpen, setPlateCalcOpen] = useState(false)
   const { workouts: histWorkouts, logTimes, muscleTimeline } = useProgressStats(userId)
   // Readiness stays a chip here (the point-of-decision glance, same as Home's
   // hero) — the full readiness card + muscle recovery detail live on Progress
@@ -2658,6 +2662,13 @@ export default function WorkoutsScreen() {
 
       <ExerciseFormSheet exercise={formSheetEx} onClose={() => setFormSheetEx(null)} />
 
+      <PlateCalcSheet
+        visible={plateCalcOpen}
+        onClose={() => setPlateCalcOpen(false)}
+        initialWeight={plateCalcWeight}
+        unit={unit}
+      />
+
       {(() => {
         if (!focusEx) return null
         const p = targets[focusEx.id]
@@ -2839,6 +2850,7 @@ export default function WorkoutsScreen() {
           const i = exActionEx ? exercises.findIndex(e => e.id === exActionEx.id) : -1
           return [
             { key: 'swap', label: 'Swap exercise', sub: 'Same movement, different equipment', icon: 'swap-horizontal' },
+            { key: 'plates', label: 'Plate Calculator', sub: 'See exactly what to load per side', icon: 'barbell-outline' },
             { key: 'end', label: 'Move to end', sub: 'Come back to it after the others', icon: 'arrow-down-circle-outline' },
             ...(i > 0 ? [{ key: 'up', label: 'Move up', icon: 'chevron-up-outline' }] : []),
             ...(i >= 0 && i < exercises.length - 1 ? [{ key: 'down', label: 'Move down', icon: 'chevron-down-outline' }] : []),
@@ -2850,6 +2862,13 @@ export default function WorkoutsScreen() {
           const ex = exActionEx
           setExActionEx(null)
           if (!ex) return
+          if (key === 'plates') {
+            if (!requireProForPlates('plate_calculator')) return
+            const suggested = targets[ex.id]?.suggestedWeight
+            setPlateCalcWeight(suggested != null ? displayWeight(suggested, unit) : null)
+            setPlateCalcOpen(true)
+            return
+          }
           if (key === 'swap') handleSwap(ex)
           else if (key === 'end') moveExerciseToEnd(ex.id)
           else if (key === 'up') moveExercise(ex.id, -1)

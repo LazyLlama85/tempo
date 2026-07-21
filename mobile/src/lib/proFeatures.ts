@@ -25,6 +25,7 @@ export type ProFeatureId =
   | 'muscle_intelligence'
   | 'travel_mode'
   | 'multi_calendar'
+  | 'plate_calculator'
 
 export interface ProFeatureMeta {
   id: ProFeatureId
@@ -101,6 +102,12 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'Read busy time from every calendar you use, not just your primary one, so Tempo never double-books you.',
     icon: 'calendar',
   },
+  plate_calculator: {
+    id: 'plate_calculator',
+    title: 'Plate Calculator',
+    benefit: 'See exactly which plates to load per side for any target weight and bar.',
+    icon: 'barbell',
+  },
 }
 
 export function proFeature(id: ProFeatureId): ProFeatureMeta {
@@ -130,4 +137,5 @@ export const PAYWALL_POINTS: PaywallPoint[] = [
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
   { icon: 'airplane', title: 'Travel Mode', benefit: 'Rewrite your upcoming workouts to match whatever gear you have with you on the road.' },
+  { icon: 'barbell', title: 'Plate Calculator', benefit: 'Exactly which plates to load per side for any target weight and bar.' },
 ]
