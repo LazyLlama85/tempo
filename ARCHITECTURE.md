@@ -1370,6 +1370,24 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   excludes the auto "By Tempo" mirror). Dormant-safe: `canCreate` always returns true while
   `proEnabled` is false, so free users are uncapped until Pro is live. `PAYWALL_POINTS` leads with
   "Unlimited Everything" and the paywall's Free-vs-Pro table shows the real caps (1 / 5-each → ∞).
+  **Permanent exercise exclusion (2026-07-21) — `lib/exerciseExclusions.ts` +
+  `add_excluded_exercises.sql`:** `user_profiles.excluded_exercise_ids uuid[]`, the "never program
+  this for me again" list a live session can add to (the runner's per-exercise menu → "Remove
+  permanently", distinct from "Skip for today" which only affects the current session). Checked by
+  every exercise-selection path that produces `scheduled_workouts.exercise_ids`:
+  `generatePlan.ts`'s `buildBlockContext` candidate-pool filter, `quickWorkout.ts`'s candidate-pool
+  filter, and `splitSchedule.ts`'s `materializeSplit` (filters a split day's already-chosen
+  `exercise_ids`/`config` before insert — the split's own saved JSON is never found and rewritten).
+  One shared `fetchExcludedExerciseIds`/`excludeExercisePermanently` pair enforces it uniformly
+  regardless of which system generated the session.
+  **Form-guide instructions lazy backfill (2026-07-21) — `save_exercise_instructions` RPC
+  (`add_exercise_instructions_backfill_rpc.sql`):** 1285 of 1297 imported exercises ship with no
+  local `instructions` (by design — keeps the seed small; see `lib/exerciseDb.ts`'s header). The
+  form guide already fell back to a live ExerciseDB fetch, but the result only ever lived in an
+  in-memory `Map`, re-hitting RapidAPI's rate-limited monthly quota every session. A narrowly-scoped
+  `SECURITY DEFINER` RPC (only touches `instructions`, only on a built-in row, only when still empty)
+  lets a successful fetch persist straight into the row, so it compounds automatically from real
+  usage alongside (not instead of) the founder's manual monthly batch script.
   **Plate Calculator (2026-07-21) — `lib/plateCalc.ts` + `components/PlateCalcSheet.tsx`:** a new
   `plate_calculator` gate. Pure greedy-largest-first math (`calculatePlates(target, barWeight, unit)`)
   over standard lb/kg plate sets — no persistence. Reached from the runner's per-exercise "…" menu

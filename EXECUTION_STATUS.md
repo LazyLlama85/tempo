@@ -14,19 +14,48 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-20): C3 (shared ProPill + unified loading) is done — the third P1 batch, then work
-  redirected to a large founder-reported queue (see below).** Extended `ProGate.tsx`'s existing
-  `ProBadge` with an optional `icon` prop and used it in `quick-workout.tsx` (the plain "EQUIPMENT"
-  section's PRO tag) and `profile.tsx` (the flash-icon variant next to the display name), replacing
-  their own hardcoded duplicates. `paywall.tsx`'s `planBadge` was NOT touched — despite being named
-  in the original audit, it renders dynamic "SAVE X%"/"BEST VALUE" text, never literally "PRO"; not
-  a real duplicate. `quick-workout.tsx`'s second gold pill (`proBadgeRow`, tinted+lock-icon, on the
-  workout-preview teaser) was also left alone — a genuinely different design for a different
-  context, not a copy of the plain tag. `muscle-map.tsx`'s plain-text loading state now uses
-  `PulseLoader`, and `ARCHITECTURE.md` documents it as the standard loading convention. `tsc` clean,
-  full suite green (245/245).
-  **P1 (C4–C10) is paused here** — a large founder device-testing/feature-request queue (2026-07-20,
-  see below) takes priority; resume C4 (accessibility batch) after that queue is worked through.
+- **NEW (2026-07-20/21): the founder device-testing/bug queue is worked through — 12 fixes, each
+  its own commit, `tsc` clean and the full suite green (255/255) throughout.** In order: (1)
+  `lib/purchases.ts` no longer loads RevenueCat's native SDK on the web platform target — it was
+  throwing "Invalid API key. Use your Web Billing API key." because the configured key is a mobile
+  App Store/Play key and Tempo has no Web Billing product; every downstream call already no-ops on
+  `!Purchases`, so skipping the load entirely on web was the whole fix. (2)–(5) `FocusMode.tsx`: the
+  quick-edit save button's checkmark (read as a confusing second "confirm") is now a pencil, matching
+  the runner list's own established icon language; "ALL DONE" used to be a dead disabled button and
+  now closes into the runner's full exercise list; the per-set button reads "DONE WITH SET" instead
+  of bare "DONE"; the running-coach Lottie box was enlarged (checked its aspect ratio against all 5
+  other coach poses in the app — it already exactly matched the source asset's own ratio, so the
+  clipping is baked into that specific free asset's mid-stride content, not a sizing bug — a real fix
+  means swapping the asset). (6) `GoChooserSheet`/`TempoTabBar.tsx`: GO now always opens the
+  today's-session-vs-Quick-Workout chooser, greying "TODAY'S PLAN" with why ("Complete — nice work" /
+  "No session scheduled today") instead of silently auto-generating a Quick Workout when nothing was
+  due — removed the now-dead instant-generate branch entirely. (7) Confirmed via direct SQL that 1285
+  of 1297 imported exercises have no local "how to" instructions (matches the founder's report); added
+  a `SECURITY DEFINER` RPC (`save_exercise_instructions`) so a successful live ExerciseDB fetch now
+  persists back to the row instead of living only in an in-memory `Map` — every real view of a missing
+  exercise closes that gap permanently, for everyone, compounding with (not duplicating) the founder's
+  monthly batch-backfill script. Also fixed Pendulum Squat's genuine data gap (empty instructions AND
+  empty `primary_muscles`). (8)–(9) A second scheduled workout on the same day was invisible on Home
+  (no edit action on the non-hero card) and silently dropped entirely from Plan tab's day-detail card
+  (`calWorkoutsByDate[date]?.[0]` discarded anything past the first) — both now show and let you edit
+  every workout on the day. (10) Added real permanent exercise deletion from inside a live session:
+  `user_profiles.excluded_exercise_ids`, checked by `generatePlan`, `quickWorkout`, and
+  `splitSchedule`'s materialization (filters the split day's chosen `exercise_ids` before insert — the
+  split's own saved JSON is never rewritten) via one shared helper (`lib/exerciseExclusions.ts`),
+  enforced uniformly regardless of which system generated the session. (11) A new Pro
+  `plate_calculator` gate (`lib/plateCalc.ts` + `components/PlateCalcSheet.tsx`) — greedy
+  largest-first plate math, reached from the runner's per-exercise menu, pre-filled with the
+  exercise's suggested weight. (12) Two founder questions resolved with **zero code work needed**:
+  weekly-report push (`retention-push`'s `weekly_report` rule, Sunday evening, trained-this-week
+  gated) is already fully wired AND confirmed LIVE — the `retention-push-hourly` pg_cron job is
+  `active:true` and other push types have real delivered timestamps in `notification_log` (this
+  ledger's earlier "cron SQL still commented out" status was stale — someone applied it since, likely
+  around the TestFlight submission); multi-calendar's OAuth scope is confirmed live in
+  `services/googleCalendar/config.ts` and the picker's error handling is complete — the only
+  remaining step is an already-connected account reconnecting Google once to pick up the broader
+  scope, which is an account action, not a code task. Full detail in `MASTER_FIX_PLAN.md`'s C3
+  addendum and `PRODUCT_AUDIT.html`'s Update Log.
+  **P1 (C4–C10) resumes next** — C4 is the accessibility batch.
 
 - **2026-07-19: C2 (theme sweep) is done — the second P1 batch.** Built a shared
   `components/PRCard.tsx` (themed via `C.gold`/`C.onPrimary`, `variant="hero"` animated for

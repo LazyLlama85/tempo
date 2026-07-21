@@ -915,6 +915,15 @@ commits if the diff is large.
 
 ### C3 — Shared ProPill + unified loading component — ✅ DONE 2026-07-20
 
+**2026-07-20/21 addendum:** after C3, work was redirected to a real founder device-testing/
+bug-report queue rather than continuing straight into C4 — 12 fixes (RevenueCat web crash, 4
+Focus Mode fixes, the GO chooser always showing, a form-guide-instructions lazy-backfill RPC, two
+multi-workout-per-day visibility gaps [Home + Plan tab], permanent exercise deletion
+[`excluded_exercise_ids`], a new Pro plate calculator, plus confirming weekly-report push and
+multi-calendar are already fully live with no code work remaining). Full detail in
+`EXECUTION_STATUS.md`'s Current Focus and `PRODUCT_AUDIT.html`'s Update Log (2026-07-20/21 entry).
+**C4–C10 are still open** — resume there next.
+
 **Note on scope vs. the original audit:** `paywall.tsx:485`'s `planBadge` was named as a 4th "PRO
 pill," but it actually renders `{badge}` (dynamic text: "SAVE X%" / "BEST VALUE"), never literally
 "PRO" — a stale/mistaken reference from the original audit, not a real duplicate. Left untouched.
