@@ -2214,6 +2214,43 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Public share preview (2026-07-22, PRODUCT_AUDIT.html §26 L27)
+A shared workout link used to be a dead end for anyone without a Tempo account: `app/shared-workout.tsx`
+bails out (`if (!code || !userId) return`) before it ever fetches anything, so the app's only organic
+growth loop — "try my workout" — showed nothing to exactly the people it exists to convert. Two real
+bugs found and fixed alongside the new page, not just the missing page itself:
+- **`lib/social.ts`'s `shareUrl()` pointed at `tempo.app`** — a domain Tempo doesn't own. The real
+  domain (repo-root `CNAME`, `web/`) is `fittempo.app`. Every share message sent from My Workouts/My
+  Splits has been linking nowhere; fixed to `fittempo.app/w/<code>`.
+- **`get_workout_share_by_code`** (the SECURITY DEFINER capability-URL lookup from
+  `fix_workout_shares_rls.sql`) was only granted to `authenticated` — `add_public_share_preview.sql`
+  extends the exact same grant to `anon`, since a logged-out web visitor presenting the code is the
+  same trust model the function already documents ("if you have the code, you're meant to see it"),
+  just one more caller of it.
+- **`web/share.html`** — a new, dependency-free static page. Calls the RPC directly via `fetch` (no
+  Supabase SDK, matching the site's existing no-bundler approach) with the public/publishable key —
+  safe to embed, that's what it's for. Renders the workout or full weekly split breakdown, equipment,
+  duration, and an "Open in the app" button (`tempo://w/<code>`, the existing custom scheme) alongside
+  a "Get early access" CTA to the waitlist (the site is still pre-launch). `possessive()` and
+  `equipmentSummaryLabel()`'s exact logic is duplicated in JS so the page reads identically to the
+  in-app share screen — verified against a live share row via a direct `curl` to the RPC before
+  shipping. Untrusted text (exercise names, split-day labels — both user-editable) is escaped before
+  being written into `innerHTML`; this is a logged-out, unauthenticated page, so that's not optional.
+- **GitHub Pages routing**: `.github/workflows/{deploy,static}.yml` confirm `web/` ships to GitHub
+  Pages, which serves static files only — `web/server.js`'s matching Express route only helps local
+  dev, since GH Pages never executes it in production. Added `web/404.html`, the standard GH-Pages
+  SPA-routing trick: any unmatched `/w/<code>` path lands on the built-in 404, whose only job is to
+  detect that shape and redirect to `/share.html?code=<code>`, which `share.html` already reads as a
+  fallback to the pretty-path parse.
+- **Known limitation, not hidden**: OG tags (`<meta property="og:title">` etc.) are static/generic —
+  a link pasted into iMessage/Slack/Twitter shows "A shared workout — Tempo," not the actual workout
+  name, because those unfurlers read tags via a HEAD request without executing JavaScript, and GitHub
+  Pages has no server-side rendering to inject per-request tags. Dynamic OG previews would need an
+  edge function (Vercel/Cloudflare Worker) — a real fast-follow, out of scope for a static site.
+  Universal links (native `apple-app-site-association` + Android asset links, so tapping a share link
+  opens the app directly with no browser hop) are the other deliberately deferred half of L27 — they
+  need a native rebuild, so they're their own session, not bundled into this OTA-safe change.
+
 ### Progress-photo compare (2026-07-22, PRODUCT_AUDIT.html §26 L25)
 `app/progress-photos.tsx` had a timeline grid + single-photo viewer but no way to see two photos
 together — the single most shareable artifact a fitness app can produce, and the app could take

@@ -5,6 +5,16 @@ const path = require('path');
 
 const app = express();
 app.use(express.json());
+
+// Public share preview (PRODUCT_AUDIT.html §26, L27): fittempo.app/w/<code>
+// resolves to a real page a logged-out visitor can see, instead of a link the
+// in-app screen used to swallow behind a sign-in wall. The code itself is
+// read client-side from the URL and looked up via a Supabase RPC — this route
+// only needs to serve the static page, no server-side lookup.
+app.get('/w/:code', (req, res) => {
+  res.sendFile(path.join(__dirname, 'share.html'));
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // Simple in-memory rate limiter: max 3 submissions per IP per minute

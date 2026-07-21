@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tempo</title>
+  <script>
+    // GitHub Pages serves no server-side code, so a path like /w/<code> has no
+    // real file to match and lands here (the standard GH Pages 404) — this is
+    // the well-known workaround: detect the share-link shape and hand off to
+    // share.html, which reads the code and renders the real page. Any other
+    // unmatched path just goes home rather than showing a dead end.
+    var m = window.location.pathname.match(/\/w\/([a-zA-Z0-9]+)\/?$/)
+    if (m) {
+      window.location.replace('/share.html?code=' + encodeURIComponent(m[1]))
+    } else {
+      window.location.replace('/')
+    }
+  </script>
+</head>
+<body></body>
+</html>

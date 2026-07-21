@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A shared workout — Tempo</title>
+  <meta name="description" content="Someone shared a Tempo workout with you. See what's in it, then get Tempo — training that fits your real week.">
+  <meta name="robots" content="noindex">
+
+  <meta property="og:title" content="A shared workout — Tempo">
+  <meta property="og:description" content="Someone shared a Tempo workout with you. Tempo builds training around your real calendar.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="tempo-logo.png" type="image/png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #faf8f4; --surface: #ffffff; --ink: #17140f; --ink-2: #423c33; --muted: #6c655b;
+      --line: rgba(23,20,15,0.10); --line-2: rgba(23,20,15,0.18);
+      --accent: #3D82F7; --accent-ink: #2563EB; --accent-soft: rgba(61,130,247,0.12);
+      --radius: 18px; --maxw: 560px;
+      --shadow-lift: 0 2px 6px rgba(23,20,15,0.06), 0 22px 48px rgba(23,20,15,0.12);
+    }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--ink); line-height: 1.5;
+      -webkit-font-smoothing: antialiased; min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+    a { color: inherit; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; width: 100%; }
+
+    header { padding: 22px 0; }
+    .logo { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; }
+    .logo img { width: 28px; height: 28px; border-radius: 7px; }
+    .logo span { font-family: 'Caveat', cursive; font-weight: 700; font-size: 21px; color: var(--accent-ink); }
+
+    main { flex: 1; padding-bottom: 60px; }
+
+    .state { text-align: center; padding: 60px 0; color: var(--muted); font-size: 15px; }
+    .state.error { color: var(--ink-2); }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 28px 26px; box-shadow: var(--shadow-lift);
+    }
+    .kind {
+      display: inline-block; font: 700 11px/1 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--accent-ink); background: var(--accent-soft); border-radius: 999px; padding: 6px 11px; margin-bottom: 14px;
+    }
+    h1 { font: 800 28px/1.15 'Inter', sans-serif; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .owner { color: var(--muted); font-size: 14.5px; margin-bottom: 18px; }
+
+    .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+    .chip {
+      font: 600 12.5px/1 'Inter', sans-serif; color: var(--ink-2); background: var(--bg);
+      border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 12px;
+    }
+
+    .section-label {
+      font: 700 11px/1 'Inter', sans-serif; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin: 20px 0 10px;
+    }
+    .ex-list { list-style: none; }
+    .ex-list li {
+      display: flex; align-items: center; gap: 10px; padding: 10px 0;
+      border-top: 1px solid var(--line); font-size: 14.5px; font-weight: 500;
+    }
+    .ex-list li:first-child { border-top: none; }
+    .ex-num {
+      width: 22px; height: 22px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line-2);
+      display: flex; align-items: center; justify-content: center; font: 700 11px/1 'Inter', sans-serif; color: var(--muted); flex-shrink: 0;
+    }
+
+    .day-row { padding: 12px 0; border-top: 1px solid var(--line); }
+    .day-row:first-child { border-top: none; }
+    .day-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+    .day-name { font: 700 14px/1 'Inter', sans-serif; }
+    .day-label { font: 600 12.5px/1 'Inter', sans-serif; color: var(--accent-ink); }
+    .day-rest { color: var(--muted); font-size: 13px; }
+    .day-exercises { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+    .ctas { margin-top: 26px; display: flex; flex-direction: column; gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font: 700 15px/1 'Inter', sans-serif; border-radius: 12px; padding: 15px 22px;
+      text-decoration: none; cursor: pointer; border: 1px solid transparent;
+      transition: background 0.18s, transform 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(37,99,235,0.25); }
+    .btn-primary:hover { background: #1d4ed8; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--muted); font-weight: 600; font-size: 13.5px; padding: 8px; }
+
+    footer { text-align: center; padding: 24px 0 40px; color: var(--muted); font-size: 12.5px; }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <a href="/" class="logo"><img src="tempo-logo.png" alt="Tempo"><span>Tempo</span></a>
+  </header>
+
+  <main class="wrap">
+    <div id="loading" class="state">Loading the workout…</div>
+
+    <div id="error" class="state error" style="display:none">
+      <p style="font-size:17px;font-weight:700;margin-bottom:8px;">This link didn't work</p>
+      <p>The share may have been removed, or the link is incomplete. <a href="/" style="color:var(--accent-ink);font-weight:600;">Go to Tempo →</a></p>
+    </div>
+
+    <div id="content" style="display:none">
+      <div class="card">
+        <span id="kind-badge" class="kind"></span>
+        <h1 id="title"></h1>
+        <p id="owner" class="owner" style="display:none"></p>
+
+        <div id="meta-row" class="meta-row"></div>
+
+        <div id="workout-section" style="display:none">
+          <div class="section-label">Exercises</div>
+          <ul id="ex-list" class="ex-list"></ul>
+        </div>
+
+        <div id="split-section" style="display:none">
+          <div class="section-label">The week</div>
+          <div id="day-list"></div>
+        </div>
+
+        <div class="ctas">
+          <a id="cta-primary" class="btn btn-primary" href="/#join">Get early access to Tempo</a>
+          <a id="cta-open" class="btn btn-ghost" href="#">Already have Tempo? Open in the app</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>Tempo builds training around your real calendar.</footer>
+
+  <script type="module">
+    // A lean, direct RPC call — no bundler, no build step, matches this
+    // static site's own "keep it dumb" philosophy. get_workout_share_by_code
+    // is a SECURITY DEFINER capability-URL lookup (grant public.
+    // add_public_share_preview.sql): presenting the exact code is the whole
+    // access check, by design — the same model the in-app share screen uses,
+    // just extended to a logged-out visitor.
+    const SUPABASE_URL = 'https://rtoahppnekykgmjukujm.supabase.co'
+    const SUPABASE_KEY = 'sb_publishable_EZRu9bClJVVZpKe8eJE9GQ_qlrUQBBO'
+
+    const WEEKDAY = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+    function codeFromPath() {
+      // /w/<code>
+      const m = window.location.pathname.match(/\/w\/([a-zA-Z0-9]+)/)
+      if (m) return m[1]
+      // fallback: ?code=<code>
+      return new URLSearchParams(window.location.search).get('code')
+    }
+
+    // Matches mobile/src/lib/social.ts's possessive() exactly — first name
+    // only, so this page reads identically to the in-app share screen
+    // ("PPL (Jacob's)", not "PPL (Jacob Roberts's)").
+    function possessive(name) {
+      const first = name.trim().split(/\s+/)[0] || name.trim()
+      return /[sS]$/.test(first) ? `${first}'` : `${first}'s`
+    }
+
+    function show(id) { document.getElementById(id).style.display = '' }
+    function hide(id) { document.getElementById(id).style.display = 'none' }
+    function text(id, v) { document.getElementById(id).textContent = v }
+
+    // Exercise names and split-day labels are user-editable text (custom
+    // exercises, split editor) rendered via innerHTML below — this is a
+    // logged-out, unauthenticated page, so anything user-controlled going
+    // into innerHTML must be escaped. title/owner/kind-badge use textContent
+    // (text() above) and don't need this.
+    function esc(s) {
+      const d = document.createElement('div')
+      d.textContent = s == null ? '' : String(s)
+      return d.innerHTML
+    }
+
+    // Matches mobile/src/lib/social.ts's equipmentSummaryLabel() exactly.
+    const EQUIPMENT_LABELS = {
+      full_gym: 'Full gym', dumbbells: 'Dumbbells', barbell: 'Barbell', kettlebell: 'Kettlebells',
+      resistance_bands: 'Bands', pull_up_bar: 'Pull-up bar', bodyweight: 'Bodyweight',
+    }
+    function equipmentLabel(list) {
+      const eq = (list || []).filter((e) => e !== 'bodyweight')
+      if (!eq.length) return 'Bodyweight only'
+      if (eq.includes('full_gym')) return 'Full gym'
+      return eq.map((e) => EQUIPMENT_LABELS[e] || e).slice(0, 3).join(' · ')
+    }
+
+    async function main() {
+      const code = codeFromPath()
+      if (!code) { hide('loading'); show('error'); return }
+
+      let share
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_workout_share_by_code`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+          },
+          body: JSON.stringify({ p_code: code.trim().toLowerCase() }),
+        })
+        const rows = await res.json()
+        share = Array.isArray(rows) ? rows[0] : null
+      } catch {
+        share = null
+      }
+
+      hide('loading')
+      if (!share) { show('error'); return }
+
+      document.title = `${share.name} — Tempo`
+      const displayName = share.owner_name ? `${share.name} (${possessive(share.owner_name)})` : share.name
+      text('title', displayName)
+      if (share.owner_name) { text('owner', `Shared by ${share.owner_name}`); show('owner') }
+
+      const isSplit = share.kind === 'split'
+      text('kind-badge', isSplit ? 'Weekly Program' : 'Workout')
+
+      const metaRow = document.getElementById('meta-row')
+      const chips = []
+      if (share.est_duration_min) chips.push(`~${share.est_duration_min} min`)
+      chips.push(equipmentLabel(share.equipment))
+      metaRow.innerHTML = chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('')
+
+      if (isSplit && Array.isArray(share.days)) {
+        show('split-section')
+        const byId = new Map((share.exercises || []).map((e) => [e.id, e.name]))
+        const dayList = document.getElementById('day-list')
+        dayList.innerHTML = [...share.days]
+          .sort((a, b) => a.weekday - b.weekday)
+          .map((d) => {
+            const dayName = esc(WEEKDAY[d.weekday])
+            if (d.rest) {
+              return `<div class="day-row"><div class="day-head"><span class="day-name">${dayName}</span></div><div class="day-rest">Rest day</div></div>`
+            }
+            const names = esc((d.exercise_ids || []).map((id) => byId.get(id) || 'Exercise').join(', '))
+            return `<div class="day-row"><div class="day-head"><span class="day-name">${dayName}</span><span class="day-label">${esc(d.label || '')}</span></div><div class="day-exercises">${names}</div></div>`
+          })
+          .join('')
+      } else {
+        show('workout-section')
+        const exList = document.getElementById('ex-list')
+        exList.innerHTML = (share.exercises || [])
+          .map((e, i) => `<li><span class="ex-num">${i + 1}</span>${esc(e.name)}</li>`)
+          .join('')
+      }
+
+      document.getElementById('cta-open').href = `tempo://w/${code}`
+      show('content')
+    }
+
+    main()
+  </script>
+</body>
+</html>
