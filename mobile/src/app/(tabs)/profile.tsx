@@ -1096,8 +1096,20 @@ export default function ProfileScreen() {
         visible={changePlanSheet}
         title="Change Plan"
         subtitle="This will replace your current plan."
-        options={[{ key: 'continue', label: 'Continue', icon: 'refresh-outline' }]}
-        onSelect={() => { setChangePlanSheet(false); router.push('/onboarding/goal') }}
+        options={[
+          { key: 'regenerate', label: 'Get a new Tempo Plan', sub: 'Answer a few questions, Tempo builds it', icon: 'refresh-outline' },
+          // Routes straight to split-editor rather than back through onboarding's
+          // build-mode fork (that card is new-user-only by design — re-answering
+          // goal/experience/equipment to switch build mode would be a detour for
+          // something split-editor's own Save flow already handles safely:
+          // activateSplit() retires the current active plan's future sessions
+          // before materializing the new split, so no double-booked calendar).
+          { key: 'build_own', label: 'Build my own split', sub: 'Full control — pick a template or start from scratch', icon: 'construct-outline' },
+        ]}
+        onSelect={(key) => {
+          setChangePlanSheet(false)
+          router.push((key === 'build_own' ? '/split-editor' : '/onboarding/goal') as any)
+        }}
         onClose={() => setChangePlanSheet(false)}
       />
 

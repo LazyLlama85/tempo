@@ -251,7 +251,7 @@ export default function BasicsScreen() {
               <View style={styles.options}>
                 {([
                   { id: 'guided' as const, label: 'Guide me', description: 'Tempo builds your plan and keeps adapting it as you progress.', icon: 'sparkles-outline' },
-                  { id: 'custom' as const, label: "I'll build my own", description: 'Create your own workouts and splits — Tempo still schedules them around your life.', icon: 'construct-outline' },
+                  { id: 'custom' as const, label: "I'll build my own", description: 'Start from a ready-made split (Push/Pull/Legs, Upper/Lower…) or build one from scratch — Tempo still schedules it around your life.', icon: 'construct-outline' },
                 ]).map((opt) => {
                   const isSelected = buildMode === opt.id
                   return (

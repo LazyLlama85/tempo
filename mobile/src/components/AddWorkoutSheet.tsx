@@ -145,6 +145,18 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
             </View>
           ))}
         </View>
+
+        {/* A quiet nudge, not a banner — repeat one-off adds are exactly what a
+            Split is for, but this sheet's whole job is a single day, so this
+            stays a single de-emphasized line rather than competing with it. */}
+        <TouchableOpacity
+          style={styles.splitHintRow}
+          onPress={() => { onClose(); setTimeout(() => router.push('/split-editor' as any), 80) }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="repeat-outline" size={14} color={C.textSecondary} />
+          <Text style={styles.splitHintText}>Doing this every week? Build a Split once — it repeats automatically.</Text>
+        </TouchableOpacity>
       </View>
     </TempoSheet>
   )
@@ -175,4 +187,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   rowIcon: { width: 32, height: 32, borderRadius: Radius.md, backgroundColor: C.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
   rowName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
   rowMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  splitHintRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs, paddingHorizontal: 2 },
+  splitHintText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, lineHeight: 16 },
 })

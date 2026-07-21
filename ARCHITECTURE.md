@@ -1288,6 +1288,25 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - Entry points: **Profile → My Plan → My Splits** and **My Workouts → My Splits** → `my-splits`
   (list/activate) → `split-editor` (author). Generating a plan (Change Plan) deactivates any
   active custom split so the two never compete.
+- **Split creation made the recommended path, not a buried one (2026-07-22):** investigation found
+  split-editor itself was already low-friction (a "Start from a template" shortcut visible
+  immediately on open, `applySplitPreset` auto-fills all 7 days + saves each workout to the
+  library in one action) — the real problem was discovery: the persistent Home "+" FAB and every
+  empty-state CTA pushed one-off `AddWorkoutSheet` adds with zero mention that a Split exists, and
+  there was no graduation path off an auto-generated Plan short of a buried Profile → My Splits row.
+  Fixed three surfaces: (1) Profile's "Change Plan" sheet now offers **"Build my own split"** as an
+  equal-weight second option alongside regenerating the Plan, routing straight to `/split-editor`
+  rather than back through onboarding — safe because `activateSplit()` (`splitSchedule.ts`) already
+  retires the current active plan's future sessions before materializing the new split, verified
+  before adding this (the "no double-booked calendar" concern noted in `onboarding/goal.tsx`'s
+  build-mode-card comment is about a *different* code path — the re-plan onboarding flow re-running
+  goal/experience/equipment — this bypasses that entirely). (2) `AddWorkoutSheet`'s one-off-add flow
+  gained one quiet, de-emphasized hint line ("Doing this every week? Build a Split once — it
+  repeats automatically") rather than a nagging banner, since this sheet's whole job is a single
+  day and shouldn't compete with that. (3) Onboarding's existing build-mode card (`goal.tsx`,
+  new-user-only, `buildMode: 'guided' | 'custom'`) had its "I'll build my own" copy rewritten to
+  name the ready-made templates (Push/Pull/Legs, Upper/Lower) up front, so it reads as a real
+  guided option instead of "you're on your own from here."
 - **Split editor reliability + UX (July 2026 overhaul):** the "Use a saved workout" picker is
   rendered **inside** the day-editor `Modal` (as a sibling Modal it silently never presented on
   iOS and could strand an invisible touch-eating backdrop — the "editor freezes" bug); saved
