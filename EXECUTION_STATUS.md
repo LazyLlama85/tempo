@@ -14,7 +14,19 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-22, later): `PRODUCT_AUDIT.html` restructured into two Parts — and it is now the
+- **NEW (2026-07-22, latest): Split creation made the recommended path, not a buried one** —
+  finished a separate, earlier-requested work item (Feed redesign + this) before picking up the
+  §29 L1-L28 queue below. Investigation found split-editor itself was already low-friction
+  (a template shortcut visible immediately, auto-fills all 7 days in one action) — the real gap
+  was discovery. Fixed: Profile's "Change Plan" sheet now offers "Build my own split" as an
+  equal-weight option (verified safe — `activateSplit()` already retires the old plan's future
+  sessions first); `AddWorkoutSheet` gained one quiet hint line toward Split creation for repeat
+  one-off adders; onboarding's build-mode card now names the ready-made templates up front. `tsc`
+  clean, full suite green (264/264). Full detail in `ARCHITECTURE.md`'s split-creation entry.
+  **This branch is now caught up to the §29 queue below — Wave 1/Wave 2 (L21 pause mode) is next**,
+  unless redirected.
+
+- **2026-07-22, later: `PRODUCT_AUDIT.html` restructured into two Parts — and it is now the
   launch plan of record.** Founder asked for the audit to be split into (a) an initial-launch audit
   detailed enough to execute with Sonnet, covering the exact *finished* app to publish, and (b) a
   separate post-launch part covering marketing, money, and future features. Delivered as **Part I —
