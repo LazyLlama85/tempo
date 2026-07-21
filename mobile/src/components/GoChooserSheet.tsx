@@ -23,8 +23,12 @@ function formatTime12(hhmmss: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
+type TodayState = 'due' | 'complete' | 'none'
+
 interface Props {
   visible: boolean
+  /** due = a session is still on deck; complete = today's already trained; none = a rest day. */
+  todayState: TodayState
   focus: string
   time: string           // 'HH:MM:SS'
   onContinue: () => void
@@ -32,26 +36,54 @@ interface Props {
   onClose: () => void
 }
 
-export function GoChooserSheet({ visible, focus, time, onContinue, onQuick, onClose }: Props) {
+const SHEET_COPY: Record<TodayState, { title: string; subtitle: string }> = {
+  due: { title: "What's next?", subtitle: "You've got a session on deck — or fit in something faster right now." },
+  complete: { title: 'Already trained today', subtitle: "Today's session is done — want to fit in something extra?" },
+  none: { title: 'Nothing on the books', subtitle: "No session scheduled today — take the rest, or train anyway." },
+}
+
+export function GoChooserSheet({ visible, todayState, focus, time, onContinue, onQuick, onClose }: Props) {
   const C = useTheme()
   const s = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const niceTime = formatTime12(time)
+  const copy = SHEET_COPY[todayState]
+  const due = todayState === 'due'
 
   return (
     <TempoSheet visible={visible} onClose={onClose}>
       <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-        <Text style={s.title}>What's next?</Text>
-        <Text style={s.subtitle}>You've got a session on deck — or fit in something faster right now.</Text>
+        <Text style={s.title}>{copy.title}</Text>
+        <Text style={s.subtitle}>{copy.subtitle}</Text>
 
-        <PressableScale style={s.cardPrimary} onPress={onContinue} scaleTo={0.98}>
-          <View style={s.cardIconPrimary}><Ionicons name="barbell" size={22} color={C.onPrimary} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.cardTagPrimary}>TODAY'S PLAN</Text>
-            <Text style={s.cardTitlePrimary} numberOfLines={1}>{focus}</Text>
-            {!!niceTime && <Text style={s.cardSubPrimary}>{niceTime}</Text>}
+        <PressableScale
+          style={[s.cardPrimary, !due && s.cardPrimaryDisabled]}
+          onPress={onContinue}
+          disabled={!due}
+          scaleTo={0.98}
+          accessibilityState={{ disabled: !due }}
+        >
+          <View style={[s.cardIconPrimary, !due && s.cardIconPrimaryDisabled]}>
+            <Ionicons
+              name={due ? 'barbell' : todayState === 'complete' ? 'checkmark-circle' : 'moon'}
+              size={22}
+              color={due ? C.onPrimary : C.textSecondary}
+            />
           </View>
-          <Ionicons name="chevron-forward" size={18} color={C.onPrimary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.cardTagPrimary, !due && s.cardTagPrimaryDisabled]}>TODAY'S PLAN</Text>
+            {due ? (
+              <>
+                <Text style={s.cardTitlePrimary} numberOfLines={1}>{focus}</Text>
+                {!!niceTime && <Text style={s.cardSubPrimary}>{niceTime}</Text>}
+              </>
+            ) : (
+              <Text style={s.cardTitlePrimaryDisabled} numberOfLines={1}>
+                {todayState === 'complete' ? 'Complete — nice work' : 'No session scheduled today'}
+              </Text>
+            )}
+          </View>
+          {due && <Ionicons name="chevron-forward" size={18} color={C.onPrimary} />}
         </PressableScale>
 
         <PressableScale style={s.cardGhost} onPress={onQuick} scaleTo={0.98}>
@@ -77,9 +109,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: C.primary, borderRadius: Radius.xl, padding: Spacing.lg, ...Elevation.e2,
   },
+  cardPrimaryDisabled: {
+    backgroundColor: C.surfaceContainerLow, borderWidth: 1.5, borderColor: C.outlineVariant, ...Elevation.e0,
+  },
   cardIconPrimary: { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  cardIconPrimaryDisabled: { backgroundColor: C.surfaceContainerHigh },
   cardTagPrimary: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.6 },
+  cardTagPrimaryDisabled: { color: C.outline },
   cardTitlePrimary: { fontFamily: C.fontDisplay, fontSize: 18, color: C.onPrimary, letterSpacing: -0.2, marginTop: 1 },
+  cardTitlePrimaryDisabled: { fontFamily: C.fontDisplay, fontSize: 16, color: C.textSecondary, letterSpacing: -0.2, marginTop: 1 },
   cardSubPrimary: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
 
   cardGhost: {

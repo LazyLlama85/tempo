@@ -15,7 +15,7 @@ import { ActivityIndicator, Animated, Easing, Keyboard, Platform, Pressable, Sty
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { BlurView } from 'expo-blur'
 import { Radius, Spacing } from '@/constants/theme'
 import { useTheme, useThemedStyles, useThemeStore, type Palette } from '@/theme'
@@ -25,7 +25,6 @@ import { TARGET } from '@/lib/tutorial'
 import { useSessionActiveStore } from '@/stores/sessionActive'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
-import { getProfileForQuick, generateQuickWorkout, persistQuickWorkout, goalToPurpose } from '@/lib/quickWorkout'
 import { GoChooserSheet } from '@/components/GoChooserSheet'
 import type { ScheduledWorkout } from '@/lib/notifications'
 
@@ -127,11 +126,6 @@ function TabItem({
 
 // ── GO button ─────────────────────────────────────────────────────────────────
 
-// A sensible, fixed default — deliberately not user-configurable here. Reached
-// only when there's no actionable session today (already done, or a rest day);
-// the point of GO in that case is momentum, not another set of choices.
-const FALLBACK_QUICK_MINUTES = 30
-
 function GoButton() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -141,8 +135,6 @@ function GoButton() {
   const halo = useRef(new Animated.Value(0)).current
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
-  const queryClient = useQueryClient()
-  const [starting, setStarting] = useState(false)
 
   // Today's schedule, just enough to decide where GO goes. A dedicated key (not
   // shared with Home's fuller query) so this stays correct even when Home isn't
@@ -164,9 +156,10 @@ function GoButton() {
     staleTime: 60 * 1000,
   })
 
-  // GO now offers a real choice when a session is due today (see handlePress) —
-  // this holds that session's info while the chooser sheet is open.
-  const [chooser, setChooser] = useState<{ id: string; focus: string; time: string } | null>(null)
+  // GO always offers a real choice now (see handlePress) — this holds today's
+  // resolved state (due session's info, or just which empty state to show)
+  // while the chooser sheet is open.
+  const [chooser, setChooser] = useState<{ state: 'due' | 'complete' | 'none'; id: string | null; focus: string; time: string } | null>(null)
 
   // A slow breathing halo — the dock keeps time even at rest.
   useEffect(() => {
@@ -186,43 +179,25 @@ function GoButton() {
 
   const goRef = useTutorialTarget(TARGET.tabGo)
 
-  // GO's whole point: one thumb away from training, not another decision — but
-  // when today's actual session is still due, that's now a genuine CHOICE
-  // (2026-07-18: plans change — a busy day might call for a shorter session
-  // instead of the scheduled one), surfaced via GoChooserSheet rather than
-  // silently assuming the scheduled session is still what they want. Only when
-  // today has nothing left to do (already completed, or a genuine rest day with
-  // nothing scheduled) does GO fall back to an instant, sensibly-defaulted Quick
-  // Workout — generated and started immediately, no picker (momentum, not more
-  // choices — that path is unchanged).
-  const handlePress = async () => {
+  // GO always opens the chooser now: continue today's session, or a Quick
+  // Workout instead — with today's-plan shown greyed (and why) when there's
+  // nothing to continue, rather than silently guessing a Quick Workout on the
+  // user's behalf. (Previously fell straight into an auto-generated Quick
+  // Workout with no picker when nothing was due — replaced per explicit
+  // product direction: always show the real state, never silent magic.)
+  const handlePress = () => {
     // An eager tap in the first instant after mount (or after switching users)
-    // used to read todayRows as undefined -> [] -> "nothing due," falling
-    // through to auto-generating a Quick Workout even when a real scheduled
-    // session existed — just because the query hadn't resolved yet. Wait for
-    // the real answer instead of guessing wrong.
-    if (starting || todayLoading) return
+    // used to read todayRows as undefined -> [] -> "nothing due" before the
+    // query resolved. Wait for the real answer instead of guessing wrong.
+    if (todayLoading) return
+    if (!userId) { router.push('/quick-workout'); return }
     const due = (todayRows ?? []).find(w => w.status === 'scheduled')
     if (due) {
-      setChooser({ id: due.id, focus: due.focus, time: due.planned_start_time })
+      setChooser({ state: 'due', id: due.id, focus: due.focus, time: due.planned_start_time })
       return
     }
-    if (!userId) { router.push('/quick-workout'); return }
-    setStarting(true)
-    try {
-      const profile = await getProfileForQuick(supabase, userId)
-      const purpose = goalToPurpose(profile.goal)
-      const workout = await generateQuickWorkout(supabase, userId, { minutes: FALLBACK_QUICK_MINUTES, purpose }, profile)
-      if (!workout.exercises.length) { router.push('/quick-workout'); return } // genuinely nothing matches — fall back to the full picker
-      const id = await persistQuickWorkout(supabase, userId, workout)
-      if (!id) { router.push('/quick-workout'); return }
-      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
-      router.push({ pathname: '/(tabs)/plan', params: { workoutId: id, quick: '1' } })
-    } catch {
-      router.push('/quick-workout') // never leave GO dead — the full picker always works
-    } finally {
-      setStarting(false)
-    }
+    const completed = (todayRows ?? []).some(w => w.status === 'completed')
+    setChooser({ state: completed ? 'complete' : 'none', id: null, focus: '', time: '' })
   }
 
   return (
@@ -241,12 +216,12 @@ function GoButton() {
         onPress={handlePress}
         onPressIn={() => to(0.9)}
         onPressOut={() => to(1)}
-        disabled={starting || todayLoading}
+        disabled={todayLoading}
         accessibilityRole="button"
         accessibilityLabel="Train now"
       >
-        <Animated.View style={[styles.goBtn, { transform: [{ scale }] }, starting && { opacity: 0.7 }]}>
-          {starting ? (
+        <Animated.View style={[styles.goBtn, { transform: [{ scale }] }, todayLoading && { opacity: 0.7 }]}>
+          {todayLoading ? (
             <ActivityIndicator color={C.onPrimary} size="small" />
           ) : (
             <>
@@ -259,13 +234,14 @@ function GoButton() {
 
       <GoChooserSheet
         visible={!!chooser}
+        todayState={chooser?.state ?? 'none'}
         focus={chooser?.focus ?? ''}
         time={chooser?.time ?? ''}
         onClose={() => setChooser(null)}
         onContinue={() => {
           const c = chooser
           setChooser(null)
-          if (c) router.push({ pathname: '/(tabs)/plan', params: { workoutId: c.id } })
+          if (c?.id) router.push({ pathname: '/(tabs)/plan', params: { workoutId: c.id } })
         }}
         onQuick={() => {
           setChooser(null)
