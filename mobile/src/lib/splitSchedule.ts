@@ -14,6 +14,7 @@ import { fetchActiveSplit, setActiveSplit, ensureAutoSplit, isAutoSplit } from '
 import { generatePlan, type PlanProfile } from './generatePlan'
 import { sweepScheduledPlanRows } from './retireWorkouts'
 import { toDateStr } from './dates'
+import { fetchExcludedExerciseIds } from './exerciseExclusions'
 
 const HORIZON_DAYS = 28
 
@@ -62,10 +63,22 @@ export async function materializeSplit(
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const horizonEnd = new Date(today); horizonEnd.setDate(today.getDate() + HORIZON_DAYS)
 
+  // Permanently-excluded exercises (removed from within a live session — see
+  // exerciseExclusions.ts) never get re-materialized, even though the split's
+  // own saved day config still lists them; filtering here means the split's
+  // JSON never needs to be found and rewritten.
+  const excluded = await fetchExcludedExerciseIds(client, userId)
   const byWeekday = new Map<number, SplitDay>()
-  for (const d of split.days) byWeekday.set(d.weekday, d)
-  // Nothing to place if every day is rest/empty.
-  const hasWork = split.days.some((d) => !d.rest && (d.exercise_ids?.length ?? 0) > 0)
+  for (const d of split.days) {
+    if (!excluded.size || !d.exercise_ids?.length) { byWeekday.set(d.weekday, d); continue }
+    byWeekday.set(d.weekday, {
+      ...d,
+      exercise_ids: d.exercise_ids.filter((id) => !excluded.has(id)),
+      config: d.config?.filter((c) => !excluded.has(c.exercise_id)),
+    })
+  }
+  // Nothing to place if every day is rest/empty (post-exclusion).
+  const hasWork = [...byWeekday.values()].some((d) => !d.rest && (d.exercise_ids?.length ?? 0) > 0)
   if (!hasWork) return 0
 
   // Dates this split already owns in the horizon → skip (idempotent re-runs).

@@ -9,6 +9,7 @@ import { ensureAutoSplit } from '@/lib/splits'
 import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgramming'
 import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
 import { captureApiError } from '@/lib/crashReporting'
+import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
 
 export interface PlanProfile {
   goal: Goal
@@ -30,6 +31,7 @@ export interface PlanProfile {
 interface PlanConstraints {
   blockedWeekdays: Set<number>   // ISO 1=Mon … 7=Sun
   injuries: string[]
+  excludedExerciseIds: Set<string>
 }
 
 async function fetchPlanConstraints(client: SupabaseClient, userId: string): Promise<PlanConstraints> {
@@ -51,7 +53,8 @@ async function fetchPlanConstraints(client: SupabaseClient, userId: string): Pro
   } catch { /* optional columns may not exist yet — no constraints */ }
   // Everything blocked is a contradiction — ignore the blocks rather than emit no plan.
   if (blocked.size >= 7) blocked.clear()
-  return { blockedWeekdays: blocked, injuries }
+  const excludedExerciseIds = await fetchExcludedExerciseIds(client, userId)
+  return { blockedWeekdays: blocked, injuries, excludedExerciseIds }
 }
 
 // Varied default start times per time-of-day, so a fresh plan doesn't read as the
@@ -569,7 +572,8 @@ async function buildBlockContext(
   const expIdxOf = (ex: ExRow) => EXPERIENCE_ORDER.indexOf(ex.experience_level as Experience)
   const filtered = ((allEx ?? []) as ExRow[]).filter(ex =>
     expIdxOf(ex) <= userExpIdx + 1 &&
-    canPerform(ex, equipment)
+    canPerform(ex, equipment) &&
+    !constraints.excludedExerciseIds.has(ex.id)
   )
 
   if (!filtered.length) {

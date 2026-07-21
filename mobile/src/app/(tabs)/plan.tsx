@@ -53,6 +53,7 @@ import { describeSaveError } from '@/lib/saveErrors'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
+import { excludeExercisePermanently } from '@/lib/exerciseExclusions'
 import { metricsFor } from '@/lib/customExercises'
 import { classifyExercise } from '@/lib/exerciseProgramming'
 import { describeSession } from '@/lib/sessionRationale'
@@ -582,6 +583,7 @@ export default function WorkoutsScreen() {
     setUnilateralPref(ex.name, next)
   }
   const [skipExerciseConfirm, setSkipExerciseConfirm] = useState<ExerciseRow | null>(null)
+  const [removeExerciseConfirm, setRemoveExerciseConfirm] = useState<ExerciseRow | null>(null)
   const [swapSheet, setSwapSheet] = useState<{ ex: ExerciseRow; candidates: ExerciseRow[] } | null>(null)
   // Per-exercise action sheet (machine occupied → swap / move to end / skip / reorder).
   const [exActionEx, setExActionEx] = useState<ExerciseRow | null>(null)
@@ -1401,6 +1403,15 @@ export default function WorkoutsScreen() {
     if (workoutLogId) {
       await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
     }
+  }
+
+  // Remove an exercise from THIS session (same as skip) AND stop it from ever
+  // being suggested again — every future plan/split/quick-workout generation
+  // filters against excluded_exercise_ids (exerciseExclusions.ts).
+  const removeExercisePermanently = (ex: ExerciseRow) => setRemoveExerciseConfirm(ex)
+  const doRemoveExercisePermanently = async (ex: ExerciseRow) => {
+    await doSkipExercise(ex)
+    if (userId) await excludeExercisePermanently(supabase, userId, ex.id).catch(() => {})
   }
 
   // ── Swap exercise (smart substitutions) ──────────────────────────────────────
@@ -2826,6 +2837,7 @@ export default function WorkoutsScreen() {
             ...(i > 0 ? [{ key: 'up', label: 'Move up', icon: 'chevron-up-outline' }] : []),
             ...(i >= 0 && i < exercises.length - 1 ? [{ key: 'down', label: 'Move down', icon: 'chevron-down-outline' }] : []),
             { key: 'skip', label: 'Skip for today', sub: 'Remove from this session (kept in your plan)', icon: 'close-circle-outline', destructive: true },
+            { key: 'remove', label: 'Remove permanently', sub: "Never suggest this exercise to me again", icon: 'trash-outline', destructive: true },
           ]
         })()}
         onSelect={(key) => {
@@ -2837,6 +2849,7 @@ export default function WorkoutsScreen() {
           else if (key === 'up') moveExercise(ex.id, -1)
           else if (key === 'down') moveExercise(ex.id, 1)
           else if (key === 'skip') skipExercise(ex)
+          else if (key === 'remove') removeExercisePermanently(ex)
         }}
         onClose={() => setExActionEx(null)}
       />
@@ -2848,6 +2861,15 @@ export default function WorkoutsScreen() {
         options={[{ key: 'skip', label: 'Skip today', icon: 'close-circle-outline', destructive: true }]}
         onSelect={() => { const ex = skipExerciseConfirm; setSkipExerciseConfirm(null); if (ex) void doSkipExercise(ex) }}
         onClose={() => setSkipExerciseConfirm(null)}
+      />
+
+      <OptionSheet
+        visible={removeExerciseConfirm !== null}
+        title="Remove this exercise for good?"
+        subtitle={removeExerciseConfirm ? `${removeExerciseConfirm.name} will come out of today's session, and Tempo will never program it for you again — in this plan, a split, or a Quick Workout. You can't undo this from here.` : ''}
+        options={[{ key: 'remove', label: 'Remove permanently', icon: 'trash-outline', destructive: true }]}
+        onSelect={() => { const ex = removeExerciseConfirm; setRemoveExerciseConfirm(null); if (ex) void doRemoveExercisePermanently(ex) }}
+        onClose={() => setRemoveExerciseConfirm(null)}
       />
 
       <OptionSheet

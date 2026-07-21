@@ -17,6 +17,7 @@ import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
 import { toDateStr } from '@/lib/dates'
+import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -445,12 +446,15 @@ export async function generateQuickWorkout(
   // and manual building — a generated session sticks to staples), matched to
   // equipment + experience, then drop anything that hits a restricted area,
   // plus high-impact moves on low-impact purposes.
-  const { data: allRaw } = await client
-    .from('exercises')
-    .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, is_core, popularity')
-    .is('user_id', null)
+  const [{ data: allRaw }, excludedExerciseIds] = await Promise.all([
+    client
+      .from('exercises')
+      .select('id, name, movement_pattern, primary_muscles, secondary_muscles, required_equipment, experience_level, is_core, popularity')
+      .is('user_id', null),
+    fetchExcludedExerciseIds(client, userId),
+  ])
 
-  const allRows = (allRaw ?? []) as ExerciseRow[]
+  const allRows = ((allRaw ?? []) as ExerciseRow[]).filter(ex => !excludedExerciseIds.has(ex.id))
   const coreRows = allRows.filter(e => e.is_core === true)
   const all = coreRows.length ? coreRows : allRows
   const userExpIdx = EXPERIENCE_ORDER.indexOf(profile.experience)
