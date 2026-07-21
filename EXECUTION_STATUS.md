@@ -57,6 +57,19 @@
   addendum and `PRODUCT_AUDIT.html`'s Update Log.
   **P1 (C4–C10) resumes next** — C4 is the accessibility batch.
 
+- **NEW (2026-07-21): Quick Workout redesigned** (founder chose this as the next priority over
+  Splits/Feed). Replaced 8 duration chips with one `Slider` (snaps to `QUICK_DURATIONS`); replaced
+  the Push/Pull/Core/Legs/Cardio "Target Area" chips (movement-pattern jargon) with real body parts
+  — Arms/Chest/Back/Shoulders/Legs/Core/Cardio — backed by a genuine muscle-group hard-filter
+  (`targetMuscles` on `QuickContext`, grounded in the live `exercises.primary_muscles` vocabulary),
+  not just a priority nudge; falls back to the unfiltered pool if a muscle group yields nothing.
+  Training style + Equipment moved behind one "More options" disclosure. **The generated-workout
+  preview card (title, "why," exercise list, "why it counts") is removed entirely** — explicitly
+  confirmed with the founder first, since it's a real behavior change, not just decluttering: Start
+  now goes straight into the runner, which already has full swap/skip/remove tools the read-only
+  preview never had. `tsc` clean, full suite green (258/258, +3 new). Full detail in
+  `ARCHITECTURE.md`'s Quick Workout entry.
+
 - **2026-07-19: C2 (theme sweep) is done — the second P1 batch.** Built a shared
   `components/PRCard.tsx` (themed via `C.gold`/`C.onPrimary`, `variant="hero"` animated for
   `workout-complete.tsx`, `variant="compact"` static for `session-detail.tsx`) and replaced both
