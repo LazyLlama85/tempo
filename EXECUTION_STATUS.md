@@ -14,7 +14,44 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-22, latest): Split creation made the recommended path, not a buried one** —
+- **NEW (2026-07-22, latest): worked the §29 launch queue top to bottom — 8 commits, 7 shipped
+  features plus the Pro re-gate and paywall rebuild, all founder-directed.** Founder asked to build
+  everything needed for first launch; on Pro specifically, asked to be told the plan before touching
+  it (per standing instruction) — proposed the L1/L2 re-gate + paywall rebuild, got explicit
+  go-ahead, then built it. In order: **pause/vacation mode** (L21, the highest-value unbuilt gap —
+  streak protection needed no special-casing since `streak.ts` only reads dates that have a row);
+  **achievement-unlock celebrations** (L24, extends the existing `lib/badges.ts` trophy-case system
+  rather than a second one, with a bootstrap-safety check against an existing user's back-catalog of
+  badges all "unlocking" at once); **leaderboard-at-n=1** (L26, was hiding entirely below 2 friends);
+  **Terms/Privacy scroll-position fix** (L14); **onboarding goal-expectation copy** (L11);
+  **progress-photo before/after compare + share** (L25, dependency-free drag-reveal, reuses
+  `react-native-view-shot`/`expo-sharing` already in the project); **public share preview** (L27 —
+  found + fixed two real live bugs: `shareUrl()` pointed at a domain Tempo doesn't own, and the
+  share-lookup RPC wasn't actually callable by a logged-out visitor; verified against a real DB row
+  via `curl` before writing the page). **Then, with explicit sign-off:** re-gated Pro onto the weekly
+  repetition (L1 rolling auto-schedule horizon, L2 auto-reschedule-on-conflict) instead of accessories
+  nobody hits weekly; fixed a real purchase-layer bug (`packageHasIntroOffer` would have shown $34.99
+  on the paywall the moment a paid $19.99 founding offer existed in ASC); rebuilt the paywall (§25 —
+  personalized hero, a `WeekStrip` visual, 3 outcome cards, collapsed compare, forced-dark palette).
+  **Caught and fixed one real regression before it shipped**: a new Pro-gate helper's file had
+  unrelated static imports (`expo-router`, `lib/analytics`) that don't resolve in Jest — broke
+  `splitSchedule.test.ts` the moment anything imported the file at all. Fixed with the same
+  lazy-require pattern `ShareCardSheet.tsx` already uses for native-module safety.
+  Did a partial accessibility pass (L12) and found the 07-19 audit's own "808:110" count was likely
+  overstated — spot-checked the three worst-cited files by hand and found most touchables already
+  have adequate coverage (explicit label or a visible Text child); fixed the handful that were
+  genuinely silent (paywall CTA/toggle/plan cards, Profile's avatar button). Did **not** re-score
+  Accessibility on a 3-file spot-check — a real VoiceOver device pass (L17) is still the honest way
+  to get a trustworthy number. `tsc` clean, full suite green (271/271) throughout every commit.
+  `PRODUCT_AUDIT.html` updated in the same turn per protocol — Monetization raised 4→6 (build
+  quality, not proof; Conversion/PMF/every proof-metric stays frozen until real data).
+  **Founder-only items still open, not mine to do:** Paid Apps Agreement, RevenueCat entitlement ID
+  verification, Sentry secrets, RapidAPI key rotation, on-device verification, the App Store listing
+  rewrite, and actually creating the $19.99 offer in App Store Connect / Play Console.
+  **Next: the accessibility batch could continue (a real VoiceOver pass), or resume wherever the
+  founder redirects — the §29 queue's remaining items are all founder-only from here.**
+
+- **2026-07-22: Split creation made the recommended path, not a buried one** —
   finished a separate, earlier-requested work item (Feed redesign + this) before picking up the
   §29 L1-L28 queue below. Investigation found split-editor itself was already low-friction
   (a template shortcut visible immediately, auto-fills all 7 days in one action) — the real gap

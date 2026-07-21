@@ -603,7 +603,14 @@ export default function ProfileScreen() {
         {/* ── Profile card — dark, modular: header · XP · stats grid ───────── */}
         <View style={styles.hero}>
           <View style={styles.heroHeader}>
-            <TouchableOpacity style={styles.heroAvatarWrap} onPress={handleAvatarPress} disabled={avatarUploading} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.heroAvatarWrap}
+              onPress={handleAvatarPress}
+              disabled={avatarUploading}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo"
+            >
               <View style={[styles.avatarLarge, { backgroundColor: avatar.color }]}>
                 {avatarUploading ? (
                   <ActivityIndicator color="#fff" />

@@ -340,7 +340,14 @@ export default function PaywallScreen() {
 
         {/* Compare, collapsed — closed by default; the full free/Pro line for
             anyone who wants to check, not the primary sales surface. */}
-        <TouchableOpacity style={styles.compareToggle} onPress={() => setCompareOpen((v) => !v)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.compareToggle}
+          onPress={() => setCompareOpen((v) => !v)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Compare free and Pro"
+          accessibilityState={{ expanded: compareOpen }}
+        >
           <Text style={styles.compareToggleText}>Compare free and Pro</Text>
           <Ionicons name={compareOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSecondary} />
         </TouchableOpacity>
@@ -391,6 +398,9 @@ export default function PaywallScreen() {
           onPress={onPurchase}
           disabled={!hasPlans || busy}
           scaleTo={0.97}
+          accessibilityRole="button"
+          accessibilityLabel={ctaLabel}
+          accessibilityState={{ disabled: !hasPlans || busy, busy }}
         >
           {busy ? (
             <ActivityIndicator color="#fff" />
@@ -466,6 +476,7 @@ function PlanOption({
       onPress={onPress}
       scaleTo={0.98}
       accessibilityRole="radio"
+      accessibilityLabel={`${label} plan, ${strikePrice ? `${price}, was ${strikePrice}` : price}${subline ? `, ${subline}` : ''}`}
       accessibilityState={{ selected }}
     >
       <View style={[styles.radio, selected && styles.radioOn]}>
