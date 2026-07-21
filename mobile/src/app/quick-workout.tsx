@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
-import { TempoPulse, ScreenHeader, DismissButton } from '@/components/brand'
+import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
@@ -11,36 +11,23 @@ import { useAuthStore } from '@/stores/auth'
 import { track } from '@/lib/analytics'
 import { PressableScale } from '@/components/motion'
 import { TempoLottie } from '@/components/TempoLottie'
+import { Slider } from '@/components/Slider'
 import { describeSaveError } from '@/lib/saveErrors'
 import {
   generateQuickWorkout, persistQuickWorkout, getProfileForQuick,
   getScheduleRestrictions, injuriesToRestrictions,
-  goalToPurpose, QUICK_DURATIONS, PURPOSE_META,
-  type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern, type QuickRestrictions,
+  goalToPurpose, snapToQuickMinutes, QUICK_DURATIONS, PURPOSE_META, TARGET_AREA_OPTIONS,
+  type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern,
+  type QuickRestrictions, type TargetAreaOption,
 } from '@/lib/quickWorkout'
 import { useProGate } from '@/stores/entitlements'
 import { ProBadge } from '@/components/ProGate'
-import { fetchPresets, savePresets, describeEquipment, type EquipmentPreset } from '@/lib/equipmentPresets'
+import { fetchPresets, savePresets, type EquipmentPreset } from '@/lib/equipmentPresets'
 import { EquipmentPresetSheet } from '@/components/EquipmentPresetSheet'
 import type { Equipment } from '@/types'
 
 const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
-]
-
-// Optional body-area override, on top of the training-goal "purpose" above —
-// "I just want a Core session" is a real, common ask that a goal-driven
-// purpose (Strength/Muscle/Recovery/…) can't express on its own. Each maps to
-// a real MovementPattern the generator already knows how to prioritize
-// (generateQuickWorkout moves it to the front of the exercise-selection
-// order) — no new engine concept, just a user-facing way to set the one it
-// already supports.
-const FOCUS_AREA_OPTIONS: { key: MovementPattern; label: string; icon: string }[] = [
-  { key: 'core', label: 'Core', icon: 'body-outline' },
-  { key: 'squat', label: 'Legs', icon: 'walk-outline' },
-  { key: 'push', label: 'Push', icon: 'arrow-up-circle-outline' },
-  { key: 'pull', label: 'Pull', icon: 'arrow-down-circle-outline' },
-  { key: 'cardio', label: 'Cardio', icon: 'heart-outline' },
 ]
 
 export default function QuickWorkoutScreen() {
@@ -64,17 +51,22 @@ export default function QuickWorkoutScreen() {
   const [purpose, setPurpose] = useState<QuickPurpose | null>(
     (params.purpose as QuickPurpose) || null
   )
-  // A missed "leg day" suggestion arrives via route param; the user can also
-  // pick (or change) one manually via the Target Area chips below — both
-  // paths flow through the same state, so regenerate() never has to know
-  // which one set it.
+  // A missed "leg day" suggestion arrives via route param, pattern-based
+  // (e.g. 'squat') — kept exactly as before, distinct from the muscle-based
+  // Target Area chips below, since the two mechanisms feed generateQuickWorkout
+  // independently (targetPattern reorders priority; targetMuscles hard-filters).
   const [targetPattern, setTargetPattern] = useState<MovementPattern | undefined>(
     (params.targetPattern as MovementPattern) || undefined
   )
+  const [targetMuscles, setTargetMuscles] = useState<string[] | undefined>(undefined)
   const [workout, setWorkout] = useState<QuickWorkout | null>(null)
   const [generating, setGenerating] = useState(true)
   const [starting, setStarting] = useState(false)
   const [empty, setEmpty] = useState(false)
+  // Training style + equipment are real, useful, but not what a beginner needs
+  // staring at on open — collapsed by default, auto-opened when a route param
+  // already picked a purpose so that choice isn't hidden from the user.
+  const [moreOpen, setMoreOpen] = useState(!!params.purpose)
   const profileRef = useRef<ProfileForQuick | null>(null)
   const restrictionsRef = useRef<QuickRestrictions | null>(null)
 
@@ -99,7 +91,10 @@ export default function QuickWorkoutScreen() {
     router.push({ pathname: '/paywall', params: { context: 'quick_equipment' } } as never)
   }
 
-  const regenerate = useCallback(async (m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null, tp: MovementPattern | undefined) => {
+  const regenerate = useCallback(async (
+    m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null,
+    tp: MovementPattern | undefined, tm: string[] | undefined,
+  ) => {
     if (!userId) return
     setGenerating(true)
     setEmpty(false)
@@ -121,14 +116,13 @@ export default function QuickWorkoutScreen() {
         }
       }
       const restrictions = restrictionsRef.current
-      // If the requested target (e.g. a missed "leg day", or a manually-picked
-      // Target Area) is now avoided because it's scheduled soon, drop it so the
-      // "why" copy doesn't claim to build around it.
+      // If the requested target (e.g. a missed "leg day" route param) is now
+      // avoided because it's scheduled soon, drop it.
       const effectiveTarget = tp && restrictions.avoidPatterns.includes(tp) ? undefined : tp
       const effectivePurpose = p ?? goalToPurpose(profile.goal)
       const w = await generateQuickWorkout(
         supabase, userId,
-        { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, daysSinceTrained, fromCalendarGap, restrictions },
+        { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, targetMuscles: tm, daysSinceTrained, fromCalendarGap, restrictions },
         profile,
       )
       setWorkout(w)
@@ -147,28 +141,34 @@ export default function QuickWorkoutScreen() {
 
   // Pre-generate on open so a Start button is ready immediately (<10s to start).
   useEffect(() => {
-    regenerate(minutes, purpose, null, targetPattern)
+    regenerate(minutes, purpose, null, targetPattern, targetMuscles)
   }, [regenerate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentEquip = () => selectedPreset?.equipment ?? null
   const handlePickMinutes = (m: QuickMinutes) => {
     setMinutes(m)
-    regenerate(m, purpose, currentEquip(), targetPattern)
+    regenerate(m, purpose, currentEquip(), targetPattern, targetMuscles)
   }
   const handlePickPurpose = (p: QuickPurpose) => {
     const next = p === purpose ? null : p
     setPurpose(next)
-    regenerate(minutes, next, currentEquip(), targetPattern)
+    regenerate(minutes, next, currentEquip(), targetPattern, targetMuscles)
   }
-  const handlePickFocusArea = (fp: MovementPattern) => {
-    const next = fp === targetPattern ? undefined : fp
-    setTargetPattern(next)
-    regenerate(minutes, purpose, currentEquip(), next)
+  // Target Area chips are mutually exclusive with each other (and with a
+  // route-driven targetPattern) — picking one clears whichever mechanism the
+  // previous selection used.
+  const handlePickTargetArea = (opt: TargetAreaOption) => {
+    const isActive = opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
+    const nextPattern = isActive ? undefined : opt.pattern
+    const nextMuscles = isActive ? undefined : opt.muscles
+    setTargetPattern(nextPattern)
+    setTargetMuscles(nextMuscles)
+    regenerate(minutes, purpose, currentEquip(), nextPattern, nextMuscles)
   }
   const handlePickPreset = (id: string | null) => {
     setSelectedPresetId(id)
     const pr = id ? presets.find((p) => p.id === id) ?? null : null
-    regenerate(minutes, purpose, pr?.equipment ?? null, targetPattern)
+    regenerate(minutes, purpose, pr?.equipment ?? null, targetPattern, targetMuscles)
   }
   const handleSavePreset = async (preset: EquipmentPreset) => {
     const next = presets.some((p) => p.id === preset.id)
@@ -177,14 +177,14 @@ export default function QuickWorkoutScreen() {
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
     setSelectedPresetId(preset.id)
-    regenerate(minutes, purpose, preset.equipment, targetPattern)
+    regenerate(minutes, purpose, preset.equipment, targetPattern, targetMuscles)
     await savePresets(supabase, userId, next)
   }
   const handleDeletePreset = async (id: string) => {
     const next = presets.filter((p) => p.id !== id)
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
-    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null, targetPattern) }
+    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null, targetPattern, targetMuscles) }
     await savePresets(supabase, userId, next)
   }
 
@@ -217,7 +217,6 @@ export default function QuickWorkoutScreen() {
   if (!session) return <Redirect href="/sign-in" />
 
   const activePurpose = workout?.purpose ?? purpose ?? 'muscle_growth'
-  const meta = PURPOSE_META[activePurpose]
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -234,187 +233,125 @@ export default function QuickWorkoutScreen() {
           No setup. Tempo builds the highest-impact session for your window and goal.
         </Text>
 
-        {/* Duration chips */}
-        <View style={styles.durationGrid}>
-          {QUICK_DURATIONS.map(m => {
-            const active = m === minutes
+        {/* Duration — one slider instead of eight separate buttons */}
+        <View style={styles.durationCard}>
+          <Text style={styles.durationBig}>{minutes}<Text style={styles.durationUnit}> min</Text></Text>
+          <Slider
+            value={minutes}
+            min={5}
+            max={60}
+            step={5}
+            onChange={(v) => setMinutes(snapToQuickMinutes(v))}
+            onSlidingComplete={(v) => handlePickMinutes(snapToQuickMinutes(v))}
+            formatValue={(v) => `${snapToQuickMinutes(v)} min`}
+            accessibilityLabel="Workout duration"
+          />
+        </View>
+
+        {/* Target Area — the primary, beginner-friendly decision (real body
+            parts, not training-taxonomy jargon like "push"/"pull"). */}
+        <Text style={styles.sectionLabel}>TARGET AREA</Text>
+        <View style={styles.targetGrid}>
+          {TARGET_AREA_OPTIONS.map(opt => {
+            const active = opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
             return (
               <TouchableOpacity
-                key={m}
-                style={[styles.durChip, active && styles.durChipActive]}
-                onPress={() => handlePickMinutes(m)}
+                key={opt.key}
+                style={[styles.targetChip, active && styles.targetChipActive]}
+                onPress={() => handlePickTargetArea(opt)}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
               >
-                <Text style={[styles.durNum, active && styles.durNumActive]}>{m}</Text>
-                <Text style={[styles.durUnit, active && styles.durUnitActive]}>min</Text>
+                <Ionicons name={opt.icon as any} size={17} color={active ? C.onPrimary : C.primary} />
+                <Text style={[styles.targetChipText, active && styles.targetChipTextActive]}>{opt.label}</Text>
               </TouchableOpacity>
             )
           })}
         </View>
 
-        {/* Equipment presets — build the session around a saved setup (Pro) */}
-        <View style={styles.rowBetween}>
-          <Text style={styles.sectionLabel}>EQUIPMENT</Text>
-          {locked && <ProBadge />}
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
-          <TouchableOpacity
-            style={[styles.presetChip, !selectedPresetId && styles.presetChipActive]}
-            onPress={() => handlePickPreset(null)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="home" size={14} color={!selectedPresetId ? C.onPrimary : C.primary} />
-            <Text style={[styles.presetChipText, !selectedPresetId && styles.presetChipTextActive]}>All my gear</Text>
-          </TouchableOpacity>
-          {presets.map((pr) => {
-            const on = selectedPresetId === pr.id
-            return (
+        {/* Training style + equipment — real, but not what a beginner needs
+            staring at by default. Tucked behind one disclosure instead of two
+            more always-visible pill rows. */}
+        <TouchableOpacity style={styles.moreToggle} onPress={() => setMoreOpen(v => !v)} activeOpacity={0.7}>
+          <Text style={styles.moreToggleText}>{moreOpen ? 'Fewer options' : 'More options'}</Text>
+          <Ionicons name={moreOpen ? 'chevron-up' : 'chevron-down'} size={15} color={C.textSecondary} />
+        </TouchableOpacity>
+
+        {moreOpen && (
+          <>
+            <Text style={styles.sectionLabel}>TRAINING STYLE</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposeRow}>
+              {PURPOSE_ORDER.map(p => {
+                const active = p === activePurpose
+                const pm = PURPOSE_META[p]
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    style={[styles.purposeChip, active && styles.purposeChipActive]}
+                    onPress={() => handlePickPurpose(p)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name={pm.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
+                    <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{pm.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionLabel}>EQUIPMENT</Text>
+              {locked && <ProBadge />}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
               <TouchableOpacity
-                key={pr.id}
-                style={[styles.presetChip, on && styles.presetChipActive]}
-                onPress={() => handlePickPreset(pr.id)}
-                onLongPress={() => setPresetSheet({ open: true, edit: pr })}
+                style={[styles.presetChip, !selectedPresetId && styles.presetChipActive]}
+                onPress={() => handlePickPreset(null)}
                 activeOpacity={0.85}
               >
-                <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
-                <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
-                {locked && <Ionicons name="lock-closed" size={11} color={on ? 'rgba(255,255,255,0.9)' : C.gold} />}
+                <Ionicons name="home" size={14} color={!selectedPresetId ? C.onPrimary : C.primary} />
+                <Text style={[styles.presetChipText, !selectedPresetId && styles.presetChipTextActive]}>All my gear</Text>
               </TouchableOpacity>
-            )
-          })}
-          <TouchableOpacity style={styles.presetNew} onPress={() => setPresetSheet({ open: true, edit: null })} activeOpacity={0.85}>
-            <Ionicons name="add" size={15} color={C.primary} />
-            <Text style={styles.presetNewText}>New</Text>
-          </TouchableOpacity>
-        </ScrollView>
-        {presets.length > 0 && (
-          <Text style={styles.presetHint}>Long-press a preset to edit. Use “All my gear” for your usual setup.</Text>
+              {presets.map((pr) => {
+                const on = selectedPresetId === pr.id
+                return (
+                  <TouchableOpacity
+                    key={pr.id}
+                    style={[styles.presetChip, on && styles.presetChipActive]}
+                    onPress={() => handlePickPreset(pr.id)}
+                    onLongPress={() => setPresetSheet({ open: true, edit: pr })}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
+                    <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
+                    {locked && <Ionicons name="lock-closed" size={11} color={on ? 'rgba(255,255,255,0.9)' : C.gold} />}
+                  </TouchableOpacity>
+                )
+              })}
+              <TouchableOpacity style={styles.presetNew} onPress={() => setPresetSheet({ open: true, edit: null })} activeOpacity={0.85}>
+                <Ionicons name="add" size={15} color={C.primary} />
+                <Text style={styles.presetNewText}>New</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            {presets.length > 0 && (
+              <Text style={styles.presetHint}>Long-press a preset to edit. Use “All my gear” for your usual setup.</Text>
+            )}
+          </>
         )}
 
-        {/* Purpose chips (defaults from goal; tap to steer) */}
-        <Text style={styles.sectionLabel}>FOCUS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposeRow}>
-          {PURPOSE_ORDER.map(p => {
-            const active = p === activePurpose
-            const pm = PURPOSE_META[p]
-            return (
-              <TouchableOpacity
-                key={p}
-                style={[styles.purposeChip, active && styles.purposeChipActive]}
-                onPress={() => handlePickPurpose(p)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name={pm.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
-                <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{pm.label}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
-
-        {/* Optional body-area override — "just give me a Core session" is a
-            real, common ask a training-goal purpose alone can't express. */}
-        <Text style={styles.sectionLabel}>TARGET AREA</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposeRow}>
-          {FOCUS_AREA_OPTIONS.map(f => {
-            const active = f.key === targetPattern
-            return (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.purposeChip, active && styles.purposeChipActive]}
-                onPress={() => handlePickFocusArea(f.key)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name={f.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
-                <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{f.label}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
-
-        {/* Generated preview */}
-        <View style={styles.previewCard}>
-          {generating ? (
-            <View style={styles.previewLoading}>
-              <TempoPulse size={30} />
-              <Text style={styles.previewLoadingText}>Building your session…</Text>
-            </View>
-          ) : empty ? (
-            <View style={styles.previewLoading}>
-              <Ionicons name="alert-circle-outline" size={22} color={C.textSecondary} />
-              <Text style={styles.previewLoadingText}>
-                No moves match your equipment for this focus. Try another focus or add equipment in your profile.
-              </Text>
-            </View>
-          ) : teased && workout ? (
-            <>
-              <View style={styles.previewTop}>
-                <View style={styles.proBadgeRow}>
-                  <Ionicons name="lock-closed" size={11} color={C.gold} />
-                  <Text style={styles.proBadgeText}>PRO</Text>
-                </View>
-                <Text style={styles.previewEst}>~{workout.estimatedMinutes} min</Text>
-              </View>
-              <Text style={styles.previewTitle}>Your {selectedPreset?.name} session is ready</Text>
-              <View style={styles.whyBox}>
-                <Ionicons name="sparkles" size={14} color={C.primary} style={{ marginTop: 1 }} />
-                <Text style={styles.whyText}>
-                  {workout.exercises.length} moves built around {describeEquipment(selectedPreset?.equipment ?? [])}, sized to your {minutes} minutes.
-                </Text>
-              </View>
-              {/* Redacted list — shows it's really built, hides the details */}
-              <View style={styles.exList}>
-                {workout.exercises.slice(0, 5).map((ex, i) => (
-                  <View key={ex.id} style={styles.exRow}>
-                    <Text style={styles.exIndex}>{i + 1}</Text>
-                    <View style={[styles.teaseBar, { width: `${64 - i * 7}%` as `${number}%` }]} />
-                    <Ionicons name="lock-closed" size={13} color={C.outline} />
-                  </View>
-                ))}
-              </View>
-            </>
-          ) : workout ? (
-            <>
-              <View style={styles.previewTop}>
-                <View style={styles.purposeBadge}>
-                  <Ionicons name={meta.icon as any} size={13} color={C.primary} />
-                  <Text style={styles.purposeBadgeText}>{meta.label.toUpperCase()}</Text>
-                </View>
-                <Text style={styles.previewEst}>~{workout.estimatedMinutes} min</Text>
-              </View>
-              <Text style={styles.previewTitle}>{workout.title}</Text>
-
-              {/* Why this — the differentiator: never a random list */}
-              <View style={styles.whyBox}>
-                <Ionicons name="sparkles" size={14} color={C.primary} style={{ marginTop: 1 }} />
-                <Text style={styles.whyText}>{workout.why}</Text>
-              </View>
-
-              {/* Exercise list */}
-              <View style={styles.exList}>
-                {workout.exercises.map((ex, i) => (
-                  <View key={ex.id} style={styles.exRow}>
-                    <Text style={styles.exIndex}>{i + 1}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.exName}>{ex.name}</Text>
-                      <Text style={styles.exMeta}>
-                        {ex.primary_muscles.slice(0, 2).join(' · ')}
-                      </Text>
-                    </View>
-                    <Text style={styles.exDose}>
-                      {ex.sets} × {ex.repLow}–{ex.repHigh}{ex.repUnit === 'sec' ? 's' : ''}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* How it helps long-term */}
-              <View style={styles.contribBox}>
-                <Text style={styles.contribLabel}>WHY IT COUNTS</Text>
-                <Text style={styles.contribText}>{workout.contribution}</Text>
-              </View>
-            </>
-          ) : null}
-        </View>
+        {/* No preview card by design — Start goes straight into the runner,
+            which has full swap/skip/remove tools the old read-only preview
+            never did. Only an actual problem gets a message here. */}
+        {generating ? (
+          <PulseLoader caption="Building your session…" />
+        ) : empty ? (
+          <View style={styles.emptyRow}>
+            <Ionicons name="alert-circle-outline" size={20} color={C.textSecondary} />
+            <Text style={styles.emptyText}>
+              No moves match your equipment for this target area. Try another area, or add equipment under More options.
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Sticky Start */}
@@ -459,19 +396,31 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   coachWalking: { marginBottom: Spacing.xs },
   leadSub: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
 
-  durationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  durChip: {
-    width: '22.5%', aspectRatio: 1.15, borderRadius: Radius.lg,
-    backgroundColor: C.background, borderWidth: 1.5, borderColor: C.outlineVariant,
-    alignItems: 'center', justifyContent: 'center',
+  durationCard: {
+    alignItems: 'center', backgroundColor: C.background, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm, paddingBottom: Spacing.xs, ...CardShadow,
   },
-  durChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  durNum: { fontFamily: C.fontDisplay, fontSize: 23, color: C.text, letterSpacing: -0.5 },
-  durNumActive: { color: C.onPrimary },
-  durUnit: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.outline },
-  durUnitActive: { color: 'rgba(255,255,255,0.85)' },
+  durationBig: { fontFamily: C.fontDisplay, fontSize: 40, color: C.text, letterSpacing: -1 },
+  durationUnit: { fontFamily: 'Inter_500Medium', fontSize: 16, color: C.textSecondary },
 
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
+  targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  targetChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.background, borderWidth: 1.5, borderColor: C.outlineVariant,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+  },
+  targetChipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  targetChipText: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.text },
+  targetChipTextActive: { color: C.onPrimary },
+
+  moreToggle: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: Spacing.xs, marginTop: Spacing.xs,
+  },
+  moreToggleText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
+
   purposeRow: { gap: Spacing.xs, paddingRight: Spacing.lg },
   purposeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -500,32 +449,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   presetNewText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
   presetHint: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.outline, lineHeight: 16 },
 
-  proBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.gold + '22', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
-  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 10, color: C.gold, letterSpacing: 0.5 },
-  teaseBar: { flex: 1, height: 11, borderRadius: Radius.sm, backgroundColor: C.surfaceContainerHigh },
-
-  previewCard: {
-    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg,
-    borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: Spacing.md,
+  emptyRow: {
+    flexDirection: 'row', gap: Spacing.sm, backgroundColor: C.surfaceContainerLow,
+    borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'flex-start',
   },
-  previewLoading: { alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },
-  previewLoadingText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
-  previewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  purposeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
-  purposeBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.5 },
-  previewEst: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
-  previewTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3, marginTop: -4 },
-  whyBox: { flexDirection: 'row', gap: 8, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md },
-  whyText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
-  exList: { gap: 2 },
-  exRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.surfaceContainerHigh },
-  exIndex: { width: 20, fontFamily: 'Inter_700Bold', fontSize: 13, color: C.outline, textAlign: 'center' },
-  exName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  exMeta: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize', marginTop: 1 },
-  exDose: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
-  contribBox: { backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md, gap: 4 },
-  contribLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
-  contribText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
+  emptyText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, lineHeight: 19 },
 
   footer: {
     position: 'absolute', left: 0, right: 0, bottom: 0,

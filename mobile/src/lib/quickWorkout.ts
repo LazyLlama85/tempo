@@ -68,11 +68,47 @@ export interface QuickWorkout {
 export interface QuickContext {
   minutes: QuickMinutes
   purpose?: QuickPurpose          // defaults from the user's goal
-  targetPattern?: MovementPattern // e.g. a missed "leg day" → bias squat/hinge
+  targetPattern?: MovementPattern // e.g. a missed "leg day" → bias squat/hinge (route-driven)
+  targetMuscles?: string[]        // e.g. "Arms" tapped in the Quick Workout screen (user-driven)
   daysSinceTrained?: number       // colours the "why" copy
   fromCalendarGap?: boolean       // "you have N free minutes" framing
   restrictions?: QuickRestrictions
 }
+
+// ── Target Area — beginner-friendly body-part picks (quick-workout.tsx) ─────────
+// Distinct from targetPattern above (route-driven, e.g. a missed "leg day"
+// suggestion): this is what the screen's own chips set when a user taps
+// "Arms." Muscle-based, not movement-pattern-based, because that's how a
+// beginner actually thinks about it — "push"/"pull" is training jargon.
+// Muscle names below are exactly what's in exercises.primary_muscles (grep the
+// live table before adding a new one; a name that doesn't match anything
+// silently filters to nothing).
+const ARM_MUSCLES = ['biceps', 'triceps', 'forearms']
+const CHEST_MUSCLES = ['chest', 'upper_chest']
+const BACK_MUSCLES = ['lats', 'upper_back', 'lower_back', 'traps', 'rhomboids', 'teres_major', 'mid_traps', 'back', 'erectors', 'spine']
+const SHOULDER_MUSCLES = ['shoulders', 'lateral_deltoids', 'rear_delts', 'rotator_cuff']
+const LEG_MUSCLES = ['quads', 'quadriceps', 'hamstrings', 'calves', 'glutes', 'abductors', 'adductors', 'hip_flexors', 'inner_thighs', 'legs', 'hips']
+const CORE_MUSCLES = ['abs', 'obliques', 'core', 'transverse_abdominis']
+
+export interface TargetAreaOption {
+  key: string
+  label: string
+  icon: string
+  /** Filters the candidate pool to these muscles. Mutually exclusive with `pattern`. */
+  muscles?: string[]
+  /** Cardio isn't a muscle group — reuses the existing pattern-priority mechanism. */
+  pattern?: MovementPattern
+}
+
+export const TARGET_AREA_OPTIONS: TargetAreaOption[] = [
+  { key: 'arms', label: 'Arms', icon: 'hand-left-outline', muscles: ARM_MUSCLES },
+  { key: 'chest', label: 'Chest', icon: 'shirt-outline', muscles: CHEST_MUSCLES },
+  { key: 'back', label: 'Back', icon: 'body-outline', muscles: BACK_MUSCLES },
+  { key: 'shoulders', label: 'Shoulders', icon: 'triangle-outline', muscles: SHOULDER_MUSCLES },
+  { key: 'legs', label: 'Legs', icon: 'walk-outline', muscles: LEG_MUSCLES },
+  { key: 'core', label: 'Core', icon: 'ellipse-outline', muscles: CORE_MUSCLES },
+  { key: 'cardio', label: 'Cardio', icon: 'heart-outline', pattern: 'cardio' },
+]
 
 // ── Purpose schemes ───────────────────────────────────────────────────────────
 // setSeconds = est. time to perform one working set; used only for time-budgeting.
@@ -473,8 +509,18 @@ export async function generateQuickWorkout(
     return true
   })
 
+  // Target Area (Arms/Chest/Back/…): a hard filter to that muscle group, not
+  // just a priority nudge — this is a direct "give me an X workout" request.
+  // Falls back to the unfiltered pool if the muscle group + current
+  // equipment/experience yields nothing, so a workout is never impossible.
+  const targetMuscles = ctx.targetMuscles?.length ? new Set(ctx.targetMuscles) : null
+  const musclePool = targetMuscles
+    ? pool.filter(ex => ex.primary_muscles.some(m => targetMuscles.has(m)))
+    : pool
+  const finalPool = musclePool.length ? musclePool : pool
+
   const seed = dayOfYear() + ctx.minutes
-  const { exercises, estimatedSeconds } = selectExercises(pool, scheme, ctx.minutes, ctx.targetPattern, seed)
+  const { exercises, estimatedSeconds } = selectExercises(finalPool, scheme, ctx.minutes, ctx.targetPattern, seed)
 
   return {
     minutes: ctx.minutes,

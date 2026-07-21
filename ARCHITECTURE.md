@@ -959,17 +959,33 @@ you moving."*
   fix extended to Home's d30 "Review Plan" reactivation nudge** (`(tabs)/index.tsx`) — it used to push
   straight into `/onboarding/goal` with zero warning, unlike Profile's Change Plan; it now shows the
   same confirm sheet first (`reviewPlanConfirm`).
-- **Quick Workout** (`quick-workout.tsx`): pick minutes + focus → generated session with a "why" and
-  "why it counts"; one tap to start. **GO tab button re-scoped (2026-07-17):** it no longer always
-  opens this picker. `TempoTabBar`'s `GoButton` now checks today's schedule first (`go_today_workouts`
-  query) — a still-`'scheduled'` session today wins outright, jumping straight into the runner
-  (`/(tabs)/plan?workoutId=`) with no customization screen and no exercise-list preview first. Only
-  when today has nothing left to act on (already all completed, or a genuine rest day with nothing
-  scheduled) does it fall back to Quick Workout — and even then, generates + persists a
-  sensibly-defaulted session (goal-derived purpose, a fixed 30-minute duration) and starts it
-  immediately, skipping the picker/preview screen entirely. That full picker screen is unchanged and
-  still reachable from its other entry points (Home's contextual quick-suggestion banner, which
-  passes specific minutes/purpose/pattern worth previewing).
+- **Quick Workout** (`quick-workout.tsx`): pick minutes + focus → generated session, one tap to start.
+  **Redesigned (2026-07-21):** replaced 8 duration chips with one `Slider` (5–60, snaps to
+  `QUICK_DURATIONS` via `snapToQuickMinutes` on release); "Target Area" chips are now real body parts
+  (Arms/Chest/Back/Shoulders/Legs/Core/Cardio — `quickWorkout.ts`'s `TARGET_AREA_OPTIONS`) instead of
+  training-taxonomy jargon (Push/Pull) — Cardio still reuses the pattern-priority mechanism
+  (`targetPattern`), everything else is a genuine muscle-group hard-filter (`targetMuscles`, new
+  `QuickContext` field) applied to the candidate pool before `selectExercises` runs, falling back to
+  the unfiltered pool if a muscle group + current equipment/experience yields nothing. Training
+  style (Purpose) and Equipment are collapsed behind a single "More options" disclosure (auto-opened
+  if a route param already picked a purpose), not always-visible. **The generated-workout preview
+  card (title, "why," full exercise list, "why it counts") is gone entirely** — Start goes straight
+  into the runner, which has full swap/skip/remove tools the read-only preview never had; only a
+  genuine "no matching exercises" error still shows a message. `buildWhy`/`buildContribution` and
+  `QuickWorkout.why`/`.contribution` are unchanged in the engine (still computed, just unused by this
+  screen now) — left alone rather than removed, in case another surface wants them later. The
+  route-driven `targetPattern` (a missed "leg day" suggestion, `lib/quickSuggestion.ts`) still works
+  exactly as before and is independent of the new muscle-based chips; picking a Target Area chip
+  clears whichever mechanism (pattern or muscles) the previous selection used, since only one target
+  makes sense at a time. **GO tab button re-scoped (2026-07-17), then simplified further
+  (2026-07-21):** `TempoTabBar`'s `GoButton` checks today's schedule first (`go_today_workouts`
+  query) via `GoChooserSheet`. **As of 2026-07-21 the chooser always opens** — it used to skip
+  straight to an instant, sensibly-defaulted Quick Workout (no picker at all) whenever nothing was
+  due; now "TODAY'S PLAN" just greys out with why ("Complete — nice work" / "No session scheduled
+  today") and "Quick Workout instead" is always the second option, so GO never silently guesses on
+  the user's behalf. A due session's "Continue" option still jumps straight into the runner
+  (`/(tabs)/plan?workoutId=`), unchanged. The full Quick Workout picker screen is reachable from here
+  and from Home's contextual quick-suggestion banner (which passes specific minutes/purpose/pattern).
 - **Availability / Travel** modals: set work/school/sleep/unavailable windows, and a temporary
   travel-equipment override.
 - **Scheduling mode:** a `scheduling_mode` profile pref (`auto` default / `manual`) decides whether
