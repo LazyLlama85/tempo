@@ -14,6 +14,48 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+- **NEW (2026-07-22, later): `PRODUCT_AUDIT.html` restructured into two Parts — and it is now the
+  launch plan of record.** Founder asked for the audit to be split into (a) an initial-launch audit
+  detailed enough to execute with Sonnet, covering the exact *finished* app to publish, and (b) a
+  separate post-launch part covering marketing, money, and future features. Delivered as **Part I —
+  The Launch Standard (§23–29)** and **Part II — Money, Marketing & What Comes Next (§30–33)**.
+  Explicitly *not* a reduced-scope plan — the founder's correction was "by first-launch I don't mean
+  worse, I want a perfect app people will actually pay for," so Part I's stated bar is a finished
+  product, with four "tests of finished" (day-one / week-three / alone / stranger) and a
+  surface-by-surface state table. Part I is written as **executable work items L1–L28**, each with
+  what / why / files / acceptance criteria, plus an ordered 5-wave queue in §29 marking owner
+  (Sonnet vs Founder) and blocking severity.
+  **Three findings came out of the pass that were not previously logged anywhere:**
+  (1) **A live ship-blocker in the purchase layer** — `purchases.ts:packageHasIntroOffer` and
+  `paywall.tsx:trialLabel` both assume `introPrice.price === 0`, so the founder's requested
+  first-year discount would make the paywall render **$34.99 while the store charges $19.99**
+  (conversion disaster + genuine App Review subscription-disclosure risk). Specced as L3–L5, must
+  ship in the same build as the offer. Also documented: ASC allows only **one active introductory
+  offer per product per territory**, so the annual free trial and the founding price cannot coexist
+  → annual takes the paid intro, monthly keeps the 7-day trial.
+  (2) **Pro is a tip jar.** Everything gated is an accessory (plate calc — free in Strong/Hevy —
+  muscle map, travel mode, themes, creation caps most users never reach). If Pro vanished, no free
+  user's experience would get worse. The founder's own instinct ("I feel like no one would really
+  buy pro") was correct. Root cause: "don't gate the wedge" got applied as "gate everything *except*
+  the wedge." Fix specced as **L1 (rolling auto-schedule horizon)** + **L2 (auto-reschedule on
+  conflict)** — gates that fire weekly because calendars change weekly. This is a **proposed change
+  to `proFeatures.ts` / `proLimits.ts` / `autoSchedule.ts`, not yet built.**
+  (3) **Four `AUDIT.md` `[DESIGNED]`-but-never-built items are launch-critical** and had fallen out
+  of every tracking doc: **pause/vacation mode** (L21 — highest-value unbuilt item in the app; a
+  10-day trip currently returns a wrecked streak + a wall of missed sessions), **returning-user Home
+  heroes** (L22), **progress-photo compare** (L25), **public share previews + universal links** (L27
+  — the only organic growth loop currently dead-ends at a sign-in wall).
+  Part II gives the founder a single chosen marketing route (short-form video built on Tempo's
+  8-second visual trick, since a logger can't be demoed and a calendar filling itself can), an
+  8-week start plan, ASO fields, community rules, free offer-code seeding, honest revenue math
+  (**~442 subs for $1k/mo net** at a 70/30 mix with $19.99 first-year; **$1k/mo is a 6–9 month
+  goal, not a launch-month one**), a metric-gated roadmap, and §33 kill criteria.
+  **Recommended price: $19.99 first year (not $15)** — ~12% fewer subscribers needed for the same
+  revenue, still reads as 43% off; renewal at $34.99 is where the money actually is, which is why
+  §26 retention work outranks new features. **No scores moved** — every finding is a diagnosis, not
+  a delivery. Docs-only change; no app code touched this session.
+  **Next session: start the §29 queue at Wave 1/Wave 2 (L21 pause mode is the first Sonnet build).**
+
 - **NEW (2026-07-22): Feed redesigned into a real notification center.** The old Feed (bottom
   sheet) recomputed "today's eligible context items" live on every open, so a still-eligible item
   (Goal ETA, rest-day advice) repeated with identical content every day, and server-sent retention

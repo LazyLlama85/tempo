@@ -237,6 +237,30 @@
     @keyframes f{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
   }
   sup.fn{font-family:var(--mono);font-size:10px;color:var(--blue);}
+
+  /* ---- Part dividers (Part I launch / Part II growth) ---- */
+  .partWrap{padding:66px 0 0;}
+  .partBanner{border:1px solid color-mix(in srgb,var(--blue) 34%,var(--line));border-radius:22px;padding:30px 32px;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--blue) 15%,var(--card)),var(--card));box-shadow:var(--shadow);}
+  .partBanner .pn{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue-br);}
+  .partBanner h2{font-size:clamp(28px,4.6vw,44px);font-weight:820;letter-spacing:-.03em;margin:12px 0 14px;}
+  .partBanner p{font-size:16px;color:var(--text-2);max-width:78ch;margin:0;line-height:1.55;}
+  .partBanner.amber{border-color:color-mix(in srgb,var(--gold) 36%,var(--line));
+    background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 14%,var(--card)),var(--card));}
+  .partBanner.amber .pn{color:var(--gold);}
+
+  /* ---- Executable spec blocks (Part I work items) ---- */
+  .spec{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);}
+  .spec .id{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--blue-br);
+    text-transform:uppercase;display:inline-block;}
+  .spec h4{font-size:16px;font-weight:720;margin:7px 0 9px;letter-spacing:-.01em;}
+  .spec p{font-size:14.4px;color:var(--text-2);margin-bottom:9px;}
+  .spec p:last-of-type{margin-bottom:0;}
+  .spec .ac{border-top:1px dashed var(--line);margin-top:13px;padding-top:11px;font-size:13.8px;color:var(--text-2);}
+  .spec .ac b{color:var(--green);}
+  code{font-family:var(--mono);font-size:12.4px;background:var(--ink-3);padding:1px 5px;border-radius:4px;color:var(--text);}
+  .tier li b + span:empty{display:none;}
+  s{color:var(--text-3);}
 </style>
 
 <div class="hero">
@@ -277,6 +301,16 @@
     <span class="lab">Update Log — living document</span>
     <p style="margin:0 0 16px;font-size:14.5px;">This audit is re-scored as the app changes. The rule it holds itself to: <b>building a fix closes a gap; it does not move a score until the outcome is measured.</b> Shipping instrumentation, a paywall, or a feature earns an "addressed" note — the number only changes when a real cohort or conversion figure proves it. Newest first.</p>
     <div class="stack">
+      <div class="find crit">
+        <h4><span class="pill p-crit">2026-07-21</span> Restructured into two Parts — a launch spec and a growth plan. Verdict on Pro: the founder is right, nobody would buy it.</h4>
+        <p>This document had become a single undifferentiated pile in which "fix the paywall before you charge money" sat beside "consider an Apple Watch app in year two." Split into <b>Part I — The Launch Standard</b> (§23–29: the exact, finished app to publish, written as executable work items with acceptance tests) and <b>Part II — Money, Marketing &amp; What Comes Next</b> (§30–33). Part I is <em>not</em> a reduced-scope plan; the explicit standard is a finished product a stranger pays for in week one and still uses in week six.</p>
+        <p>The findings the restructure produced, in order of how much money they cost:</p>
+        <p><b>1. Pro is a tip jar.</b> Everything behind the gate is an accessory — plate calculator (free in Strong and Hevy), muscle map, travel mode, themes, and creation caps most users never reach. If Pro vanished overnight, no free user's experience would get worse. The founder's instinct that "nobody would really buy Pro" is the single most accurate product observation in this document. The cause is a correct principle ("don't gate the wedge") applied as "gate everything <em>except</em> the wedge," leaving Pro as leftovers. §24.1 moves the gate onto the weekly repetition — rolling auto-schedule horizon (L1) and auto-reschedule on conflict (L2) — because a calendar changes every week, so a calendar-shaped gate fires every week.</p>
+        <p><b>2. A live ship-blocker was found in the purchase layer.</b> <code>purchases.ts:packageHasIntroOffer</code> and <code>paywall.tsx:trialLabel</code> both assume every introductory offer is free (<code>introPrice.price === 0</code>). The moment the requested first-year discount is created in App Store Connect, <b>the paywall will render $34.99 while the store charges $19.99</b> — a conversion disaster and a legitimate App Review rejection under subscription-disclosure rules. Specced as L3–L5, must ship in the same build as the offer. Also documented: App Store Connect permits only <b>one active introductory offer per product per territory</b>, so the annual free trial and the founding price cannot coexist — the annual plan takes the paid intro, monthly keeps the free trial.</p>
+        <p><b>3. Four designed-but-never-built items are launch-critical, and they were invisible.</b> Re-reading <code>AUDIT.md</code> against the current tree surfaced work marked <em>[DESIGNED]</em> months ago and never scheduled: <b>pause/vacation mode</b> (a user who travels for ten days returns to a wrecked streak, a wall of missed sessions and a drifted plan — this happens to everyone eventually, by definition), <b>returning-user Home heroes</b>, <b>progress-photo compare</b>, and <b>public share previews</b> (the only organic growth loop in the app currently dead-ends at a sign-in wall). This is the most dangerous category of gap there is: invisible in code review, invisible in the test suite, instantly visible to a real user in week two.</p>
+        <p><b>4. The paywall doesn't sell.</b> Five scrolls of text before the price, the personalized proof buried below the fold and suppressed until three scheduled workouts, a comparison table that advertises "Advanced analytics — Free ✓" (an argument against paying, printed on the purchase screen), and nothing anywhere that <em>shows</em> the product. §25 specs the rebuild around one animated before/after week strip.</p>
+        <p><b>Honest note on scores:</b> nothing moves this pass. Every finding here is a <em>diagnosis</em>, not a delivery — and per this document's own discipline, identifying that Pro is unsellable does not make it sellable. Monetization and Conversion stay where they are until a real cohort transacts. The one thing that has changed is that the gap is now specified rather than merely felt.</p>
+      </div>
       <div class="find win">
         <h4><span class="mono" style="color:var(--blue)">2026-07-21</span> Quick Workout redesigned — one slider, real body parts, the generated-workout preview removed entirely <span class="pill p-win">plan confirmed with the founder before building, tsc clean, 258/258 tests</span></h4>
         <p>The founder asked for a Quick Workout redesign directly: 8 duration chips felt like "so many different pill buttons," the generated-preview card (title, "why," full exercise list, "why it counts") should go, and Target Area needed real beginner body-part language (arms, etc.) instead of training jargon. Wrote a short plan first per this project's own working method rather than guessing — including the one finding that changed the plan's shape: the existing "Target Area" chips (Core/Legs/Push/Pull/Cardio) worked at a coarse movement-pattern level with no "Arms" concept at all, so a real body-part redesign needed a small, additive engine extension, not just new labels on the same mechanism. Queried the live `exercises` table directly for the actual `primary_muscles` vocabulary (168 abs, 153 chest, 147 biceps, 146 triceps, 141 shoulders, 85 lats, etc.) rather than guessing muscle names, and grounded the new Arms/Chest/Back/Shoulders/Legs/Core groupings in what's actually there. <b>Confirmed the one genuinely risky call with the founder before writing code:</b> removing the preview entirely (not keeping even a one-line summary) — approved explicitly, on the reasoning that the runner already has full swap/skip/remove tools the read-only preview never had, so nothing is actually lost. <b>Shipped:</b> one `Slider` replaces the 8 duration buttons (snapping to the existing `QUICK_DURATIONS` set on release, so the engine's supported values are unchanged); Target Area chips are now real body parts, each a genuine muscle-group hard-filter on the candidate pool (a new `targetMuscles` field, independent of the pre-existing `targetPattern` mechanism a missed-workout suggestion still uses) with a fallback to the unfiltered pool so a muscle group + limited equipment never produces zero exercises; Training Style and Equipment — real, useful, but not what a beginner needs staring at by default — collapsed behind one "More options" disclosure instead of two more always-visible pill rows; the preview card is gone, Start goes straight into the runner. First test file ever to import `quickWorkout.ts` (it transitively touches `expo-calendar` via `moveWorkout.ts`, which Jest can't parse without a mock — used the same `jest.mock` pattern this suite already established for `crashReporting.ts`, not a new convention). <b>No score moves</b> — same discipline as every batch this session: real, tested, traceable, but not yet touched on a real device. This closes the "8 duration options, unnecessary preview" complaint from the founder's own device-testing queue named in the entry directly below.</p>
@@ -475,6 +509,23 @@
     <li><a href="#redteam"><span class="n">20</span> Red Team</a></li>
     <li><a href="#roadmap"><span class="n">21</span> Roadmap by ROI</a></li>
     <li><a href="#verdict"><span class="n">22</span> Final Verdict</a></li>
+  </ol>
+  <div class="eyebrow" style="margin:26px 0 12px;">Part I — The Launch Standard <span class="pill p-crit" style="margin-left:6px;">build before publishing</span></div>
+  <ol>
+    <li><a href="#launch-app"><span class="n">23</span> The Exact App You Ship</a></li>
+    <li><a href="#launch-money-build"><span class="n">24</span> Launch Monetization — the build</a></li>
+    <li><a href="#launch-paywall"><span class="n">25</span> The Paywall Rebuild</a></li>
+    <li><a href="#launch-gaps"><span class="n">26</span> Completeness Gaps</a></li>
+    <li><a href="#launch-craft"><span class="n">27</span> First-Run, Content &amp; Craft</a></li>
+    <li><a href="#launch-logic"><span class="n">28</span> Logic, Data &amp; Reliability</a></li>
+    <li><a href="#launch-queue"><span class="n">29</span> The Launch Queue</a></li>
+  </ol>
+  <div class="eyebrow" style="margin:26px 0 12px;">Part II — Money, Marketing &amp; What Comes Next <span class="pill p-med" style="margin-left:6px;">after v1 is public</span></div>
+  <ol>
+    <li><a href="#money"><span class="n">30</span> Will Anyone Buy Pro?</a></li>
+    <li><a href="#marketing"><span class="n">31</span> Marketing — the route</a></li>
+    <li><a href="#future"><span class="n">32</span> Post-Launch Roadmap</a></li>
+    <li><a href="#numbers"><span class="n">33</span> Numbers &amp; Kill Criteria</a></li>
   </ol>
 </div>
 
@@ -1282,6 +1333,872 @@
     </div>
 
     <div class="callout blue" style="margin-top:24px;"><span class="lab">Closing, without the padding</span><p style="margin:0;font-size:15.5px;">Tempo is the work of someone who can clearly build almost anything. That's exactly why the risk is scope, not skill. The market doesn't reward the most-built app; it rewards the one that says <em>one true thing</em> and delivers it flawlessly. Your one true thing is: <b>"Tempo puts your training into your real week, and moves it when life does."</b> Everything that serves that sentence, keep and sharpen. Everything that doesn't, hide or cut. Do that, and this goes from an impressive project to a product people can't quit.</p></div>
+  </div>
+</section>
+
+<!-- ===================== PART I BANNER ===================== -->
+<div class="wrap partWrap" id="part1">
+  <div class="partBanner">
+    <div class="pn">Part I of II — build all of this before you press publish</div>
+    <h2>The Launch Standard</h2>
+    <p><b>This is not a "ship less" plan.</b> It is the specification for a <em>finished</em> app — one a stranger pays for in week one and is still using in week six. Everything from here to §29 is pre-launch work, written to be handed to Claude Sonnet one item at a time: every item has an ID, a reason, the files it touches, and an acceptance test. Growth, marketing, and the feature roadmap live in <a href="#part2">Part II</a> and are explicitly <em>out of scope until v1 is public</em>.</p>
+  </div>
+</div>
+
+<!-- ===================== 23 — THE LAUNCH STANDARD ===================== -->
+<section id="launch-app">
+  <div class="wrap">
+    <div class="secHead"><span class="num">23</span><h2>The Exact App You Ship</h2></div>
+    <p class="subhead">"Perfect at launch" is not a feeling, it's a testable standard. Here it is, and then the surface-by-surface state of the app against it.</p>
+
+    <div class="callout blue" style="margin-bottom:22px;">
+      <span class="lab">The one sentence v1 must earn</span>
+      <p style="margin:0 0 12px;font-size:16.5px;">"Tempo looks at your real calendar and puts your training in the gaps — and moves it when your week blows up."</p>
+      <p style="margin:0;font-size:14.5px;color:var(--text-2);">Every item below either makes that sentence <b>more obvious</b>, <b>more reliable</b>, or <b>more valuable</b>. That is the only filter. It is not a filter that cuts features — it's a filter that decides what gets <em>finished first</em>.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 6px;">23.1 — The four tests of "finished"</h3>
+    <p class="subhead" style="margin-bottom:14px;">Run every screen against these. A screen that fails any one of them is not ready, no matter how much of it works.</p>
+    <div class="grid2" style="align-items:start;margin-bottom:22px;">
+      <div class="card">
+        <span class="lab">Test 1 — The day-one test</span>
+        <p style="font-size:14.5px;">Open it with <b>zero data</b>. Does it teach, invite, and give one action? Or does it show empty axes and a blank list? A new user judges your entire app by screens that have nothing in them yet, because on day one <em>every</em> screen has nothing in it.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Test 2 — The week-three test</span>
+        <p style="font-size:14.5px;">Simulate a user who trained for two weeks, then <b>went on holiday for ten days</b>. Do they return to a broken streak, ten "missed" sessions, and a plan that makes no sense? Right now: yes. This is the single most common real-world churn event in fitness apps and Tempo has no answer to it (§26, L21).</p>
+      </div>
+      <div class="card">
+        <span class="lab">Test 3 — The alone test</span>
+        <p style="font-size:14.5px;">You will launch with <b>zero network density</b>. Every social surface must be genuinely good with <em>no friends at all</em> — not hidden, not apologetic. A leaderboard of one person is worse than no leaderboard; a leaderboard of you-vs-your-own-last-week is better than both.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Test 4 — The stranger test</span>
+        <p style="font-size:14.5px;">Hand the phone to someone who has never heard of Tempo. Can they state what makes it different <b>after 60 seconds</b>? If they say "it's a workout tracker," the launch fails commercially regardless of how well it works — that market is saturated and you cannot win it on quality.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 6px;">23.2 — Surface-by-surface, against the standard</h3>
+    <p class="subhead" style="margin-bottom:14px;">"Finish" means real remaining work. "Polish" means it works and needs craft. Nothing here is cut — the app you launch is the whole app, done properly.</p>
+
+    <div class="tableWrap">
+      <table style="min-width:740px;">
+        <thead><tr><th style="width:186px;">Surface</th><th style="width:88px;">State</th><th>What "finished" means for it</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="3">The core loop — this is the product</td></tr>
+          <tr><td class="cat">Home (<code>(tabs)/index</code>)</td><td><span class="pill p-high">Finish</span></td><td>The calendar day-timeline with real events and training slotted between them is the only screenshot that sells Tempo. Must load under a second, never blank, never empty without a one-tap fix — <b>and must change what it says when you've been away</b> (returning-user hero, L22). Today it greets a 12-day-absent user identically to a daily user.</td></tr>
+          <tr><td class="cat">Plan (<code>(tabs)/plan</code>)</td><td><span class="pill p-med">Polish</span></td><td>Proof the promise holds beyond today. Multiple workouts per day now render (fixed 07-21). Needs the pause/vacation state to be visible here, and the Pro horizon marker (L1).</td></tr>
+          <tr><td class="cat">Workout runner</td><td><span class="pill p-win">Strong</span></td><td>Genuinely the best-built surface in the app — swap, move-to-end, skip, reorder, notes, warm-up sets, rest timer, first-session coach overlay. Needs only the accessibility pass and device verification. <b>Do not touch it otherwise.</b></td></tr>
+          <tr><td class="cat">Quick Workout</td><td><span class="pill p-med">Polish</span></td><td>Redesigned 07-21 and already patched twice from device testing. Needs one more real-device pass on iOS specifically — every bug found so far was found on web.</td></tr>
+          <tr class="grp"><td colspan="3">Monetization</td></tr>
+          <tr><td class="cat">Paywall (<code>paywall.tsx</code>)</td><td><span class="pill p-crit">Rebuild</span></td><td>Full spec in §25. As-is it describes features to someone who already knows them, and the moment the founding price ships it will <b>display the wrong number</b> (§24, L4) — a conversion disaster and a genuine App Review risk.</td></tr>
+          <tr><td class="cat">Free/Pro line</td><td><span class="pill p-crit">Rebuild</span></td><td>Pro is currently six accessories. §24 replaces it with two gates a real user hits every single week. This is the reason your instinct says nobody would buy — and it's correct.</td></tr>
+          <tr class="grp"><td colspan="3">Retention &amp; life-events — the biggest completeness gaps</td></tr>
+          <tr><td class="cat">Pause / vacation mode</td><td><span class="pill p-crit">Build</span></td><td><b>Doesn't exist.</b> Designed in <code>AUDIT.md</code> §6, never built. A user who travels for a week returns to a wrecked streak and a wall of missed sessions. See L21 — this is the highest-value unbuilt item in the entire app.</td></tr>
+          <tr><td class="cat">Returning-user Home</td><td><span class="pill p-high">Build</span></td><td><b>Doesn't exist.</b> Designed in <code>AUDIT.md</code> §7. 3-day / 7-day / 14-day / 30-day absences should each get a different hero and a different offer (L22). Uses only data you already have.</td></tr>
+          <tr><td class="cat">Achievement unlocks</td><td><span class="pill p-med">Finish</span></td><td>Levels and unlockables exist but unlock <em>passively</em> — the user is never told. A celebration moment costs almost nothing and is free retention (L24).</td></tr>
+          <tr class="grp"><td colspan="3">Progress &amp; proof</td></tr>
+          <tr><td class="cat">Progress (<code>(tabs)/progress</code>)</td><td><span class="pill p-high">Finish</span></td><td>Free at launch — correct, nobody subscribes for charts. But it must be honest at 0–3 sessions: "Your strength curve appears after 3 sessions," not empty axes. Fails Test 1 today.</td></tr>
+          <tr><td class="cat">Progress photos</td><td><span class="pill p-high">Finish</span></td><td>Photos attach to measurements but there is <b>no timeline and no compare view</b> (<code>AUDIT.md</code> §9). The data model is already right; this is pure UI. Before/after is the most shareable artifact a fitness app can produce — and it's your cheapest marketing asset (L25, and see §31).</td></tr>
+          <tr class="grp"><td colspan="3">Social — must be excellent at n=1</td></tr>
+          <tr><td class="cat">Leaderboard</td><td><span class="pill p-high">Redesign</span></td><td>Don't hide it — <b>make it work alone</b>. With &lt;3 friends it becomes "You vs your last 4 weeks" with an invite CTA underneath. Same screen, same code path, no dead room (L26).</td></tr>
+          <tr><td class="cat">Activity feed / groups</td><td><span class="pill p-med">Polish</span></td><td>Empty state must be invitational and specific ("Add a gym friend and their sessions show up here — plus a weekly leaderboard"), never "No activity yet."</td></tr>
+          <tr><td class="cat">Sharing (<code>shared-workout</code>, <code>w/</code>)</td><td><span class="pill p-high">Finish</span></td><td>A shared link currently requires sign-in to view (<code>AUDIT.md</code> §3). That makes your only organic growth loop a dead end. Public web preview + universal links (L27) turns every share into an ad. This is a launch item precisely <em>because</em> it's marketing.</td></tr>
+          <tr class="grp"><td colspan="3">Integrations &amp; credibility</td></tr>
+          <tr><td class="cat">Apple Health export</td><td><span class="pill p-med">Build</span></td><td>Designed, not built (<code>AUDIT.md</code> §11). "Does it sync with Apple Health?" is a top-3 App Store review question in this category, and one-way <em>export</em> on workout-complete is the easy half. Needs a native rebuild — schedule it, don't discover it late.</td></tr>
+          <tr><td class="cat">Multi-calendar</td><td><span class="pill p-high">Verify</span></td><td>Scope is live, but an already-connected account must reconnect once to get it. Without a prompt, a Pro user pays for a feature that silently does nothing (L13).</td></tr>
+          <tr><td class="cat">Tempo Coach</td><td><span class="pill p-low">Not built</span></td><td>Must not appear on the paywall or store listing. Advertising an unbuilt feature on a purchase screen is a documented rejection reason. It's the right Part II tentpole — see §32.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout" style="margin-top:22px;">
+      <span class="lab">The one thing to be honest about</span>
+      <p style="margin:0;">You have built three products: a calendar-native planner, a complete workout logger, and a social fitness network. All three can ship — but only one of them can be <b>the headline</b>. The logger is table stakes and everyone has it. The social network will be empty for months and must therefore be designed for solitude. The planner is the only thing nobody else does, and it is what the store listing, the first screenshot, the paywall hero, and every marketing asset in Part II must lead with. Finishing all three is the launch standard. Leading with all three is how you become invisible.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 24 — MONETIZATION BUILD ===================== -->
+<section id="launch-money-build">
+  <div class="wrap">
+    <div class="secHead"><span class="num">24</span><h2>Launch Monetization — the build</h2></div>
+    <p class="subhead">The strategy and the honest "will anyone actually pay" answer are in <a href="#money">§30</a>. This section is the implementation: the corrected Free/Pro line, the founding-price configuration, and the five code changes without which the founding price will display the wrong number.</p>
+
+    <h3 style="font-size:19px;margin:8px 0 6px;">24.1 — The corrected Free / Pro line</h3>
+    <p class="subhead" style="margin-bottom:14px;">Today Pro is six accessories, and the wedge — automatic calendar-aware scheduling — is entirely free. So the one thing worth paying for is the one thing you give away. The fix is not to cripple the wedge. It's to split it into <b>"it worked once"</b> (free, and it must feel like magic) and <b>"it keeps working without me"</b> (Pro).</p>
+
+    <div class="grid2" style="align-items:start;margin-bottom:18px;">
+      <div class="card">
+        <span class="lab">🟢 Free — forever, uncapped, genuinely good</span>
+        <ul class="clean">
+          <li><b>Full plan generation</b> + adaptation + periodization</li>
+          <li><b>Unlimited logging</b>, full history, all analytics and charts</li>
+          <li><b>Full 1,300-exercise library</b></li>
+          <li><b>One connected calendar</b>; Tempo auto-fits <b>the current week</b> around it</li>
+          <li><b>Manual rescheduling</b> — drag any session anywhere, any week, always</li>
+          <li>Quick Workout, badges, streaks, PRs, social, sharing, pause mode</li>
+          <li>1 custom plan · 5 custom workouts · 5 custom exercises</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:color-mix(in srgb,var(--blue) 40%,var(--line));">
+        <span class="lab" style="color:var(--blue-br);">🔵 Pro — "it keeps working without me"</span>
+        <ul class="clean">
+          <li><b>Rolling auto-schedule</b> — Tempo keeps re-fitting <em>every future week</em>, not just this one <span class="pill p-crit" style="margin-left:4px;">new gate</span></li>
+          <li><b>Auto-reschedule on conflict</b> — a meeting lands on your session and Tempo moves it before you notice <span class="pill p-crit" style="margin-left:4px;">new gate</span></li>
+          <li>One-tap "reschedule my whole week"</li>
+          <li>Multi-calendar reading · Travel mode · equipment presets</li>
+          <li>Unlimited plans / workouts / exercises</li>
+          <li>Muscle intelligence · plate calculator · premium themes &amp; icons</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="find crit" style="margin-bottom:18px;">
+      <h4><span class="pill p-crit">Critical</span> Why this line, and not a softer one</h4>
+      <p>A gate only earns money if a real user hits it <em>while wanting something</em>. Test each current gate: <b>custom exercises (5)</b> — most users create zero. <b>Custom workouts (5)</b> — most never open the builder. <b>Plate calculator</b> — free in Strong and Hevy. <b>Muscle map</b> — nice, not urgent. <b>Travel mode</b> — a few trips a year. None are hit weekly by a typical user. That is <em>exactly</em> why your gut says nobody would buy Pro, and your gut is reading the situation correctly.</p>
+      <p class="fix"><b>The two new gates are hit weekly by definition — because a calendar changes weekly.</b> The free user gets the "whoa" moment (this week planned around my real life), then watches next week drift out of sync, and is told precisely at the moment of pain that Tempo can hold it permanently. A recurring pain solved by a recurring payment is the only shape a subscription has ever worked in.</p>
+    </div>
+
+    <div class="stack" style="margin-bottom:26px;">
+      <div class="spec">
+        <span class="id">L1 · Pro gate — rolling auto-schedule horizon</span>
+        <h4>Free auto-scheduling covers the current week; Pro covers the rolling horizon</h4>
+        <p><b>What:</b> in the always-on background scheduler (<code>lib/autoSchedule.ts</code>), clamp the window it places sessions into. Free = through the end of the current calendar week. Pro = the full existing horizon. Sessions beyond the free window still <em>exist</em>, are fully usable, and remain manually movable — they are simply not auto-fitted around calendar events.</p>
+        <p><b>Why:</b> preserves "the core loop is never capped" (the plan is complete, training is never blocked) while making the <em>automatic</em> part — the actual product — the paid part. Sonnet must not confuse this with plan generation, which stays fully free for all weeks.</p>
+        <p><b>Files:</b> <code>lib/autoSchedule.ts</code>, <code>lib/proFeatures.ts</code> (new id <code>rolling_schedule</code>), <code>(tabs)/plan.tsx</code> (a soft, non-blocking marker on the first un-fitted week → paywall with <code>context:'horizon'</code>).</p>
+        <div class="ac"><b>Acceptance:</b> with <code>pro_enabled.enabled=false</code>, behavior is byte-identical to today — non-negotiable regression test. With Pro live on a free account: week 1 auto-fitted, week 2+ generated but not auto-fitted, no session ever missing, manual drag still works on every week.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L2 · Pro gate — auto-reschedule on conflict</span>
+        <h4>When a calendar event lands on a session, Pro moves it; free is told about it</h4>
+        <p><b>What:</b> on the existing app-open sweep, detect sessions now overlapping a busy block. <b>Pro</b> → move to the best free slot, then a passive card: "Moved Thursday's session to 6:30pm — your 5pm got booked." <b>Free</b> → the same detection produces a Home card: "Thursday's session now clashes with <em>Design review</em>," with two buttons — <span class="mono" style="font-size:12px;">Move it myself</span> and <span class="mono" style="font-size:12px;">Let Tempo handle this →</span> (paywall, <code>context:'conflict'</code>).</p>
+        <p><b>Why:</b> the highest-intent paywall entry point the app can possibly have — it fires at the exact instant the user feels the pain the product exists to remove. Every other paywall element is a claim; this one is a demonstration.</p>
+        <p><b>Files:</b> extend the existing missed-workout sweep rather than creating a new system (check <code>lib/autoSchedule.ts</code> first — it already walks this data); <code>lib/analytics.ts</code> (<code>conflict_detected</code>, <code>conflict_resolved_manual</code>, <code>conflict_paywall_shown</code>).</p>
+        <div class="ac"><b>Acceptance:</b> the free card never nags more than once per conflict; dismissing never re-shows for that session; nothing renders while Pro is dormant. Analytics can answer "what % of free users saw a conflict card in week 1" — that number <em>is</em> your revenue forecast.</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 6px;">24.2 — The founding-year price</h3>
+    <p class="subhead" style="margin-bottom:14px;">You asked for roughly $15 for the first year. Right instinct — but the exact number matters more than it looks, and there's a store-level constraint that will bite you if nobody tells you now.</p>
+
+    <div class="grid3" style="margin-bottom:18px;">
+      <div class="kpi"><div class="v">$4.99<small>/mo</small></div><div class="l">Monthly — unchanged, <b>keeps</b> its 7-day free trial</div></div>
+      <div class="kpi blue"><div class="v">$19.99<small>&nbsp;yr 1</small></div><div class="l"><b>New:</b> founding introductory offer, pay-up-front</div></div>
+      <div class="kpi"><div class="v">$34.99<small>/yr</small></div><div class="l">Renews here from year 2 — this is the real prize</div></div>
+    </div>
+
+    <div class="find high" style="margin-bottom:16px;">
+      <h4><span class="pill p-high">$15 vs $19.99 — the honest trade</span></h4>
+      <p>At a 70/30 annual/monthly mix, after Apple's 15% Small Business rate, each subscriber is worth about <b>$2.02/month net at $14.99</b> and <b>$2.26/month net at $19.99</b>. To net $1,000/month that's <b>~496 subscribers at $14.99</b> versus <b>~442 at $19.99</b> — about 12% fewer humans you must find and convert, for a price that still reads as a huge discount (43% off, and 67% off versus paying monthly), which is all the persuasion a discount ever needs to do. Full working in <a href="#money">§30.2</a>.</p>
+      <p class="fix"><b>Recommendation: $19.99.</b> Take $14.99 only if you deliberately want maximum subscriber <em>count</em> for social proof and word-of-mouth over near-term revenue — a legitimate choice, just not the one that reaches $1k/month soonest. Either way, <b>the renewal at $34.99 is where the money actually is</b>, and that only pays out if year-one users are still here in year two, which is a retention problem (§26), not a pricing one.</p>
+    </div>
+
+    <div class="find crit" style="margin-bottom:16px;">
+      <h4><span class="pill p-crit">Store constraint</span> You cannot have a free trial and a paid intro offer on the same product</h4>
+      <p>App Store Connect permits <b>one active introductory offer per subscription product per territory</b>. Your annual product currently carries the 7-day free trial. The founding first-year price <em>is</em> an introductory offer. So you must choose per product — and the correct configuration splits them:</p>
+      <p class="fix"><b>Annual</b> → introductory offer becomes <b>Pay Up Front · 1 year · $19.99</b> (free trial removed). <b>Monthly</b> → keeps <b>7-day free trial</b>, then $4.99/mo. Both audiences served: the convinced user takes the cheap year, the hesitant user takes the risk-free week. It also makes annual the obviously-correct pick on the paywall, which is what you want — annual retention is dramatically better than monthly.</p>
+    </div>
+
+    <div class="grid2" style="align-items:start;margin-bottom:18px;">
+      <div class="card">
+        <span class="lab">App Store Connect — exact clicks</span>
+        <ul class="clean">
+          <li>App → <b>Subscriptions</b> → group <b>Tempo Pro</b> → <code>tempo_pro_year</code></li>
+          <li><b>Introductory Offers</b> → expire the existing <em>Free · 1 week</em> offer</li>
+          <li><b>+ Create Introductory Offer</b> → Territories <b>All</b> → Start: launch day → End: <b>~90 days out</b> (this is what makes "founding" real and lets you re-price without a fight)</li>
+          <li>Type <b>Pay Up Front</b> · Duration <b>1 Year</b> · Price <b>$19.99</b></li>
+          <li>Confirm <code>tempo_pro_month</code> still shows <em>Free · 1 week</em></li>
+          <li>⚠️ <b>Paid Apps Agreement must be Active</b> (Business → Agreements). Until it is, <em>no purchase works at all</em> — still open, and the hardest blocker on the list</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="lab">Google Play — the equivalent</span>
+        <ul class="clean">
+          <li>Play Console → <b>Subscriptions</b> → <code>tempo_pro</code> → base plan <b>annual</b></li>
+          <li><b>Offers</b> → Create → Eligibility <b>New customer acquisition</b></li>
+          <li>Phase 1: <b>Single payment</b>, 1 year, <b>$19.99</b> → then base plan price</li>
+          <li>Keep the monthly base plan's free-trial offer as-is</li>
+          <li><b>Activate</b> the offer — Play offers are inert until explicitly activated</li>
+        </ul>
+        <span class="lab" style="margin-top:14px;">RevenueCat</span>
+        <p style="font-size:14px;margin:0;"><b>Nothing to change.</b> The app is offering-agnostic and already reads <code>introPrice</code> per package — but see L3–L5: it reads it <em>incorrectly</em> for paid offers.</p>
+      </div>
+    </div>
+
+    <div class="find crit" style="margin-bottom:16px;">
+      <h4><span class="pill p-crit">Ship-blocker</span> The paywall will show the wrong price the moment you create this offer</h4>
+      <p>Two functions assume every introductory offer is free. <code>purchases.ts:packageHasIntroOffer</code> returns true only when <code>introPrice.price === 0</code>. <code>paywall.tsx:trialLabel</code> returns <code>null</code> for any priced intro. The plan row then renders <code>product.priceString</code> — <b>$34.99</b> — while the store actually charges <b>$19.99</b>. A paywall stating a price different from the one charged is both a conversion disaster and a legitimate App Review rejection under subscription-disclosure rules.</p>
+      <p class="fix"><b>L3–L5 are not optional and must ship in the same build as the offer.</b></p>
+    </div>
+
+    <div class="stack">
+      <div class="spec">
+        <span class="id">L3 · purchases.ts</span>
+        <h4>Teach the purchase layer that intro offers can cost money</h4>
+        <p><b>What:</b> keep <code>packageHasIntroOffer</code> but redefine it as "has any intro offer" (<code>!!intro</code>). Add <code>introIsFree(pkg)</code> and <code>introOffer(pkg)</code> returning typed <code>{ isFree, priceString, price, periodUnit, periodNumberOfUnits, cycles }</code> or <code>null</code>. Audit every existing call site and point trial-specific ones at <code>introIsFree</code> — do not change their behavior by accident.</p>
+        <div class="ac"><b>Acceptance:</b> unit tests for three shapes — free-trial package, paid pay-up-front package, no-offer package. Existing trial call sites behave identically.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L4 · paywall.tsx — price display</span>
+        <h4>Show what the user is actually charged, first year and after</h4>
+        <p><b>What:</b> the annual <code>PlanOption</code> renders <b>$19.99</b> primary with <code>$34.99</code> struck through beside it, subline "first year · then $34.99/yr", badge <b>FOUNDING PRICE</b> (gold, already styled). The note under the plans becomes offer-aware: paid intro → "$19.99 today, then $34.99/yr. Cancel anytime."; free trial → today's copy unchanged.</p>
+        <div class="ac"><b>Acceptance:</b> sandbox purchase on a fresh Apple ID — the number on the paywall equals the number on Apple's confirmation sheet. Screenshot both.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L5 · paywall.tsx — savings math + timeline branch</span>
+        <h4>Fix the savings percentage and split the trial card from the payment card</h4>
+        <p><b>What:</b> <code>savingsPct</code> compares annual list price to 12× monthly. With an intro offer it must compare <b>effective first-year cost</b> ($19.99) to 12× monthly ($59.88) → <b>67% off</b> — stronger and honest. Separately, the "How your trial works" timeline only makes sense for free trials; for a paid intro render a two-row <b>"What you pay"</b> card: <em>Today — $19.99, everything unlocked for a year</em> / <em>In 12 months — renews at $34.99/yr, cancel anytime before</em>.</p>
+        <div class="ac"><b>Acceptance:</b> monthly-selected shows the trial timeline; annual-selected shows the payment card; neither renders when the offering has no intro offer.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L6 · Founding scarcity, done honestly</span>
+        <h4>A real end date, read from config</h4>
+        <p><b>What:</b> store the offer's end date in the existing <code>app_config</code> table (key <code>founding_offer</code>, value <code>{"ends_at":"2026-10-20"}</code>) — same fetch pattern as <code>pro_enabled</code>, fails closed to "no banner". The paywall shows "Founding price ends October 20" only while the date is future <em>and</em> an intro offer actually exists on the package.</p>
+        <p><b>Why:</b> deadlines convert, but only real ones. Config-driven means the app never claims an offer the store already expired, and you extend it with one SQL update instead of a build.</p>
+        <div class="ac"><b>Acceptance:</b> with the config row absent, the banner never renders and nothing else changes.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 25 — PAYWALL REBUILD ===================== -->
+<section id="launch-paywall">
+  <div class="wrap">
+    <div class="secHead"><span class="num">25</span><h2>The Paywall Rebuild</h2></div>
+    <p class="subhead">Your read is right, and it's worth being precise about <em>why</em> it feels basic — "basic colors and checkmarks" is the symptom, not the disease.</p>
+
+    <div class="callout" style="margin-bottom:22px;">
+      <span class="lab">The actual diagnosis</span>
+      <p style="margin:0 0 10px;">The current paywall <b>describes</b> a product to someone who has already used it. It opens with a generic promise ("Train smarter"), then a 6-row icon list, then a 9-row comparison table, then a timeline, then prices — <b>five scrolls before the price</b>, all of it text. A user who just felt Tempo schedule their week doesn't need to be told what Tempo does. They need one reason to believe it will <em>keep</em> doing it, and a price that feels small next to that.</p>
+      <p style="margin:0;">Structurally: <b>(1)</b> the personalized proof — the most persuasive element on the screen — is below the fold and suppressed until 3 scheduled workouts; <b>(2)</b> the comparison table is <em>defensive</em>, inviting evaluation instead of desire, and it advertises "Advanced analytics — free," which is an argument against paying printed on your own paywall; <b>(3)</b> nothing on the screen <em>shows</em> anything — no image, no mockup, no demonstration; <b>(4)</b> it uses the same flat surface as every other screen, so nothing signals "this is the premium room."</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:8px 0 10px;">25.1 — The new structure, top to bottom</h3>
+    <div class="tableWrap" style="margin-bottom:20px;">
+      <table style="min-width:700px;">
+        <thead><tr><th style="width:34px;">#</th><th style="width:206px;">Block</th><th>Spec</th></tr></thead>
+        <tbody>
+          <tr><td class="sc c9">1</td><td class="cat">Personalized hero</td><td>Replace "Train smarter. Never miss a workout." with the user's own data, large: <b>"Tempo has scheduled 14 workouts around your real life."</b> Sub: "Keep it doing that — automatically." Fall back to a generic line only when <code>schedulingImpact</code> is genuinely thin. <b>Move <code>fetchSchedulingImpact</code> above the fold and drop the ≥3 threshold to ≥1.</b></td></tr>
+          <tr><td class="sc c9">2</td><td class="cat">The one visual</td><td>A single animated <b>before → after week strip</b>: seven day columns, grey blocks = real calendar events, then Tempo's sessions slide into the gaps. Built in RN with the existing motion primitives — no video, no asset pipeline, works offline, ~120 lines. This is the only element that <em>shows</em> the product rather than describing it, and it is the difference between a $0 paywall and a working one.</td></tr>
+          <tr><td class="sc c8">3</td><td class="cat">Three benefit cards</td><td>Not six icon rows. <b>Three</b> cards, each an outcome headline plus a one-line mechanic: <em>"Your week re-plans itself"</em> · <em>"Never lose a session to a meeting again"</em> · <em>"Every calendar, every trip, every gym."</em> Everything else (muscle map, plate calc, themes, unlimited) collapses into one quiet line: "…plus muscle intelligence, plate calculator, unlimited plans, premium themes."</td></tr>
+          <tr><td class="sc c8">4</td><td class="cat">Price block</td><td>Annual pre-selected. <b>$19.99</b> huge, <s>$34.99</s> beside it, "first year · then $34.99/yr". Monthly as a smaller secondary row with "7-day free trial". Founding end-date line beneath (L6).</td></tr>
+          <tr><td class="sc c7">5</td><td class="cat">What-you-pay / trial card</td><td>Offer-aware per L5. Keep it — it measurably reduces refunds and store complaints, and it's the kind of transparency reviewers reward.</td></tr>
+          <tr><td class="sc c6">6</td><td class="cat">Compare, collapsed</td><td>The 9-row table becomes a tappable <b>"Compare free and Pro"</b> disclosure, closed by default. And <b>delete the "Advanced analytics" row</b> — a row where Free already shows ✓ actively argues against purchase.</td></tr>
+          <tr><td class="sc c6">7</td><td class="cat">Trust row + CTA</td><td>Keep the trust chips. CTA becomes offer-aware: annual → <b>"Get Pro — $19.99 for the year"</b>; monthly → <b>"Start 7-day free trial"</b>. A CTA stating the price outperforms a vague one, because by the time they tap they've already accepted the number.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 10px;">25.2 — The visual language ("premium," concretely)</h3>
+    <div class="grid2" style="align-items:start;">
+      <div class="card">
+        <span class="lab">What to change</span>
+        <ul class="clean">
+          <li><b>Dark, always.</b> The paywall ignores the app theme and renders on a deep ink surface in both modes. Every premium tier in consumer software does this — the cheapest possible "special room" signal.</li>
+          <li><b>One accent, used sparingly.</b> Gold for the founding badge and the price only. Blue for the CTA. Nothing else gets colour.</li>
+          <li><b>Kill the ambient fade stagger.</b> A <code>FadeInView</code> cascade across six rows reads as filler. Motion belongs on exactly one element: the week strip.</li>
+          <li><b>Real type range.</b> Hero 32–34pt display, price 40pt+, body 14–15. Everything currently sits between 13 and 29 — which is precisely why it reads flat.</li>
+          <li><b>Elevate the selected plan</b> with a gradient border and subtle glow; leave the unselected one nearly invisible. Today both have equal weight, so the screen asks the user to decide instead of guiding them.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="lab">What to preserve — no-regressions checklist</span>
+        <ul class="clean">
+          <li>Live pricing from RevenueCat — <b>never hardcode $19.99</b>; it comes from <code>introPrice.priceString</code></li>
+          <li>The "no plans available / offline" fallback with Restore</li>
+          <li>Restore · Terms · Privacy links and the Apple fine print (all required)</li>
+          <li>Every <code>track()</code> call and the <code>context</code> param threading</li>
+          <li>Dormant-safety: unreachable while <code>pro_enabled</code> is off</li>
+          <li>Dismissibility — the X must always work, from every entry point</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stack" style="margin-top:20px;">
+      <div class="spec">
+        <span class="id">L7 · Paywall frequency cap</span>
+        <h4>A free user must never see the paywall twice in 48 hours from automatic triggers</h4>
+        <p><b>What:</b> onboarding completion and first-workout completion can both fire in one session today, with limit gates on top. Add a shared <code>shouldAutoShowPaywall()</code> backed by AsyncStorage (<code>lastAutoPaywallAt</code>), applied to <em>automatic</em> triggers only (<code>onboarding</code>, <code>first_workout</code>, <code>conflict</code>). Never applied to user-initiated opens or hard limit gates, which must always explain why an action was blocked.</p>
+        <div class="ac"><b>Acceptance:</b> complete onboarding then a workout within the hour → paywall appears once. Tapping Pro in Settings still opens it immediately.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L8 · Onboarding paywall placement</span>
+        <h4>Keep it — but it must come after the plan preview, never before</h4>
+        <p><b>What:</b> verify the paywall pushed from <code>onboarding/profile-setup.tsx</code> lands <em>after</em> the user has seen their generated plan sitting inside their real week. With a calendar connected, the hero must already read "Tempo has scheduled N workouts around your real life." Selling before the demonstration is the most common reason onboarding paywalls underperform.</p>
+        <div class="ac"><b>Acceptance:</b> a first-run walkthrough on a device with a connected calendar shows a populated, personalized hero — not the generic fallback.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 26 — COMPLETENESS GAPS ===================== -->
+<section id="launch-gaps">
+  <div class="wrap">
+    <div class="secHead"><span class="num">26</span><h2>Completeness Gaps — what "perfect" requires that you don't have</h2></div>
+    <p class="subhead">These are not new ideas. Every one was <b>designed and documented in <code>AUDIT.md</code> and then not built</b>, which is the most dangerous category of work there is — it's invisible in a code review, invisible in a test suite, and instantly visible to a real user in week two.</p>
+
+    <div class="stack">
+      <div class="spec">
+        <span class="id">L21 · Pause / vacation mode <span class="pill p-crit" style="margin-left:6px;">highest value unbuilt item</span></span>
+        <h4>A user goes away for ten days and comes back to a wrecked app</h4>
+        <p><b>What:</b> "Pause my plan" with a return date. Shift every future <code>status='scheduled'</code> row's <code>planned_date</code> by +N days in one RPC; cancel and re-sync calendar events and reminders; suppress the missed-workout sweep for the window via <code>user_profiles.paused_until</code>; <b>protect the streak</b> rather than breaking it; show an unmissable "Paused until March 3 — Resume now" state on Home and Plan. <code>week_index</code> is untouched, so the mesocycle resumes exactly where it left off.</p>
+        <p><b>Why:</b> today a holiday produces a broken streak, a wall of red "missed" sessions, and a plan that has silently drifted. That is a user who deletes the app on the flight home — and it happens to <em>everyone</em>, eventually, by definition. Duolingo built an entire paid product around streak freezes for exactly this reason. It is also the clearest possible proof of your core claim: an app that plans around your real life must understand that sometimes your real life is "I'm not here."</p>
+        <p><b>Files:</b> new RPC + <code>user_profiles.paused_until</code> migration; <code>lib/adaptation.ts</code> and the missed sweep (suppress); calendar sync (cancel + re-create); <code>lib/notifications.ts</code>; Home + Plan states; Settings entry point. <b>Careful:</b> this touches four systems at once — it needs its own session and its own regression pass, exactly as <code>AUDIT.md</code> §6 warned.</p>
+        <div class="ac"><b>Acceptance:</b> pause for 10 days → no missed sessions accrue, streak survives, calendar events disappear, no reminders fire; resume → the plan continues at the correct week with dates shifted, and the calendar repopulates. Test pausing <em>mid-week</em> and pausing with a session already completed that day.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L22 · Returning-user Home heroes</span>
+        <h4>Home greets a 14-day-absent user identically to a daily user</h4>
+        <p><b>What:</b> branch the Home hero on days-since-last-completed (the client already knows it). <b>3 days</b> → "Pick up where you left off" + the next session. <b>7 days</b> → "Let's restart gently" + one tap into recovery mode via the existing <code>adaptation_mode</code>. <b>14 days</b> → "Want to re-plan around your current schedule?" → regenerate. <b>30 days</b> → lite re-onboarding: confirm goal, days, equipment.</p>
+        <p><b>Why:</b> the return visit is the highest-leverage moment in the entire retention curve — the user has already decided to come back, and the app's only job is to not make them feel behind. Uses only data you already have and reuses the existing "one true sentence" selector pattern from workout-complete. This is the cheapest retention win available to you.</p>
+        <div class="ac"><b>Acceptance:</b> backdate <code>completed_at</code> to 4 / 8 / 15 / 31 days and confirm four distinct heroes, each with a working primary action.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L23 · Honest empty states across every screen</span>
+        <h4>Day one is the only day every screen is empty — and it's the day you're judged</h4>
+        <p><b>What:</b> audit Progress, Feed, Badges, Workout History, PR browser, Muscle Map and Progress Photos at <b>zero</b> and at <b>two</b> sessions. Each needs a one-line reason, the distance to fullness ("Your strength curve appears after 3 sessions"), and one action. Bare containers, empty axes and "No data" are forbidden. <code>AUDIT.md</code> §14 already flagged illustrated empty states as the next design pass — this is that pass.</p>
+        <div class="ac"><b>Acceptance:</b> a fresh-account walkthrough screenshotting all seven screens; no screenshot contains an empty container or an unexplained blank chart.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L24 · Achievement unlock moments</span>
+        <h4>Levels and badges unlock silently — the user is never told</h4>
+        <p><b>What:</b> surface unlocks as celebration moments at workout-complete, reusing the existing level-up celebration component. Milestones at 10 / 25 / 50 / 100 sessions and first-PR-per-lift.</p>
+        <p><b>Why:</b> the reward machinery is already built and currently fires into the void. This is close to free retention, and each unlock is a natural share prompt — which feeds §31's growth loop.</p>
+        <div class="ac"><b>Acceptance:</b> hitting session 10 produces a visible celebration, once, that survives a force-quit without re-firing.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L25 · Progress-photo timeline + compare</span>
+        <h4>The data model is right; the screen doesn't exist</h4>
+        <p><b>What:</b> a grid timeline over <code>body_measurements.photo_url</code> plus a 2-up compare with a drag slider and a date/weight caption on each side. Pure UI — no backend work, <code>fetchMeasurements</code> already returns everything.</p>
+        <p><b>Why:</b> before/after is the single most shareable artifact a fitness app can produce, and it is the asset that makes §31's content strategy actually possible. Right now users can put photos <em>in</em> and never get anything <em>out</em>.</p>
+        <div class="ac"><b>Acceptance:</b> two photos 6 weeks apart render side by side with a share action producing a clean image (Tempo mark, no chrome).</div>
+      </div>
+      <div class="spec">
+        <span class="id">L26 · Social that works alone</span>
+        <h4>Design for n=1 instead of hiding the room</h4>
+        <p><b>What:</b> with &lt;3 friends the leaderboard renders as <b>"You vs your last 4 weeks"</b> — same screen, same code path, real content — with an invite CTA beneath. Feed empty state becomes specific and invitational ("Add a gym friend and their sessions appear here, plus a weekly leaderboard"). Friend-code card stays exactly as it is; it's the strongest artifact on the screen.</p>
+        <div class="ac"><b>Acceptance:</b> a zero-friend account sees a populated, useful social tab with no apologetic copy anywhere.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L27 · Public share previews + universal links</span>
+        <h4>Your only organic growth loop currently dead-ends at a sign-in wall</h4>
+        <p><b>What:</b> render a public share page from <code>workout_shares</code> in <code>web/</code> via an anon read policy scoped to the <code>code</code> param (no auth), plus <code>apple-app-site-association</code> + Android asset links so <code>tempo.app/w/&lt;code&gt;</code> opens the app when installed and the web preview when not.</p>
+        <p><b>Why:</b> a shared workout that demands a sign-up before showing anything converts at approximately zero. This is a launch item precisely <em>because</em> it's marketing — every share becomes a landing page, at no ongoing cost. See §31, where this is load-bearing.</p>
+        <div class="ac"><b>Acceptance:</b> a share link opened in a logged-out desktop browser shows the workout and an install CTA; the same link on a device with Tempo installed opens the app directly.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L28 · Apple Health export <span class="pill p-med" style="margin-left:6px;">if time allows</span></span>
+        <h4>One-way export on workout-complete</h4>
+        <p><b>What:</b> write a HealthKit / Health Connect workout sample at completion (duration, calories estimated from volume + bodyweight). Export only — skip step/calorie import entirely.</p>
+        <p><b>Why:</b> "does it sync with Apple Health?" is a top App Store review question in this category and its absence reads as unfinished. <b>Requires a native rebuild</b> — verify the module landscape against the Expo 56 docs at build time, and schedule it deliberately rather than discovering the rebuild late.</p>
+        <div class="ac"><b>Acceptance:</b> a completed Tempo session appears in the Health app with correct duration on a real device.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 27 — FIRST RUN / CRAFT ===================== -->
+<section id="launch-craft">
+  <div class="wrap">
+    <div class="secHead"><span class="num">27</span><h2>First-Run, Content &amp; Craft</h2></div>
+    <p class="subhead">The things a new user hits in their first three sessions, plus what App Review looks at.</p>
+
+    <div class="stack">
+      <div class="spec">
+        <span class="id">L10 · Exercise instructions backfill</span>
+        <h4>1,285 of 1,297 exercises have no "how to" text</h4>
+        <p><b>What:</b> run the batch backfill from the ExerciseDB source into the <code>exercises</code> table — the <code>save_exercise_instructions</code> RPC and lazy per-view write already exist; this is the bulk pass. Then hand-verify the 100 most-scheduled exercises.</p>
+        <p><b>Why:</b> a beginner taps an exercise they don't know and gets nothing. That's a 99%-of-rows content hole in a product positioning itself as a coach, and it's invisible in code review because the fallback is silent. It's also what a reviewer or a commenter finds in thirty seconds.</p>
+        <div class="ac"><b>Acceptance:</b> SQL count of empty-instruction rows under 5%, and zero of the top 100 most-used exercises among them.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L11 · Goal-step expectation copy</span>
+        <h4>Onboarding asks for a goal without saying what it costs</h4>
+        <p><b>What:</b> copy-only change in <code>onboarding/goal.tsx</code> — each goal gains a realistic expectation line ("Build muscle → 3–5 sessions/week, first visible change ~8 weeks"). Designed in <code>AUDIT.md</code> §8, never shipped.</p>
+        <p><b>Why:</b> the fastest churn in fitness apps comes from unset expectations. Someone who knows change takes eight weeks stays eight weeks; someone who doesn't leaves in two.</p>
+        <div class="ac"><b>Acceptance:</b> every goal option shows a frequency and a realistic first-result horizon.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L12 · Accessibility batch (C4)</span>
+        <h4>808 touchables, 110 accessibility labels</h4>
+        <p><b>What:</b> label every touchable on the four tabs, the runner and the paywall. Icon-only buttons first — currently unreadable to VoiceOver and exactly what a reviewer spot-checks. The paywall must be fully labeled; accessibility complaints about a purchase screen escalate fastest.</p>
+        <div class="ac"><b>Acceptance:</b> VoiceOver pass on Home, Plan, Progress, Profile, the runner and the paywall — every control announces a meaningful name.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L13 · Multi-calendar reconnect prompt</span>
+        <h4>A Pro feature that silently does nothing is worse than a missing one</h4>
+        <p><b>What:</b> detect a Google connection issued before the broader <code>calendarlist.readonly</code> scope and show an explicit "Reconnect Google to read your other calendars" action in the picker. Never fail silently.</p>
+        <div class="ac"><b>Acceptance:</b> a pre-scope account sees the prompt; a post-scope account never does.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L14 · Terms vs Privacy split (C8)</span>
+        <h4>Both links currently land on the same screen</h4>
+        <p><b>What:</b> split <code>legal.tsx</code> into distinct Terms and Privacy views. App Review checks that a subscription screen links to both <em>separately</em>.</p>
+        <div class="ac"><b>Acceptance:</b> the paywall's Terms and Privacy links show visibly different content.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L15 · Store listing rewrite</span>
+        <h4>Lead with the calendar trick in the first line and the first screenshot</h4>
+        <p><b>What:</b> subtitle and screenshot 1 must both be the wedge. Suggested subtitle: <b>"Workouts that fit your real week."</b> Screenshot 1: the Home day-timeline with real calendar events and a session slotted between them, captioned "Tempo trains around your actual schedule." Screenshots 2–5: the re-plan, the runner, progress, the month view. Keywords target <em>workout planner, gym schedule, calendar, routine, split, training plan</em> — not "fitness," which you cannot win.</p>
+        <p><b>Why:</b> install conversion is currently decided by a page describing a workout logger, of which there are hundreds. The one differentiated thing you have isn't on it.</p>
+        <div class="ac"><b>Acceptance:</b> someone who has never seen Tempo can state the differentiator after reading only the subtitle and screenshot 1.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 28 — LOGIC / RELIABILITY ===================== -->
+<section id="launch-logic">
+  <div class="wrap">
+    <div class="secHead"><span class="num">28</span><h2>Logic, Data &amp; Reliability</h2></div>
+    <p class="subhead">P0 correctness (F1–F10) is done. What remains is verification on real devices, and the instrumentation without which every number in this document — and every decision in Part II — stays a guess.</p>
+
+    <div class="stack">
+      <div class="spec">
+        <span class="id">L16 · Analytics completeness (C9) <span class="pill p-crit" style="margin-left:6px;">highest leverage in Part I</span></span>
+        <h4>Ship with the real PostHog key and a funnel you can actually read</h4>
+        <p><b>What:</b> the events that must exist and fire correctly on launch day, in order — <code>install</code> → <code>onboarding_step_completed</code> (per step) → <code>calendar_connected</code> → <code>plan_generated</code> → <code>first_session_started</code> → <code>first_session_completed</code> → <code>conflict_detected</code> → <code>paywall_shown</code> (with <code>context</code>) → <code>purchase_started</code> → <code>purchase_completed</code>, plus a daily <code>app_opened</code> for retention cohorts.</p>
+        <p><b>Why:</b> without this you cannot answer the only three questions that matter in month one — <em>where do people quit onboarding</em>, <em>do they come back on day 7</em>, <em>which paywall context converts</em>. Every marketing decision in Part II is unmakeable without them. Launching without analytics is launching blind and paying for the privilege.</p>
+        <div class="ac"><b>Acceptance:</b> a PostHog funnel from install → first completed session renders with your own device's data <em>before</em> you submit the build.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L17 · On-device verification sweep</span>
+        <h4>A large backlog is code-verified and device-untested</h4>
+        <p><b>What:</b> one uninterrupted pass on a real iPhone on a release/preview build — fresh install → onboarding → calendar connect → plan generate → full session → complete → reopen next day. Then the same with <em>no</em> calendar connected, and once in airplane mode.</p>
+        <p><b>Why:</b> this project has repeatedly recorded features as done that later failed on device — the blank-first-load bug, the web slider, the empty Quick Workout pool. That pattern is the most reliable predictor of a bad launch week there is. Treat anything untested on device as broken.</p>
+        <div class="ac"><b>Acceptance:</b> the full sequence completes with no blank screens, no infinite spinners and no lost session data, on an EAS build.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L18 · Entitlement ID verification (F9a)</span>
+        <h4>One string mismatch means every purchase succeeds and nothing unlocks</h4>
+        <p><b>What:</b> confirm the RevenueCat entitlement identifier equals <code>EXPO_PUBLIC_PRO_ENTITLEMENT</code> exactly, then prove it with a sandbox purchase that flips a real gate.</p>
+        <div class="ac"><b>Acceptance:</b> a sandbox purchase on a fresh Apple ID unlocks a gated feature and survives a force-quit.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L19 · Key rotation + source maps</span>
+        <h4>Two founder-only hygiene items</h4>
+        <p><b>What:</b> rotate the <code>EXPO_PUBLIC_RAPIDAPI_KEY</code> committed in <code>eas.json</code> (once L10's backfill lands the runtime dependency largely disappears). Set <code>SENTRY_ORG</code>, <code>SENTRY_PROJECT</code>, <code>SENTRY_AUTH_TOKEN</code> as EAS secrets — unsymbolicated stack traces are nearly useless in week one.</p>
+        <div class="ac"><b>Acceptance:</b> old key revoked and media still resolves; a deliberate test error in a preview build appears in Sentry with real file names and line numbers.</div>
+      </div>
+      <div class="spec">
+        <span class="id">L20 · Go-live sequence</span>
+        <h4>The exact order, and why Pro stays dormant for the first 72 hours</h4>
+        <p><b>What, in order:</b> (1) submit the build with subscriptions attached, get App Review approval; (2) confirm Paid Apps Agreement is Active; (3) sandbox-purchase test via TestFlight with <code>pro_enabled.test_user_ids=[your uid]</code>; (4) set <code>tester_tools:false</code>; (5) release publicly with <code>enabled:false</code> — <b>Pro dormant for ~72 hours</b>; (6) watch onboarding completion and crash rate; (7) flip <code>enabled:true</code>.</p>
+        <p><b>Why:</b> the dormant window separates two failure modes. If people churn while Pro is off, the product is the problem. If they churn after you flip it, the paywall is. Blending them costs weeks of wrong conclusions — and flipping the flag needs no build, so this costs you nothing but patience.</p>
+        <div class="ac"><b>Acceptance:</b> a public user on day 1 sees zero paywalls, zero locks and no Tester Tools row.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 29 — THE QUEUE ===================== -->
+<section id="launch-queue">
+  <div class="wrap">
+    <div class="secHead"><span class="num">29</span><h2>The Launch Queue — ordered</h2></div>
+    <p class="subhead">Work top to bottom. Each row is roughly one Sonnet session or one founder task. Do not start Part II until every 🔴 and 🟠 row is closed.</p>
+
+    <div class="tableWrap" style="margin-bottom:22px;">
+      <table style="min-width:770px;">
+        <thead><tr><th style="width:52px;">ID</th><th>Item</th><th style="width:104px;">Owner</th><th style="width:74px;">Blocks</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="4">Wave 1 — founder-only, start today; the money items wait on these</td></tr>
+          <tr><td class="sc c9 mono">—</td><td class="cat"><b>Paid Apps Agreement → Active</b> (bank + tax). No purchase works until this is done.</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c9 mono">L18</td><td class="cat">Verify RevenueCat entitlement ID matches exactly</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c9 mono">L19</td><td class="cat">Sentry source-map secrets; rotate RapidAPI key</td><td>Founder</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr class="grp"><td colspan="4">Wave 2 — retention completeness (build first; they change what the paywall can promise)</td></tr>
+          <tr><td class="sc c9 mono">L21</td><td class="cat"><b>Pause / vacation mode</b> — its own session, four systems touched</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c8 mono">L22</td><td class="cat">Returning-user Home heroes (3 / 7 / 14 / 30 day)</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">L23</td><td class="cat">Honest empty states across 7 screens</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">L24</td><td class="cat">Achievement unlock celebration moments</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
+          <tr class="grp"><td colspan="4">Wave 3 — money (build together, ship in one build)</td></tr>
+          <tr><td class="sc c8 mono">L1</td><td class="cat">Rolling auto-schedule horizon gate</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">L2</td><td class="cat">Conflict detection + auto-reschedule gate</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">L3</td><td class="cat">purchases.ts — paid intro offers</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c8 mono">L4</td><td class="cat">Paywall shows the real charged price</td><td>Sonnet</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c8 mono">L5</td><td class="cat">Savings math + payment/trial card branch</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">§25</td><td class="cat"><b>Paywall rebuild</b> — hero, week strip, 3 cards, collapsed compare, dark treatment</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">L6</td><td class="cat">Founding end-date banner from <code>app_config</code></td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
+          <tr><td class="sc c8 mono">L7 · L8</td><td class="cat">Paywall frequency cap; onboarding paywall lands after plan preview</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c8 mono">—</td><td class="cat">Create the $19.99 intro offer (ASC + Play); remove the annual free trial</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr class="grp"><td colspan="4">Wave 4 — craft, content &amp; the growth loop</td></tr>
+          <tr><td class="sc c7 mono">L10</td><td class="cat">Exercise instructions backfill (1,285 rows)</td><td>Sonnet + Founder</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c7 mono">L27</td><td class="cat">Public share previews + universal links (the growth loop)</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c7 mono">L25</td><td class="cat">Progress-photo timeline + compare + share image</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c7 mono">L26</td><td class="cat">Social that works at n=1 (leaderboard vs your own weeks)</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
+          <tr><td class="sc c7 mono">L11 · L14</td><td class="cat">Goal expectation copy; split Terms and Privacy</td><td>Sonnet</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c7 mono">L12 · L13</td><td class="cat">Accessibility batch; multi-calendar reconnect prompt</td><td>Sonnet</td><td><span class="pill p-med">🟡</span></td></tr>
+          <tr><td class="sc c6 mono">L28</td><td class="cat">Apple Health export (needs a native rebuild)</td><td>Sonnet + Founder</td><td><span class="pill p-med">🟡</span></td></tr>
+          <tr class="grp"><td colspan="4">Wave 5 — you cannot launch without seeing it work</td></tr>
+          <tr><td class="sc c9 mono">L16</td><td class="cat">Analytics completeness + real PostHog key</td><td>Sonnet + Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c9 mono">L17</td><td class="cat">On-device verification sweep (3 scenarios)</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+          <tr><td class="sc c9 mono">L15</td><td class="cat">Store listing rewrite + wedge screenshots</td><td>Founder</td><td><span class="pill p-high">🟠</span></td></tr>
+          <tr><td class="sc c9 mono">L20</td><td class="cat">Go-live sequence: submit → approve → 72h dormant → flip</td><td>Founder</td><td><span class="pill p-crit">🔴</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout gold">
+      <span class="lab">Definition of done for v1</span>
+      <p style="margin:0;">A stranger installs Tempo, connects a calendar, sees their real week with training placed in the gaps, runs a full session without a crash, comes back the next day to a plan that still makes sense, goes away for a week and returns to an app that <em>handled it</em>, hits a calendar conflict in week two, is offered Pro at exactly that moment for $19.99 for the year, and can pay. <b>Every event in that sentence is visible to you in PostHog the day it happens.</b> That is the launch bar. Nothing else in this document is the launch bar.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PART II BANNER ===================== -->
+<div class="wrap partWrap" id="part2">
+  <div class="partBanner amber">
+    <div class="pn">Part II of II — after v1 is public, and not one day before</div>
+    <h2>Money, Marketing &amp; What Comes Next</h2>
+    <p>Part I gets a finished product into the store. This Part answers the three questions that decide whether it becomes a business: <b>will anyone actually pay for Pro</b> (§30 — your instinct is right, and here's the diagnosis), <b>how do you get users with almost no money</b> (§31 — one route, chosen, with a week-by-week start), and <b>what do you build next</b> (§32 — gated on real numbers, not enthusiasm). Nothing here should consume a single hour before the §29 queue is closed.</p>
+  </div>
+</div>
+
+<!-- ===================== 30 — WILL ANYONE BUY PRO ===================== -->
+<section id="money">
+  <div class="wrap">
+    <div class="secHead"><span class="num">30</span><h2>Will Anyone Actually Buy Pro?</h2></div>
+    <p class="subhead">You said you feel nobody would buy Pro, and framed it as just your opinion. It isn't. It's the single most accurate product observation in this entire document, and it has a specific, fixable cause.</p>
+
+    <div class="callout" style="margin-bottom:22px;">
+      <span class="lab">The delete test</span>
+      <p style="margin:0 0 10px;font-size:16px;"><b>If Tempo Pro vanished overnight, not one free user's experience would get worse.</b></p>
+      <p style="margin:0;">That's the whole problem in one sentence. Everything currently behind the gate is an <em>accessory</em> — a plate calculator (free in Strong and Hevy), a muscle map (a nice-to-have), travel mode (used a few times a year), themes (cosmetic), creation caps most users never reach because most users never build a custom exercise. None of it is load-bearing. A subscription that removes nothing from the free experience isn't a subscription, it's a <b>tip jar with a feature list attached</b> — and users are very, very good at detecting tip jars.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 6px;">30.1 — Why it happened, and the exact fix</h3>
+    <div class="grid2" style="align-items:start;margin-bottom:20px;">
+      <div class="card">
+        <span class="lab">The trap you fell into</span>
+        <p style="font-size:14.6px;">You were correctly warned not to gate the wedge — auto-scheduling is the hook, and Fitbod's paywall-the-engine model creates real funnel friction. But "don't gate the wedge" got applied as <b>"gate everything except the wedge,"</b> which left Pro as a pile of leftovers. The correct move was always to split the wedge in half along the axis of <em>effort</em>: the free user gets the magic <b>once</b>; the paying user never thinks about it <b>again</b>.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Why the fix works</span>
+        <p style="font-size:14.6px;">People pay to <b>stop doing something repeatedly</b>. Not for more features, not for more charts, not for more data. Tempo's user re-plans their week every single week — because calendars change every single week. L1 and L2 in Part I put the gate exactly on that repetition. It converts because the pain is recurring, and it retains because the pain never goes away. <b>That is the only shape a consumer subscription has ever worked in.</b></p>
+      </div>
+    </div>
+
+    <div class="find win" style="margin-bottom:22px;">
+      <h4><span class="pill p-win">The one-line pitch you should be able to make</span></h4>
+      <p><b>Free Tempo plans your week. Pro Tempo keeps it planned.</b> If a user can't repeat that back to you after seeing the paywall, the paywall has failed — regardless of how good it looks. Test this on five real humans before launch; it takes ten minutes and it is worth more than any A/B test you'll run this year.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 6px;">30.2 — What $1,000/month actually requires</h3>
+    <p class="subhead" style="margin-bottom:14px;">Assumptions: Apple/Google Small Business rate (15%, correct until you pass $1M/yr), a 70/30 annual-to-monthly mix, monthly at $4.99, annual at the founding $19.99 in year one.</p>
+
+    <div class="tableWrap" style="margin-bottom:18px;">
+      <table style="min-width:660px;">
+        <thead><tr><th>Scenario</th><th style="width:118px;">Net / sub / mo</th><th style="width:132px;">Subs for $1,000/mo</th><th style="width:150px;">Installs needed @ 4%</th></tr></thead>
+        <tbody>
+          <tr><td class="cat">All monthly, $4.99</td><td class="sc c7">$4.24</td><td class="sc c8">236</td><td>~5,900</td></tr>
+          <tr><td class="cat"><b>70/30 mix @ $19.99 first year</b> ← recommended</td><td class="sc c6">$2.26</td><td class="sc c6">442</td><td>~11,000</td></tr>
+          <tr><td class="cat">70/30 mix @ $14.99 first year</td><td class="sc c5">$2.02</td><td class="sc c5">496</td><td>~12,400</td></tr>
+          <tr><td class="cat">Year 2 — same people, renewing at $34.99</td><td class="sc c8">$3.01</td><td class="sc c9">333</td><td>— (already yours)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="find high" style="margin-bottom:18px;">
+      <h4><span class="pill p-high">Read that last row again</span></h4>
+      <p>The <b>same subscriber base earns 47% more in year two</b>, for zero additional marketing. That single fact should govern every decision you make in the next twelve months. It means the founding discount is not lost revenue — it's a deposit. It also means <b>retention is your pricing strategy</b>: every user who churns in month three takes the $34.99 renewal with them, which is why Part I spends an entire section (§26) on pause mode and returning-user heroes rather than on new features. A cheap first year only works if there <em>is</em> a second year.</p>
+    </div>
+
+    <div class="callout gold" style="margin-bottom:22px;">
+      <span class="lab">The honest timeline — say it out loud before you start</span>
+      <p style="margin:0 0 10px;"><b>$1,000/month is a 6–9 month goal, not a launch-month goal.</b> Anyone who tells you otherwise is selling a course. Roughly what the path looks like with one working organic channel and no ad spend:</p>
+      <div class="kpiRow" style="margin-top:14px;">
+        <div class="kpi bad"><div class="v">$10–50</div><div class="l"><b>Month 1</b><br>300–800 installs · 5–20 subs</div></div>
+        <div class="kpi warn"><div class="v">$150–250</div><div class="l"><b>Month 3</b><br>~2–3k installs · 60–100 subs</div></div>
+        <div class="kpi blue"><div class="v">$500–900</div><div class="l"><b>Month 6</b><br>~8–12k installs · 250–400 subs</div></div>
+        <div class="kpi good"><div class="v">$1k–2k</div><div class="l"><b>Month 12</b><br>+ year-2 renewals begin</div></div>
+      </div>
+      <p style="margin:14px 0 0;font-size:14.2px;">Those bands assume the §31 channel works. If month 3 is under $50 with real distribution effort behind it, the problem is the product or the pitch — not the volume — and §33's kill criteria tell you which.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">30.3 — The five levers, ranked by money</h3>
+    <div class="tiers">
+      <div class="tier">
+        <div class="th"><h3>1 · Fix the trigger <span class="pill p-crit" style="margin-left:8px;">biggest by far</span></h3><span class="roi hi">Part I · L1+L2</span></div>
+        <div class="body"><ul>
+          <li><b>Move the gate onto the weekly repetition.</b> Every other lever multiplies a conversion rate that is currently near zero. Doubling traffic to a paywall nobody wants doubles nothing.<span></span><span></span></li>
+        </ul></div>
+      </div>
+      <div class="tier">
+        <div class="th"><h3>2 · Retention, because year two is the real revenue</h3><span class="roi hi">Part I · §26</span></div>
+        <div class="body"><ul>
+          <li><b>Pause mode, returning-user heroes, unlock moments.</b> A 47% ARPU increase sitting behind "do these people still exist in 12 months." Cheaper than acquiring anyone new.<span></span><span></span></li>
+        </ul></div>
+      </div>
+      <div class="tier">
+        <div class="th"><h3>3 · Annual-first with a real founding deadline</h3><span class="roi hi">Part I · §24.2</span></div>
+        <div class="body"><ul>
+          <li><b>Annual subscribers retain far better than monthly</b> and pay upfront — which for a solo developer is also cash-flow. The deadline converts fence-sitters who would otherwise "decide later," i.e. never.<span></span><span></span></li>
+        </ul></div>
+      </div>
+      <div class="tier">
+        <div class="th"><h3>4 · Volume — one channel, done properly</h3><span class="roi md">§31</span></div>
+        <div class="body"><ul>
+          <li><b>11,000 installs is the number.</b> It's reachable organically in 6–9 months with a repeatable format. It is not reachable by launching and hoping.<span></span><span></span></li>
+        </ul></div>
+      </div>
+      <div class="tier">
+        <div class="th"><h3>5 · A second, higher tier — later</h3><span class="roi md">§32 · month 4+</span></div>
+        <div class="body"><ul>
+          <li><b>Tempo Coach at $9.99/mo</b> once it genuinely exists. A higher tier is the only way ARPU goes up without raising prices on existing users, and coaching is the one thing in this category people demonstrably pay real money for (RP charges $35/mo; Caliber charges $19–200). <b>Do not build it before month 4</b> — see §32.<span></span><span></span></li>
+        </ul></div>
+      </div>
+    </div>
+
+    <div class="find med" style="margin-top:20px;">
+      <h4><span class="pill p-med">On lifetime pricing — the tempting mistake</span></h4>
+      <p>Strong and Hevy both offer lifetime tiers and it will be tempting, because a $79.99 lifetime purchase feels enormous when your MRR is $40. <b>Don't do it at launch.</b> Pre-PMF, a lifetime sale converts your single highest-value customer — the one who loves the product enough to commit forever — into a one-time payment, permanently. Revisit at month 6 as a <em>limited</em> drop (100 units, once) if you need a cash injection, and never as a standing option.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 31 — MARKETING ===================== -->
+<section id="marketing">
+  <div class="wrap">
+    <div class="secHead"><span class="num">31</span><h2>Marketing — the route, and how to begin</h2></div>
+    <p class="subhead">You said you have no idea how to market and want to spend as close to nothing as possible. Good — that constraint eliminates most of the bad options for you. Here is one chosen route, why it's the right one for <em>this specific app</em>, and exactly what to do on day one.</p>
+
+    <h3 style="font-size:19px;margin:8px 0 10px;">31.1 — What to reject first</h3>
+    <p class="subhead" style="margin-bottom:14px;">Deciding what you will <em>not</em> do is most of the strategy, because a solo founder's real budget is hours, not dollars.</p>
+    <div class="tableWrap" style="margin-bottom:22px;">
+      <table style="min-width:640px;">
+        <thead><tr><th style="width:190px;">Channel</th><th style="width:80px;">Verdict</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td class="cat">Paid ads (Meta / TikTok / Apple Search)</td><td><span class="pill p-crit">No</span></td><td>Fitness app installs cost roughly $3–6 each. $1,000 buys ~200 installs → ~8 subscribers → ~$18/month. You would be paying $1,000 to earn $18/month, <em>and</em> you don't yet know your LTV, so you can't even tell if it's working. Revisit only after 100 paying subs (§31.8).</td></tr>
+          <tr><td class="cat">Paying influencers</td><td><span class="pill p-crit">No</span></td><td>A 50k-follower fitness creator quotes $300–1,500 per post and typically delivers a spike, not a curve. You cannot afford to learn this lesson twice. Free seeding (§31.7) captures most of the upside at zero cost.</td></tr>
+          <tr><td class="cat">Press / PR outreach</td><td><span class="pill p-crit">No</span></td><td>Tech press does not cover indie app launches. You will spend two weeks writing emails nobody opens.</td></tr>
+          <tr><td class="cat">Product Hunt</td><td><span class="pill p-med">Do it, once</span></td><td>Free, one afternoon, a few hundred installs and some early reviews. But it's an <em>event</em>, not a channel — the audience is builders, not people who go to the gym. Don't confuse the spike with traction.</td></tr>
+          <tr><td class="cat">A blog / SEO</td><td><span class="pill p-med">Later</span></td><td>Real, but 9–18 months to compound and it's a different craft. Not your first channel.</td></tr>
+          <tr><td class="cat"><b>Short-form video</b> (TikTok / Reels / Shorts)</td><td><span class="pill p-win">Yes</span></td><td>The only zero-cost channel where an unknown account still gets genuine distribution — and the one that requires the thing most apps don't have and you do. See below.</td></tr>
+          <tr><td class="cat"><b>ASO</b> (App Store optimization)</td><td><span class="pill p-win">Yes</span></td><td>Free, compounding, mostly a one-time job. Every install from every other channel also improves it.</td></tr>
+          <tr><td class="cat"><b>Communities</b> (Reddit et al.)</td><td><span class="pill p-win">Yes</span></td><td>Slow, small, but the highest-intent users you will ever get, and they write your first reviews.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout blue" style="margin-bottom:22px;">
+      <span class="lab">Why short-form video, specifically for Tempo</span>
+      <p style="margin:0 0 10px;">Most apps fail on this channel for one reason: <b>they have nothing to show in eight seconds.</b> A workout logger cannot be demonstrated — watching someone type "3 sets of 10" is not content. Meal trackers, habit apps, budget apps: same problem.</p>
+      <p style="margin:0;"><b>Tempo has a visual trick.</b> A calendar full of real life — work, school, a dentist appointment — and then training slots itself into the gaps. That is comprehensible with the sound off, in under eight seconds, by someone who has never heard of you. <b>That is the rarest and most valuable asset in consumer app marketing</b>, you already own it, and you are currently not using it anywhere: not on the store page, not on the paywall, not in a single video. Everything below is built on it.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 6px;">31.2 — The one hook</h3>
+    <p class="subhead" style="margin-bottom:14px;">Do not invent new concepts every week. Pick one and repeat it until it works or provably doesn't.</p>
+    <div class="card" style="margin-bottom:18px;">
+      <span class="lab">The core video — make this one first, and make it 30 times</span>
+      <p style="font-size:16px;margin-bottom:14px;"><b>"I connected my calendar to my workout app and it planned my entire week around my actual schedule."</b></p>
+      <ul class="clean">
+        <li><b>0.0–1.5s</b> — screen recording of a genuinely busy calendar week. Text on screen from frame one: <em>"my week is insane and I still want to lift"</em></li>
+        <li><b>1.5–4s</b> — tap Connect. Sessions animate into the gaps between real events.</li>
+        <li><b>4–7s</b> — cut to the Home day-timeline. Text: <em>"it knows I'm free Tuesday at 7."</em></li>
+        <li><b>7–9s</b> — one line of payoff: <em>"I haven't planned a workout in three weeks."</em></li>
+        <li><b>Caption:</b> the promise, plainly. <b>No link in the video.</b> Link in bio only.</li>
+      </ul>
+      <p style="font-size:14px;margin:14px 0 0;color:var(--text-2);">Shot on your own phone, on your own real calendar. Do not mock it up — the authenticity of a genuinely chaotic real week <em>is</em> the hook. A polished fake performs worse.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 10px;">31.3 — The five formats you rotate</h3>
+    <div class="stack" style="margin-bottom:22px;">
+      <div class="spec"><span class="id">Format 1 — The demo</span><h4>The hook above, re-cut with different calendars, different weeks, different sounds</h4><p>Your bread and butter. ~50% of everything you post. Vary the <em>first line of text</em>, not the video — that's where reach is won or lost.</p></div>
+      <div class="spec"><span class="id">Format 2 — The problem</span><h4>Talking to camera, 15 seconds, no app until the end</h4><p><em>"You don't skip workouts because you're lazy. You skip them because at 6pm you don't know if you have time, and deciding is the hard part."</em> → then the demo. This format reaches people who would scroll past an app demo, and it's what makes strangers comment. Comments are reach.</p></div>
+      <div class="spec"><span class="id">Format 3 — Build in public</span><h4>"Day 63 of building a fitness app alone. Today I fixed…"</h4><p>Attracts builders more than gym-goers, so it converts to <em>audience</em> rather than installs — but that audience gives you honest feedback, early reviews, and the occasional post that breaks out. ~15% of posts. Cross-post to X and Threads where this format performs disproportionately.</p></div>
+      <div class="spec"><span class="id">Format 4 — Results</span><h4>Real progress photos, streaks, PR moments</h4><p>Requires L25 (photo compare) and L24 (unlock moments) from Part I — which is exactly why they're launch items and not roadmap items. Your own 8-week comparison is the strongest single piece of content you will ever post. Later, user results with permission.</p></div>
+      <div class="spec"><span class="id">Format 5 — Comment replies</span><h4>Reply to every comment with a video</h4><p>The single highest-reach, lowest-effort format on TikTok, and almost nobody does it consistently. "How does it handle night shifts?" is a free 20-second video with built-in distribution. Answer <em>everything</em>, especially the sceptical ones.</p></div>
+    </div>
+
+    <h3 style="font-size:19px;margin:26px 0 10px;">31.4 — The rules (this is where people fail)</h3>
+    <div class="grid2" style="align-items:start;margin-bottom:22px;">
+      <div class="card">
+        <span class="lab">Non-negotiable</span>
+        <ul class="clean">
+          <li><b>2 posts a day, every day, for 60 days.</b> Same video to TikTok, Reels and Shorts. Export from the source file, never re-download with a watermark — watermarked reposts get suppressed.</li>
+          <li><b>Hook in 1.5 seconds.</b> Text on screen in frame one. No intros, no logo, no "hey guys."</li>
+          <li><b>Iterate the winner, don't chase novelty.</b> When something works, make ten more of it. Originality is not the goal; distribution is.</li>
+          <li><b>Expect 50–100 posts before one hits.</b> That is the actual price of this channel, and it's paid in evenings rather than dollars. Most people quit at 15.</li>
+          <li><b>Never delete a video that flopped.</b> Old posts on these platforms resurface months later.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="lab">The signal you're watching for</span>
+        <p style="font-size:14.6px;margin-bottom:10px;"><b>Any single video over ~20,000 views is a format that works.</b> That's the whole measurement. When it happens: stop posting everything else and make ten variations of that exact video that week.</p>
+        <p style="font-size:14.6px;margin-bottom:10px;">Track only three numbers weekly: <b>views</b>, <b>profile visits</b>, <b>installs</b> (App Store Connect → Sources). Ignore likes and followers entirely — they are not correlated with installs and they will distract you for months if you let them.</p>
+        <p style="font-size:14.6px;margin:0;">If 60 days and ~120 posts produce no video over 20k, the hook is wrong — not the channel. Change the <em>first line</em>, not the strategy. See §33.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">31.5 — The first eight weeks, concretely</h3>
+    <div class="tableWrap" style="margin-bottom:22px;">
+      <table style="min-width:700px;">
+        <thead><tr><th style="width:104px;">When</th><th>Do exactly this</th></tr></thead>
+        <tbody>
+          <tr><td class="cat">Week −2<br><span class="mono" style="font-size:11px;color:var(--text-3)">before launch</span></td><td>Create the accounts (same handle everywhere — check availability before you commit). Post <b>10 videos before the app is live</b>, mostly Format 3 (build in public) plus two demos. <b>Reason:</b> a brand-new account posting its first-ever video on launch day gets throttled reach. Warm accounts get distribution; cold accounts get 200 views. Put "launching soon" in the bio.</td></tr>
+          <tr><td class="cat">Week 1</td><td>Launch. Post the demo <b>daily</b>. Do the Product Hunt launch on day 2 (Tuesday–Thursday, 12:01am PT). Message every friend, gym acquaintance and group chat individually — not a broadcast — and ask specifically for a <b>review</b>, not an install. <b>Target: 30 reviews.</b> Early ratings drive store rank harder than anything else you control.</td></tr>
+          <tr><td class="cat">Week 2</td><td>Keep posting. Start Format 5 (comment replies) — by now you'll have comments. Write down every question people ask; those questions are your next 20 videos and your next 5 features.</td></tr>
+          <tr><td class="cat">Week 3–4</td><td><b>Communities</b> (§31.6). One post per subreddit per week, maximum. Meanwhile keep the 2/day video cadence — communities are a supplement, never a substitute.</td></tr>
+          <tr><td class="cat">Week 5–6</td><td><b>Free creator seeding</b> (§31.7). Generate App Store Offer Codes, DM 30 small creators. Expect 3–5 replies and 1–2 posts. That's a normal, good outcome.</td></tr>
+          <tr><td class="cat">Week 7–8</td><td><b>Cut and concentrate.</b> Look at the three numbers. Whatever produced installs, do only that. Whatever didn't, stop entirely — including formats you personally like. This is the week most founders refuse to do the obvious thing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">31.6 — Communities: where, and the one rule</h3>
+    <div class="grid2" style="align-items:start;margin-bottom:18px;">
+      <div class="card">
+        <span class="lab">The rule that stops you getting banned</span>
+        <p style="font-size:14.6px;"><b>Participate twenty times before you post once.</b> Answer questions, be useful, build comment history. Then post as a <em>story</em> — "I kept skipping workouts because I never knew when I had time, so I built this" — with a screenshot. Read each subreddit's self-promotion rules first; several will remove a link in the body but allow it in a comment or your profile. Getting banned from r/Fitness is permanent and costs you the best audience you have.</p>
+      </div>
+      <div class="card">
+        <span class="lab">Where to actually go</span>
+        <ul class="clean">
+          <li><b>Highest fit:</b> r/workout · r/fitness30plus · r/xxfitness · r/homegym · r/naturalbodybuilding</li>
+          <li><b>The underrated one:</b> <b>r/ADHD</b> and r/getdisciplined. "I can't decide when to train, so I don't train" is a defining, constantly-discussed pain there — and Tempo removes the decision entirely. This is the closest thing you have to a perfect audience-product match and almost no fitness app is talking to them.</li>
+          <li><b>Also:</b> r/productivity · r/iosapps · r/androidapps · r/SideProject · r/EntrepreneurRideAlong</li>
+          <li><b>Beyond Reddit:</b> two or three local-gym Facebook groups, and any Discord for lifters that allows it. Small, but these people write reviews and tell friends.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">31.7 — Free creator seeding (offer codes)</h3>
+    <div class="card" style="margin-bottom:22px;">
+      <p style="font-size:14.6px;margin-bottom:12px;">App Store <b>Offer Codes</b> are free and you can generate up to a million a year. Generate a batch granting <b>one year of Pro</b>, then DM creators with <b>5k–50k followers</b> in the fitness × productivity overlap — busy-parent lifters, shift workers, med students who train, "gym + 9-to-5" accounts. Not the big ones; the small ones reply.</p>
+      <p style="font-size:14.6px;margin-bottom:12px;"><b>The message (short, no pitch deck, no attachment):</b></p>
+      <p class="mono" style="font-size:13px;background:var(--ink-3);padding:14px 16px;border-radius:10px;margin:0 0 12px;color:var(--text-2);">"Hey — I built a workout app that plans your training around your actual calendar (I'm a solo dev, this is my first app). Your content on training around a full-time job is exactly the person I built it for. Here's a free year, no strings, no post required: [CODE]. If you hate it I'd genuinely like to know why."</p>
+      <p style="font-size:14.4px;margin:0;color:var(--text-2);"><b>Why "no post required" is not naïve:</b> it removes the transactional framing that gets these DMs ignored, and a creator who posts unprompted makes far better content than one fulfilling an obligation. Send 30, expect 3–5 replies and 1–2 posts. Every reply is also free product feedback from someone who understands the audience better than you do.</p>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">31.8 — ASO: the one-time job worth doing properly</h3>
+    <div class="grid2" style="align-items:start;margin-bottom:18px;">
+      <div class="card">
+        <span class="lab">Fields</span>
+        <ul class="clean">
+          <li><b>Title (30 chars):</b> <code>Tempo: Workout Planner</code> — the keyword must be in the title; it's weighted more than anything else.</li>
+          <li><b>Subtitle (30 chars):</b> <code>Train around your real week</code></li>
+          <li><b>Keywords (100 chars, comma-separated, no spaces):</b> <code>planner,gym,schedule,calendar,routine,split,training,plan,lifting,strength,tracker,program</code> — never repeat words already in the title, and never use "app" or "fitness" (unwinnable, and wasted characters).</li>
+          <li><b>Screenshots 1–2 carry ~90% of the decision.</b> #1 must be the calendar week with training slotted in, captioned. Not a feature collage.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="lab">Ratings — the lever you're not pulling</span>
+        <p style="font-size:14.6px;">Ratings influence store rank more than any copy change. Use the native StoreKit review prompt, triggered <b>after the third completed workout</b> — never on launch, never after a crash, never during onboarding. Apple allows three prompts per year per user; spend them at genuine high points. <b>Getting from 0 to 30 ratings is worth more than your next three features.</b></p>
+        <p style="font-size:14.6px;margin:0;"><b>If you ever spend money:</b> only after 100 paying subs and a known LTV. Then Apple Search Ads only, exact-match on your own brand plus two or three competitor names, $10/day hard cap. Nothing else.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:19px;margin:30px 0 10px;">31.9 — The loops inside the product (your best marketing)</h3>
+    <p class="subhead" style="margin-bottom:14px;">These cost nothing per install and compound. Two of them are Part I items <em>because</em> they're marketing infrastructure, not features.</p>
+    <ul class="clean" style="margin-bottom:14px;">
+      <li><b>Public share links (L27)</b> — every shared workout becomes a landing page a logged-out stranger can actually see. Today it dead-ends at a sign-in wall, which converts at roughly zero. This is the highest-ROI marketing work in the entire document.</li>
+      <li><b>Progress-photo compare + share image (L25)</b> — the most shareable artifact a fitness app can produce, and currently users can put photos in and get nothing out.</li>
+      <li><b>Streak / PR / unlock share cards (L24)</b> — celebration moments are natural share prompts. Every share card carries the wordmark.</li>
+      <li><b>Friend codes</b> — already built and genuinely good. Surface it after the first completed workout, not buried in a settings screen.</li>
+      <li><b>Referral ("give a month, get a month")</b> — a Part II build (§32), not a launch item. Referral only works once you have users worth referring <em>to</em>.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===================== 32 — POST-LAUNCH ROADMAP ===================== -->
+<section id="future">
+  <div class="wrap">
+    <div class="secHead"><span class="num">32</span><h2>The Post-Launch Roadmap</h2></div>
+    <p class="subhead">Gated on real numbers, not enthusiasm. Each phase has an entry condition — if the condition isn't met, you do not advance, you fix the previous phase. The failure mode this guards against is the one this whole document keeps flagging: building faster than you validate.</p>
+
+    <div class="tiers">
+      <div class="tier">
+        <div class="th"><h3>Phase 1 · Months 1–2 — <span style="color:var(--ember)">Don't build. Watch.</span></h3><span class="roi hi">Entry: v1 is public</span></div>
+        <div class="body"><ul>
+          <li><b>Read the funnel every single day.</b> Where does onboarding leak? What's day-7 retention? Which paywall context converts?<span class="roi hi">critical</span><span></span></li>
+          <li><b>Fix only what the data and reviews say is broken.</b> Nothing else.<span class="roi hi">critical</span><span></span></li>
+          <li><b>Reply to every review and every support email personally.</b> Your first 100 users will tell you the roadmap if you let them.<span class="roi hi">high</span><span></span></li>
+          <li><b>Ship small fixes weekly via OTA.</b> Visible responsiveness is itself retention.<span class="roi md">med</span><span></span></li>
+          <li>The temptation to build a big new feature in month one is enormous and it is always wrong. You have <em>never</em> had real usage data before; two months of it is worth more than two months of code.<span class="roi hi">discipline</span><span></span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier">
+        <div class="th"><h3>Phase 2 · Months 2–4 — Tempo Coach, the ARPU tentpole</h3><span class="roi hi">Entry: day-7 retention ≥ 25% · 50+ paying subs</span></div>
+        <div class="body"><ul>
+          <li><b>Tempo Coach</b> — conversational reprogramming ("I'm travelling next week", "my shoulder hurts", "make it harder") that <em>actually rewrites the plan</em> and explains why. Everything it needs already exists: the plan engine, adaptation, periodization, exclusions.<span class="roi hi">tentpole</span><span></span></li>
+          <li><b>A second tier at $9.99/mo.</b> The only way ARPU rises without repricing existing users — and coaching is the one thing this category demonstrably pays real money for.<span class="roi hi">revenue</span><span></span></li>
+          <li><b>Referral loop</b> — give a month, get a month. Now there's something worth referring to.<span class="roi md">growth</span><span></span></li>
+          <li>Do <b>not</b> start this before the entry condition. A coach on top of a product people don't retain on is an expensive way to learn nothing.<span class="roi lo">gate</span><span></span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier">
+        <div class="th"><h3>Phase 3 · Months 4–6 — Depth &amp; the social layer that's already designed</h3><span class="roi md">Entry: Phase 2 shipped · 150+ subs</span></div>
+        <div class="body"><ul>
+          <li><b><code>activity_events</code> table</b> — the piece <code>AUDIT.md</code> §2 designed and deferred. Unlocks PR/streak/level feed items and cheap challenge scoring.<span class="roi md">unblocks 3</span><span></span></li>
+          <li><b>Likes on feed items</b> (before comments — comments bring moderation cost you can't staff).<span class="roi md">med</span><span></span></li>
+          <li><b>Weekly friend challenges</b> on top of activity events.<span class="roi md">med</span><span></span></li>
+          <li><b>Home-screen widget</b> — today's session in your day. For a calendar-native app this is unusually high-value: it's a permanent, free surface on the user's home screen and a retention driver in a category where widgets are rare.<span class="roi hi">high</span><span></span></li>
+          <li><b>Apple Health import</b> (weight → <code>body_measurements</code>, source-tagged to avoid feedback loops).<span class="roi md">med</span><span></span></li>
+        </ul></div>
+      </div>
+
+      <div class="tier">
+        <div class="th"><h3>Phase 4 · Months 6–12 — Platform &amp; scale</h3><span class="roi lo">Entry: $1k/mo sustained</span></div>
+        <div class="body"><ul>
+          <li><b>Apple Watch app</b> — heavily requested in this category, genuinely expensive. Only worth it once revenue justifies the maintenance surface.<span class="roi md">expensive</span><span></span></li>
+          <li><b>Android parity pass</b> — real device testing, Play-specific bugs, Health Connect.<span class="roi md">med</span><span></span></li>
+          <li><b>Web app</b> for plan editing on a laptop — a genuine differentiator for the "busy professional" wedge, and a real SEO surface.<span class="roi md">med</span><span></span></li>
+          <li><b>Outlook / iCloud calendar support</b> — Google-only quietly excludes most corporate users, which is precisely your target market.<span class="roi hi">wedge</span><span></span></li>
+          <li><b>Blog / SEO</b> — starts compounding around now if planted in Phase 2.<span class="roi lo">slow</span><span></span></li>
+        </ul></div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:22px;">
+      <span class="lab">Do not build these — the standing reject list</span>
+      <p style="margin:0;"><b>Meal / nutrition tracking</b> (a whole second product, and MyFitnessPal exists) · <b>Video exercise demonstrations you film yourself</b> (enormous cost, licensed content covers it) · <b>An AI chatbot that only talks</b> — if it can't rewrite the plan, it's a novelty · <b>Global leaderboards</b> (toxicity, and meaningless at your scale) · <b>Comments before likes</b> (moderation cost) · <b>A wearable</b> · <b>Anything on this list because a single user asked for it in a review.</b> One request is noise; ten requests for the same thing is a roadmap item.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 33 — NUMBERS & KILL CRITERIA ===================== -->
+<section id="numbers">
+  <div class="wrap">
+    <div class="secHead"><span class="num">33</span><h2>Numbers to Watch &amp; When to Change Course</h2></div>
+    <p class="subhead">Five numbers. Not fifty. Written down in advance so you judge the product against a standard you set while calm, rather than against how you feel in week three.</p>
+
+    <div class="tableWrap" style="margin-bottom:22px;">
+      <table style="min-width:720px;">
+        <thead><tr><th style="width:190px;">Number</th><th style="width:104px;">Healthy</th><th style="width:104px;">Worrying</th><th>What it means and what to do</th></tr></thead>
+        <tbody>
+          <tr><td class="cat">Onboarding completion</td><td class="sc c8">&gt;70%</td><td class="sc c3">&lt;50%</td><td>Under 50%, your first-run experience is the whole problem and nothing else matters. Find the leaking step in PostHog and cut it.</td></tr>
+          <tr><td class="cat">Calendar connect rate</td><td class="sc c8">&gt;50%</td><td class="sc c3">&lt;30%</td><td><b>Your most important number.</b> A user who doesn't connect a calendar never experiences Tempo — they're using a mediocre workout logger. If it's low, the ask comes too early or isn't explained.</td></tr>
+          <tr><td class="cat">Day-7 retention</td><td class="sc c8">&gt;25%</td><td class="sc c3">&lt;15%</td><td>The honest verdict on whether the product works. Under 15%, <b>stop all marketing</b> — you'd be pouring users into a bucket with a hole in it, and paying for the privilege of learning that slowly.</td></tr>
+          <tr><td class="cat">Free → paid conversion</td><td class="sc c8">&gt;3%</td><td class="sc c3">&lt;1.5%</td><td>Category median is ~2.9%. Under 1.5% with decent retention means the <em>gate</em> is wrong, not the price. Re-read §30.</td></tr>
+          <tr><td class="cat">Best video (30-day)</td><td class="sc c8">&gt;20k views</td><td class="sc c3">&lt;5k</td><td>Under 5k after ~120 posts, your <em>hook</em> is wrong — not the channel. Change the first line and the first frame, keep the strategy.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2" style="align-items:start;">
+      <div class="card">
+        <span class="lab">Written in advance — the honest triggers</span>
+        <ul class="clean">
+          <li><b>Day-7 under 15% at month 2</b> → the product isn't retaining. Stop building, stop marketing, interview ten churned users personally. Nothing else until you know why.</li>
+          <li><b>Calendar connect under 30%</b> → you're shipping a workout logger. Fix the ask before anything else; the entire thesis depends on this one action.</li>
+          <li><b>Conversion under 1.5% with healthy retention</b> → people love it and won't pay. The gate is on the wrong thing. Move it; don't discount it.</li>
+          <li><b>No video over 5k after 120 posts</b> → change the hook, not the channel. Two more months before reconsidering.</li>
+          <li><b>Month 6 under $200/mo with all of the above healthy</b> → the market is smaller than assumed, or you need a channel with more reach. That's a strategy conversation, not a code one.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="lab">What "success" looks like at month 6</span>
+        <p style="font-size:14.6px;">~10,000 installs · &gt;25% day-7 retention · &gt;3% conversion · ~300 paying subscribers · ~$600–900/month net · one repeatable content format · 100+ ratings above 4.5 · and a clear, evidenced answer to "who is this for."</p>
+        <p style="font-size:14.6px;margin:0;"><b>That is a real business at month 6</b>, and it reaches $1,000/month within a quarter on renewals alone. It is not a spectacular outcome and it isn't supposed to be — spectacular outcomes are what people describe after the fact. This one is reachable from where you are actually standing, with the app you have actually built.</p>
+      </div>
+    </div>
+
+    <div class="callout gold" style="margin-top:22px;">
+      <span class="lab">The last honest thing</span>
+      <p style="margin:0;">The gap between where Tempo is and $1,000/month is <b>not code</b>. You have already built more product than most funded teams ship in a year, and Part I is a few weeks of finishing work — real, but finite and clearly specified. The gap is that <b>nobody knows this app exists, and the one thing it does better than anyone has never been shown to a stranger.</b> That is a distribution problem, and distribution is a skill you can learn in evenings for free. It just takes longer than building, it feels worse while you're doing it, and it has no compiler to tell you when you got it right. Do it anyway — it is the only part of this that isn't optional.</p>
+    </div>
   </div>
 </section>
 
