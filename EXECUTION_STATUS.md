@@ -14,6 +14,20 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+- **NEW (2026-07-22): Feed redesigned into a real notification center.** The old Feed (bottom
+  sheet) recomputed "today's eligible context items" live on every open, so a still-eligible item
+  (Goal ETA, rest-day advice) repeated with identical content every day, and server-sent retention
+  pushes (`notification_log`) were never visible in the app despite already being logged and
+  RLS-readable. Home's own live banner/chip row is unchanged (never the complaint — that's normal
+  dashboard state). New: `lib/feedLog.ts` (a real cooldown-gated local log, 7-day default, so a
+  still-eligible item stops re-appearing daily) + `app/feed.tsx` (a real modal screen merging that
+  log with a live `notification_log` query, sorted newest-first with read/unread state, like an
+  inbox). Deliberately did NOT log local on-device reminders (pre-workout/rest-timer) — scheduling
+  them runs broadly/repeatedly, so logging at schedule time would flood the feed with duplicates.
+  `tsc` clean, full suite green (264/264). Full detail in `ARCHITECTURE.md`'s Home/Feed entry.
+  **Next: Splits/onboarding redesign** (make split creation easy + explained + recommended over
+  per-workout scheduling) — the second item from the founder's original redesign list.
+
 - **NEW (2026-07-20/21): the founder device-testing/bug queue is worked through — 12 fixes, each
   its own commit, `tsc` clean and the full suite green (255/255) throughout.** In order: (1)
   `lib/purchases.ts` no longer loads RevenueCat's native SDK on the web platform target — it was
