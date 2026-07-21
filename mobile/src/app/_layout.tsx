@@ -245,6 +245,7 @@ function RootLayoutInner() {
           <Stack.Screen name="legal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="weekly-report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="feed" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="plan-explainer" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="workout-builder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="edit-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

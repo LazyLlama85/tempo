@@ -47,7 +47,8 @@ import { getQuickSuggestion } from '@/lib/quickSuggestion'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { describeSession } from '@/lib/sessionRationale'
 import { trackCalendarConnected } from '@/lib/activation'
-import { feedItemKey, getSeenFeedItems, markFeedItemsSeen, getSeenSocialCount, setSeenSocialCount } from '@/lib/feedSeen'
+import { getSeenSocialCount, setSeenSocialCount } from '@/lib/feedSeen'
+import { logFeedItem, getFeedLog, getLastReadAt, isUnread } from '@/lib/feedLog'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
 import { getTodayCheckin } from '@/lib/recovery'
@@ -62,7 +63,7 @@ import type { WorkoutSource } from '@/types'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
-import { OptionSheet, type OptionSheetItem } from '@/components/OptionSheet'
+import { OptionSheet } from '@/components/OptionSheet'
 import { TempoSheet } from '@/components/TempoSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 
@@ -237,7 +238,6 @@ export default function ScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [rescheduling, setRescheduling] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
-  const [feedOpen, setFeedOpen] = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<ScheduledWorkout | null>(null)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
@@ -1555,39 +1555,74 @@ export default function ScheduleScreen() {
   const eligibleContext = contextItems.filter(i => i.eligible)
   // The banner slot goes to the top-priority eligible item that isn't chip-only;
   // everything else eligible (including any chip-only item that would otherwise
-  // have won) becomes a chip, in the same priority order.
+  // have won) becomes a chip, in the same priority order. This — Home's own
+  // live status display — is completely unchanged by the Feed redesign below;
+  // it was never the "same content every day" complaint (that's about the
+  // separate Feed screen, which used to just re-show this same live list).
   const primaryContext = eligibleContext.find(i => !i.chipOnly)
   const overflowContext = eligibleContext.filter(i => i !== primaryContext)
 
-  // Feed button (Phase 8) — aggregates today's eligible context items (every one
-  // of them, not just the overflow chips, so the Feed is a single consolidated
-  // view) + social's pending count. No new backend: both are already computed.
-  // The badge is UNVIEWED items, not just "currently eligible" (fixed 2026-07-17
-  // — it used to just re-show the same count every time, never actually
-  // clearing once looked at). Opening the Feed marks everything currently
-  // showing as seen; each context item is keyed by day (most of them are
-  // legitimately eligible again tomorrow with different content) and social's
-  // count is tracked as an acknowledged number, so only a real increase counts.
-  const seenFeedItems = getSeenFeedItems(userId)
-  const seenSocialCount = getSeenSocialCount(userId)
-  const unseenContextCount = eligibleContext.filter(i => !seenFeedItems.has(feedItemKey(i.id, todayStr))).length
-  const unseenSocialCount = Math.max(0, socialNotifs - seenSocialCount)
-  const feedCount = unseenContextCount + unseenSocialCount
-  const feedOptions: OptionSheetItem[] = [
-    ...eligibleContext.map((i): OptionSheetItem => ({ key: i.id, label: i.chip.label, icon: i.chip.icon })),
-    ...(socialNotifs > 0 ? [{ key: 'friends', label: `Friends — ${socialNotifs} new`, icon: 'people-outline' }] : []),
-  ]
-  const openFeed = () => {
-    setFeedOpen(true)
+  // Feed (2026-07-22 redesign): a real message log (lib/feedLog.ts), not a
+  // live re-render of "what's eligible today." Plain-text body + an optional
+  // routable screen per context item, kept separate from `contextItems`'s own
+  // JSX-heavy `primary()` renderers so Home's live banner is never at risk of
+  // regressing while wiring this up.
+  const feedBodyFor = (id: string): { body: string; screen?: string } => {
+    switch (id) {
+      case 'returning':
+        return { body: returning?.tier === 'd30' ? "It's been a while — let's make sure your plan still fits." : returning?.tier === 'd7' ? 'Welcome back — want a lighter week to ease back in?' : `It's been ${returning?.days ?? 0} days — your next session is ready.` }
+      case 'missed':
+        return { body: `Missed ${missed[0]?.focus ?? 'a workout'}${missed.length > 1 ? ` +${missed.length - 1} more` : ''} — no worries, let's find a new slot.` }
+      case 'reconnect':
+        return { body: 'Google Calendar access expired, so its events stopped showing.', screen: '/calendar-setup' }
+      case 'travel':
+        return { body: travel ? `Workouts adjusted for ${describeTravelEquipment(travel.equipment)} · ${describeTravelUntil(travel.until)}` : '', screen: '/travel-mode' }
+      case 'rest':
+        return { body: restAdvice?.body ?? '' }
+      case 'block':
+        return { body: blockPhase?.progression?.note ?? '', screen: '/plan-explainer' }
+      case 'goal':
+        return { body: projection?.sub ?? '' }
+      case 'report':
+        return { body: 'See how this week stacked up — and share it.', screen: '/weekly-report' }
+      case 'adaptation':
+        return {
+          body: recentAdaptation?.action_taken === 'recovery' || recentAdaptation?.action_taken === 'deload'
+            ? 'We eased things back based on your recent training.'
+            : "You're ready — we've restored your full plan.",
+          screen: '/plan-explainer',
+        }
+      case 'quick':
+        return { body: quickSuggestion?.sub ?? '' }
+      case 'connectCalendar':
+        return { body: 'Let Tempo schedule workouts around your real events.', screen: '/calendar-setup' }
+      default:
+        return { body: '' }
+    }
+  }
+  // Log each currently-eligible item once (lib/feedLog.ts's own cooldown stops
+  // a still-eligible item from re-logging every render/day). Keyed on the
+  // stable id SET, not the array reference, so this doesn't fire on every
+  // render — contextItems/eligibleContext are rebuilt fresh each time.
+  const eligibleIdsKey = eligibleContext.map(i => i.id).join(',')
+  useEffect(() => {
     if (!userId) return
-    markFeedItemsSeen(userId, eligibleContext.map(i => feedItemKey(i.id, todayStr)))
-    setSeenSocialCount(userId, socialNotifs)
-  }
-  const onSelectFeed = (key: string) => {
-    setFeedOpen(false)
-    if (key === 'friends') { router.push('/social' as any); return }
-    contextItems.find(i => i.id === key)?.chip.onPress()
-  }
+    for (const item of eligibleContext) {
+      const { body, screen } = feedBodyFor(item.id)
+      if (!body) continue
+      logFeedItem(userId, { id: `context:${item.id}`, icon: item.chip.icon, title: item.chip.label, body, screen })
+    }
+    // eligibleContext is rebuilt every render; eligibleIdsKey is the real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, eligibleIdsKey])
+
+  // Badge = unread feed messages + social's pending count not yet acknowledged.
+  const feedLog = useMemo(() => getFeedLog(userId), [userId, eligibleIdsKey])
+  const lastReadAt = useMemo(() => getLastReadAt(userId), [userId, eligibleIdsKey])
+  const unreadFeedCount = feedLog.filter(i => isUnread(i, lastReadAt)).length
+  const seenSocialCount = getSeenSocialCount(userId)
+  const unseenSocialCount = Math.max(0, socialNotifs - seenSocialCount)
+  const feedCount = unreadFeedCount + unseenSocialCount
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1608,7 +1643,7 @@ export default function ScheduleScreen() {
           <HeaderActions>
             <TouchableOpacity
               style={styles.feedBtn}
-              onPress={openFeed}
+              onPress={() => router.push('/feed' as any)}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={feedCount > 0 ? `Feed — ${feedCount} new` : 'Feed'}
@@ -2000,15 +2035,6 @@ export default function ScheduleScreen() {
           setShowRecovery(false)
           queryClient.invalidateQueries({ queryKey: ['recovery_today', userId] })
         }}
-      />
-
-      <OptionSheet
-        visible={feedOpen}
-        title="Feed"
-        subtitle={feedOptions.length ? "What's new today." : "Nothing new right now."}
-        options={feedOptions}
-        onSelect={onSelectFeed}
-        onClose={() => setFeedOpen(false)}
       />
 
       <EditWorkoutSheet

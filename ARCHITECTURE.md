@@ -566,6 +566,39 @@ you moving."*
   false only for the "not enough signal yet" fallback (`"Log your weight to see your ETA"`, no real
   countdown in it), true for every genuine projection. The Home chip's eligibility now requires
   `projection?.hasEta`, so the no-signal placeholder never masquerades as an actual "Goal ETA" again.
+  **Feed redesigned into a real notification center (2026-07-22)**, replacing the OptionSheet
+  described above (founder: it just re-showed the same eligible items — "same Goal ETA every day" —
+  with no history, no read state, and none of the actual server-sent retention pushes visible
+  anywhere in the app). `contextItems`/`primaryContext`/`overflowContext` (Home's own live banner +
+  chip row, above) are **completely unchanged** — that's normal live dashboard state, never the
+  complaint. What changed is only what happens with that same eligibility data for the Feed
+  specifically: **`lib/feedLog.ts`** (new) is a real append-only local log — `logFeedItem(userId,
+  item, cooldownMs)` writes an entry once per logical id, then suppresses re-writes for
+  `cooldownMs` (default 7 days) even if the item stays eligible the whole time, so it reads as
+  message history instead of a live mirror. Home's render now calls `feedBodyFor(id)` (plain-text
+  body + an optional routable `screen` per context item, kept separate from `contextItems`'s own
+  JSX `primary()` renderers so the live banner was never at risk while wiring this) and logs each
+  eligible item via a `useEffect` keyed on the eligible-id-set (not the array reference, so it
+  doesn't fire every render). Read/unread state is per-occurrence (`getLastReadAt`/`markRead`/
+  `isUnread` — `item.createdAt > lastReadAt[id]`), so a re-occurrence after the cooldown expires is
+  genuinely unread again even though the same logical id was read once before. **New `app/feed.tsx`**
+  (a real modal screen, not a sheet, since this is now something you browse, not a quick action
+  menu): merges `lib/feedLog.ts`'s local entries with a live query against **`notification_log`**
+  (`status='sent'`, last 30 days) — the server-sent retention pushes (missed_workout,
+  streak_at_risk, weekly_report, etc.) were already logged there and RLS-readable by the owning
+  user, just never read by the client until now (see §4.2's retention-push entry). Tapping an item
+  routes via the same `data.screen` → route mapping `_layout.tsx`'s push-tap listener already uses
+  (`routeForScreen` in `feed.tsx`, kept in sync with that switch by hand — no shared constant yet).
+  The "Friends & invites" row stays a live pinned count (not logged — `fetchSocialNotifCount` has no
+  per-event history to log), still acknowledged via `feedSeen.ts`'s `setSeenSocialCount` on view,
+  matching the old sheet's behavior. **Deliberately NOT logged:** local on-device reminders
+  (pre-workout 30-min alerts, the rest-timer alert) — `scheduleWorkoutReminders` runs broadly and
+  repeatedly across every re-sync for many future workouts, so logging at schedule time would
+  flood the feed with duplicates days before they're relevant, and there's no reliable "it actually
+  fired" callback for a backgrounded local notification without deeper native work. `lib/feedSeen.ts`
+  is trimmed to just the still-used social-count functions (`feedItemKey`/`getSeenFeedItems`/
+  `markFeedItemsSeen` — the old per-day dated-key tracking — deleted, fully superseded by
+  `feedLog.ts`'s per-occurrence read-state). `tsc` clean, full suite green, new `feedLog.test.ts`.
   **Second real gap, fixed 2026-07-17** (founder: "what's the point of goal ETA, there is no ETA, it
   just takes you to momentum"): even with `hasEta` fixed, tapping the collapsed Goal ETA CHIP (i.e.
   when it loses the single-banner slot to something else) just navigated to `/(tabs)/progress` —
@@ -1924,6 +1957,9 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   reads each user's `user_profiles.notification_prefs` and skips any rule the user turned off
   (`reactivation` is always-on and not user-exposed; every other rule defaults on). A missing
   column/row falls back to all-on, so the filter is a safe no-op until the migration is applied.
+  **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
+  screen); until then the table was write-only from the app's perspective despite its own RLS
+  already granting users SELECT on their own rows.
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).
