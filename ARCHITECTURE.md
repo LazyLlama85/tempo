@@ -2214,6 +2214,34 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Launch-queue closeout: analytics, universal-links prep, accessibility (2026-07-22, §16/§26/§27 L12/L16/L27)
+Founder asked to close out everything in the audit that's Sonnet-buildable, not just the Critical rows.
+- **L16 — analytics gaps.** The conflict card (L2, above) had no funnel visibility at all — this
+  document's own audit called "what % of free users ever see a conflict" the monetization forecast,
+  and it wasn't tracked. Added `conflict_detected` (fires once per distinct set of conflicts, not on
+  every re-render — deduped via a ref of the sorted workout-id set), `conflict_resolved_manual`, and
+  `conflict_dismissed`. Also added `plan_generated` (`onboarding/plan-preview.tsx`, right after a
+  successful `generatePlan()` call) — the funnel step between "connected a calendar" and "started a
+  session" that was missing entirely.
+- **L27 — universal-links scaffolding (the deferred half).** Web-side files don't need a rebuild;
+  app-side association does — split accordingly. Added `web/.well-known/apple-app-site-association`
+  and `assetlinks.json` as templates (Apple Team ID and the Android signing-cert SHA-256 fingerprint
+  are founder-only values neither exists in this repo nor is guessable — left as clearly marked
+  placeholders) plus `web/.nojekyll` (harmless insurance; this repo's Pages workflow has no Jekyll
+  step, but `.well-known` is a dotfile path Jekyll excludes by default if that ever changes). Added
+  `ios.associatedDomains` (`applinks:fittempo.app`) and `android.intentFilters` (autoVerify on
+  `https://fittempo.app/w/*`) to `app.json` — inert until the founder fills in the two placeholder
+  values and does the native rebuild already planned for next month; `app/w/[code].tsx`'s existing
+  deep-link handler needs no changes, since expo-router routes a verified universal link through the
+  same handler as the `tempo://` custom scheme.
+- **L12 — accessibility, continued.** Spot-checked the remaining highest-traffic file not yet reviewed
+  this session (`(tabs)/plan.tsx`, the workout runner — 49 touchables, the largest raw count in the
+  app) by reading every touchable, not re-running a static count. Confirms the pattern found earlier
+  in Home and Profile: the overwhelming majority already have either an explicit
+  `accessibilityLabel` or a visible `Text` child a screen reader reads automatically. Found and fixed
+  the two genuine gaps: the week/month range's prev/next chevrons (icon-only, no label at all —
+  labeled `Previous {week|month}` / `Next {week|month}`, dynamic to the active view mode).
+
 ### Paywall rebuild + founding-price plumbing (2026-07-22, PRODUCT_AUDIT.html §24/§25 L3-L8)
 Founder-approved, built alongside the L1/L2 re-gating above so the paywall could sell what actually
 changed. Two classes of work: a real purchase-layer bug fix, and a full visual rebuild.

@@ -1887,10 +1887,20 @@ export default function WorkoutsScreen() {
                   <Ionicons name="repeat-outline" size={18} color={C.primary} />
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => shiftRange(-1)} hitSlop={8}>
+              <TouchableOpacity
+                onPress={() => shiftRange(-1)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Previous ${viewMode}`}
+              >
                 <Ionicons name="chevron-back" size={22} color={C.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => shiftRange(1)} hitSlop={8}>
+              <TouchableOpacity
+                onPress={() => shiftRange(1)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Next ${viewMode}`}
+              >
                 <Ionicons name="chevron-forward" size={22} color={C.textSecondary} />
               </TouchableOpacity>
             </View>

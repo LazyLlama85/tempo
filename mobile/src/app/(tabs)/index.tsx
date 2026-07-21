@@ -419,6 +419,7 @@ export default function ScheduleScreen() {
   )
   const handleDismissConflict = (workoutId: string) => {
     dismissConflict(userId, workoutId)
+    track('conflict_dismissed')
     setDismissTick((t) => t + 1)
   }
   // "Move it myself" — fetches the full row (the conflict card only carries a
@@ -427,8 +428,21 @@ export default function ScheduleScreen() {
   const handleMoveConflict = async (conflict: CalendarConflict) => {
     const { data } = await supabase.from('scheduled_workouts').select('*').eq('id', conflict.workoutId).eq('user_id', userId).maybeSingle()
     if (!data) { Alert.alert('Already changed', 'This session may have already moved.'); return }
+    track('conflict_resolved_manual')
     handleReschedule(data as ScheduledWorkout)
   }
+  // §24/§30 L2's core funnel metric — "what % of free users ever see a
+  // conflict" is the number this document itself calls the monetization
+  // forecast. Fires once per distinct set of conflicts (not on every
+  // re-render while the same ones are still showing).
+  const trackedConflictKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (!activeConflicts.length) return
+    const key = activeConflicts.map((c) => c.workoutId).sort().join(',')
+    if (trackedConflictKey.current === key) return
+    trackedConflictKey.current = key
+    track('conflict_detected', { count: activeConflicts.length })
+  }, [activeConflicts])
 
   // Where the user is in their training block right now — the next plan workout's
   // progression directive plus the plan's adaptation mode. Drives the phase banner

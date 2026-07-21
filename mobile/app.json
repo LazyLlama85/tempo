@@ -18,6 +18,7 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:fittempo.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCalendarsUsageDescription": "Tempo uses your calendar to schedule workouts around your life.",
@@ -38,6 +39,14 @@
       "permissions": [
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "fittempo.app", "pathPrefix": "/w" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {

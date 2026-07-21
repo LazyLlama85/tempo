@@ -146,6 +146,16 @@ export type EventProperties = {
   pause_mode_resumed: undefined
   achievement_unlocked: { key: string; tier: string }
   progress_photo_compared: undefined
+  // §24/§30 L2's free-tier conflict card — the exact funnel this document's
+  // own audit named as "your monetization forecast": what % of free users
+  // ever see a conflict, and what they do about it.
+  conflict_detected: { count: number }
+  conflict_resolved_manual: undefined
+  conflict_dismissed: undefined
+  // §28 L16 — the funnel step between "connected a calendar" and "started a
+  // session": did the plan itself actually get built. Fired once, right after
+  // a successful generatePlan() call in onboarding.
+  plan_generated: { goal: string; days_per_week: number }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

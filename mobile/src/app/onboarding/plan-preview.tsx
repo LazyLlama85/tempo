@@ -235,6 +235,7 @@ export default function PlanPreviewScreen() {
           preferred_duration_min: sessionMin,
           include_cardio: wantsCardio,
         })
+        track('plan_generated', { goal: goal as string, days_per_week: days })
       }
 
       // The plan exists (or the user chose not to have one yet) — NOW the account
