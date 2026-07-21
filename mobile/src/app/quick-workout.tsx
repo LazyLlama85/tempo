@@ -156,8 +156,15 @@ export default function QuickWorkoutScreen() {
   }
   // Target Area chips are mutually exclusive with each other (and with a
   // route-driven targetPattern) — picking one clears whichever mechanism the
-  // previous selection used.
+  // previous selection used. "Pick for me" is an explicit reset to Tempo's
+  // normal purpose-driven pick, not a filter of its own.
   const handlePickTargetArea = (opt: TargetAreaOption) => {
+    if (opt.surprise) {
+      setTargetPattern(undefined)
+      setTargetMuscles(undefined)
+      regenerate(minutes, purpose, currentEquip(), undefined, undefined)
+      return
+    }
     const isActive = opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
     const nextPattern = isActive ? undefined : opt.pattern
     const nextMuscles = isActive ? undefined : opt.muscles
@@ -236,16 +243,23 @@ export default function QuickWorkoutScreen() {
         {/* Duration — one slider instead of eight separate buttons */}
         <View style={styles.durationCard}>
           <Text style={styles.durationBig}>{minutes}<Text style={styles.durationUnit}> min</Text></Text>
-          <Slider
-            value={minutes}
-            min={5}
-            max={60}
-            step={5}
-            onChange={(v) => setMinutes(snapToQuickMinutes(v))}
-            onSlidingComplete={(v) => handlePickMinutes(snapToQuickMinutes(v))}
-            formatValue={(v) => `${snapToQuickMinutes(v)} min`}
-            accessibilityLabel="Workout duration"
-          />
+          {/* durationCard centers its text (alignItems:'center'), which also
+              collapses any child with no explicit width to its content size
+              instead of stretching — the Slider's own track has no width of
+              its own, so it needs an explicit full-width wrapper here rather
+              than relying on the parent's default stretch behavior. */}
+          <View style={styles.sliderWrap}>
+            <Slider
+              value={minutes}
+              min={5}
+              max={60}
+              step={5}
+              onChange={(v) => setMinutes(snapToQuickMinutes(v))}
+              onSlidingComplete={(v) => handlePickMinutes(snapToQuickMinutes(v))}
+              formatValue={(v) => `${snapToQuickMinutes(v)} min`}
+              accessibilityLabel="Workout duration"
+            />
+          </View>
         </View>
 
         {/* Target Area — the primary, beginner-friendly decision (real body
@@ -253,7 +267,9 @@ export default function QuickWorkoutScreen() {
         <Text style={styles.sectionLabel}>TARGET AREA</Text>
         <View style={styles.targetGrid}>
           {TARGET_AREA_OPTIONS.map(opt => {
-            const active = opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
+            const active = opt.surprise
+              ? !targetPattern && !targetMuscles
+              : opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
             return (
               <TouchableOpacity
                 key={opt.key}
@@ -315,17 +331,31 @@ export default function QuickWorkoutScreen() {
               {presets.map((pr) => {
                 const on = selectedPresetId === pr.id
                 return (
-                  <TouchableOpacity
-                    key={pr.id}
-                    style={[styles.presetChip, on && styles.presetChipActive]}
-                    onPress={() => handlePickPreset(pr.id)}
-                    onLongPress={() => setPresetSheet({ open: true, edit: pr })}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
-                    <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
-                    {locked && <Ionicons name="lock-closed" size={11} color={on ? 'rgba(255,255,255,0.9)' : C.gold} />}
-                  </TouchableOpacity>
+                  // A plain View wrapping two separate touch targets, not one
+                  // nested inside the other — long-press-to-edit doesn't exist
+                  // as a gesture on web, so editing needs its own real tap
+                  // target, not just a gesture only native users can find.
+                  <View key={pr.id} style={[styles.presetChip, on && styles.presetChipActive]}>
+                    <TouchableOpacity
+                      style={styles.presetChipMain}
+                      onPress={() => handlePickPreset(pr.id)}
+                      onLongPress={() => setPresetSheet({ open: true, edit: pr })}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
+                      <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
+                      {locked && <Ionicons name="lock-closed" size={11} color={on ? 'rgba(255,255,255,0.9)' : C.gold} />}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.presetChipEdit}
+                      onPress={() => setPresetSheet({ open: true, edit: pr })}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit or delete ${pr.name}`}
+                    >
+                      <Ionicons name="pencil" size={12} color={on ? 'rgba(255,255,255,0.85)' : C.outline} />
+                    </TouchableOpacity>
+                  </View>
                 )
               })}
               <TouchableOpacity style={styles.presetNew} onPress={() => setPresetSheet({ open: true, edit: null })} activeOpacity={0.85}>
@@ -334,7 +364,7 @@ export default function QuickWorkoutScreen() {
               </TouchableOpacity>
             </ScrollView>
             {presets.length > 0 && (
-              <Text style={styles.presetHint}>Long-press a preset to edit. Use “All my gear” for your usual setup.</Text>
+              <Text style={styles.presetHint}>Tap the pencil on a preset to edit or delete it.</Text>
             )}
           </>
         )}
@@ -403,6 +433,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   durationBig: { fontFamily: C.fontDisplay, fontSize: 40, color: C.text, letterSpacing: -1 },
   durationUnit: { fontFamily: 'Inter_500Medium', fontSize: 16, color: C.textSecondary },
+  sliderWrap: { alignSelf: 'stretch', width: '100%' },
 
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
   targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
@@ -433,14 +464,19 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.xs },
   presetRow: { gap: Spacing.xs, paddingRight: Spacing.lg, paddingVertical: 2 },
+  // Used directly (as a single TouchableOpacity) by "All my gear," and as a
+  // container (View wrapping two separate touch targets: select + edit) for
+  // a saved preset — see presetChipMain/presetChipEdit.
   presetChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 170,
+    flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 200,
     backgroundColor: C.background, borderWidth: 1.5, borderColor: C.outlineVariant,
     borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
   },
   presetChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   presetChipText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.text, flexShrink: 1 },
   presetChipTextActive: { color: C.onPrimary },
+  presetChipMain: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  presetChipEdit: { marginLeft: 6, paddingHorizontal: 2, paddingVertical: 2 },
   presetNew: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1.5, borderColor: C.primaryLine, borderStyle: 'dashed',

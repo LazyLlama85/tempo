@@ -98,15 +98,19 @@ export interface TargetAreaOption {
   muscles?: string[]
   /** Cardio isn't a muscle group — reuses the existing pattern-priority mechanism. */
   pattern?: MovementPattern
+  /** "Pick for me" — no filter at all, Tempo's normal purpose-driven pick. Always first. */
+  surprise?: boolean
 }
 
 export const TARGET_AREA_OPTIONS: TargetAreaOption[] = [
-  { key: 'arms', label: 'Arms', icon: 'hand-left-outline', muscles: ARM_MUSCLES },
+  { key: 'surprise', label: 'Pick for me', icon: 'shuffle-outline', surprise: true },
+  { key: 'arms', label: 'Arms', icon: 'barbell-outline', muscles: ARM_MUSCLES },
   { key: 'chest', label: 'Chest', icon: 'shirt-outline', muscles: CHEST_MUSCLES },
   { key: 'back', label: 'Back', icon: 'body-outline', muscles: BACK_MUSCLES },
   { key: 'shoulders', label: 'Shoulders', icon: 'triangle-outline', muscles: SHOULDER_MUSCLES },
+  { key: 'upper_body', label: 'Upper Body', icon: 'man-outline', muscles: [...CHEST_MUSCLES, ...BACK_MUSCLES, ...SHOULDER_MUSCLES, ...ARM_MUSCLES] },
   { key: 'legs', label: 'Legs', icon: 'walk-outline', muscles: LEG_MUSCLES },
-  { key: 'core', label: 'Core', icon: 'ellipse-outline', muscles: CORE_MUSCLES },
+  { key: 'core', label: 'Core', icon: 'disc-outline', muscles: CORE_MUSCLES },
   { key: 'cardio', label: 'Cardio', icon: 'heart-outline', pattern: 'cardio' },
 ]
 
@@ -243,6 +247,16 @@ function selectExercises(
   minutes: QuickMinutes,
   targetPattern: MovementPattern | undefined,
   seed: number,
+  // A muscle-based Target Area (e.g. Arms) can land a pool that's ALL one
+  // movement pattern — Arms' beginner/bodyweight matches are entirely
+  // 'push' (dips, push-ups), and Mobility's own patternPriority doesn't
+  // include 'push' at all (mobility work is stretch-pattern by design).
+  // Without this, an explicit "give me an Arms workout" request could
+  // silently produce ZERO exercises even though matches genuinely exist,
+  // just because the current training style's pattern list doesn't cover
+  // them. When set, this REPLACES the purpose's own priority so a real
+  // muscle-targeted pick always surfaces something.
+  forcePatterns: MovementPattern[] | undefined,
 ): BuiltSelection {
   const budget = minutes * 60
   const MAX = minutes <= 10 ? 4 : minutes <= 20 ? 5 : 8
@@ -258,7 +272,9 @@ function selectExercises(
   }
 
   // A missed "leg day" (targetPattern) jumps to the front of the priority list.
-  const priority: MovementPattern[] = targetPattern
+  const priority: MovementPattern[] = forcePatterns?.length
+    ? forcePatterns
+    : targetPattern
     ? [targetPattern, ...tuned.patternPriority.filter(p => p !== targetPattern)]
     : tuned.patternPriority
 
@@ -517,10 +533,18 @@ export async function generateQuickWorkout(
   const musclePool = targetMuscles
     ? pool.filter(ex => ex.primary_muscles.some(m => targetMuscles.has(m)))
     : pool
+  const muscleTargetHit = !!targetMuscles && musclePool.length > 0
   const finalPool = musclePool.length ? musclePool : pool
+  // When the muscle filter actually landed exercises, guarantee every pattern
+  // present among THEM gets picked from, regardless of the purpose's own
+  // pattern list — a muscle-targeted request must never come back empty just
+  // because e.g. Mobility's priority doesn't include 'push'.
+  const forcePatterns = muscleTargetHit
+    ? [...new Set(musclePool.map(ex => ex.movement_pattern as MovementPattern))]
+    : undefined
 
   const seed = dayOfYear() + ctx.minutes
-  const { exercises, estimatedSeconds } = selectExercises(finalPool, scheme, ctx.minutes, ctx.targetPattern, seed)
+  const { exercises, estimatedSeconds } = selectExercises(finalPool, scheme, ctx.minutes, ctx.targetPattern, seed, forcePatterns)
 
   return {
     minutes: ctx.minutes,

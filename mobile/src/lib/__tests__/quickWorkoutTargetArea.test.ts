@@ -68,11 +68,41 @@ describe('quickWorkout — Target Area (targetMuscles)', () => {
     expect(w.exercises.length).toBeGreaterThan(0)
   })
 
-  it('every non-cardio Target Area option has a non-empty muscle list, and Cardio uses the pattern instead', () => {
+  it('a muscle-targeted pick is never empty just because the training style\'s own pattern list excludes it', async () => {
+    // Real bug found via the founder's report + a live-DB check: beginner/
+    // bodyweight Arms matches are ALL 'push' pattern (Bench Dip, Push-Up) --
+    // and Mobility's patternPriority (['mobility','core','hinge','squat','pull'])
+    // doesn't include 'push' at all. Before forcePatterns, this combination
+    // silently produced zero exercises even though real matches existed.
+    const tables = {
+      exercises: [
+        exRow('arm-1', 'Bench Dip', 'push', ['triceps']),
+        exRow('arm-2', 'Push-Up', 'push', ['chest', 'triceps', 'shoulders']),
+        exRow('leg-1', 'Squat', 'squat', ['quads']),
+      ],
+      user_profiles: [],
+    }
+    const client = createFakeSupabase(tables)
+    const armOption = TARGET_AREA_OPTIONS.find(o => o.key === 'arms')!
+
+    const w = await generateQuickWorkout(
+      client, USER,
+      { minutes: 15, purpose: 'mobility', targetMuscles: armOption.muscles },
+      PROFILE,
+    )
+
+    expect(w.exercises.length).toBeGreaterThan(0)
+    for (const ex of w.exercises) expect(['arm-1', 'arm-2']).toContain(ex.id)
+  })
+
+  it('every non-cardio, non-"pick for me" option has a non-empty muscle list, and Cardio uses the pattern instead', () => {
     for (const opt of TARGET_AREA_OPTIONS) {
       if (opt.key === 'cardio') {
         expect(opt.pattern).toBe('cardio')
         expect(opt.muscles).toBeUndefined()
+      } else if (opt.surprise) {
+        expect(opt.muscles).toBeUndefined()
+        expect(opt.pattern).toBeUndefined()
       } else {
         expect(opt.muscles?.length).toBeGreaterThan(0)
         expect(opt.pattern).toBeUndefined()
