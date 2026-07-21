@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
-import { ScreenHeader, DismissButton } from '@/components/brand'
+import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
 import { useAuthStore } from '@/stores/auth'
@@ -115,7 +115,7 @@ export default function MuscleMapScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
         {isLoading ? (
-          <Text style={s.muted}>Reading your training…</Text>
+          <PulseLoader caption="Reading your training…" />
         ) : !intel.hasData ? (
           <EmptyState
             kind="chart"

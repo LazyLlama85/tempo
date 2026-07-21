@@ -31,7 +31,7 @@ import {
   useUnitStore, unitLabel, displayWeight, inputToLbs, formatWeightDelta,
 } from '@/lib/units'
 import { useProAccess } from '@/stores/entitlements'
-import { ProGate } from '@/components/ProGate'
+import { ProGate, ProBadge } from '@/components/ProGate'
 import { TARGET } from '@/lib/tutorial'
 import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { restampFuturePlanForExperience } from '@/lib/generatePlan'
@@ -621,12 +621,7 @@ export default function ProfileScreen() {
             <View style={styles.heroHeaderInfo}>
               <View style={styles.heroNameRow}>
                 <Text style={styles.displayName} numberOfLines={1}>{profile?.display_name ?? 'Athlete'}</Text>
-                {isPro && (
-                  <View style={styles.proBadge}>
-                    <Ionicons name="flash" size={10} color="#1b1400" />
-                    <Text style={styles.proBadgeText}>PRO</Text>
-                  </View>
-                )}
+                {isPro && <ProBadge icon="flash" />}
               </View>
               {!!profile?.username && <Text style={styles.username} numberOfLines={1}>@{profile.username}</Text>}
               <View style={styles.levelChip}>
@@ -1188,8 +1183,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   username: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   levelChip: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, marginTop: 2 },
   levelChipText: { fontFamily: C.fontDisplay, fontSize: 11, color: C.primary, letterSpacing: 0.4 },
-  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.gold, borderRadius: Radius.full, paddingHorizontal: 7, paddingVertical: 3 },
-  proBadgeText: { fontFamily: 'Inter_800ExtraBold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.6 },
   identitySection: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.lg, marginTop: Spacing.md },
   levelBarTrack: { height: 7, alignSelf: 'stretch', backgroundColor: C.surfaceContainerHigh, borderRadius: Radius.full },
   levelBarFill: { height: 7, backgroundColor: C.primary, borderRadius: Radius.full },

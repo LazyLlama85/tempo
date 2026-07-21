@@ -913,7 +913,16 @@ commits if the diff is large.
 
 ---
 
-### C3 — Shared ProPill + unified loading component
+### C3 — Shared ProPill + unified loading component — ✅ DONE 2026-07-20
+
+**Note on scope vs. the original audit:** `paywall.tsx:485`'s `planBadge` was named as a 4th "PRO
+pill," but it actually renders `{badge}` (dynamic text: "SAVE X%" / "BEST VALUE"), never literally
+"PRO" — a stale/mistaken reference from the original audit, not a real duplicate. Left untouched.
+`quick-workout.tsx` turned out to have *two* gold pills: `proTag` (a plain duplicate of `ProBadge`,
+next to the "EQUIPMENT" label — consolidated) and `proBadgeRow` (a tinted, lock-icon variant on the
+workout-preview teaser card — genuinely different visual treatment for a different context, left
+as-is). `ProGate.tsx`'s existing `ProBadge` was extended with an optional `icon` prop (needed for
+`profile.tsx`'s flash-icon variant) rather than duplicated.
 
 **The problem:** Four separate "PRO" pill implementations exist (`ProGate.tsx:86`, `paywall.tsx:485`,
 `quick-workout.tsx:444`, `profile.tsx:625`), each hardcoding its own gold/dark text styling instead of

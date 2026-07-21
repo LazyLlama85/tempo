@@ -19,6 +19,7 @@ import {
   type QuickMinutes, type QuickPurpose, type QuickWorkout, type ProfileForQuick, type MovementPattern, type QuickRestrictions,
 } from '@/lib/quickWorkout'
 import { useProGate } from '@/stores/entitlements'
+import { ProBadge } from '@/components/ProGate'
 import { fetchPresets, savePresets, describeEquipment, type EquipmentPreset } from '@/lib/equipmentPresets'
 import { EquipmentPresetSheet } from '@/components/EquipmentPresetSheet'
 import type { Equipment } from '@/types'
@@ -254,7 +255,7 @@ export default function QuickWorkoutScreen() {
         {/* Equipment presets — build the session around a saved setup (Pro) */}
         <View style={styles.rowBetween}>
           <Text style={styles.sectionLabel}>EQUIPMENT</Text>
-          {locked && <View style={styles.proTag}><Text style={styles.proTagText}>PRO</Text></View>}
+          {locked && <ProBadge />}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
           <TouchableOpacity
@@ -482,8 +483,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   purposeTextActive: { color: C.onPrimary },
 
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.xs },
-  proTag: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
-  proTagText: { fontFamily: 'Inter_800ExtraBold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.6 },
   presetRow: { gap: Spacing.xs, paddingRight: Spacing.lg, paddingVertical: 2 },
   presetChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 170,

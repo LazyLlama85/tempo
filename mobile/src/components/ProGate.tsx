@@ -20,10 +20,11 @@ import { proFeature, type ProFeatureId } from '@/lib/proFeatures'
 import { track } from '@/lib/analytics'
 
 /** Small gold "PRO" pill for labeling locked entry points inline. */
-export function ProBadge({ style }: { style?: object }) {
+export function ProBadge({ style, icon }: { style?: object; icon?: keyof typeof Ionicons.glyphMap }) {
   const styles = useThemedStyles(makeStyles)
   return (
     <View style={[styles.badge, style]}>
+      {icon && <Ionicons name={icon} size={10} color="#1b1400" />}
       <Text style={styles.badgeText}>PRO</Text>
     </View>
   )
@@ -83,7 +84,7 @@ export function ProGate({
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
-  badge: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
   badgeText: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.6 },
 
   lockCard: {

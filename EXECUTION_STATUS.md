@@ -14,7 +14,21 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-19, latest): C2 (theme sweep) is done — the second P1 batch.** Built a shared
+- **NEW (2026-07-20): C3 (shared ProPill + unified loading) is done — the third P1 batch, then work
+  redirected to a large founder-reported queue (see below).** Extended `ProGate.tsx`'s existing
+  `ProBadge` with an optional `icon` prop and used it in `quick-workout.tsx` (the plain "EQUIPMENT"
+  section's PRO tag) and `profile.tsx` (the flash-icon variant next to the display name), replacing
+  their own hardcoded duplicates. `paywall.tsx`'s `planBadge` was NOT touched — despite being named
+  in the original audit, it renders dynamic "SAVE X%"/"BEST VALUE" text, never literally "PRO"; not
+  a real duplicate. `quick-workout.tsx`'s second gold pill (`proBadgeRow`, tinted+lock-icon, on the
+  workout-preview teaser) was also left alone — a genuinely different design for a different
+  context, not a copy of the plain tag. `muscle-map.tsx`'s plain-text loading state now uses
+  `PulseLoader`, and `ARCHITECTURE.md` documents it as the standard loading convention. `tsc` clean,
+  full suite green (245/245).
+  **P1 (C4–C10) is paused here** — a large founder device-testing/feature-request queue (2026-07-20,
+  see below) takes priority; resume C4 (accessibility batch) after that queue is worked through.
+
+- **2026-07-19: C2 (theme sweep) is done — the second P1 batch.** Built a shared
   `components/PRCard.tsx` (themed via `C.gold`/`C.onPrimary`, `variant="hero"` animated for
   `workout-complete.tsx`, `variant="compact"` static for `session-detail.tsx`) and replaced both
   files' duplicated, hardcoded `#B8860B` gold-card blocks with it — the bug was real: `#B8860B`

@@ -1194,8 +1194,11 @@ misleading all-rest-days screen. Tutorial arming for new users happens *before* 
 force-close during the reveal still leaves the account correctly armed.
 **Branded loading, everywhere:** full-screen and section loads render Tempo's `PulseLoader`/`TempoPulse`
 metronome mark (with a contextual caption — "Loading your splits…", "Building your session…") instead
-of a generic OS `ActivityIndicator` — Home/feed loads use `LoadingCard` shimmer skeletons, and the
-feed shows the skeleton (not a rest-day/empty state) whenever the visible range has no items but a
+of a generic OS `ActivityIndicator` or a plain muted `<Text>` (fixed in `muscle-map.tsx` — MASTER_FIX_PLAN.md
+C3; `PulseLoader` is the standard for a full-screen/section "is this still loading" state, list-item
+skeletons are `LoadingCard`/`Shimmer` — don't introduce a third convention) — Home/feed loads use
+`LoadingCard` shimmer skeletons, and the feed shows the skeleton (not a rest-day/empty state) whenever
+the visible range has no items but a
 fetch is in flight — e.g. right after Change Plan clears the old schedule. The stock
 spinner is now reserved only for tight in-button saving states. All motion honors OS Reduce Motion.
 
