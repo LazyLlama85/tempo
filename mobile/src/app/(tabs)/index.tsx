@@ -1090,6 +1090,22 @@ export default function ScheduleScreen() {
               {w.focus}
             </Text>
             {hero && <Ionicons name={heroExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={C.outline} />}
+            {/* Only the single "hero" card got an Edit action (behind its own
+                expand). A second/third workout the same day — e.g. an AM+PM
+                split, or two manually scheduled sessions — rendered as
+                plain, non-interactive display with no way to reschedule it
+                short of going to Plan. Give every still-due card its own
+                direct edit entry point. */}
+            {!hero && !done && (
+              <TouchableOpacity
+                onPress={() => setEditingWorkout(w)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${w.focus}`}
+              >
+                <Ionicons name="create-outline" size={16} color={C.outline} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* One calm line instead of three separate chips. */}
