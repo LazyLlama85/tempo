@@ -133,7 +133,7 @@ export function FocusMode({
                 resting, purely decorative above the ring, so a failed/missing
                 animation never affects the countdown itself. */}
             {resting && restSecondsLeft != null && (
-              <TempoLottie source={require('@/assets/lottie/coach/sprinting.json')} width={46} height={56} style={styles.coachBadge} />
+              <TempoLottie source={require('@/assets/lottie/coach/sprinting.json')} width={62} height={76} style={styles.coachBadge} />
             )}
 
             <TouchableOpacity
@@ -205,8 +205,13 @@ export function FocusMode({
                       <Text style={styles.lastSetFieldLabel}>{f.label}</Text>
                     </View>
                   ))}
-                  <PressableScale style={styles.lastSetSaveBtn} onPress={saveLastSet} scaleTo={0.9} accessibilityLabel="Save">
-                    <Ionicons name={savedTick ? 'checkmark-done' : 'checkmark'} size={18} color={C.onPrimary} />
+                  {/* Pencil (not a checkmark) — matches the runner list's own
+                      "this is done, tap to edit" language (plan.tsx), so this
+                      doesn't read as a second "confirm" action right below
+                      numbers that were already logged. Flashes to a checkmark
+                      briefly as save confirmation, then reverts to pencil. */}
+                  <PressableScale style={styles.lastSetSaveBtn} onPress={saveLastSet} scaleTo={0.9} accessibilityLabel="Save edited set">
+                    <Ionicons name={savedTick ? 'checkmark-done' : 'pencil'} size={savedTick ? 18 : 15} color={C.onPrimary} />
                   </PressableScale>
                 </View>
                 {/* Optional RPE — same follow-up the scrolling list offers,
@@ -261,13 +266,17 @@ export function FocusMode({
             <TouchableOpacity style={styles.skipBtn} onPress={onSkip} activeOpacity={0.8}>
               <Text style={styles.skipText}>SKIP</Text>
             </TouchableOpacity>
+            {/* Once every set is done, this becomes the way back to the full
+                session list (all exercises) instead of a dead, disabled
+                button — there's nothing left to confirm here. */}
             <PressableScale
               style={[styles.doneBtn, done && styles.doneBtnDone]}
-              onPress={onDone}
-              disabled={done}
+              onPress={done ? onClose : onDone}
               scaleTo={0.96}
+              accessibilityRole="button"
+              accessibilityLabel={done ? 'All sets done — view full session' : 'Done with this set'}
             >
-              <Text style={styles.doneText}>{done ? 'ALL DONE' : 'DONE'}</Text>
+              <Text style={styles.doneText}>{done ? 'ALL DONE' : 'DONE WITH SET'}</Text>
               <Ionicons name="checkmark" size={18} color={C.onPrimary} />
             </PressableScale>
           </View>
