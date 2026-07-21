@@ -70,6 +70,23 @@
   preview never had. `tsc` clean, full suite green (258/258, +3 new). Full detail in
   `ARCHITECTURE.md`'s Quick Workout entry.
 
+- **NEW (2026-07-21, later): founder tested the redesign on web and reported real issues — all
+  fixed.** Slider rendered as a bare dot (a layout ambiguity from `durationCard`'s `alignItems:
+  'center'` colliding with the Slider's width-less track — native and web resolved it differently;
+  fixed with an explicit stretch wrapper). Found a real empty-workout bug via a live-DB query: a
+  muscle-based Target Area can land a pool that's 100% one movement pattern, and a training style
+  whose pattern list excludes it (Mobility excludes 'push') produced zero exercises even though
+  matches existed — `selectExercises` now takes a `forcePatterns` override for exactly this case.
+  Preset deletion was long-press-only (no such gesture on web) — added an explicit pencil tap
+  target. Better Target Area icons, a "Pick for me" chip, and an "Upper Body" combo option added.
+  **Also likely fixed the persistent "blank screen on first load, works after force-quit" report:**
+  Sentry init/wrap ran unconditionally on web — the same bug class `analytics.ts` already found and
+  fixed for PostHog (a native-module SDK throwing at module-load time on web, before React even
+  starts, with nothing able to catch it) — guarded the same way. Separately, `TempoErrorBoundary`
+  only wrapped the JSX built after the font-loading `ready` check, not the hooks above it (theme,
+  auth, entitlements) — restructured so it wraps the whole `RootLayout` component. `tsc` clean, full
+  suite green (259/259, +1 regression test).
+
 - **2026-07-19: C2 (theme sweep) is done — the second P1 batch.** Built a shared
   `components/PRCard.tsx` (themed via `C.gold`/`C.onPrimary`, `variant="hero"` animated for
   `workout-complete.tsx`, `variant="compact"` static for `session-detail.tsx`) and replaced both
