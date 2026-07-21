@@ -20,12 +20,24 @@ const APP_VERSION = Constants.expoConfig?.version ?? 'unknown'
 
 let initialized = false
 
+// PostHog (analytics.ts) already found and documented this exact bug class:
+// a native RN SDK that assumes native storage/modules exist can throw at
+// MODULE-LOAD time on the web platform target (`expo start --web`) — before
+// any error boundary can catch it, since React hasn't started rendering yet —
+// crashing the whole app to a blank screen with no visible error. Sentry is
+// the same shape of package (native-module-heavy, listed in CLAUDE.md's
+// "Expo Go no longer works" section alongside RevenueCat, which had the
+// identical bug on web — fixed in lib/purchases.ts). Guard it the same way
+// rather than wait for a third confirmed crash to prove the pattern again.
+const IS_WEB = Platform.OS === 'web'
+
 /**
  * Initialise crash reporting once, at app startup (before the rest of the app
  * mounts). Safe to call with no DSN configured — it leaves Sentry disabled.
+ * Also a safe no-op on web — see IS_WEB above.
  */
 export function initCrashReporting(): void {
-  if (initialized || !SENTRY_DSN) return
+  if (initialized || !SENTRY_DSN || IS_WEB) return
   Sentry.init({
     dsn: SENTRY_DSN,
     // Tie every event to the build it came from.
@@ -43,10 +55,11 @@ export function initCrashReporting(): void {
 
 /**
  * Wrap the root component so native crashes and render errors are captured.
- * Returns the component untouched when crash reporting isn't configured.
+ * Returns the component untouched when crash reporting isn't configured, or
+ * on web (see IS_WEB above).
  */
 export const wrapWithCrashReporting: typeof Sentry.wrap = (component) =>
-  SENTRY_DSN ? Sentry.wrap(component) : component
+  SENTRY_DSN && !IS_WEB ? Sentry.wrap(component) : component
 
 /** Attach the signed-in user to all subsequent crash reports. */
 export function setCrashUser(userId: string | null): void {

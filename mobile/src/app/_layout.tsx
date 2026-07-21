@@ -100,7 +100,15 @@ const persistOptions = persister
     }
   : undefined
 
-function RootLayout() {
+// TempoErrorBoundary used to wrap only the JSX built partway through this
+// component (after the `ready` check) — so a throw in any hook ABOVE that
+// point (theme, auth store, the entitlement effect, useFonts) had nothing to
+// catch it. React unmounts the whole tree on an uncaught render error, which
+// with no boundary above it means a genuinely blank screen with no fallback
+// UI and nothing in the crash log tied to a component stack. Moved the
+// boundary to wrap this entire component instead (see the real RootLayout
+// export at the bottom) so every hook here is covered, not just the JSX.
+function RootLayoutInner() {
   const { initialize } = useAuthStore()
   const sessionUserId = useAuthStore(s => s.session?.user.id)
   // Load this user's device-local tutorial state whenever the signed-in user changes.
@@ -224,7 +232,6 @@ function RootLayout() {
   if (!ready) return null
 
   const app = (
-    <TempoErrorBoundary>
     <ThemeProvider value={NavTheme}>
         <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
         {/* Default push = native slide; modals below override with slide-up. */}
@@ -262,8 +269,7 @@ function RootLayout() {
         </Stack>
         <ThemeTransitionOverlay />
         <TutorialOverlay />
-      </ThemeProvider>
-    </TempoErrorBoundary>
+    </ThemeProvider>
   )
 
   // Persisted cache when storage is available (native); plain provider otherwise.
@@ -281,6 +287,16 @@ function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>{withQueryClient}</BottomSheetModalProvider>
     </GestureHandlerRootView>
+  )
+}
+
+// TempoErrorBoundary wraps the WHOLE component (every hook above, not just
+// the JSX built after `ready`) — see the comment on RootLayoutInner.
+function RootLayout() {
+  return (
+    <TempoErrorBoundary>
+      <RootLayoutInner />
+    </TempoErrorBoundary>
   )
 }
 
