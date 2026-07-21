@@ -374,7 +374,11 @@ export default function WorkoutsScreen() {
     return map
   }, [calWorkouts])
 
-  const selectedDayWorkout = calWorkoutsByDate[selectedDate]?.[0] ?? null
+  // Every live workout on the selected day — was `?.[0] ?? null` (silently
+  // dropped a second workout the same day, e.g. an AM+PM split or two
+  // manually scheduled sessions, from the day-detail card entirely).
+  const selectedDayWorkouts = calWorkoutsByDate[selectedDate] ?? []
+  const selectedDayWorkout = selectedDayWorkouts[0] ?? null
 
   // A day the active split expects a real workout on, but nothing live is
   // scheduled for it — either skipped/removed, or never materialized. Distinct
@@ -2027,26 +2031,28 @@ export default function WorkoutsScreen() {
                   gives no clue which cell you tapped. */}
               <Text style={styles.dayCardEyebrow}>
                 {selDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()}
-                {selectedDayWorkout
-                  ? ` · ${selectedDayWorkout.status === 'completed' ? 'COMPLETED' : selectedDayWorkout.status === 'missed' ? 'MISSED' : 'SCHEDULED'}`
-                  : ''}
               </Text>
-              {selectedDayWorkout ? (
-                <>
-                  <Text style={styles.dayCardTitle}>{selectedDayWorkout.focus}</Text>
-                  <Text style={styles.dayCardMeta}>
-                    {formatTime(selectedDayWorkout.planned_start_time)} · {selectedDayWorkout.planned_duration_min} min ·{' '}
-                    {selectedDayWorkout.exercise_ids.length} exercise{selectedDayWorkout.exercise_ids.length === 1 ? '' : 's'}
-                  </Text>
-                  <PressableScale
-                    style={styles.dayCardEditBtn}
-                    scaleTo={0.96}
-                    onPress={() => router.push(`/edit-session?workoutId=${selectedDayWorkout.id}` as any)}
-                  >
-                    <Ionicons name="create-outline" size={14} color={C.primary} />
-                    <Text style={styles.dayCardEditText}>Edit</Text>
-                  </PressableScale>
-                </>
+              {selectedDayWorkouts.length > 0 ? (
+                selectedDayWorkouts.map((w, i) => (
+                  <View key={w.id} style={[styles.dayCardWorkoutBlock, i > 0 && styles.dayCardWorkoutDivider]}>
+                    <Text style={styles.dayCardStatus}>
+                      {w.status === 'completed' ? 'COMPLETED' : w.status === 'missed' ? 'MISSED' : 'SCHEDULED'}
+                    </Text>
+                    <Text style={styles.dayCardTitle}>{w.focus}</Text>
+                    <Text style={styles.dayCardMeta}>
+                      {formatTime(w.planned_start_time)} · {w.planned_duration_min} min ·{' '}
+                      {w.exercise_ids.length} exercise{w.exercise_ids.length === 1 ? '' : 's'}
+                    </Text>
+                    <PressableScale
+                      style={styles.dayCardEditBtn}
+                      scaleTo={0.96}
+                      onPress={() => router.push(`/edit-session?workoutId=${w.id}` as any)}
+                    >
+                      <Ionicons name="create-outline" size={14} color={C.primary} />
+                      <Text style={styles.dayCardEditText}>Edit</Text>
+                    </PressableScale>
+                  </View>
+                ))
               ) : missingSplitDay ? (
                 <>
                   <View style={styles.dayCardRest}>
@@ -3122,6 +3128,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     gap: Spacing.xs, marginBottom: Spacing.md, ...Elevation.e1,
   },
   dayCardEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  dayCardStatus: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
+  dayCardWorkoutBlock: { gap: Spacing.xs },
+  dayCardWorkoutDivider: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: C.outlineVariant },
   dayCardTitle: { fontFamily: C.fontDisplay, fontSize: 20, color: C.text, letterSpacing: -0.3 },
   completedTodayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dayCardMeta: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
