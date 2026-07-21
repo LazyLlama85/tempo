@@ -41,14 +41,20 @@ let RevenueCatUI: any = null
 let PAYWALL_RESULT: { PURCHASED: string; RESTORED: string } | null = null
 let LOG_LEVEL: { DEBUG: unknown } | null = null
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const core = require('react-native-purchases')
-  Purchases = core.default ?? core
-  LOG_LEVEL = core.LOG_LEVEL ?? null
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const ui = require('react-native-purchases-ui')
-  RevenueCatUI = ui.default ?? ui
-  PAYWALL_RESULT = ui.PAYWALL_RESULT ?? null
+  // RevenueCat's mobile SDK keys (appl_/goog_) aren't valid on web — it wants a
+  // separate Web Billing key Tempo doesn't have (Pro only sells via App Store/Play).
+  // Skip the load entirely so every call below hits its existing !Purchases no-op,
+  // instead of configure() throwing "Invalid API key. Use your Web Billing API key."
+  if (Platform.OS !== 'web') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const core = require('react-native-purchases')
+    Purchases = core.default ?? core
+    LOG_LEVEL = core.LOG_LEVEL ?? null
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ui = require('react-native-purchases-ui')
+    RevenueCatUI = ui.default ?? ui
+    PAYWALL_RESULT = ui.PAYWALL_RESULT ?? null
+  }
 } catch {
   Purchases = null // native module not in this binary → all calls below no-op
 }
