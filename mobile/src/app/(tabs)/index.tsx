@@ -56,6 +56,7 @@ import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
 import { fetchSocialNotifCount } from '@/lib/social'
 import { parseAvatar } from '@/lib/avatar'
 import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
+import { resumePlan, checkPauseExpiry, describePauseUntil } from '@/lib/pauseMode'
 import { restDayAdvice, consecutiveTrainingDays } from '@/lib/trainingLoad'
 import { eventKey, getIgnoredEventKeys, setEventIgnored } from '@/lib/ignoredEvents'
 import { workoutOrigin } from '@/lib/workoutOrigin'
@@ -224,7 +225,7 @@ export default function ScheduleScreen() {
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { session, profile } = useAuthStore()
+  const { session, profile, refreshProfile } = useAuthStore()
   const userId = session?.user.id ?? ''
 
   const today = new Date()
@@ -541,6 +542,25 @@ export default function ScheduleScreen() {
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
+  // Pause mode (§26, L21): "Resume now" from Home's banner, mirroring the
+  // Settings screen's own resume path so either entry point behaves identically.
+  const [resumingPause, setResumingPause] = useState(false)
+  const handleResumePause = async () => {
+    if (!userId || resumingPause || !profile?.paused_until) return
+    setResumingPause(true)
+    try {
+      const res = await resumePlan(supabase, userId, profile.paused_until)
+      if (res.ok) {
+        await refreshProfile()
+        invalidateTrainingData(queryClient)
+      } else {
+        Alert.alert('Could not resume', 'Please try again.')
+      }
+    } finally {
+      setResumingPause(false)
+    }
+  }
+
   const [easingBack, setEasingBack] = useState(false)
   const handleEaseIntoRecovery = async () => {
     if (!userId || easingBack) return
@@ -574,6 +594,12 @@ export default function ScheduleScreen() {
   useEffect(() => {
     if (!userId) return
     ;(async () => {
+      // Pause mode: time simply passing needs no date shift (everything already
+      // landed in the right place) — just clear the now-stale flag so the rest
+      // of the sweep (and Home's banner) sees a normal, unpaused state.
+      try {
+        if (await checkPauseExpiry(supabase, userId, profile?.paused_until)) await refreshProfile()
+      } catch { /* best-effort */ }
       await dedupeScheduledWorkouts(supabase, userId)
       await checkMissedWorkouts(supabase, userId)
       // Let real signals (missed sessions, repeated "too hard") feed the
@@ -1308,7 +1334,35 @@ export default function ScheduleScreen() {
         },
       },
     },
-    // 1 — Missed workout: a concrete recovery action about the user's own training.
+    // 1 — Paused plan (§26, L21): explains an otherwise-empty schedule and gives
+    // an immediate way out. Outranks "missed" on purpose — during a real pause
+    // there's nothing to have missed (every row was shifted past the window), but
+    // if the guard ever disagreed with reality this still tells the truth first.
+    {
+      id: 'paused',
+      eligible: !!profile?.paused_until,
+      primary: () => !profile?.paused_until ? null : (
+        <View style={styles.missedBanner}>
+          <View style={styles.missedIcon}>
+            <Ionicons name="pause" size={18} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missedTitle}>Plan paused</Text>
+            <Text style={styles.missedSub}>Paused until {describePauseUntil(profile.paused_until)} — nothing's overdue.</Text>
+          </View>
+          <PressableScale
+            style={[styles.missedBtn, resumingPause && { opacity: 0.6 }]}
+            onPress={handleResumePause}
+            disabled={resumingPause}
+            scaleTo={0.92}
+          >
+            <Text style={styles.missedBtnText}>Resume now</Text>
+          </PressableScale>
+        </View>
+      ),
+      chip: { icon: 'pause', label: 'Plan paused', tint: C.primary, onPress: () => router.push('/pause-mode' as any) },
+    },
+    // 2 — Missed workout: a concrete recovery action about the user's own training.
     {
       id: 'missed',
       eligible: missed.length > 0,
@@ -1335,7 +1389,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'refresh', label: 'Missed workout', tint: C.primary, onPress: () => missed.length > 0 && handleReschedule(missed[0]) },
     },
-    // 2 — Google reconnect: the calendar is silently showing incomplete data.
+    // 3 — Google reconnect: the calendar is silently showing incomplete data.
     {
       id: 'reconnect',
       eligible: googleNeedsReconnect,
@@ -1353,7 +1407,7 @@ export default function ScheduleScreen() {
       ),
       chip: { icon: 'warning', label: 'Reconnect calendar', tint: C.error, onPress: () => router.push('/calendar-setup' as any) },
     },
-    // 3 — Travel mode: an active adaptation affecting every upcoming session.
+    // 4 — Travel mode: an active adaptation affecting every upcoming session.
     {
       id: 'travel',
       eligible: !!travel,
@@ -1372,7 +1426,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'airplane', label: 'Travel mode', tint: C.primary, onPress: () => router.push('/travel-mode') },
     },
-    // 4 — Rest day: recovery recommendation. Outranks Quick Workout so we never push a
+    // 5 — Rest day: recovery recommendation. Outranks Quick Workout so we never push a
     // session when we're advising rest. Chip taps into the recovery check-in.
     {
       id: 'rest',
@@ -1390,7 +1444,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'bed-outline', label: 'Rest day', tint: C.success, onPress: () => setShowRecovery(true) },
     },
-    // 5 — Block phase: where the user sits in the mesocycle (overload / deload).
+    // 6 — Block phase: where the user sits in the mesocycle (overload / deload).
     {
       id: 'block',
       eligible: !!blockPhase?.progression,
@@ -1425,7 +1479,7 @@ export default function ScheduleScreen() {
         onPress: () => router.push('/plan-explainer' as any),
       },
     },
-    // 6 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
+    // 7 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
     // Only eligible when there's a REAL countdown (projection.hasEta) — the
     // "not enough signal yet" fallback ("Log your weight to see your ETA") used
     // to pass this same check and render as a "Goal ETA" chip with no actual ETA
@@ -1454,7 +1508,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: (projection?.icon as IconName) ?? 'flag', label: 'Goal ETA', tint: C.primary, onPress: () => setGoalEtaSheet(true) },
     },
-    // 7 — Weekly report: the Sun/Mon recap nudge (same gate as before).
+    // 8 — Weekly report: the Sun/Mon recap nudge (same gate as before).
     {
       id: 'report',
       eligible: stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1),
@@ -1509,7 +1563,7 @@ export default function ScheduleScreen() {
         onPress: () => router.push('/plan-explainer' as any),
       },
     },
-    // 8 — Quick Workout: opportunistic wedge (only fires when today has no actionable
+    // 9 — Quick Workout: opportunistic wedge (only fires when today has no actionable
     // session anyway, so it can safely sit last).
     {
       id: 'quick',
@@ -1528,7 +1582,7 @@ export default function ScheduleScreen() {
       ) : null,
       chip: { icon: 'flash', label: 'Quick workout', tint: C.primary, onPress: goQuick },
     },
-    // 9 — Connect calendar: first-time nudge for a user who never linked one, so auto
+    // 10 — Connect calendar: first-time nudge for a user who never linked one, so auto
     // scheduling can place workouts around real events. Calendar connect moved out of
     // onboarding's required path, so this is where new users are invited to do it.
     // Lowest priority — it never outranks real training context, and disappears the

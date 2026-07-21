@@ -64,4 +64,28 @@ describe('checkMissedWorkouts', () => {
     const n = await checkMissedWorkouts(client, USER)
     expect(n).toBe(0)
   })
+
+  // Pause mode (§26, L21): pausePlan already shifts every future row past the
+  // pause window before this ever runs, so this guard should never have real
+  // rows to act on — but it must still refuse outright, so a stale leftover row
+  // (or a sweep that races the pause write) can never get marked missed.
+  it('does nothing while paused, even if a past-dated committed row somehow still exists', async () => {
+    const client = createFakeSupabase({
+      user_profiles: [{ user_id: USER, paused_until: '2026-07-25' }],
+      scheduled_workouts: [row({ id: 'plan-past', user_plan_id: 'p1' })],
+    })
+    const n = await checkMissedWorkouts(client, USER)
+    expect(n).toBe(0)
+    const rows = (await client.from('scheduled_workouts').select('*').eq('user_id', USER)).data
+    expect(rows[0].status).toBe('scheduled')
+  })
+
+  it('resumes normal behavior once paused_until has passed', async () => {
+    const client = createFakeSupabase({
+      user_profiles: [{ user_id: USER, paused_until: '2026-07-15' }], // before TODAY
+      scheduled_workouts: [row({ id: 'plan-past', user_plan_id: 'p1' })],
+    })
+    const n = await checkMissedWorkouts(client, USER)
+    expect(n).toBe(1)
+  })
 })

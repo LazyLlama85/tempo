@@ -24,6 +24,7 @@ import { getCalendarPermissionStatus } from '@/services/calendarService'
 import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
 import { autoSyncEnabled, syncUpcomingWorkouts, purgeSyncedWorkouts, removeAllTempoEvents } from '@/lib/calendarAutoSync'
 import { autoScheduleUpcoming, autoSchedulingEnabled } from '@/lib/autoSchedule'
+import { describePauseUntil } from '@/lib/pauseMode'
 import { deleteAccount } from '@/lib/account'
 import { useUnitStore, unitLabel, type WeightUnit } from '@/lib/units'
 import { useFocusModePrefStore } from '@/lib/focusModePref'
@@ -378,6 +379,13 @@ export default function SettingsScreen() {
                 />
               </>
             )}
+            <View style={styles.divider} />
+            <SettingRow
+              icon="pause-circle-outline"
+              label="PAUSE MY PLAN"
+              value={profile?.paused_until ? `Paused until ${describePauseUntil(profile.paused_until)}` : 'Going away? Pause without breaking your streak'}
+              onPress={() => router.push('/pause-mode' as any)}
+            />
           </View>
         </View>
 

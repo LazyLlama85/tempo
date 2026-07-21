@@ -127,6 +127,9 @@ export interface UserProfile {
   // for events that shouldn't block workout scheduling. Optional so the app keeps
   // working before the column migration is applied.
   ignored_events?: string[] | null
+  // Inclusive last day of an active pause (lib/pauseMode.ts). Null = not paused.
+  // Optional so the app keeps working before the column migration is applied.
+  paused_until?: string | null
 }
 
 // A temporary "I'm away from my usual setup" override. While active, this equipment

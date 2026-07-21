@@ -2214,6 +2214,32 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ---
 
+### Pause / vacation mode (2026-07-22, PRODUCT_AUDIT.html §26 L21)
+"I'm away for 10 days" used to mean a broken streak and a wall of "missed" sessions — nothing told
+the plan the user was gone. `user_profiles.paused_until` (nullable date, `add_pause_mode.sql`) is
+the only new state. `lib/pauseMode.ts`:
+- `pausePlan(days)` shifts every future `status='scheduled'` row forward by `days` — one row at a
+  time, each routed through the existing `resyncMovedWorkout` (the same helper the auto-scheduler
+  uses for single-row moves) so its synced calendar event + reminder move with it. Sets
+  `paused_until = today + days`.
+- `resumePlan(pausedUntil)` (early resume) shifts the still-unrealized remainder (`paused_until -
+  today`) back, then clears the flag.
+- `checkPauseExpiry()` — time simply passing needs no shift (dates already landed correctly); called
+  once in Home's app-open sweep, it just clears a now-stale flag.
+- `week_index`/periodization are never touched, so the mesocycle resumes exactly where it left off.
+- **Streak protection needed zero special-casing**: `streak.ts`'s day map only contains dates that
+  have a `scheduled_workouts` row; since paused dates never get one (they're all shifted past the
+  window), the streak calculation silently skips the gap.
+- `checkMissedWorkouts` (`lib/missedWorkouts.ts`) gained a belt-and-suspenders guard — fetches
+  `paused_until` and no-ops while `today < paused_until` — even though pausePlan's shift already
+  means there's structurally nothing in range to mark missed.
+- UI: `app/pause-mode.tsx` (duration presets 1wk/10d/2wk/1mo, or Resume Now), a Settings row
+  (Calendar & Scheduling section), and a Home context-item banner (priority 1, right after the
+  returning-user banner) with an inline "Resume now" action. Free, uncapped — this is core-loop
+  reliability, not a Pro feature.
+
+---
+
 ## 8. Known gaps / roadmap
 - ~~No monetization anywhere (no paywall / subscriptions / billing)~~ **Built, shipped DORMANT
   (§10)**: RevenueCat via `react-native-purchases` + `-ui` (`lib/purchases`), the entitlement store,

@@ -142,6 +142,9 @@ export type EventProperties = {
   travel_mode_enabled: { equipment_count: number; duration: string }
   travel_mode_cleared: undefined
   custom_workout_saved: { exercise_count: number; scheduled: boolean }
+  pause_mode_started: { days: number }
+  pause_mode_resumed: undefined
+  achievement_unlocked: { key: string; tier: string }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

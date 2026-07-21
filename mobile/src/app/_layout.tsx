@@ -242,6 +242,7 @@ function RootLayoutInner() {
           <Stack.Screen name="quick-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="availability" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="travel-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="pause-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="legal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="weekly-report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
