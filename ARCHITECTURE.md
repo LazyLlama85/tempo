@@ -409,7 +409,7 @@ you moving."*
   workout picker** — every row/family carries an add-circle toggle, and a floating "Add to a
   workout" bar appears once ≥1 is picked, pushing `/workout-builder?addExerciseIds=…` pre-loaded
   with the picks. Reached from the Plan tab header (book icon, always visible) — no longer linked
-  from Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM bars,
+  from Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM line trend,
   best-ever tiles, Δ vs a month ago; opened from PR rows on Progress/Profile/**`pr-browser`** and
   from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
   jump to its `exercise-progress` trend), **`calendar-setup`** (dedicated connect/disconnect screen
@@ -2467,6 +2467,13 @@ Same pass fixed a real bug in `lib/focusModePref.ts`: Focus Mode used to default
 stays off until the user opts in in Settings — the runner's gating logic (`plan.tsx`, `if
 (focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
 default was wrong.
+
+### PR strength trend: bars → line (2026-07-21)
+`exercise-progress.tsx`'s per-session est-1RM chart now reuses **`SvgLineChart`** (the same
+line+area primitive as the Progress tab's weight trend) instead of a per-session `SvgGrowBar`
+column — a rising/falling line reads "am I getting stronger" faster than a bar row. The date-label
+strip beneath the chart and the latest-session value callout above it are unchanged; only the
+chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's volume chart).
 
 ---
 

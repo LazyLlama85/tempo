@@ -16,7 +16,7 @@ import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
-import { SvgGrowBar } from '@/components/SvgGrowBar'
+import { SvgLineChart } from '@/components/SvgLineChart'
 import { estimate1RM } from '@/lib/progression'
 import { useWeightUnit, unitLabel, displayWeight, formatWeight } from '@/lib/units'
 
@@ -87,7 +87,6 @@ export default function ExerciseProgressScreen() {
   }, [userId, exerciseId])
 
   const shown = points.slice(-MAX_BARS)
-  const maxE1 = Math.max(...shown.map(p => p.bestE1rm), 1)
   const latest = points[points.length - 1]
   const bestEver = points.reduce((m, p) => Math.max(m, p.bestE1rm), 0)
   const bestWeightEver = points.reduce((m, p) => Math.max(m, p.bestWeight), 0)
@@ -151,29 +150,27 @@ export default function ExerciseProgressScreen() {
                 </View>
               )}
 
-              {/* Per-session e1RM bars (last 12 sessions) */}
+              {/* Per-session e1RM trend (last 12 sessions) */}
               <View style={styles.chartCard}>
-                <Text style={styles.chartLabel}>EST. 1RM PER SESSION · LAST {shown.length}</Text>
+                <View style={styles.chartHeaderRow}>
+                  <Text style={styles.chartLabel}>EST. 1RM PER SESSION · LAST {shown.length}</Text>
+                  <Text style={styles.barValue}>{displayWeight(shown[shown.length - 1].bestE1rm, unit)} {unitLabel(unit)}</Text>
+                </View>
+                {/* Shared line+area primitive (same as the Progress tab's weight
+                    trend) — reads better than bars for "is this going up" at a glance. */}
+                <SvgLineChart
+                  points={shown.map((p) => ({ label: fmtDay(p.date), value: p.bestE1rm }))}
+                  height={128}
+                  color={C.primary}
+                />
                 <View style={styles.barsRow}>
-                  {shown.map((p, i) => {
-                    const h = Math.max(6, Math.round((p.bestE1rm / maxE1) * 96))
-                    const isLast = i === shown.length - 1
-                    return (
-                      <View key={i} style={styles.barCol}>
-                        {isLast && (
-                          <Text style={styles.barValue}>{displayWeight(p.bestE1rm, unit)}</Text>
-                        )}
-                        {/* Shared gradient bar primitive (same as the Progress tab's
-                            volume chart) — grows from the baseline on mount. */}
-                        <View style={{ width: '100%', justifyContent: 'flex-end' }}>
-                          <SvgGrowBar height={h} delay={i * 40} color={isLast ? C.primary : C.surfaceContainerHigh} />
-                        </View>
-                        <Text style={[styles.barDate, isLast && styles.barDateActive]} numberOfLines={1}>
-                          {shown.length <= 6 || i % 2 === (shown.length - 1) % 2 ? fmtDay(p.date) : ''}
-                        </Text>
-                      </View>
-                    )
-                  })}
+                  {shown.map((p, i) => (
+                    <View key={i} style={styles.barCol}>
+                      <Text style={[styles.barDate, i === shown.length - 1 && styles.barDateActive]} numberOfLines={1}>
+                        {shown.length <= 6 || i % 2 === (shown.length - 1) % 2 ? fmtDay(p.date) : ''}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               </View>
 
@@ -226,10 +223,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     borderWidth: 1, borderColor: C.outlineVariant, padding: Spacing.md, gap: Spacing.sm, ...CardShadow,
   },
   chartLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.outline, letterSpacing: 0.6 },
-  barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 128 },
-  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  bar: { width: '100%', borderRadius: 3 },
-  barValue: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary },
+  chartHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  barsRow: { flexDirection: 'row', gap: 4 },
+  barCol: { flex: 1, alignItems: 'center' },
+  barValue: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
   barDate: { fontFamily: 'Inter_500Medium', fontSize: 9, color: C.outline, height: 12 },
   barDateActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
 
