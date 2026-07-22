@@ -147,7 +147,14 @@ export async function getMasterPushEnabled(client: SupabaseClient, userId: strin
   }
 }
 
-export async function setMasterPushEnabled(client: SupabaseClient, userId: string, enabled: boolean): Promise<void> {
+// Returns whether the write actually landed. The switch used to silently
+// re-sync from the server after every toggle regardless of whether this write
+// succeeded — on a dropped/failed request that re-sync just read back the OLD
+// value and the switch appeared to "slide back" on its own with no
+// explanation. The caller now uses this return value to tell a genuine
+// failure (revert + tell the user) apart from success (trust the optimistic
+// value, no re-fetch needed).
+export async function setMasterPushEnabled(client: SupabaseClient, userId: string, enabled: boolean): Promise<boolean> {
   try {
     const { data } = await client
       .from('user_profiles')
@@ -155,6 +162,12 @@ export async function setMasterPushEnabled(client: SupabaseClient, userId: strin
       .eq('user_id', userId)
       .maybeSingle()
     const current = (data?.notification_prefs ?? {}) as Record<string, unknown>
-    await client.from('user_profiles').update({ notification_prefs: { ...current, push_enabled: enabled } }).eq('user_id', userId)
-  } catch { /* best-effort; re-syncs on next load */ }
+    const { error } = await client
+      .from('user_profiles')
+      .update({ notification_prefs: { ...current, push_enabled: enabled } })
+      .eq('user_id', userId)
+    return !error
+  } catch {
+    return false
+  }
 }

@@ -2469,6 +2469,26 @@ stays off until the user opts in in Settings — the runner's gating logic (`pla
 (focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
 default was wrong.
 
+### Notification settings: fixed master-toggle revert, collapsed the per-type list (2026-07-21)
+The master push switch (`app/settings.tsx`'s `togglePush`) used to unconditionally re-fetch
+`getMasterPushEnabled` after every toggle and trust whatever it read — so a failed/dropped write
+(silently swallowed by `.catch(() => {})`) surfaced as the switch mysteriously "sliding back" to
+its old value with no explanation. Fixed at the source: `notificationPrefs.setMasterPushEnabled`
+and `pushTokens.setPushEnabled` now both report whether their write actually succeeded, and
+`togglePush` trusts the optimistic value on success (no re-fetch) or explicitly reverts **with an
+`Alert`** on a genuine failure — no more silent, unexplained reverts. Turning the switch ON when
+OS notification permission was already denied is its own case: iOS never re-shows its own prompt
+once denied (`requestPermissionsAsync` just resolves `'denied'` again instantly), so an in-app
+toggle literally cannot fix that — `setPushEnabled` now returns `'permission_denied'` for this
+case specifically, and the switch reverts with an `Alert` offering **"Open Settings"**
+(`Linking.openSettings()`), the only place that can actually grant it.
+
+Also: the 7-row per-type notification list (pre-workout, missed workout, streak-at-risk, weekly
+report, free-time, partner reminder, friend competition) used to render unconditionally beneath
+the master switch, which read as clutter for anyone who just wanted the one on/off toggle. It's
+now collapsed behind a **"Customize notification types"** disclosure row (`showNotifDetails`
+state) that only expands the list when tapped.
+
 ### PR strength trend: bars → line (2026-07-21)
 `exercise-progress.tsx`'s per-session est-1RM chart now reuses **`SvgLineChart`** (the same
 line+area primitive as the Progress tab's weight trend) instead of a per-session `SvgGrowBar`

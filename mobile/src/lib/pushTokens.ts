@@ -113,15 +113,23 @@ export async function getPushEnabled(client: SupabaseClient): Promise<boolean> {
   }
 }
 
+export type SetPushEnabledResult = 'ok' | 'permission_denied' | 'error'
+
 /**
  * Toggle server-driven push for this device. Turning it on re-registers the token;
  * turning it off flips `device_tokens.enabled` so the retention engine skips it.
+ *
+ * Returns 'permission_denied' specifically for the case an in-app switch can
+ * never actually fix: the OS permission was already denied (a re-request just
+ * resolves 'denied' again with no dialog shown, iOS's own anti-nag rule), so
+ * the caller can route the user to system Settings instead of leaving the
+ * switch in a confusing "on but nothing happens" state.
  */
 export async function setPushEnabled(
   client: SupabaseClient,
   userId: string,
   enabled: boolean,
-): Promise<void> {
+): Promise<SetPushEnabledResult> {
   try {
     if (enabled) {
       // User flipped the switch ON — this IS the right moment for the OS prompt
@@ -129,15 +137,20 @@ export async function setPushEnabled(
       const perms = await Notifications.getPermissionsAsync()
       if (perms.status !== 'granted') {
         const req = await Notifications.requestPermissionsAsync()
-        if (req.status !== 'granted') return
+        if (req.status !== 'granted') return 'permission_denied'
       }
       await registerPushToken(client, userId)
     } else {
       const token = await currentToken()
-      if (token) await client.from('device_tokens').update({ enabled: false }).eq('token', token)
+      if (token) {
+        const { error } = await client.from('device_tokens').update({ enabled: false }).eq('token', token)
+        if (error) return 'error'
+      }
     }
+    return 'ok'
   } catch (e) {
     captureApiError('setPushEnabled', e)
+    return 'error'
   }
 }
 

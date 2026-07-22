@@ -81,6 +81,10 @@ export default function SettingsScreen() {
   // Per-rule notification preferences (§6.1) — finer control beneath the master
   // switch. pre_workout is device-local; the rest are account-level.
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS)
+  // The full per-type list stays collapsed by default — showing all 7 rows
+  // unconditionally overwhelmed the one switch most people actually want. It
+  // reveals itself only when the user taps "Customize" to go looking for it.
+  const [showNotifDetails, setShowNotifDetails] = useState(false)
 
   // Weight display unit (lb/kg) — a device preference; storage stays lbs.
   const unit = useUnitStore((s) => s.unit)
@@ -152,14 +156,39 @@ export default function SettingsScreen() {
   const togglePush = async (next: boolean) => {
     setPushEnabled(next) // optimistic
     if (!userId) return
+
+    // Flip device_tokens first — when turning ON this is also what prompts for
+    // OS permission (if never granted) and registers the token.
+    const deviceResult = await applyPushEnabled(supabase, userId, next).catch(() => 'error' as const)
+
+    // iOS never re-shows its own prompt once denied — requestPermissionsAsync
+    // just resolves 'denied' again instantly. An in-app switch literally cannot
+    // fix that, so don't pretend it did: revert and send the user to the one
+    // place that can, system Settings.
+    if (next && deviceResult === 'permission_denied') {
+      setPushEnabled(false)
+      Alert.alert(
+        'Notifications are off in Settings',
+        'Tempo needs permission from iOS to send reminders. Turn notifications on for Tempo in system Settings, then flip this switch again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      )
+      return
+    }
+
     // Persist at the USER level so the switch STICKS even when no device token is
     // registered (the old device_tokens-only path silently reverted on those devices).
-    await setMasterPushEnabled(supabase, userId, next).catch(() => {})
-    // Still flip device_tokens so the retention engine skips a disabled device (and,
-    // when turning ON, prompt for permission + register a token).
-    await applyPushEnabled(supabase, userId, next).catch(() => {})
-    // Re-sync from the user-level flag — the source of truth for the switch.
-    getMasterPushEnabled(supabase, userId).then(setPushEnabled).catch(() => {})
+    const masterOk = await setMasterPushEnabled(supabase, userId, next)
+
+    // A genuine write failure (network drop, etc.) — revert AND say why, rather
+    // than the old behavior of silently re-reading the server and letting the
+    // switch appear to "slide back" on its own with no explanation.
+    if (!masterOk || deviceResult === 'error') {
+      setPushEnabled(!next)
+      Alert.alert('Could not update', 'Check your connection and try again.')
+    }
   }
 
   // Flip one account-level retention rule (§6.1). Optimistic; the edge function
@@ -482,9 +511,23 @@ export default function SettingsScreen() {
             </View>
 
             {/* Per-rule controls (§6.1) — mute one nag without silencing the rest.
-                Pre-workout is a local reminder (works regardless of the master
-                switch); the others are retention pushes gated by the master switch. */}
-            {([
+                Collapsed by default: 7 individual rows overwhelmed the one switch
+                most people actually want, so they only appear once asked for. */}
+            <TouchableOpacity
+              style={styles.prefRow}
+              onPress={() => setShowNotifDetails((v) => !v)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={showNotifDetails ? 'Hide notification types' : 'Customize notification types'}
+            >
+              <View style={styles.settingInfo}>
+                <Text style={styles.prefLabel}>Customize notification types</Text>
+                <Text style={styles.prefSub}>{showNotifDetails ? 'Showing all 7' : 'Missed workout, streak alerts, and more'}</Text>
+              </View>
+              <Ionicons name={showNotifDetails ? 'chevron-up' : 'chevron-down'} size={18} color={C.textSecondary} />
+            </TouchableOpacity>
+
+            {showNotifDetails && ([
               { key: 'pre_workout', label: 'Pre-workout reminder', sub: '30 minutes before a session', server: false },
               { key: 'missed_workout', label: 'Missed workout', sub: 'A gentle nudge if you miss one', server: true },
               { key: 'streak_at_risk', label: 'Streak at risk', sub: "Evening reminder when today's is still open", server: true },
