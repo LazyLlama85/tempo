@@ -1906,6 +1906,15 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 - **body_measurements** — time-series weight / body-fat % / waist / progress-photo path.
 - **device_tokens** — Expo push tokens per device (`enabled` flag).
 - **notification_log** — every retention push attempt (status/error/ticket) for debugging + analytics.
+- **coach_messages** *(`add_tempo_coach.sql`, applied 2026-07-22)* — the Tempo Coach thread. One
+  table backs three things deliberately: the rendered history, the prompt's conversation window
+  (last N rows replayed to the model), and the **free-tier quota** (a count over `role='user'` rows
+  since the start of the week — no separate counter, and because it lives in Postgres it survives a
+  reinstall, unlike every device-local flag). `action` holds the model's proposed tool call verbatim
+  (`{name, input}`); `action_state` (`proposed`/`applied`/`dismissed`/`failed`) is what makes the
+  feature measurable — **apply-rate is the metric Coach must move**, and a Coach whose proposals are
+  never applied is a chatbot. RLS: strictly own-rows; the `tempo-coach` function inserts with the
+  caller's JWT, so the policy is the real enforcement rather than a formality.
 - **waitlist** — marketing capture.
 - **friendships** — the social graph: one row per pair (`requester_id`/`addressee_id`,
   `status` pending→accepted, unordered-pair unique index). RLS: parties only; requester inserts
@@ -2009,6 +2018,31 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
   screen); until then the table was write-only from the app's perspective despite its own RLS
   already granting users SELECT on their own rows.
+- **tempo-coach** *(2026-07-22, Batch C1)* — the server half of **Tempo Coach**, the Pro tentpole.
+  A thin, authenticated, metered proxy to the Anthropic Messages API (`claude-opus-4-8`) — it is
+  deliberately **not** an agent: it never writes to a training table and never executes a tool.
+  It takes the user's message plus a context pack the app assembled, and returns
+  `{ text, action }` where `action` is a **proposed** tool call the app renders as a confirm card;
+  the actual write happens client-side through the same lib functions a button press already uses,
+  only after the user taps Apply. Rationale in `TEMPO_COACH_PLAN.md` §3 — this avoids a second copy
+  of the scheduling engine living in Deno, means nothing mutates without a tap, and costs one API
+  round-trip per message instead of three or four.
+  **Five tools** (`reschedule_week`, `move_workout`, `swap_exercise`, `start_travel_mode`,
+  `explain`) declared with `strict: true` + closed schemas so the args always parse; each maps to a
+  lib function that already exists (`weekReschedule`, `moveWorkout`, `substitutions`, `travelMode`).
+  **`verify_jwt` is ON** (unlike `retention-push`) — an unauthenticated LLM endpoint is a free API
+  for the internet. Every query runs as the *caller*, so `coach_messages` RLS is the real access
+  control and no service-role client is created. **Quota is server-side** and counted from Postgres,
+  never from a client-sent flag: free (`proEnabled && !isPro`) = 3 messages/week Monday-anchored,
+  Pro/dormant = 200/month soft cap; `402` signals the paywall moment. Rows are written only *after*
+  a successful reply, so a failed request never burns an allowance. Every call logs input/output
+  token counts — that log, not the plan's estimate, is how real per-message cost gets known.
+  **`ANTHROPIC_API_KEY` lives only in Supabase secrets** (`npx supabase secrets set`); it must never
+  become an `EXPO_PUBLIC_*` var, which would inline it into the shipped binary.
+  **Known v1 limitation:** the server can only see *comped* Pro grants (`app_config.pro_user_ids`),
+  not real RevenueCat subscriptions, so a genuine subscriber would be metered as free — must be
+  resolved (receipt verification or a RevenueCat-webhook-maintained table) **before** flipping
+  `pro_enabled` globally. Not user-visible while Pro is dormant. See the function's README.
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).
