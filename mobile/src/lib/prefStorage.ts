@@ -50,19 +50,47 @@ export function removePref(key: string): void {
 }
 
 /**
- * Read a preference after mount. Tries the async SQLite store first (the native
- * source of truth), then falls back to localStorage so a value written by the
- * sync path — or on a platform where kv-store isn't backed by the same database —
- * is still found. Never throws; callers keep their default on any failure.
+ * Read a preference. **Must only be called after mount** — never from a store
+ * initializer (see this module's header).
+ *
+ * Reads `localStorage` FIRST, then falls back to the async kv-store. That order
+ * is deliberate and was chosen on-device:
+ *
+ *  • On native `globalThis.localStorage` IS the SQLite-backed store, so the first
+ *    branch is already the source of truth — the dynamic import is redundant work
+ *    on the happy path.
+ *  • `import('expo-sqlite/kv-store')` resolves fine in a production bundle but
+ *    FAILS under Metro's lazy bundling in dev with `Requiring unknown module`.
+ *    With the old order that threw on every launch, once per preference — four
+ *    red LogBox overlays covering the app before you could touch it. Harmless
+ *    (each was caught, and the fallback returned the right value) but it made the
+ *    dev build unusable to look at, which is its whole purpose.
+ *  • The synchronous read is safe HERE specifically because this runs post-mount.
+ *    The "blank screen on first launch" bug was a sync SQLite read at
+ *    module-evaluation time; the app already does sync `localStorage.setItem`
+ *    post-mount on every preference write, so this is the same exposure.
+ *
+ * The kv-store branch is kept as a genuine fallback: on web the two are different
+ * stores, so a value written only through the async path is still found.
+ * Never throws; callers keep their default on any failure.
  */
 export async function readPref(key: string): Promise<string | null> {
   try {
-    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
-    const v = await AsyncStorage.getItem(key)
-    if (v != null) return v
-  } catch { /* fall through to localStorage */ }
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (ls) {
+      // localStorage EXISTS, so it is authoritative: on native it is the SQLite
+      // store itself, and on web `writePref` always writes here too. A null here
+      // therefore means the preference is genuinely unset — returning early
+      // (rather than also consulting kv-store) is not just an optimisation, it
+      // avoids the dynamic import entirely on every normal launch, which is what
+      // was spraying LogBox errors over a fresh install that has nothing saved yet.
+      return ls.getItem(key) ?? null
+    }
+  } catch { /* fall through to the async store */ }
+  // Only reached where localStorage is unavailable altogether.
   try {
-    return (globalThis as { localStorage?: Storage }).localStorage?.getItem(key) ?? null
+    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
+    return (await AsyncStorage.getItem(key)) ?? null
   } catch {
     return null
   }
