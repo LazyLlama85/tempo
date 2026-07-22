@@ -813,6 +813,18 @@ you moving."*
   free-running, non-square sizing (`width`/`height`, not just a square `size`), and an
   `onAnimationFailure` guard that hides the view rather than crashing whatever screen embedded it —
   new infrastructure alongside the existing hand-built primitives, not a replacement for them.
+  **⚠ Known ASSET defect (2026-07-22) — two coach poses are clipped in the source art, not by
+  layout.** Founder reported the sprinting coach looking cut off; measuring every pose's vector
+  bounds against its composition proved it is the artwork. Six poses carry a clean ~10px margin
+  (e.g. `idle` 170 wide, paths 10.5→159.5). Two do not: **`sprinting`** (285 wide, paths 9.5→**284**
+  — head and forward arm sliced) and **`wave`** (320 wide, paths 102.5→**319** — waving fingertips
+  sliced). Critically the paths *stop at* the edge rather than continuing past it, so the missing
+  art is absent from the vector data — **widening the composition would only add empty space; this
+  is not fixable in code.** `wave` has a second defect: 102px of dead space on its LEFT against 1px
+  on the right, so `TempoLottie` scales that emptiness into the box and the coach renders visibly
+  offset right — and `wave` is the **sign-in screen**, the first thing every user sees. Fix is to
+  re-export both poses with the ~10px margin the other six already use, and to crop `wave`'s left
+  dead space. Source PNGs live in `brand-assets/coach-poses/` and show the same clipping.
   `@lottiefiles/dotlottie-react` is also required (`lottie-react-native`'s own web-platform
   fallback imports it directly — this project's `app.json` still exposes a `web` target for local
   `expo start` preview, and Metro resolves platform-specific files even for a module that's really
