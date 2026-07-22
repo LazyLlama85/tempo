@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
-import { useTheme, useThemedStyles, useThemeStore, type Palette } from '@/theme'
+import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
@@ -47,7 +47,6 @@ export default function MuscleMapScreen() {
   const userId = session?.user.id ?? ''
   const { muscleTimeline, muscleFineTimeline, isLoading } = useProgressStats(userId)
   const { locked } = useProGate()
-  const themeMode = useThemeStore((st) => st.mode)
 
   const [view, setView] = useState<BodyView>('front')
   const [selected, setSelected] = useState<MuscleGroup | null>(null)   // coarse (heatmap/rank)
@@ -448,8 +447,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   mapCard: { backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: C.glassBorder, overflow: 'hidden', ...Elevation.e1 },
   heroGlow: { position: 'absolute', top: -40, alignSelf: 'center', width: 260, height: 260, borderRadius: 130, backgroundColor: C.primaryGlow },
-  mapLockPill: { position: 'absolute', top: Spacing.md, right: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
-  mapLockPillText: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.onPrimary, letterSpacing: 0.3 },
 
   // Locked map: the figure and its blur/scrim overlay share this wrapper so the
   // overlay covers the body exactly (not the card's legend + toggles below it).

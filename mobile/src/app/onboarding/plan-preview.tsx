@@ -46,7 +46,15 @@ import * as haptics from '@/lib/haptics'
 // backgrounded mid-chain). Now it can only ever settle: web skips the ask outright,
 // and native races the alert against a timeout. Declining is the safe default —
 // worst case the user misses a primed ask, instead of losing the whole app.
-const REMINDER_ASK_TIMEOUT_MS = 30_000
+//
+// The timeout is deliberately LONG. On iOS/Android the alert really does appear and
+// the user really does have to read it, so this must never fire on a human who is
+// simply slow — they'd tap "Remind me", the promise would already have settled
+// false, and they'd silently get no reminders at all. Three minutes is far beyond
+// any genuine dialog response and still bounds the hang; anyone who hasn't answered
+// by then has put the phone down, and a 3-minute wait is recoverable where the
+// original forever-hang was not. This is a last-resort guard, not a UX timer.
+const REMINDER_ASK_TIMEOUT_MS = 180_000
 
 function askForReminders(): Promise<boolean> {
   return new Promise((resolve) => {
