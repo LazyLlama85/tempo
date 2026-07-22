@@ -21,7 +21,7 @@
 // (which already reads a `preferredCalendar` param) persists it.
 
 import { useEffect, useRef, useState } from 'react'
-import { Animated, StyleSheet, TouchableOpacity, View, Text, ActivityIndicator } from 'react-native'
+import { Animated, StyleSheet, TouchableOpacity, View, Text, ActivityIndicator, ScrollView } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -191,7 +191,13 @@ export default function WhyTempoScreen() {
         <View style={[styles.progressFill, { width: `${(2 / TOTAL_STEPS) * 100}%` }]} />
       </View>
 
-      <View style={{ flex: 1, paddingHorizontal: Spacing.containerPadding }}>
+      {/* This was a fixed, non-scrolling View — on a smaller phone or with larger
+          Dynamic Type, the calendar-connect card (title + subtitle + animation +
+          card + 2 buttons) could run past the bottom of the screen with no way
+          to reach Continue. ScrollView matches every other onboarding step
+          (goal.tsx etc.) and lets content that's too tall scroll into view
+          instead of silently clipping off-screen. */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <FadeInView style={{ gap: Spacing.md }}>
           <Text style={styles.stepLabel}>STEP 2 OF {TOTAL_STEPS}</Text>
           <Text style={styles.title}>Most apps just log workouts.</Text>
@@ -238,7 +244,7 @@ export default function WhyTempoScreen() {
             )}
           </View>
         </FadeInView>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <PressableScale style={styles.continueBtn} onPress={goNext} activeOpacity={0.85}>
@@ -259,6 +265,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   skipTop: { fontFamily: 'Inter_500Medium', fontSize: 15, color: C.textSecondary },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.lg },
   progressFill: { height: 3, backgroundColor: C.primary, borderRadius: Radius.full },
+  scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl },
   stepLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   title: { fontFamily: C.fontDisplay, fontSize: 28, color: C.text, letterSpacing: -0.28, lineHeight: 34 },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22 },

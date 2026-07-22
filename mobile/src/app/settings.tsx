@@ -249,7 +249,18 @@ export default function SettingsScreen() {
       ls?.removeItem('tempo.coach.session')
     } catch { /* best-effort */ }
     Alert.alert('Tour reset', 'The guided walkthrough will play again on Home, Plan, and Profile.', [
-      { text: 'Show me', onPress: () => router.push('/(tabs)') },
+      {
+        text: 'Show me',
+        onPress: () => {
+          // Settings is a MODAL pushed on top of the tabs (reached via Profile's
+          // gear icon) — a plain push to Home left it stacked underneath, so the
+          // tour was invisible until the user manually swiped/backed out of
+          // Settings themselves. Dismiss the modal stack first so Home is what's
+          // actually on screen when the tour starts.
+          if (router.canDismiss()) router.dismissAll()
+          router.replace('/(tabs)')
+        },
+      },
     ])
   }
 

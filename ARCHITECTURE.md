@@ -2469,6 +2469,21 @@ stays off until the user opts in in Settings — the runner's gating logic (`pla
 (focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
 default was wrong.
 
+### "Replay app tour" now dismisses Settings first; why-tempo.tsx made scrollable (2026-07-21)
+Two small onboarding/tutorial polish fixes:
+- Settings' "Replay app tour" row used to `router.push('/(tabs)')` after resetting the tour, but
+  Settings is a **modal** pushed on top of the tabs — the push landed underneath the still-open
+  modal, so the tour was invisible until the user manually swiped/backed out of Settings
+  themselves. Now dismisses the modal stack first (`router.dismissAll()`, the same pattern already
+  used for sign-out and account-deletion) before `router.replace('/(tabs)')`.
+- `onboarding/why-tempo.tsx` (the "most apps just log workouts" differentiator screen) wrapped its
+  entire content column — title, subtitle, the schedule animation, and a card with two connect
+  buttons — in a plain fixed `View`, not a `ScrollView`. On a smaller phone or with larger Dynamic
+  Type that content could run past the bottom of the screen with no way to reach it or Continue —
+  the same bug class as an already-fixed instance in `MASTER_FIX_PLAN.md` (a workout-summary card
+  that had no ScrollView). Now wrapped in `ScrollView`, matching every sibling onboarding step
+  (`goal.tsx` etc.).
+
 ### Notification settings: fixed master-toggle revert, collapsed the per-type list (2026-07-21)
 The master push switch (`app/settings.tsx`'s `togglePush`) used to unconditionally re-fetch
 `getMasterPushEnabled` after every toggle and trust whatever it read — so a failed/dropped write
