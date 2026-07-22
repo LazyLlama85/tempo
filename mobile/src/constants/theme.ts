@@ -61,6 +61,15 @@ const inkDark = {
   glassBorder: 'rgba(255,255,255,0.09)',
   glassHighlight: 'rgba(255,255,255,0.14)',
   scrim: 'rgba(0,0,0,0.55)',
+  // The raised pill inside a segmented control's trough (`surfaceContainerLow`).
+  // Needs its own token because the two ramps run in OPPOSITE directions: dark
+  // gets lighter as it elevates, light gets darker, so no shared token reads as
+  // "raised" in both. This used to be `background`, which is #FFFFFF on a #F6F3F4
+  // trough in light (fine) but #181A20 on a #14161B trough in dark — a 4/255
+  // difference per channel, i.e. INVISIBLE. In the default theme the user could
+  // not see which segment they had selected (found 2026-07-22 on Availability →
+  // Preferred time to train, which had silently looked unanswered all along).
+  controlActive: '#262A33',
   // Heavy, SURFACE-tinted scrim for locked/Pro-teaser content. Unlike `scrim`
   // (a neutral dim for modal backdrops) this is opaque enough to make the content
   // underneath genuinely unreadable — a dimmed Pro preview still leaks the answer —
@@ -132,6 +141,7 @@ const paperLight: Palette = {
   glassBorder: 'rgba(20,28,48,0.08)',
   glassHighlight: 'rgba(255,255,255,0.92)',
   scrim: 'rgba(18,22,30,0.34)',
+  controlActive: '#FFFFFF',
   scrimHeavy: 'rgba(252,248,249,0.88)',
   chartGrid: 'rgba(20,28,48,0.08)',
   chartAxis: '#C7CBD4',

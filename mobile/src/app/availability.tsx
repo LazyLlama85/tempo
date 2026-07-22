@@ -463,7 +463,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   segmented: { flexDirection: 'row', backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: 4, gap: 4 },
   segment: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center' },
-  segmentActive: { backgroundColor: C.background, ...CardShadow, shadowOpacity: 0.08 },
+  segmentActive: { backgroundColor: C.controlActive, ...CardShadow, shadowOpacity: 0.08 },
   segmentText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary },
   segmentTextActive: { fontFamily: 'Inter_700Bold', color: C.text },
 
