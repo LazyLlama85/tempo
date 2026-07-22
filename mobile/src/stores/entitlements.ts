@@ -12,6 +12,7 @@
 // everything — the free app is unchanged until you flip the flag.
 
 import { create } from 'zustand'
+import { readPref, writePref, removePref } from '@/lib/prefStorage'
 
 interface EntitlementState {
   proEnabled: boolean
@@ -29,18 +30,12 @@ interface EntitlementState {
 }
 
 // The tester override persists across launches (and survives the RevenueCat live
-// listener) using the same localStorage idiom as activation.ts. Best-effort; a
-// missing/broken store just means "no override" (real entitlement), never a crash.
+// listener) via lib/prefStorage. Best-effort; a missing/broken store just means
+// "no override" (real entitlement), never a crash.
 const OVERRIDE_KEY = 'tempo.devProOverride'
 function persistOverride(v: boolean | null): void {
-  try {
-    const ls = (globalThis as { localStorage?: Storage }).localStorage
-    if (!ls) return
-    if (v === null) ls.removeItem(OVERRIDE_KEY)
-    else ls.setItem(OVERRIDE_KEY, v ? '1' : '0')
-  } catch {
-    /* best-effort; tester tooling only */
-  }
+  if (v === null) removePref(OVERRIDE_KEY)
+  else writePref(OVERRIDE_KEY, v ? '1' : '0')
 }
 
 // devProOverride defaults to null (no override) synchronously — no storage read
@@ -67,18 +62,12 @@ export const useEntitlementStore = create<EntitlementState>((set) => ({
 }))
 
 // Called once from the root layout's startup effect (after first mount) to
-// restore a tester's saved override. Uses the ASYNC SQLite API (not the sync
-// one persistOverride() uses for writes) so a slow/stuck native call here can
-// never block first paint.
+// restore a tester's saved override. Reads via lib/prefStorage — async, so a
+// slow/stuck native call here can never block first paint, and symmetric with
+// persistOverride's write so the two can't disagree about where the value went.
 export async function loadStoredDevProOverride(): Promise<void> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
-    const v = await AsyncStorage.getItem(OVERRIDE_KEY)
-    if (v === '1' || v === '0') useEntitlementStore.setState({ devProOverride: v === '1' })
-  } catch {
-    /* keep the default (no override) */
-  }
+  const v = await readPref(OVERRIDE_KEY)
+  if (v === '1' || v === '0') useEntitlementStore.setState({ devProOverride: v === '1' })
 }
 
 /**

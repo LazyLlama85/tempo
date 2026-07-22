@@ -2585,7 +2585,21 @@ access in the initializer**, and each exports an async loader (`loadStoredThemeM
 `loadStoredWeightUnit`, `loadStoredFocusMode`, `loadStoredDevProOverride`) that corrects the value
 *after first mount* using `expo-sqlite/kv-store`'s async `AsyncStorage.getItem()` — confirmed to
 read/write the same underlying database as the sync API, so nothing is lost, it just resolves a
-tick later. All four loaders are called from the root layout's existing startup `useEffect`
+tick later.
+
+**Centralized into `lib/prefStorage.ts` (2026-07-22).** That fix left all four stores *writing*
+through `globalThis.localStorage` while *reading* through `expo-sqlite/kv-store`. On native those
+are the same SQLite database so it worked — but nothing in the code said so and nothing enforced
+it, and anywhere they are not the same store (web) **every one of these preferences silently failed
+to persist**: set kg, reload, back to lbs. Silent data loss with no error and no crash. `prefStorage`
+now owns the contract — `writePref`/`removePref` write *both* ways, `readPref` tries kv-store then
+falls back to localStorage — so persistence no longer depends on an undocumented coincidence about
+how Expo polyfills `localStorage`. Verified end-to-end in the running app: KG survives a full reload
+and the profile Volume tile reads 599 kg where it read 1,320 lbs. **The initializers are deliberately
+untouched** — they still default synchronously to a constant with no storage access, because that is
+the actual fix for the blank-screen bug and `readPref` must never be called from one.
+
+All four loaders are called from the root layout's existing startup `useEffect`
 (`app/_layout.tsx`, alongside `initialize()`/`track('app_open')`/`endStaleRestActivities()`). A
 plain `globalThis.localStorage` property *reference* (e.g. the query-cache persister at the top of
 `_layout.tsx`) is unaffected — the sync-DB-open only happens on the first actual `getItem`/

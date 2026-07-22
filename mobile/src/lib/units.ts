@@ -6,6 +6,7 @@
 // and reads kg while the data model never changes.
 
 import { create } from 'zustand'
+import { readPref, writePref } from '@/lib/prefStorage'
 
 export type WeightUnit = 'lb' | 'kg'
 
@@ -25,8 +26,8 @@ interface UnitState {
 export const useUnitStore = create<UnitState>((set) => ({
   unit: 'lb',
   setUnit: (unit) => {
-    try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(STORAGE_KEY, unit) } catch { /* best-effort */ }
     set({ unit })
+    writePref(STORAGE_KEY, unit)
   },
 }))
 
@@ -34,14 +35,8 @@ export const useUnitStore = create<UnitState>((set) => ({
 // correct the unit for a returning kg user. Uses the ASYNC SQLite API so a
 // stuck native call here can never block rendering.
 export async function loadStoredWeightUnit(): Promise<void> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
-    const v = await AsyncStorage.getItem(STORAGE_KEY)
-    if (v === 'kg' || v === 'lb') useUnitStore.setState({ unit: v })
-  } catch {
-    /* keep the default */
-  }
+  const v = await readPref(STORAGE_KEY)
+  if (v === 'kg' || v === 'lb') useUnitStore.setState({ unit: v })
 }
 
 /** Convenience hook — the current display unit. */

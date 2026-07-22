@@ -9,6 +9,7 @@
 // "blank screen on first launch" hazard.
 
 import { create } from 'zustand'
+import { readPref, writePref } from '@/lib/prefStorage'
 
 const STORAGE_KEY = 'tempo.focusModeEnabled'
 
@@ -20,8 +21,8 @@ interface FocusModeState {
 export const useFocusModePrefStore = create<FocusModeState>((set) => ({
   enabled: false,
   setEnabled: (enabled) => {
-    try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(STORAGE_KEY, enabled ? '1' : '0') } catch { /* best-effort */ }
     set({ enabled })
+    writePref(STORAGE_KEY, enabled ? '1' : '0')
   },
 }))
 
@@ -33,12 +34,6 @@ export const useFocusModeEnabled = () => useFocusModePrefStore((s) => s.enabled)
 // anyone who never touched the setting. Uses the ASYNC SQLite API so a stuck
 // native call here can never block rendering.
 export async function loadStoredFocusMode(): Promise<void> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
-    const v = await AsyncStorage.getItem(STORAGE_KEY)
-    if (v === '1' || v === '0') useFocusModePrefStore.setState({ enabled: v === '1' })
-  } catch {
-    /* keep the default (off) */
-  }
+  const v = await readPref(STORAGE_KEY)
+  if (v === '1' || v === '0') useFocusModePrefStore.setState({ enabled: v === '1' })
 }

@@ -8,6 +8,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, StyleSheet, AccessibilityInfo } from 'react-native'
 import { create } from 'zustand'
+import { readPref, writePref } from '@/lib/prefStorage'
 import { Palettes, type Palette, type ThemeMode } from '@/constants/theme'
 
 export type { Palette, ThemeMode }
@@ -37,26 +38,22 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>((set, get) => ({
   mode: 'dark',
   setMode: (mode) => {
-    try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(STORAGE_KEY, mode) } catch { /* best-effort */ }
     set({ mode })
+    writePref(STORAGE_KEY, mode)
   },
   toggle: () => get().setMode(get().mode === 'dark' ? 'light' : 'dark'),
 }))
 
 // Called once from the root layout's startup effect (after first mount) to
 // correct the mode for a returning user with a saved 'light' preference.
-// Uses the ASYNC SQLite API specifically — not the synchronous one the rest
-// of this file uses for writes — because a stuck promise here can never
-// freeze the JS thread or block rendering, unlike a stuck synchronous call.
+// Reads via lib/prefStorage, which is ASYNC on purpose: a stuck promise here
+// can never freeze the JS thread or block rendering, unlike a stuck
+// synchronous call. prefStorage also writes through both storage paths, so a
+// value saved by setMode is always found here (they used to disagree — see
+// that module's header).
 export async function loadStoredThemeMode(): Promise<void> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
-    const v = await AsyncStorage.getItem(STORAGE_KEY)
-    if (v === 'light' || v === 'dark') useThemeStore.setState({ mode: v })
-  } catch {
-    /* keep the default */
-  }
+  const v = await readPref(STORAGE_KEY)
+  if (v === 'light' || v === 'dark') useThemeStore.setState({ mode: v })
 }
 
 /** The active palette. Re-renders the caller when the mode changes. */
