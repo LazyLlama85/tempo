@@ -2018,7 +2018,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
   screen); until then the table was write-only from the app's perspective despite its own RLS
   already granting users SELECT on their own rows.
-- **tempo-coach** *(2026-07-22, Batch C1)* — the server half of **Tempo Coach**, the Pro tentpole.
+- **tempo-coach** ⏸ **PARKED 2026-07-22 — WRITTEN BUT NEVER DEPLOYED.** Founder deferred Coach; Pro
+  launches on the existing gate model. The function does not exist in the Supabase project, has no
+  `ANTHROPIC_API_KEY`, and returns 503 without one — it cannot be called and cannot spend money.
+  `coach_messages` is applied but empty and unreferenced; `lib/coach.ts` compiles and its tests pass
+  but nothing imports it. All of it is inert. See `TEMPO_COACH_PLAN.md`'s header before reviving it.
+  The design below is retained as the spec. — the server half of **Tempo Coach**, the Pro tentpole.
   A thin, authenticated, metered proxy to the Anthropic Messages API (`claude-opus-4-8`) — it is
   deliberately **not** an agent: it never writes to a training table and never executes a tool.
   It takes the user's message plus a context pack the app assembled, and returns

@@ -75,7 +75,10 @@ const COMPARE: { label: string; free: string | boolean; pro?: string }[] = [
   { label: 'Custom workouts & exercises', free: '5 each' },
   { label: 'Auto-move on a calendar conflict', free: false },
   { label: 'Multi-calendar & travel mode', free: false },
-  { label: 'Premium themes & app icons', free: false },
+  // 'Premium themes & app icons' REMOVED 2026-07-22 — `premium_personalization` has no
+  // implementation (no theme picker, no alternate icons, no call site). A compare-table
+  // row promising it on the purchase screen is an App Store rejection risk and, worse,
+  // something a paying user would notice missing on day one.
 ]
 
 const TRUST: { icon: IoniconName; label: string }[] = [

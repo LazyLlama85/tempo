@@ -63,6 +63,9 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'Goal-date programs, structured training blocks, and your plan months ahead.',
     icon: 'map',
   },
+  // ⛔ NOT BUILT (verified 2026-07-22): there is no theme picker and no alternate app
+  // icon anywhere in the app — this id has no call site. Registered for later. It must
+  // NOT appear in PAYWALL_POINTS or the paywall's compare table until it exists.
   premium_personalization: {
     id: 'premium_personalization',
     title: 'Premium Look',
@@ -93,11 +96,12 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     benefit: 'Away from your usual setup? Rewrite your upcoming workouts to match whatever gear you have with you.',
     icon: 'airplane',
   },
-  // B1.5: dormant until the calendar.calendarlist.readonly OAuth scope is granted
-  // (services/googleCalendar/config.ts) — registered here so the picker screen has
-  // a ProGate id ready, but deliberately left OUT of PAYWALL_POINTS below until it
-  // actually works (App Store review rejects paywalls advertising non-functional
-  // features).
+  // B1.5. ✅ LIVE since 2026-07-18 — the calendar.calendarlist.readonly scope was
+  // granted (services/googleCalendar/config.ts), so fetchCalendarList() and the
+  // picker screen work and this IS legitimately advertised in PAYWALL_POINTS.
+  // (This comment previously said the opposite; corrected 2026-07-22 after
+  // re-verifying the scope config, because a stale "don't advertise this" note is
+  // exactly what gets a working feature pulled from the paywall by mistake.)
   multi_calendar: {
     id: 'multi_calendar',
     title: 'Multi-Calendar',
@@ -162,5 +166,10 @@ export const PAYWALL_POINTS: PaywallPoint[] = [
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'airplane', title: 'Travel Mode & Multi-Calendar', benefit: 'Rewrite workouts to match gear on the road, and read busy time from every calendar you use.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
-  { icon: 'sparkles', title: 'Unlimited Everything', benefit: 'Build unlimited custom plans, workouts, and exercises, plus the plate calculator and premium themes.' },
+  // 2026-07-22: "and premium themes" REMOVED from this bullet. `premium_personalization`
+  // is a registered id with ZERO implementation — no theme picker, no alternate app
+  // icons, nothing. Advertising it on the purchase screen is the exact App Store
+  // rejection reason this list exists to prevent, and the paywall carousel made it a
+  // full-screen slide. Put it back only when a user can actually change a theme.
+  { icon: 'sparkles', title: 'Unlimited Everything', benefit: 'Build unlimited custom plans, workouts, and exercises — plus the plate calculator for every lift.' },
 ]
