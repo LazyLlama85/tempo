@@ -679,7 +679,7 @@ const vis = StyleSheet.create({
   blockBusy: { backgroundColor: 'rgba(255,255,255,0.12)' },
   blockClash: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.gold, borderStyle: 'dashed' },
   blockGo: { backgroundColor: C.primary },
-  blockText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+  blockText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.textSecondary },
   blockTextOn: { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#fff' },
 
   pill: {
@@ -695,11 +695,11 @@ const vis = StyleSheet.create({
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
     paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: C.outlineVariant,
   },
-  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.text },
+  chipText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.text },
 
   muscleWrap: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.xs },
   muscleItem: { width: '47%', gap: 5 },
-  muscleName: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+  muscleName: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.textSecondary },
   muscleTrack: { height: 7, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
   muscleFill: { height: '100%', borderRadius: Radius.full },
 
@@ -710,7 +710,7 @@ const vis = StyleSheet.create({
   },
   stackTop: { backgroundColor: C.primarySoft, borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   infinity: { fontFamily: 'Inter_800ExtraBold', fontSize: 36, color: C.primary, lineHeight: 42 },
-  stackCaption: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+  stackCaption: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.textSecondary },
 })
 
 const weekStyles = StyleSheet.create({
@@ -719,7 +719,7 @@ const weekStyles = StyleSheet.create({
   track: { width: '100%', flex: 1, borderRadius: 6, overflow: 'visible', justifyContent: 'flex-end', position: 'relative' },
   busyBlock: { width: '100%', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 6 },
   workoutBlock: { position: 'absolute', width: '100%', height: 14, backgroundColor: C.primary, borderRadius: 6 },
-  label: { fontFamily: 'Inter_600SemiBold', fontSize: 10.5, color: C.textSecondary },
+  label: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.textSecondary },
 })
 
 // A single plan tile. Same data and the same a11y contract as the row it replaced
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
   timelineRowBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
 
   compareToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 4 },
-  compareToggleText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.textSecondary },
+  compareToggleText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.textSecondary },
   compareCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
   compareHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.outlineVariant },
   compareHeadLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, textTransform: 'uppercase' },

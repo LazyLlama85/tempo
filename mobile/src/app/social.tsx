@@ -736,5 +736,5 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   privacyChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary },
   hint: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18, marginTop: Spacing.xs },
   inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm, paddingVertical: 2 },
-  inviteRowText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary },
+  inviteRowText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
 })

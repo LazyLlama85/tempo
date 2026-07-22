@@ -300,7 +300,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   ringWrap: { marginTop: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   ringCaption: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.outline, letterSpacing: 0.8, marginBottom: 6 },
   ringBig: { fontFamily: C.fontDisplay, fontSize: 44, color: C.text, letterSpacing: -1 },
-  ringTapHint: { fontFamily: 'Inter_600SemiBold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6, marginTop: 8 },
+  ringTapHint: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.outline, letterSpacing: 0.6, marginTop: 8 },
   restAdjustRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, marginTop: Spacing.lg,
   },

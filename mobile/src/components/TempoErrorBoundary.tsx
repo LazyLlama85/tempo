@@ -118,5 +118,5 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     backgroundColor: C.primary, borderRadius: Radius.full,
     paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm, overflow: 'hidden',
   },
-  secondaryBtn: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: C.primary, padding: Spacing.xs },
+  secondaryBtn: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary, padding: Spacing.xs },
 })
