@@ -927,7 +927,16 @@ you moving."*
 - **Home** also surfaces a **goal countdown** ("12 weeks to lose 10 lbs"), a rich next-workout empty
   state (never a blank calendar) — which shows an actionable **Start now** only when the next session
   is today, otherwise a **locked "Scheduled for <day>"** state plus an "add a workout today" link —
-  and a Sun/Mon weekly-report entry.
+  and a Sun/Mon weekly-report entry. **Day-0 exception (2026-07-22):** when the user has never
+  completed a session (`stats.totalWorkouts === 0`) that locked bar is replaced by a live primary
+  **"Start your first workout"** button plus an honest "Or wait for <focus> on <day> — your plan runs
+  either way" hint. Reason: `generatePlan` drops week-0 slots already in the past (a Wednesday-morning
+  signup on a Mon/Wed/Fri plan keeps only Friday), so a brand-new user could finish seven onboarding
+  steps and land on a greyed-out lock icon that merely restated the "NEXT WORKOUT · FRIDAY" line
+  right above it, with the only real action demoted to a text link. The gate is deliberately
+  `totalWorkouts === 0`, not "no session today": for a user who HAS trained, a rest day must keep
+  reading as rest — promoting "train now" to everyone would encourage overtraining. Only the
+  never-trained case, where there is no recovery to protect, gets the live CTA.
 - **Layout:** screens with a fixed bottom CTA give their `ScrollView` `flex: 1` (so it scrolls
   instead of pushing the footer off-screen) and pad the footer by the bottom safe-area inset on
   edges-`top` modals — so action buttons are always reachable on every device.

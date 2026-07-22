@@ -1906,13 +1906,46 @@ export default function ScheduleScreen() {
                   <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
                   <Text style={styles.planNextMeta}>{formatTime(nextWorkout.planned_start_time)} · {nextWorkout.planned_duration_min} min</Text>
                 </View>
-                <View style={styles.planLockedBtn}>
-                  <Ionicons name="lock-closed" size={14} color={C.textSecondary} />
-                  <Text style={styles.planLockedText}>Scheduled for {relativeDayLabel(nextWorkout.planned_date)}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
-                  <Text style={styles.planQuickText}>Want to train today? Add a workout →</Text>
-                </TouchableOpacity>
+                {/* Day-0 activation. A brand-new user can finish onboarding and land
+                    here with their first session days away (generatePlan drops week-0
+                    slots that are already past — a Wednesday-morning signup on a
+                    Mon/Wed/Fri plan keeps only Friday). They then met a greyed-out
+                    LOCK bar in the primary action slot, restating the "NEXT WORKOUT ·
+                    FRIDAY" line directly above it, with the only real action demoted
+                    to a text link underneath. Day one ended with nothing to do, which
+                    is the worst possible first impression for a plan they just spent
+                    seven steps building.
+                    Gated on `totalWorkouts === 0` deliberately: for someone who HAS
+                    trained, a rest day should still read as rest — promoting "train
+                    now" to everyone would push overtraining. Only the never-trained
+                    case, where there is no recovery to protect, gets the live CTA. */}
+                {stats.totalWorkouts === 0 ? (
+                  <>
+                    <PressableScale
+                      style={styles.planFirstBtn}
+                      onPress={() => setAddWorkoutOpen(true)}
+                      scaleTo={0.98}
+                      accessibilityRole="button"
+                      accessibilityLabel="Start your first workout today"
+                    >
+                      <Ionicons name="flash" size={16} color={C.onPrimary} />
+                      <Text style={styles.planFirstBtnText}>Start your first workout</Text>
+                    </PressableScale>
+                    <Text style={styles.planQuickHint}>
+                      Or wait for {nextWorkout.focus} on {relativeDayLabel(nextWorkout.planned_date)} — your plan runs either way.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.planLockedBtn}>
+                      <Ionicons name="lock-closed" size={14} color={C.textSecondary} />
+                      <Text style={styles.planLockedText}>Scheduled for {relativeDayLabel(nextWorkout.planned_date)}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                      <Text style={styles.planQuickText}>Want to train today? Add a workout →</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             ) : (
               <EmptyState
@@ -2428,6 +2461,15 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   planLockedBtn: { height: 50, backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 2, borderWidth: 1, borderColor: C.outlineVariant },
   planLockedText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.textSecondary },
   planQuickText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.primary, textAlign: 'center', paddingVertical: 4 },
+  // Day-0 only (never-trained users) — the live counterpart to planLockedBtn,
+  // same 50px height so the card's rhythm is identical in both states.
+  planFirstBtn: {
+    height: 50, backgroundColor: C.primary, borderRadius: Radius.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: Spacing.xs, marginTop: 2, ...Elevation.e2,
+  },
+  planFirstBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },
+  planQuickHint: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, textAlign: 'center', lineHeight: 17, paddingVertical: 4 },
 
   // ── Missed banner ──────────────────────────────────────────────────────────
   missedBanner: {
