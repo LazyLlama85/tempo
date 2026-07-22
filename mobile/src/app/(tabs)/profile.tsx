@@ -206,10 +206,12 @@ export default function ProfileScreen() {
   // Profile insights (premium redesign) — a history-based readiness + progress stats.
   const readiness = useMemo(() => readinessFromHistory(workouts, logTimes, new Date()), [workouts, logTimes])
 
+  // Workouts / Day streak / Consistency are deliberately NOT here: the hero card
+  // above renders those exact three ~150px higher, so listing them again made the
+  // screen show the same numbers twice and turned a new user's profile into six
+  // zeros in a row. This grid earns its heading by adding what the hero doesn't
+  // have. Three tiles is a full row (flexBasis 30%), so the layout stays clean.
   const insightTiles: InsightTile[] = [
-    { icon: 'checkmark-done', label: 'Workouts', value: String(stats.totalWorkouts), tint: C.primary },
-    { icon: 'flame', label: 'Day streak', value: String(stats.streak), tint: C.ember },
-    { icon: 'pulse', label: 'Consistency', value: `${stats.consistency_pct ?? 0}%`, tint: C.success },
     { icon: 'trophy', label: 'PRs', value: String(stats.prs?.length ?? 0), tint: C.gold },
     { icon: 'barbell', label: 'Volume', value: stats.totalVolume ?? '0', tint: C.primaryBright },
     { icon: 'heart', label: 'Readiness', value: String(readiness.score), tint: readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow },
