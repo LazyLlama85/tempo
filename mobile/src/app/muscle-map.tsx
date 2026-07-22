@@ -174,28 +174,6 @@ export default function MuscleMapScreen() {
                   locked={locked}
                   size={210}
                 />
-                {locked && (
-                  // The unlock CTA on top of MuscleMap's own blur layer.
-                  <PressableScale
-                    style={StyleSheet.absoluteFill}
-                    scaleTo={0.98}
-                    onPress={openPaywall}
-                    accessibilityRole="button"
-                    accessibilityLabel="Unlock your body map with Tempo Pro"
-                  >
-                    <View style={s.mapLockScrim}>
-                      <View style={s.mapLockIcon}>
-                        <Ionicons name="lock-closed" size={20} color={C.onPrimary} />
-                      </View>
-                      <Text style={s.mapLockTitle}>Your body map is Pro</Text>
-                      <Text style={s.mapLockBody}>This is sample data. Unlock to see your own recovery, balance and weak points.</Text>
-                      <View style={s.mapLockCta}>
-                        <Text style={s.mapLockCtaText}>Unlock with Pro</Text>
-                        <Ionicons name="arrow-forward" size={15} color={C.onPrimary} />
-                      </View>
-                    </View>
-                  </PressableScale>
-                )}
               </View>
               {mode === 'status' ? (
                 <View style={s.legend}>
@@ -228,6 +206,34 @@ export default function MuscleMapScreen() {
                   groups — the same insight the blurred figure is hiding. */}
               {mode === 'rank' && !locked && rank.mostTrained && (
                 <Text style={s.footNote}>Most trained: {GROUP_LABEL[rank.mostTrained]} · Least: {GROUP_LABEL[rank.leastTrained ?? '']}</Text>
+              )}
+
+              {/* The unlock CTA covers the WHOLE CARD, not just the figure. Scoped
+                  to the figure it rendered as a hard-edged rectangle floating inside
+                  a lighter card — it read as a broken panel rather than a locked
+                  one — and its copy was crammed into the figure's 210pt width, so
+                  "Your body map is Pro" wrapped mid-phrase (worse on a 390pt phone).
+                  Covering the card also hides the colour legend, which otherwise sat
+                  below explaining a key for data the user can't see. MuscleMap still
+                  blurs the figure itself for the small Progress teaser. */}
+              {locked && (
+                <PressableScale
+                  style={[StyleSheet.absoluteFill, s.mapLockScrim]}
+                  scaleTo={0.98}
+                  onPress={openPaywall}
+                  accessibilityRole="button"
+                  accessibilityLabel="Unlock your body map with Tempo Pro"
+                >
+                  <View style={s.mapLockIcon}>
+                    <Ionicons name="lock-closed" size={20} color={C.onPrimary} />
+                  </View>
+                  <Text style={s.mapLockTitle}>Your body map is Pro</Text>
+                  <Text style={s.mapLockBody}>This is sample data. Unlock to see your own recovery, balance and weak points.</Text>
+                  <View style={s.mapLockCta}>
+                    <Text style={s.mapLockCtaText}>Unlock with Pro</Text>
+                    <Ionicons name="arrow-forward" size={15} color={C.onPrimary} />
+                  </View>
+                </PressableScale>
               )}
             </FadeInView>
 
@@ -451,10 +457,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   // Locked map: the figure and its blur/scrim overlay share this wrapper so the
   // overlay covers the body exactly (not the card's legend + toggles below it).
   mapFigureWrap: { position: 'relative' },
+  // Fills the whole map card. Opaque enough that the sample figure reads as a
+  // hint behind the panel rather than as content, and so the copy on top keeps
+  // its contrast in both themes.
   mapLockScrim: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: Spacing.lg,
+    backgroundColor: C.scrimHeavy,
+    borderRadius: Radius.card,
   },
   mapLockIcon: {
     width: 40, height: 40, borderRadius: Radius.full, backgroundColor: C.primary,
