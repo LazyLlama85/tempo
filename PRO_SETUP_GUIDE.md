@@ -1,27 +1,49 @@
 # Tempo Pro — Setup Guide (App Store Connect + RevenueCat)
 
-> **Goal:** take Tempo Pro from *built-but-dormant* to *live and purchasable*, with a **7-day free
-> trial** on the annual plan. Everything in the app is already coded (paywall, gates, free-tier caps,
-> entitlement wiring). This is the store + dashboard + flip-the-flag runbook. Follow it top to bottom.
+> **Goal:** take Tempo Pro from *built-but-dormant* to *live and purchasable*. Everything in the app
+> is already coded (paywall, gates, free-tier caps, entitlement wiring). This is the store + dashboard
+> + flip-the-flag runbook. Follow it top to bottom.
 >
 > **Companion files:** `MONETIZATION_PLAN.md` (what/why), `PRO_LAUNCH_CHECKLIST.md` (earlier
 > checklist), `ARCHITECTURE.md` (§ Pro), `mobile/src/lib/purchases.ts` + `proConfig.ts` (the code).
 
-> **✅ STATUS (audited live 2026-07-18 — most of this is already DONE):**
-> - **RevenueCat:** entitlement `Tempo: Fitness Planner Pro` (exact match ✓), real products
+> **✅ STATUS (audited live 2026-07-22 — most of this is now DONE, iOS and Android both):**
+> - **RevenueCat — iOS:** entitlement `Tempo: Fitness Planner Pro` (exact match ✓), real products
 >   **`tempo_pro_month`** + **`tempo_pro_year`** attached, current offering **`default`** wires
 >   `$rc_monthly`→month and `$rc_annual`→year, In-App-Purchase Key + App-Store-Connect API key both
 >   "Valid credentials". **Complete.**
+> - **RevenueCat — Android (fixed 2026-07-22, see D2.1):** the service-account credential was
+>   broken (zero active keys — the uploaded JSON was orphaned; two required Google Cloud APIs
+>   weren't enabled; the service account was never invited into Play Console). All three fixed same
+>   day. Both Play products (`tempo_pro_month:monthly`, `tempo_pro_year:yearly`) imported, **Published**,
+>   attached to the entitlement, and wired into the `default` offering's `$rc_monthly`/`$rc_annual`
+>   packages alongside the iOS products. Real-time developer notifications (Pub/Sub) connected —
+>   confirmed "Successfully connected to Google." Android SDK key in `eas.json` verified byte-for-byte
+>   against RevenueCat's public key. **Complete** (one cosmetic "Credentials need attention" badge
+>   persists despite every real capability — import, attach, offering save, Pub/Sub — working; likely a
+>   narrow/stale check, not a blocker).
 > - **App Store Connect:** subscription group *Tempo Pro* with Monthly **$7.99** + Yearly **$49.99**
->   (all 175 territories), localizations + review screenshots present, and the **7-day free trial**
->   (Introductory Offer → Free for the first week, all territories) is **live on the annual plan**.
+>   confirmed live (all ~175 territories). **Paid Apps Agreement is now Active** (was the launch
+>   blocker as of 07-18 — resolved between then and 07-22: bank account + W-9 tax form both Active).
 >   **Complete.**
-> - **Supabase:** `app_config.pro_enabled` configured; the founder's uid is in `test_user_ids`
->   (`tester_tools: true`) → Pro is live for their account only. **Complete.**
-> - **⛔ REMAINING (founder-only, blocks go-live):** (1) **Paid Apps Agreement** is *Pending User Info*
->   — add a bank account + tax info under Business → Agreements; until it's **Active, no purchase
->   works**. (2) **Submit an app version with the subscriptions attached** (see §C3–C4) — for App
->   Review to approve them and reach the paywall.
+> - **Pricing/offer decision (2026-07-22, founder-confirmed):** the Yearly plan's introductory offer
+>   is a **paid 50%-off first year** ($24.99 of $49.99), not a free trial — this is the intended,
+>   correct configuration (matches `paywall.tsx`'s existing "FOUNDING PRICE" badge logic exactly,
+>   which was built for precisely this case). The Monthly plan has no intro offer. Any earlier mention
+>   in this repo of a "7-day free trial" describes a superseded plan — see `MONETIZATION_PLAN.md`.
+> - **Supabase:** `app_config.pro_enabled` still globally `false` (dormant, as planned); the founder's
+>   uid is in `test_user_ids`. `founding_offer` config row (for the paywall's countdown banner) not
+>   yet set — optional, needs an `ends_at` date before it's added.
+> - **⛔ REMAINING (founder-only, blocks public purchases):** the app's iOS **App Store version 1.0 is
+>   still "Prepare for Submission"** with zero screenshots and empty description/promotional text —
+>   that blocks a *full public App Store submission*, but **not** subscription testing. Apple requires
+>   the first auto-renewable subscription to be submitted for review together with a build, but that
+>   build does **not** need to go public: submitting to an **external TestFlight testing group**
+>   triggers Apple's (lighter) Beta App Review, which reviews the attached subscriptions the same as
+>   full App Review — and TestFlight's own metadata (What to Test, beta description) is separate from,
+>   and much lighter than, the App Store listing's screenshots. **Internal-only TestFlight distribution
+>   does not trigger any review and will not get the subscriptions approved** — it must go to an
+>   external group. See §C3–C4.
 > The rest of this doc is the reference for how each piece was set up (and how to redo/verify it).
 
 ---

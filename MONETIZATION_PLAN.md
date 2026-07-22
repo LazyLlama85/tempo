@@ -31,6 +31,14 @@
 > The paywall now auto-renders **$4.17/mo billed yearly** and a **SAVE 48%** badge.
 > The §5 table below is kept for the reasoning; its numbers are the old ones.
 >
+> **⚠️ SUPERSEDED — OFFER TYPE (2026-07-22, founder-confirmed):** the Yearly plan's introductory offer
+> is a **paid 50%-off first year** ($24.99 of $49.99), not the 7-day free trial this doc originally
+> specced (§5, §6). This is the correct, intentional live configuration in App Store Connect / Play
+> Console — every "7-day free trial" line below (§5, §6, §7, §9) describes the superseded plan.
+> `paywall.tsx` already has the exact logic this needs (a "FOUNDING PRICE"-style discount badge off
+> `introPrice`, not a trial-CTA), so this needed no code change either. The Monthly plan has no
+> introductory offer.
+>
 > **FOUNDER DECISION (2026-07-18, superseded):** keep the **current price** ($4.99/mo · $34.99/yr) and give the
 > free tier real limits on **user-created content** — **1 Tempo plan + 1 custom plan, 5 custom
 > exercises, 5 saved custom workouts.** This is the *freemium content-cap* model (Hevy/Strong), and
