@@ -166,7 +166,16 @@ you moving."*
   on success it pops the whole onboarding stack back into the app instead of re-running
   profile-setup.
   `plan-preview` also guards double-taps with a **ref latch** (state alone can't stop two taps
-  in one frame), proactively refreshes the auth session before the save chain, auto-retries once
+  in one frame). Its **`askForReminders()` primed ask can no longer hang the funnel (fixed
+  2026-07-22)**: it is `await`ed mid-chain *after* the plan is already generated, and it used to
+  resolve only from its two `Alert.alert` button callbacks with `cancelable: false` and no timeout
+  — so if the alert never presented, the user sat on "Personalizing your plan…" forever with a
+  fully-built plan they could not reach, and the enclosing `try/catch` could not rescue them (an
+  unresolved promise is not an exception). Reproduced on web, where `Alert.alert` is a no-op;
+  native can hit the same shape if an alert fails to present (one already up, app backgrounded).
+  It now always settles: web skips the ask, native races the alert against a 30s timeout, and
+  `resolve` is latched so it fires once. Declining is the safe default — missing a primed ask
+  beats losing the app. It proactively refreshes the auth session before the save chain, auto-retries once
   after a silent token refresh on JWT failures, and maps failures to actionable copy (offline vs
   session vs server — `lib/saveErrors.ts`) with Try Again / Not now actions; the sleep/work-school/
   train-time steps share the same silent refresh-retry pattern where they write. **`onboarding_complete`

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -34,14 +34,37 @@ import * as haptics from '@/lib/haptics'
 // words first, so the system dialog isn't the first thing the user sees. iOS only
 // asks once — a reflex "Don't Allow" here would kill reminders AND every retention
 // push forever, so this framing moment matters.
+// This promise is AWAITED in the middle of handleConfirm's write chain, straight
+// after the plan is generated — so if it never settles, the user sits on
+// "Personalizing your plan…" forever with a fully-built plan they can't reach, and
+// the surrounding try/catch cannot rescue them (an unresolved promise is not an
+// exception). It previously resolved ONLY from these two button callbacks, with
+// `cancelable: false` and no timeout, which is exactly that failure: on
+// react-native-web `Alert.alert` is a no-op, so onboarding hung permanently at the
+// highest-stakes moment in the funnel (reproduced 2026-07-22). Native can hit the
+// same shape if the alert ever fails to present (another alert already up, app
+// backgrounded mid-chain). Now it can only ever settle: web skips the ask outright,
+// and native races the alert against a timeout. Declining is the safe default —
+// worst case the user misses a primed ask, instead of losing the whole app.
+const REMINDER_ASK_TIMEOUT_MS = 30_000
+
 function askForReminders(): Promise<boolean> {
   return new Promise((resolve) => {
+    let settled = false
+    const finish = (v: boolean) => { if (!settled) { settled = true; resolve(v) } }
+
+    // No Alert and no local notifications on web — nothing to prime.
+    if (Platform.OS === 'web') { finish(false); return }
+
+    const timer = setTimeout(() => finish(false), REMINDER_ASK_TIMEOUT_MS)
+    const answer = (v: boolean) => { clearTimeout(timer); finish(v) }
+
     Alert.alert(
       'Get a nudge before each workout?',
       'Tempo reminds you 30 minutes before each scheduled session — on busy days that heads-up is most of the battle.',
       [
-        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Remind me', onPress: () => resolve(true) },
+        { text: 'Not now', style: 'cancel', onPress: () => answer(false) },
+        { text: 'Remind me', onPress: () => answer(true) },
       ],
       { cancelable: false },
     )
