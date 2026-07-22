@@ -42,7 +42,9 @@ export function BadgeShelf({ earned, stats, showLocked = true }: Props) {
             </View>
             <Text style={[styles.label, !on && styles.labelLocked]} numberOfLines={1}>{b.label}</Text>
             {!on && prog && prog.target > 1 ? (
-              <Text style={styles.prog}>{Math.round(prog.current).toLocaleString()}/{prog.target.toLocaleString()}</Text>
+              <Text style={styles.prog}>
+                {compactCount(prog.current)}/{compactCount(prog.target)}{b.progressUnit ? ` ${b.progressUnit}` : ''}
+              </Text>
             ) : (
               <Text style={styles.desc} numberOfLines={2}>{b.description}</Text>
             )}
@@ -51,6 +53,21 @@ export function BadgeShelf({ earned, stats, showLocked = true }: Props) {
       })}
     </View>
   )
+}
+
+/**
+ * Abbreviate a progress figure so it fits the tile. A badge tile is ~30% of the
+ * card width — about 80pt of content on a 375pt phone — and the progress line
+ * renders at 10pt. Spelled out, the worst case ("1,320/100,000 lbs") is wider
+ * than that; with no `numberOfLines` it wrapped to a second line, which stretched
+ * the whole row taller than its neighbours. Session and streak counts are small
+ * enough to stay exact; only the volume milestones ever reach 10k.
+ */
+function compactCount(n: number): string {
+  const r = Math.round(n)
+  if (r >= 1_000_000) return `${(r / 1_000_000).toFixed(r < 10_000_000 ? 1 : 0)}M`
+  if (r >= 10_000) return `${Math.round(r / 1000)}k`
+  return r.toLocaleString()
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({

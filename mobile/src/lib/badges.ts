@@ -44,6 +44,18 @@ export interface BadgeDef {
   /** Derived badges compute earned/progress from stats; competitive/social omit these. */
   earned?: (s: BadgeStats) => boolean
   progress?: (s: BadgeStats) => { current: number; target: number }
+  /**
+   * Unit suffix for the progress line (e.g. 'lbs'). Only set where the number is
+   * NOT self-evident from the badge label — sessions and streaks read fine bare.
+   *
+   * The volume badges need it because their thresholds are deliberately fixed in
+   * POUNDS (they're branded round numbers: "Ton Club" = 10,000 lbs, "100K Club" =
+   * 100,000) and are not converted to the user's display unit. A locked tile shows
+   * only label + progress, so a kg user saw "1,320/10,000" with no unit anywhere,
+   * immediately after every other screen showed their volume as 599 kg — two
+   * different numbers for the same thing and no way to tell why.
+   */
+  progressUnit?: string
 }
 
 const clamp = (current: number, target: number) => ({ current: Math.min(current, target), target })
@@ -118,6 +130,7 @@ export const BADGES: BadgeDef[] = [
     category: 'milestone',
     earned: (s) => s.totalVolume >= 10000,
     progress: (s) => clamp(s.totalVolume, 10000),
+    progressUnit: 'lbs',
   },
   {
     key: 'century',
@@ -138,6 +151,7 @@ export const BADGES: BadgeDef[] = [
     category: 'milestone',
     earned: (s) => s.totalVolume >= 100000,
     progress: (s) => clamp(s.totalVolume, 100000),
+    progressUnit: 'lbs',
   },
   {
     key: 'weekly_winner',

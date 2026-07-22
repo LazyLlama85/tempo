@@ -65,6 +65,7 @@ import { eventKey, getIgnoredEventKeys, setEventIgnored } from '@/lib/ignoredEve
 import { workoutOrigin } from '@/lib/workoutOrigin'
 import type { WorkoutSource } from '@/types'
 import { useProgressStats } from '@/hooks/useProgressStats'
+import { useUnitStore, unitLabel, displayVolume, compactVolume } from '@/lib/units'
 import { fetchMeasurements, computeWeightTrend } from '@/lib/bodyMeasurements'
 import { projectGoal } from '@/lib/goalProjection'
 import { OptionSheet } from '@/components/OptionSheet'
@@ -496,6 +497,11 @@ export default function ScheduleScreen() {
   // (previously) Train's Readiness segment feed into `readinessFromHistory` —
   // reused here for the hero's readiness chip so it needed zero new queries.
   const { stats, workouts: histWorkouts, logTimes } = useProgressStats(userId)
+  // Display unit (lb/kg). Home showed volume as raw lbs in two places — the
+  // Session Complete card and the TOTAL VOLUME tile — while History, Progress,
+  // session detail and the profile all converted, so a kg user saw two different
+  // numbers for the same lift and neither Home figure was labelled correctly.
+  const unit = useUnitStore((s) => s.unit)
   const readiness = useMemo(
     () => readinessFromHistory(histWorkouts, logTimes, new Date()),
     [histWorkouts, logTimes],
@@ -1997,7 +2003,7 @@ export default function ScheduleScreen() {
                 <Text style={styles.completeMeta}>
                   {[
                     completedMinutes != null ? `${completedMinutes} minutes` : null,
-                    todayVolume != null ? `${todayVolume.toLocaleString()} lbs lifted` : null,
+                    todayVolume != null ? `${displayVolume(todayVolume, unit)} ${unitLabel(unit)} lifted` : null,
                   ].filter(Boolean).join('  ·  ') || 'Logged and banked.'}
                 </Text>
               </FadeInView>
@@ -2145,7 +2151,7 @@ export default function ScheduleScreen() {
           <View style={styles.statsRow}>
             <View style={styles.statTile}>
               <Text style={styles.statTileLabel}>TOTAL VOLUME</Text>
-              <Text style={styles.statTileValue}>{stats.totalVolume} lbs</Text>
+              <Text style={styles.statTileValue}>{compactVolume(stats.totalVolumeNum ?? 0, unit)} {unitLabel(unit)}</Text>
               {stats.weekVolumes.some(v => v > 0) && (
                 <View style={styles.sparkRow}>
                   {stats.weekVolumes.map((v, i) => {
