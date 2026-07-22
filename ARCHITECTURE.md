@@ -1466,7 +1466,22 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **The custom paywall**
   (`app/paywall.tsx`) reads the live offering (dynamic prices, auto-computed annual savings %,
   free-trial CTA when configured), Restore, and Terms/Privacy (→ `/legal`); dormant-safe and
-  StoreKit-compliant. **Redesign:** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
+  StoreKit-compliant.
+  **Swipeable feature deck (2026-07-22, §26):** the vertical benefit stack is now a horizontal
+  **paged carousel** — one `PAYWALL_POINTS` entry per slide, each with its own drawn visual
+  (`SlideVisual` dispatches on the point's `icon`: `WeekStrip` for calendar-fit, `ConflictMoveVisual`,
+  `ReplanVisual`, `TravelVisual`, `MuscleVisual`, `UnlimitedVisual` — all plain Views + Ionicons, no
+  image assets or SVG), tappable page dots, and a 4.5s auto-advance that **stops permanently on first
+  touch**. Slides are generated FROM `PAYWALL_POINTS`, so the "only advertise what ships today"
+  invariant (an App Store rejection risk) is structural rather than a convention. The personalized
+  `schedulingImpact` number survives as **slide 0's headline** rather than a separate hero, so it's
+  still the first thing read. Page width is measured via `onLayout` (not window-width-minus-padding)
+  so paging can't drift if padding changes; `pageW`/`pageRef` back the timer. New typed event
+  `paywall_slide_viewed { slide, index }` records which value prop people actually swipe to.
+  Plans render as **side-by-side cards** (`PlanCard`, `flex: 1` — a third package like lifetime needs
+  no layout change) with the badge floating above the annual card; the radio a11y contract, dynamic
+  pricing, intro-offer strike price, and savings % are unchanged from the row layout it replaced.
+  **Earlier redesign (§25):** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
   **Free-vs-Pro comparison table** (kept honest to the real gating in `proFeatures.ts`) → a **"how
   your N-day free trial works" timeline** (2026-07-18 — Today unlock / Day N-2 reminder / Day N billing
   begins; `trialDaysOf()` normalizes the store's WEEK/DAY intro period, and the whole block only

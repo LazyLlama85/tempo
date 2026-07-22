@@ -13,9 +13,24 @@
 // table before ever getting to a price. This version leads with the user's own
 // data, shows the wedge with one animated visual instead of describing it, and
 // collapses everything else so the price is reached in one scroll, not five.
+//
+// §26 carousel (2026-07-22, founder request): the benefit stack became a SWIPEABLE
+// deck — one value prop per page, each with its own drawn visual, paged dots, and
+// a slow auto-advance that stops permanently the moment the user touches it. Two
+// reasons this beats the vertical stack it replaces: (a) every feature gets a
+// full-width moment instead of competing for the same glance, and (b) the price
+// moves above the fold, because six benefits now occupy one card's height instead
+// of six. Slides are generated FROM `PAYWALL_POINTS` — that stays the single
+// source of truth for "only sell what actually ships today", so a slide can never
+// advertise a feature the app doesn't have (an App Store rejection reason).
+// The personalized scheduling-impact number is preserved as the FIRST slide's
+// headline rather than a separate hero, so it's still the first thing read.
 
-import { useEffect, useMemo, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity,
+  type NativeScrollEvent, type NativeSyntheticEvent,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -99,6 +114,17 @@ export default function PaywallScreen() {
   const [impact, setImpact] = useState<SchedulingImpact | null>(null)
   const [foundingEndsAt, setFoundingEndsAt] = useState<string | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
+
+  // ── Feature carousel state ──────────────────────────────────────────────────
+  // `pageW` is measured via onLayout rather than derived from window width minus
+  // padding: paging only lines up if the page width EXACTLY matches the scroll
+  // view's, and measuring is immune to future padding changes.
+  const [page, setPage] = useState(0)
+  const [pageW, setPageW] = useState(0)
+  const carouselRef = useRef<ScrollView>(null)
+  // Auto-advance is a courtesy, not a carousel that fights you: the first touch
+  // (swipe OR dot tap) turns it off for the rest of the session.
+  const autoAdvance = useRef(true)
 
   // Personalized proof: how many workouts Tempo has already planned + scheduled for
   // this user. The single most persuasive element on the screen, so it leads the
@@ -195,15 +221,59 @@ export default function PaywallScreen() {
       ? `Get Pro — ${selectedIntro.priceString} for the Year`
       : 'Unlock Tempo Pro'
 
-  const heroTitle = impact && impact.scheduledByTempo >= 1
-    ? `Tempo has scheduled ${impact.scheduledByTempo} workout${impact.scheduledByTempo === 1 ? '' : 's'} around your real life.`
-    : 'Train smarter.\nNever miss a workout.'
-  const heroSub = impact && impact.scheduledByTempo >= 1
-    ? 'Keep it doing that automatically — every week, not just this one.'
-    : 'Tempo schedules your training around your life and tells you exactly what to do each day.'
+  // One slide per shipped value prop. PAYWALL_POINTS decides WHAT may be
+  // advertised (never add a slide outside it — see the file header); this only
+  // decides how each one is worded and drawn. Slide 0 carries the personalized
+  // proof number when the user has one, which is why it isn't a plain map.
+  const slides = useMemo(() => {
+    const n = impact?.scheduledByTempo ?? 0
+    return PAYWALL_POINTS.map((p, i) => (
+      i === 0 && n >= 1
+        ? {
+            key: p.title,
+            icon: p.icon,
+            title: `Tempo has already scheduled ${n} workout${n === 1 ? '' : 's'} around your real life.`,
+            body: 'Keep it doing that automatically — every week ahead, not just this one.',
+          }
+        : { key: p.title, icon: p.icon, title: p.title, body: p.benefit }
+    ))
+  }, [impact])
 
-  const heroPoints = PAYWALL_POINTS.slice(0, 3)
-  const restPoints = PAYWALL_POINTS.slice(3)
+  // Mirrors `page` for the auto-advance timer: reading state inside a long-lived
+  // interval would close over the value from the render that created it.
+  const pageRef = useRef(0)
+  useEffect(() => { pageRef.current = page }, [page])
+
+  useEffect(() => {
+    if (!pageW || slides.length < 2) return
+    const id = setInterval(() => {
+      if (!autoAdvance.current) return
+      const next = (pageRef.current + 1) % slides.length
+      carouselRef.current?.scrollTo({ x: next * pageW, animated: true })
+      setPage(next)
+    }, 4500)
+    return () => clearInterval(id)
+  }, [pageW, slides.length])
+
+  // Which value prop people actually dwell on — the input that eventually tells us
+  // whether the scheduling wedge or the depth features are what sells Pro.
+  useEffect(() => {
+    const s = slides[page]
+    if (s) track('paywall_slide_viewed', { slide: s.key, index: page })
+  }, [page, slides])
+
+  const goToPage = (i: number) => {
+    autoAdvance.current = false // an explicit dot tap always wins over the timer
+    if (!pageW) return
+    carouselRef.current?.scrollTo({ x: i * pageW, animated: true })
+    setPage(i)
+  }
+
+  const onCarouselScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!pageW) return
+    const i = Math.round(e.nativeEvent.contentOffset.x / pageW)
+    if (i >= 0 && i < slides.length && i !== page) setPage(i)
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -214,41 +284,56 @@ export default function PaywallScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Hero — personalized to the user's own data when there's enough of it. */}
-        <FadeInView style={styles.hero} delay={20}>
+        {/* Wordmark — the "premium room" marker, kept small so the deck leads. */}
+        <FadeInView style={styles.brandRow} delay={20}>
           <View style={styles.heroGlow} pointerEvents="none" />
-          <View style={styles.heroBadge}>
-            <TempoPulse size={26} />
-          </View>
-          <Text style={styles.heroTitle}>{heroTitle}</Text>
-          <Text style={styles.heroSub}>{heroSub}</Text>
+          <TempoPulse size={22} />
+          <Text style={styles.brandWord}>TEMPO</Text>
+          <View style={styles.brandPro}><Text style={styles.brandProText}>PRO</Text></View>
         </FadeInView>
 
-        {/* The one visual — shows the wedge instead of describing it. */}
-        <PopIn delay={140} style={styles.weekStripCard}>
-          <WeekStrip />
-          <Text style={styles.weekStripCaption}>Real events in grey. Tempo fits your training into the gaps.</Text>
-        </PopIn>
+        {/* The swipeable feature deck. */}
+        <PopIn delay={120}>
+          <View onLayout={(e) => setPageW(e.nativeEvent.layout.width)}>
+            <ScrollView
+              ref={carouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onTouchStart={() => { autoAdvance.current = false }}
+              onMomentumScrollEnd={onCarouselScrollEnd}
+              scrollEventThrottle={16}
+              accessibilityRole="adjustable"
+              accessibilityLabel="Tempo Pro features"
+            >
+              {slides.map((s) => (
+                <View key={s.key} style={[styles.slide, { width: pageW }]}>
+                  <View style={styles.slideVisual}>
+                    <SlideVisual icon={s.icon} />
+                  </View>
+                  <Text style={styles.slideTitle}>{s.title}</Text>
+                  <Text style={styles.slideBody}>{s.body}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
 
-        {/* Three benefit cards — outcomes, not a feature list. */}
-        <View style={styles.benefitStack}>
-          {heroPoints.map((p, i) => (
-            <FadeInView key={p.title} delay={200 + i * 60} style={styles.benefitCard}>
-              <View style={styles.benefitIcon}>
-                <Ionicons name={p.icon} size={20} color={C.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.benefitTitle}>{p.title}</Text>
-                <Text style={styles.benefitBody}>{p.benefit}</Text>
-              </View>
-            </FadeInView>
-          ))}
-        </View>
-        {restPoints.length > 0 && (
-          <Text style={styles.restLine}>
-            …plus {restPoints.map((p) => p.title.toLowerCase()).join(', ')}.
-          </Text>
-        )}
+          {/* Dots — tappable, and sized generously enough to actually hit. */}
+          <View style={styles.dots}>
+            {slides.map((s, i) => (
+              <TouchableOpacity
+                key={s.key}
+                onPress={() => goToPage(i)}
+                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Show ${s.key}`}
+                accessibilityState={{ selected: i === page }}
+              >
+                <View style={[styles.dot, i === page && styles.dotOn]} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </PopIn>
 
         {/* Founding-price banner — only while a real, unexpired offer exists. */}
         {foundingEndsAt && hasPaidIntro && (
@@ -272,17 +357,21 @@ export default function PaywallScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.plans}>
+          // Side-by-side cards: the two prices are compared against each other, so
+          // they belong on one line where the eye can do that in a single glance.
+          // `flex: 1` per card means adding a third package (lifetime) later needs
+          // no layout change.
+          <View style={styles.plansRow}>
             {annualPkg && (
-              <PlanOption
+              <PlanCard
                 label="Annual"
                 price={annualIntro && !annualIntro.isFree ? annualIntro.priceString : annualPkg.product.priceString}
                 strikePrice={annualIntro && !annualIntro.isFree ? annualPkg.product.priceString : undefined}
                 subline={
                   annualIntro && !annualIntro.isFree
-                    ? `first year · then ${annualPkg.product.priceString}/yr`
+                    ? `first year, then ${annualPkg.product.priceString}/yr`
                     : annualPkg.product.pricePerMonthString
-                      ? `${annualPkg.product.pricePerMonthString}/mo · billed yearly`
+                      ? `only ${annualPkg.product.pricePerMonthString}/mo, billed yearly`
                       : 'Billed yearly'
                 }
                 badge={
@@ -295,10 +384,10 @@ export default function PaywallScreen() {
               />
             )}
             {monthlyPkg && (
-              <PlanOption
+              <PlanCard
                 label="Monthly"
                 price={monthlyPkg.product.priceString}
-                subline="Billed monthly"
+                subline="Flexible month-to-month"
                 selected={selected === 'monthly'}
                 onPress={() => setSelected('monthly')}
               />
@@ -438,10 +527,13 @@ const DAY_PATTERN: { busy: number; workout: boolean }[] = [
   { busy: 0.15, workout: true },
 ]
 
-function WeekStrip() {
+// `pattern` / `height` are additive props with the original values as defaults, so
+// the strip can be reused at a smaller size on the "reschedule my week" slide
+// without a second copy of the drawing code.
+function WeekStrip({ pattern = DAY_PATTERN, height = 100 }: { pattern?: typeof DAY_PATTERN; height?: number } = {}) {
   return (
-    <View style={weekStyles.row}>
-      {DAY_PATTERN.map((d, i) => (
+    <View style={[weekStyles.row, { height }]}>
+      {pattern.map((d, i) => (
         <View key={i} style={weekStyles.col}>
           <View style={weekStyles.track}>
             <View style={[weekStyles.busyBlock, { height: `${d.busy * 100}%` }]} />
@@ -456,8 +548,170 @@ function WeekStrip() {
   )
 }
 
+// ── Slide visuals ─────────────────────────────────────────────────────────────
+// One drawing per value prop, keyed off the point's own icon so the deck stays
+// generated from PAYWALL_POINTS rather than a parallel hand-maintained list.
+// All of these are plain Views + Ionicons on purpose: no image assets to ship, no
+// SVG parsing, nothing to fail to load on a cold first paint of the purchase screen.
+function SlideVisual({ icon }: { icon: IoniconName }) {
+  switch (icon) {
+    case 'shuffle': return <ConflictMoveVisual />
+    case 'repeat': return <ReplanVisual />
+    case 'airplane': return <TravelVisual />
+    case 'body': return <MuscleVisual />
+    case 'sparkles': return <UnlimitedVisual />
+    case 'infinite':
+    default: return <WeekStrip />
+  }
+}
+
+// Auto-reschedule: the same evening, before and after Tempo moves the session.
+function ConflictMoveVisual() {
+  return (
+    <View style={vis.row2}>
+      <View style={vis.miniCard}>
+        <Text style={vis.miniLabel}>Conflict</Text>
+        <View style={[vis.block, vis.blockBusy]}><Text style={vis.blockText}>Meeting</Text></View>
+        <View style={[vis.block, vis.blockClash]}><Text style={vis.blockText}>Workout</Text></View>
+      </View>
+      <Ionicons name="arrow-forward" size={16} color={C.primary} />
+      <View style={vis.miniCard}>
+        <Text style={vis.miniLabelOn}>Auto-moved</Text>
+        <View style={[vis.block, vis.blockBusy]}><Text style={vis.blockText}>Meeting</Text></View>
+        <View style={[vis.block, vis.blockGo]}><Text style={vis.blockTextOn}>Workout</Text></View>
+      </View>
+    </View>
+  )
+}
+
+// Reschedule-my-week: the same seven days, re-laid around a busy stretch.
+const REPLAN_PATTERN: typeof DAY_PATTERN = [
+  { busy: 0.8, workout: false }, { busy: 0.85, workout: false }, { busy: 0.75, workout: false },
+  { busy: 0.3, workout: true }, { busy: 0.25, workout: true }, { busy: 0.15, workout: true },
+  { busy: 0.2, workout: true },
+]
+function ReplanVisual() {
+  return (
+    <View style={vis.center}>
+      <WeekStrip pattern={REPLAN_PATTERN} height={78} />
+      <View style={vis.pill}>
+        <Ionicons name="repeat" size={13} color={C.primary} />
+        <Text style={vis.pillText}>Whole week, one tap</Text>
+      </View>
+    </View>
+  )
+}
+
+const TRAVEL_KIT = ['Dumbbells', 'Bands', 'Bodyweight', 'Bench']
+function TravelVisual() {
+  return (
+    <View style={vis.center}>
+      <View style={vis.orb}><Ionicons name="airplane" size={26} color={C.primary} /></View>
+      <View style={vis.chipWrap}>
+        {TRAVEL_KIT.map((k) => (
+          <View key={k} style={vis.chip}>
+            <Ionicons name="checkmark" size={11} color={C.success} />
+            <Text style={vis.chipText}>{k}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+// Muscle intelligence: balance at a glance. The two low bars read gold — that's
+// the "weak point" the feature exists to surface.
+const MUSCLES: { name: string; fill: number }[] = [
+  { name: 'Back', fill: 0.92 }, { name: 'Chest', fill: 0.78 },
+  { name: 'Quads', fill: 0.64 }, { name: 'Arms', fill: 0.7 },
+  { name: 'Delts', fill: 0.34 }, { name: 'Core', fill: 0.28 },
+]
+function MuscleVisual() {
+  return (
+    <View style={vis.muscleWrap}>
+      {MUSCLES.map((m) => (
+        <View key={m.name} style={vis.muscleItem}>
+          <Text style={vis.muscleName}>{m.name}</Text>
+          <View style={vis.muscleTrack}>
+            <View
+              style={[
+                vis.muscleFill,
+                { width: `${m.fill * 100}%`, backgroundColor: m.fill < 0.4 ? C.gold : C.primary },
+              ]}
+            />
+          </View>
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function UnlimitedVisual() {
+  return (
+    <View style={vis.center}>
+      <View style={vis.stackWrap}>
+        <View style={[vis.stackCard, { transform: [{ rotate: '-7deg' }], opacity: 0.3 }]} />
+        <View style={[vis.stackCard, { transform: [{ rotate: '5deg' }], opacity: 0.55 }]} />
+        <View style={[vis.stackCard, vis.stackTop]}>
+          <Text style={vis.infinity}>∞</Text>
+        </View>
+      </View>
+      <Text style={vis.stackCaption}>Plans · Workouts · Exercises</Text>
+    </View>
+  )
+}
+
+const vis = StyleSheet.create({
+  center: { width: '100%', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+
+  row2: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+  miniCard: {
+    flex: 1, maxWidth: 128, gap: 5, padding: Spacing.sm,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  miniLabel: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: C.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  miniLabelOn: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: C.primary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  block: { borderRadius: Radius.sm, paddingVertical: 7, paddingHorizontal: 8 },
+  blockBusy: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  blockClash: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.gold, borderStyle: 'dashed' },
+  blockGo: { backgroundColor: C.primary },
+  blockText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+  blockTextOn: { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#fff' },
+
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.primarySoft, borderRadius: Radius.full, paddingHorizontal: 11, paddingVertical: 5,
+  },
+  pillText: { fontFamily: 'Inter_700Bold', fontSize: 11.5, color: C.primary },
+
+  orb: { width: 58, height: 58, borderRadius: Radius.full, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
+    paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.text },
+
+  muscleWrap: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.xs },
+  muscleItem: { width: '47%', gap: 5 },
+  muscleName: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+  muscleTrack: { height: 7, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  muscleFill: { height: '100%', borderRadius: Radius.full },
+
+  stackWrap: { width: 108, height: 86, alignItems: 'center', justifyContent: 'center' },
+  stackCard: {
+    position: 'absolute', width: 82, height: 78, borderRadius: Radius.lg,
+    backgroundColor: C.surfaceContainerHigh, borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  stackTop: { backgroundColor: C.primarySoft, borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  infinity: { fontFamily: 'Inter_800ExtraBold', fontSize: 36, color: C.primary, lineHeight: 42 },
+  stackCaption: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.textSecondary },
+})
+
 const weekStyles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 6, height: 100, alignItems: 'flex-end' },
+  row: { flexDirection: 'row', gap: 6, alignItems: 'flex-end' },
   col: { flex: 1, alignItems: 'center', gap: 6, height: '100%' },
   track: { width: '100%', flex: 1, borderRadius: 6, overflow: 'visible', justifyContent: 'flex-end', position: 'relative' },
   busyBlock: { width: '100%', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 6 },
@@ -465,7 +719,9 @@ const weekStyles = StyleSheet.create({
   label: { fontFamily: 'Inter_600SemiBold', fontSize: 10.5, color: C.textSecondary },
 })
 
-function PlanOption({
+// A single plan tile. Same data and the same a11y contract as the row it replaced
+// (radio role, spoken price + subline, selected state) — only the layout changed.
+function PlanCard({
   label, price, strikePrice, subline, badge, selected, onPress,
 }: {
   label: string; price: string; strikePrice?: string; subline: string; badge?: string; selected: boolean; onPress: () => void
@@ -479,24 +735,20 @@ function PlanOption({
       accessibilityLabel={`${label} plan, ${strikePrice ? `${price}, was ${strikePrice}` : price}${subline ? `, ${subline}` : ''}`}
       accessibilityState={{ selected }}
     >
-      <View style={[styles.radio, selected && styles.radioOn]}>
-        {selected && <Ionicons name="checkmark" size={13} color="#fff" />}
-      </View>
-      <View style={{ flex: 1 }}>
+      {badge && (
+        <View style={styles.planBadge}>
+          <Text style={styles.planBadgeText}>{badge}</Text>
+        </View>
+      )}
+      <View style={styles.planTop}>
         <Text style={styles.planLabel}>{label}</Text>
-        <Text style={styles.planSubline}>{subline}</Text>
-      </View>
-      <View style={{ alignItems: 'flex-end', gap: 4 }}>
-        {badge && (
-          <View style={styles.planBadge}>
-            <Text style={styles.planBadgeText}>{badge}</Text>
-          </View>
-        )}
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          {strikePrice && <Text style={styles.planPriceStrike}>{strikePrice}</Text>}
-          <Text style={styles.planPrice}>{price}</Text>
+        <View style={[styles.radio, selected && styles.radioOn]}>
+          {selected && <Ionicons name="checkmark" size={12} color="#fff" />}
         </View>
       </View>
+      {strikePrice && <Text style={styles.planPriceStrike}>{strikePrice}</Text>}
+      <Text style={styles.planPrice} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{price}</Text>
+      <Text style={styles.planSubline}>{subline}</Text>
     </PressableScale>
   )
 }
@@ -522,27 +774,37 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
   scroll: { padding: Spacing.containerPadding, paddingBottom: Spacing.lg, gap: Spacing.lg },
 
-  hero: { alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm },
-  heroBadge: {
-    width: 64, height: 64, borderRadius: Radius.full, backgroundColor: C.primarySoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
-  },
-  heroGlow: { position: 'absolute', top: -24, left: '50%', width: 220, height: 220, borderRadius: 110, marginLeft: -110, backgroundColor: C.primaryGlow },
-  heroTitle: { fontFamily: C.fontDisplay, fontSize: 30, color: C.text, letterSpacing: -0.6, textAlign: 'center', lineHeight: 35 },
-  heroSub: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.md },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 2 },
+  brandWord: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: 1.5 },
+  brandPro: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 2 },
+  brandProText: { fontFamily: 'Inter_800ExtraBold', fontSize: 12, color: '#1b1400', letterSpacing: 0.8 },
+  // Resized for the compact brand row (was 220px behind a 200px-tall hero). At the
+  // old size this translucent disc would spill a hard blue edge across the top of
+  // the slide card; at 170 it reads as a halo behind the wordmark and bleeds up
+  // under the header instead of down over the deck.
+  heroGlow: { position: 'absolute', top: -70, left: '50%', width: 170, height: 170, borderRadius: 85, marginLeft: -85, backgroundColor: C.primaryGlow },
 
-  weekStripCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, ...Elevation.e1 },
-  weekStripCaption: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
-
-  benefitStack: { gap: Spacing.sm },
-  benefitCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md,
-    backgroundColor: C.background, borderRadius: Radius.lg, padding: Spacing.md, ...Elevation.e1,
+  // Every slide is the same height so the dots and the price below never jump as
+  // the deck advances — a shifting purchase screen reads as broken.
+  slide: { alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.xs },
+  slideVisual: {
+    width: '100%', height: 152, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.md, ...Elevation.e1,
   },
-  benefitIcon: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  benefitTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
-  benefitBody: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 1 },
-  restLine: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18, paddingHorizontal: Spacing.xs, marginTop: -Spacing.sm },
+  // minHeight on both text blocks keeps a 1-line title from sitting at a different
+  // vertical position than the personalized 2–3 line one as you swipe between them.
+  slideTitle: {
+    fontFamily: C.fontDisplay, fontSize: 23, color: C.text, letterSpacing: -0.4,
+    textAlign: 'center', lineHeight: 28, marginTop: Spacing.xs, minHeight: 56,
+  },
+  slideBody: {
+    fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary,
+    textAlign: 'center', lineHeight: 20, minHeight: 60,
+  },
+
+  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: Spacing.sm },
+  dot: { width: 7, height: 7, borderRadius: Radius.full, backgroundColor: C.outline },
+  dotOn: { width: 20, backgroundColor: C.primary },
 
   foundingBanner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -553,10 +815,12 @@ const styles = StyleSheet.create({
   loadingBox: { alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg },
   loadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },
 
-  plans: { gap: Spacing.sm },
+  // marginTop leaves room for the badge that floats above the annual card.
+  plansRow: { flexDirection: 'row', alignItems: 'stretch', gap: Spacing.sm, marginTop: 8 },
   plan: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl, padding: Spacing.lg,
+    flex: 1, gap: 2,
+    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.xl,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
     borderWidth: 2, borderColor: 'transparent',
     ...Elevation.e1,
   },
@@ -564,16 +828,20 @@ const styles = StyleSheet.create({
     borderColor: C.primary, backgroundColor: C.primarySoft,
     shadowColor: C.primary, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
+  planTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   radio: {
-    width: 22, height: 22, borderRadius: Radius.full, borderWidth: 2, borderColor: C.outline,
+    width: 20, height: 20, borderRadius: Radius.full, borderWidth: 2, borderColor: C.outline,
     alignItems: 'center', justifyContent: 'center',
   },
   radioOn: { borderColor: C.primary, backgroundColor: C.primary },
-  planLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text },
-  planSubline: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 1 },
-  planPrice: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
-  planPriceStrike: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.textSecondary, textDecorationLine: 'line-through' },
-  planBadge: { backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  planLabel: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },
+  planSubline: { fontFamily: 'Inter_400Regular', fontSize: 11.5, color: C.textSecondary, lineHeight: 16, marginTop: 2 },
+  planPrice: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.4, marginTop: 4 },
+  planPriceStrike: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textDecorationLine: 'line-through', marginTop: 4 },
+  planBadge: {
+    position: 'absolute', top: -9, left: Spacing.md, zIndex: 2,
+    backgroundColor: C.gold, borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 2.5,
+  },
   planBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 9.5, color: '#1b1400', letterSpacing: 0.5 },
 
   timelineCard: { backgroundColor: C.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.outlineVariant, ...Elevation.e1, padding: Spacing.lg, paddingBottom: Spacing.md },

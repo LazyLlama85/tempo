@@ -119,6 +119,10 @@ export type EventProperties = {
   // webhooks remain the source of truth for revenue reporting.
   paywall_shown: { context: string }
   paywall_dismissed: { context: string }
+  // Which value prop the user actually swiped to on the paywall carousel. This is
+  // how we learn WHICH feature sells Pro (vs. which one we merely believe sells
+  // it) — `slide` is the PAYWALL_POINTS title, `index` its position.
+  paywall_slide_viewed: { slide: string; index: number }
   // The custom paywall's purchase funnel (RevenueCat webhooks remain the revenue truth).
   purchase_started: { plan: string; context: string }
   purchase_completed: { plan: string; context: string }
