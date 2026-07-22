@@ -15,6 +15,7 @@ import {
   getSeenBadges, markBadgesSeen, hasSeenRecord, type BadgeDef,
 } from '@/lib/badges'
 import { track } from '@/lib/analytics'
+import { exportWorkoutToAppleHealth } from '@/lib/appleHealth'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { computeWeeklyReport, type WeeklyReport } from '@/lib/weeklyReport'
 import { detectSessionPRs, type SessionPR } from '@/lib/prs'
@@ -91,6 +92,9 @@ export default function WorkoutCompleteScreen() {
     // Fires the one-time activation event once the core loop is proven (2nd completed
     // session); guarded + best-effort inside, so it never blocks this screen.
     void maybeTrackActivation(userId)
+    // Apple Health export (§26 L28) — no-ops instantly unless the user opted in
+    // in Settings; best-effort, never surfaces an error on this screen.
+    if (logId) void exportWorkoutToAppleHealth(supabase, { logId, durationMin: mins })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve the first-session celebration against real history once stats load

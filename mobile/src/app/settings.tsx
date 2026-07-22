@@ -7,7 +7,7 @@
 // in Profile's header. Every row below is moved verbatim from Profile — same
 // handlers, same behavior, same copy — this is a relocation, not a rewrite.
 
-import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, ActivityIndicator, Switch } from 'react-native'
+import { ScrollView, TouchableOpacity, View, Text, StyleSheet, Alert, Linking, ActivityIndicator, Switch, Platform } from 'react-native'
 import { useState, useCallback, useEffect } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -35,6 +35,7 @@ import {
   DEFAULT_PREFS, type NotificationPrefs, type ServerRule,
 } from '@/lib/notificationPrefs'
 import { scheduleWorkoutReminders, cancelAllReminders, hasReminderPermission } from '@/lib/notifications'
+import { getAppleHealthSyncEnabled, setAppleHealthSyncEnabled } from '@/lib/appleHealth'
 import { useProAccess, useEntitlementStore } from '@/stores/entitlements'
 import { presentCustomerCenter } from '@/lib/purchases'
 import { useTutorialStore } from '@/stores/tutorial'
@@ -91,6 +92,24 @@ export default function SettingsScreen() {
   const setUnit = useUnitStore((s) => s.setUnit)
   const focusModeEnabled = useFocusModePrefStore((s) => s.enabled)
   const setFocusModeEnabled = useFocusModePrefStore((s) => s.setEnabled)
+
+  // Apple Health export (§26 L28) — iOS-only, opt-in, default off. Read once on
+  // mount (device-local, no server round trip); the switch is the only writer.
+  const [healthSyncEnabled, setHealthSyncEnabledState] = useState(false)
+  useEffect(() => { setHealthSyncEnabledState(getAppleHealthSyncEnabled()) }, [])
+  const toggleHealthSync = async (next: boolean) => {
+    setHealthSyncEnabledState(next) // optimistic
+    const ok = await setAppleHealthSyncEnabled(next)
+    if (!ok) {
+      setHealthSyncEnabledState(false)
+      if (next) {
+        Alert.alert(
+          'Couldn’t enable Apple Health',
+          'Health data isn’t available on this device or in this build.',
+        )
+      }
+    }
+  }
 
   // "Add workouts to my calendar" — default on; only acts once a calendar is connected.
   const [autoSync, setAutoSync] = useState(autoSyncEnabled(profile))
@@ -635,6 +654,28 @@ export default function SettingsScreen() {
                 thumbColor="#fff"
               />
             </View>
+            {Platform.OS === 'ios' && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.settingRow}>
+                  <View style={styles.settingIcon}>
+                    <Ionicons name="heart-outline" size={18} color={C.primary} />
+                  </View>
+                  <View style={styles.settingInfo}>
+                    <Text style={styles.settingLabel}>SYNC TO APPLE HEALTH</Text>
+                    <Text style={styles.settingValue}>
+                      {healthSyncEnabled ? 'Completed workouts appear in Health' : 'Off — workouts stay in Tempo only'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={healthSyncEnabled}
+                    onValueChange={toggleHealthSync}
+                    trackColor={{ true: C.primary, false: C.outlineVariant }}
+                    thumbColor="#fff"
+                  />
+                </View>
+              </>
+            )}
             <View style={styles.divider} />
             <SettingRow icon="school-outline" label="REPLAY APP TOUR" value="Show the guided walkthrough again" onPress={replayTour} />
           </View>

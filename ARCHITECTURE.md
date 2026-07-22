@@ -1776,6 +1776,21 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `user_profiles.notification_prefs` via `loadNotificationPrefs`/`setServerRuleEnabled`, read by
   the retention-push function; the device-local pre-workout reminder via
   `get/setPreWorkoutEnabled`; `DEFAULT_PREFS` all-on to preserve prior behavior),
+  **`appleHealth`** (§26 L28, new 2026-07-22: one-way HealthKit **export** only — never reads
+  anything back. iOS only. `@kingstinct/react-native-healthkit` (a Nitro module with its own Expo
+  config plugin, added to `app.json`) is loaded via a **guarded dynamic import**, never a static
+  one — a static import would throw at module-evaluation time on Android/web/Expo Go/any
+  pre-rebuild binary, the exact class of "blank screen on launch" bug fixed elsewhere this same
+  session. Opt-in, default off (`tempo.appleHealthSync` localStorage flag) — a Settings → "Sync to
+  Apple Health" toggle requests write authorization only when turned on; per Apple's own privacy
+  model for WRITE permissions, the OS never reports whether the user granted or denied, so a denied
+  user's exports just silently no-op like every other permission-gated integration here.
+  `exportWorkoutToAppleHealth(client, { logId, durationMin })` is called best-effort from
+  `workout-complete.tsx`'s existing completion effect: sums `set_logs` for the session into a
+  volume figure, estimates calories (~0.1 kcal/lb of volume, floored by a per-minute minimum), and
+  writes a `traditionalStrengthTraining` `HKWorkout` sample via `saveWorkoutSample`. Native — the
+  code ships but is completely inert until the next `eas build` includes the module; needs
+  on-device confirmation a completed session actually appears in the Health app),
   **`returningUser`** (§5.1: `getReturningState` derives a 3/7/30-day absence tier from the last
   completed session + the next scheduled one — drives Home's returning-user hero),
   **`purchases`** (§10 — the ONLY module touching react-native-purchases / -ui; guarded like
@@ -2468,6 +2483,17 @@ Same pass fixed a real bug in `lib/focusModePref.ts`: Focus Mode used to default
 stays off until the user opts in in Settings — the runner's gating logic (`plan.tsx`, `if
 (focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
 default was wrong.
+
+### Apple Health export (§26 L28) — one-way write, iOS only, opt-in (2026-07-22)
+New native dependency: `@kingstinct/react-native-healthkit` (a Nitro module, requires the peer dep
+`react-native-nitro-modules`) + its Expo config plugin in `app.json` (custom
+`NSHealthShareUsageDescription`/`NSHealthUpdateUsageDescription` strings, `background: false` — no
+background delivery needed for a write-only, on-completion export). `npx expo config --json`
+confirms the plugin resolves cleanly; `tsc` and the full Jest suite stay green with the package
+installed. See `lib/appleHealth.ts`'s entry above (§3.5) for the full design. This is native — the
+feature is code-complete but genuinely inert until the next `eas build`, at which point it still
+needs on-device confirmation (a completed session appearing in the Health app with correct
+duration) before it can be marked fully done rather than just built.
 
 ### "Replay app tour" now dismisses Settings first; why-tempo.tsx made scrollable (2026-07-21)
 Two small onboarding/tutorial polish fixes:

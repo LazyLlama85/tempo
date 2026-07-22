@@ -14,7 +14,36 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-22, latest): worked the §29 launch queue top to bottom — 8 commits, 7 shipped
+- **NEW (2026-07-22 pm, latest): founder device-testing queue — the #1-priority "won't load on
+  first launch" root cause, 8 more targeted fixes, and Apple Health export (plan confirmed with
+  founder first, per standing instruction).** Root cause of the blank-screen bug: 4 Zustand stores
+  (`theme`, `entitlements`, `units`, `focusModePref`) read the SQLite-backed `localStorage`
+  *synchronously inside their `create()` initializer* — module-eval time, before React mounts or
+  any error boundary exists; a stalled sync DB open on a fresh install blocks the JS thread before
+  first paint with nothing able to rescue it. Fixed: every store now defaults synchronously to a
+  safe constant and self-corrects post-mount via an async loader wired into the root layout's
+  startup effect. Same pass fixed Focus Mode defaulting to **on** for new users (should be
+  opt-in/off). **Then:** PR-strength trend bars → line chart (reuses `SvgLineChart`); pause mode's
+  4 fixed-duration chips → a 1–60 day `Slider` (quick-pick chips kept underneath); the notification
+  master toggle's "slides back with no explanation" bug (root cause: blind re-fetch after every
+  toggle masked write failures as silent reverts — `setMasterPushEnabled`/`setPushEnabled` now
+  report success/failure; OS-denied permission now reverts with an "Open Settings" alert instead of
+  silently no-opping); the 7-row notification list collapsed behind a disclosure; "Replay app tour"
+  now dismisses the Settings modal before navigating (used to land invisibly underneath it); and a
+  sweep for "tutorial elements running off-screen" found 3 real missing-`ScrollView` instances
+  (`why-tempo.tsx`, `calendar-setup.tsx`, `RecoveryCheckIn.tsx` — the last one's Save button could
+  be unreachable) plus 4 sheets fixed defensively. **Apple Health export (§26 L28):** one-way write
+  only, iOS-only v1, `@kingstinct/react-native-healthkit` (Nitro module + own Expo config plugin)
+  added to `app.json`/`package.json`, `lib/appleHealth.ts` writes a `traditionalStrengthTraining`
+  sample from `workout-complete.tsx`, opt-in Settings toggle default off, guarded dynamic import so
+  it can never be the same module-eval-time bug class just fixed above. `expo config` resolves the
+  plugin cleanly; `tsc` + full suite (271/271) green throughout. **Native — code ships but stays
+  inert until the next `eas build`; still needs on-device confirmation.** `PRODUCT_AUDIT.html`
+  updated in the same turn per protocol; no scores moved (code-verified only, none of this touched
+  on a real device yet). **Next: whatever the founder's next device-testing pass surfaces, or the
+  accessibility VoiceOver pass (L17/L12) still open below.**
+
+- **2026-07-22: worked the §29 launch queue top to bottom — 8 commits, 7 shipped
   features plus the Pro re-gate and paywall rebuild, all founder-directed.** Founder asked to build
   everything needed for first launch; on Pro specifically, asked to be told the plan before touching
   it (per standing instruction) — proposed the L1/L2 re-gate + paywall rebuild, got explicit

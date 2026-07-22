@@ -82,7 +82,15 @@
       ],
       "expo-sharing",
       "@sentry/react-native/expo",
-      "expo-widgets"
+      "expo-widgets",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Tempo does not read any Health data.",
+          "NSHealthUpdateUsageDescription": "Tempo adds your completed workouts to Apple Health when you turn this on in Settings.",
+          "background": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
