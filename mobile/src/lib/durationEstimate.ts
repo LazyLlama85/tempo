@@ -60,8 +60,30 @@ export function estimateSessionMin(exercises: EstimatableExercise[]): number {
  * staticPerSetSec is the pre-session estimate divided by total sets. Once sets
  * are being logged, the observed seconds-per-set (which silently includes the
  * user's true rests, transitions and dawdling) is blended in — weight ramps to
- * ~85% observed after 6 logged sets, so one slow warm-up set can't spike it.
+ * ~85% observed after 6 logged sets.
+ *
+ * `elapsedSec` is WALL-CLOCK since the session opened, so `elapsed / doneSets`
+ * is only a pace if the user was training the whole time. Very often they were
+ * not: the app gets opened in the locker room, the phone goes down for a chat,
+ * a warm-up runs long, someone takes a call. All of that idle time lands on the
+ * first logged set and gets extrapolated across every remaining one. Observed
+ * live: a 15-minute session left open ~57 minutes then logged one set displayed
+ * **"~1 H 21 LEFT"**. The blend weight damps that but cannot bound it — at one
+ * set the weight is only 1/7, yet a 57-minute "set" still adds ~8 minutes to
+ * every remaining set. (The old docstring claimed one slow set "can't spike it";
+ * it can, and did.)
+ *
+ * So the observation is clamped to a plausible band around the static estimate
+ * before it is trusted. A genuinely slower user still reads slower — up to 3x,
+ * which is far beyond any real training pace — but arithmetic that implies a
+ * single set took the better part of an hour is rejected as what it is: idle
+ * time, not evidence. Clamping (rather than resetting the clock on first log)
+ * keeps this function pure and total, which is why it can be unit-tested.
  */
+/** How far observed pace may stray from the static estimate before it's idle time, not pace. */
+const OBSERVED_PACE_MIN_RATIO = 0.4
+const OBSERVED_PACE_MAX_RATIO = 3
+
 export function adaptiveRemainingSec(args: {
   elapsedSec: number
   doneSets: number
@@ -75,7 +97,11 @@ export function adaptiveRemainingSec(args: {
   if (remainingSets === 0) return 0
   const staticPerSet = staticPerSetSec * pace
   if (doneSets === 0) return Math.round(remainingSets * staticPerSet)
-  const observedPerSet = elapsedSec / doneSets
+  const rawObservedPerSet = elapsedSec / doneSets
+  const observedPerSet = Math.min(
+    staticPerSet * OBSERVED_PACE_MAX_RATIO,
+    Math.max(staticPerSet * OBSERVED_PACE_MIN_RATIO, rawObservedPerSet),
+  )
   const w = Math.min(0.85, doneSets / 7) // trust observation as evidence accrues
   const perSet = observedPerSet * w + staticPerSet * (1 - w)
   return Math.round(remainingSets * perSet)
