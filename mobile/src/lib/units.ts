@@ -12,29 +12,37 @@ export type WeightUnit = 'lb' | 'kg'
 const STORAGE_KEY = 'tempo.units.weight'
 const LB_PER_KG = 2.2046226218
 
-// Synchronous read from the SQLite-backed localStorage polyfill (same pattern as
-// the theme store) so the first render already shows the right unit.
-function readInitialUnit(): WeightUnit {
-  try {
-    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(STORAGE_KEY)
-    return v === 'kg' || v === 'lb' ? v : 'lb'
-  } catch {
-    return 'lb'
-  }
-}
-
 interface UnitState {
   unit: WeightUnit
   setUnit: (u: WeightUnit) => void
 }
 
+// Defaults to 'lb' synchronously — no storage read in the initializer. Zustand's
+// create() runs at MODULE EVALUATION TIME, before React mounts and before any
+// error boundary exists; see theme/index.tsx for why a synchronous SQLite-backed
+// localStorage read here is a "blank screen on first launch" hazard. The real
+// value is loaded post-mount by loadStoredWeightUnit() below.
 export const useUnitStore = create<UnitState>((set) => ({
-  unit: readInitialUnit(),
+  unit: 'lb',
   setUnit: (unit) => {
     try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(STORAGE_KEY, unit) } catch { /* best-effort */ }
     set({ unit })
   },
 }))
+
+// Called once from the root layout's startup effect (after first mount) to
+// correct the unit for a returning kg user. Uses the ASYNC SQLite API so a
+// stuck native call here can never block rendering.
+export async function loadStoredWeightUnit(): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
+    const v = await AsyncStorage.getItem(STORAGE_KEY)
+    if (v === 'kg' || v === 'lb') useUnitStore.setState({ unit: v })
+  } catch {
+    /* keep the default */
+  }
+}
 
 /** Convenience hook — the current display unit. */
 export const useWeightUnit = () => useUnitStore((s) => s.unit)

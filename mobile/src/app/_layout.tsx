@@ -12,7 +12,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
 import { TutorialOverlay } from '@/components/TutorialOverlay'
-import { useTheme, useThemeStore, ThemeTransitionOverlay } from '@/theme'
+import { useTheme, useThemeStore, ThemeTransitionOverlay, loadStoredThemeMode } from '@/theme'
 import { initAnalytics, track } from '@/lib/analytics'
 import { initCrashReporting, wrapWithCrashReporting, captureApiError } from '@/lib/crashReporting'
 import { TempoErrorBoundary } from '@/components/TempoErrorBoundary'
@@ -22,7 +22,9 @@ import {
   fetchIsPro, addProUpdateListener, infoHasActiveTrial,
 } from '@/lib/purchases'
 import { fetchProState } from '@/lib/proConfig'
-import { useEntitlementStore } from '@/stores/entitlements'
+import { useEntitlementStore, loadStoredDevProOverride } from '@/stores/entitlements'
+import { loadStoredWeightUnit } from '@/lib/units'
+import { loadStoredFocusMode } from '@/lib/focusModePref'
 import { endStaleRestActivities } from '@/widgets/RestTimerActivity'
 import {
   useFonts,
@@ -196,6 +198,15 @@ function RootLayoutInner() {
     // Lock Screen any longer than it takes to reopen the app (iOS also
     // auto-expires them on its own timeout, but this is faster and explicit).
     endStaleRestActivities()
+    // Device-local prefs (theme, weight unit, Focus Mode, tester Pro override)
+    // default synchronously on module load and are corrected here, AFTER first
+    // paint, via the async SQLite API — see theme/index.tsx for why a
+    // synchronous localStorage read before mount was the root cause of the
+    // "blank screen on first launch, fixed by force-quitting" bug.
+    loadStoredThemeMode()
+    loadStoredWeightUnit()
+    loadStoredFocusMode()
+    loadStoredDevProOverride()
   }, [])
 
   // React Native has no "window focus" — tell React Query when the app comes

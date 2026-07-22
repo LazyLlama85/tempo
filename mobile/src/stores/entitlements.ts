@@ -32,14 +32,6 @@ interface EntitlementState {
 // listener) using the same localStorage idiom as activation.ts. Best-effort; a
 // missing/broken store just means "no override" (real entitlement), never a crash.
 const OVERRIDE_KEY = 'tempo.devProOverride'
-function readOverride(): boolean | null {
-  try {
-    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(OVERRIDE_KEY)
-    return v === '1' ? true : v === '0' ? false : null
-  } catch {
-    return null
-  }
-}
 function persistOverride(v: boolean | null): void {
   try {
     const ls = (globalThis as { localStorage?: Storage }).localStorage
@@ -51,13 +43,21 @@ function persistOverride(v: boolean | null): void {
   }
 }
 
+// devProOverride defaults to null (no override) synchronously — no storage read
+// in the initializer. Zustand's create() runs this at MODULE EVALUATION TIME,
+// before React mounts and before any error boundary exists; a synchronous
+// SQLite-backed localStorage read here is the same "blank screen on first
+// launch" hazard fixed in theme/index.tsx (see the comment there). Real users
+// never have this key set at all, so defaulting to null is exactly correct for
+// everyone except a tester reopening the app with an override already saved —
+// see loadStoredDevProOverride() below for the after-mount correction.
 export const useEntitlementStore = create<EntitlementState>((set) => ({
   proEnabled: false,
   isPro: false,
   granted: false,
   ready: false,
   tester: false,
-  devProOverride: readOverride(),
+  devProOverride: null,
   setProEnabled: (proEnabled) => set({ proEnabled }),
   setIsPro: (isPro) => set({ isPro }),
   setGranted: (granted) => set({ granted }),
@@ -65,6 +65,21 @@ export const useEntitlementStore = create<EntitlementState>((set) => ({
   setTester: (tester) => set({ tester }),
   setDevProOverride: (devProOverride) => { persistOverride(devProOverride); set({ devProOverride }) },
 }))
+
+// Called once from the root layout's startup effect (after first mount) to
+// restore a tester's saved override. Uses the ASYNC SQLite API (not the sync
+// one persistOverride() uses for writes) so a slow/stuck native call here can
+// never block first paint.
+export async function loadStoredDevProOverride(): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
+    const v = await AsyncStorage.getItem(OVERRIDE_KEY)
+    if (v === '1' || v === '0') useEntitlementStore.setState({ devProOverride: v === '1' })
+  } catch {
+    /* keep the default (no override) */
+  }
+}
 
 /**
  * Reactive Pro access. `locked` is the single source of truth for gating a feature.

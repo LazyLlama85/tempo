@@ -2437,6 +2437,37 @@ the only new state. `lib/pauseMode.ts`:
   returning-user banner) with an inline "Resume now" action. Free, uncapped — this is core-loop
   reliability, not a Pro feature.
 
+### Fixed blank-screen-on-first-launch (2026-07-21)
+Root cause: four Zustand stores (`theme/index.tsx`'s `useThemeStore`, `stores/entitlements.ts`'s
+`useEntitlementStore`, `lib/units.ts`'s `useUnitStore`, `lib/focusModePref.ts`'s
+`useFocusModePrefStore`) read the SQLite-backed `localStorage` **synchronously inside their
+`create()` initializer** — code that runs at *module evaluation time*, before React mounts and
+before `TempoErrorBoundary` exists. `expo-sqlite`'s sync API (`getItemSync`/`setItemSync`) opens
+and migrates the on-disk database the first time any key is read or written
+(`getDbSync()`/`maybeMigrateDbSync()` in `expo-sqlite/build/Storage.js`); on a genuinely fresh
+install that first synchronous native call can stall, and a stalled JS thread can't run the root
+layout's existing 5s font-load timeout either — timers can't fire while the thread itself is
+blocked. Matches the reported symptom exactly ("blank screen on first launch, works after force-
+quitting and reopening").
+
+Fix: every store now defaults synchronously to a safe constant (`theme` → `'dark'`, `units` →
+`'lb'`, `focusModePref` → `false`/off, `entitlements.devProOverride` → `null`) with **no storage
+access in the initializer**, and each exports an async loader (`loadStoredThemeMode`,
+`loadStoredWeightUnit`, `loadStoredFocusMode`, `loadStoredDevProOverride`) that corrects the value
+*after first mount* using `expo-sqlite/kv-store`'s async `AsyncStorage.getItem()` — confirmed to
+read/write the same underlying database as the sync API, so nothing is lost, it just resolves a
+tick later. All four loaders are called from the root layout's existing startup `useEffect`
+(`app/_layout.tsx`, alongside `initialize()`/`track('app_open')`/`endStaleRestActivities()`). A
+plain `globalThis.localStorage` property *reference* (e.g. the query-cache persister at the top of
+`_layout.tsx`) is unaffected — the sync-DB-open only happens on the first actual `getItem`/
+`setItem` call, not on accessing the polyfilled object itself.
+
+Same pass fixed a real bug in `lib/focusModePref.ts`: Focus Mode used to default **on**
+(`v === null ? true : ...`) for anyone who'd never touched the setting; it now defaults off and
+stays off until the user opts in in Settings — the runner's gating logic (`plan.tsx`, `if
+(focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
+default was wrong.
+
 ---
 
 ## 8. Known gaps / roadmap

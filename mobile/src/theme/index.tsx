@@ -14,31 +14,50 @@ export type { Palette, ThemeMode }
 
 const STORAGE_KEY = 'tempo.theme.mode'
 
-// Synchronous read from the SQLite-backed localStorage polyfill (installed with
-// supabase) so there's no theme flash on launch. Defaults to dark.
-function readInitialMode(): ThemeMode {
-  try {
-    const v = (globalThis as { localStorage?: Storage }).localStorage?.getItem(STORAGE_KEY)
-    return v === 'light' || v === 'dark' ? v : 'dark'
-  } catch {
-    return 'dark'
-  }
-}
-
 interface ThemeState {
   mode: ThemeMode
   setMode: (mode: ThemeMode) => void
   toggle: () => void
 }
 
+// Defaults to dark synchronously — no storage read in the initializer. This
+// store is created at MODULE EVALUATION TIME (Zustand's create() runs its
+// initializer immediately, and this file is imported from the app's root
+// layout), which is before React has mounted and before any error boundary
+// exists. A synchronous SQLite-backed localStorage read here used to be the
+// very first thing the app did on a truly fresh install — and expo-sqlite's
+// synchronous JSI API opening/migrating the database for the first time is a
+// documented class of "blank screen on first launch, works after force-quit"
+// bug (a stuck/slow synchronous native call blocks the JS thread before
+// React ever renders a single frame, so there's nothing an error boundary or
+// a timeout can rescue — JS timers can't fire while the thread itself is
+// blocked). See loadStoredThemeMode() below for the real fix: the same read,
+// moved to run AFTER first paint, via the async API so a slow native call
+// can never block rendering even if it does happen.
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  mode: readInitialMode(),
+  mode: 'dark',
   setMode: (mode) => {
     try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(STORAGE_KEY, mode) } catch { /* best-effort */ }
     set({ mode })
   },
   toggle: () => get().setMode(get().mode === 'dark' ? 'light' : 'dark'),
 }))
+
+// Called once from the root layout's startup effect (after first mount) to
+// correct the mode for a returning user with a saved 'light' preference.
+// Uses the ASYNC SQLite API specifically — not the synchronous one the rest
+// of this file uses for writes — because a stuck promise here can never
+// freeze the JS thread or block rendering, unlike a stuck synchronous call.
+export async function loadStoredThemeMode(): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
+    const v = await AsyncStorage.getItem(STORAGE_KEY)
+    if (v === 'light' || v === 'dark') useThemeStore.setState({ mode: v })
+  } catch {
+    /* keep the default */
+  }
+}
 
 /** The active palette. Re-renders the caller when the mode changes. */
 export function useTheme(): Palette {
