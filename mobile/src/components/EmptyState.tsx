@@ -12,7 +12,7 @@ import { Radius, Spacing } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { FadeInView, PressableScale, useReducedMotion } from '@/components/motion'
 
-export type IllustrationKind = 'calendar' | 'barbell' | 'chart' | 'moon' | 'flash'
+export type IllustrationKind = 'calendar' | 'barbell' | 'chart' | 'moon' | 'flash' | 'photo'
 
 // ── Floating wrapper ─────────────────────────────────────────────────────────
 
@@ -93,6 +93,17 @@ function Illustration({ kind }: { kind: IllustrationKind }) {
         return (
           <View style={s.flashRing}>
             <Ionicons name="flash" size={30} color={C.primary} />
+          </View>
+        )
+      // Progress Photos used `chart` for want of anything closer, so an empty
+      // photo gallery was illustrated with a bar chart — the same art the Weekly
+      // Report empty state uses, which reads as the wrong screen. Reuses the
+      // ring treatment rather than hand-drawing a frame: same visual weight as
+      // `flash`, and the glyph carries the meaning.
+      case 'photo':
+        return (
+          <View style={s.flashRing}>
+            <Ionicons name="image" size={30} color={C.primary} />
           </View>
         )
     }

@@ -211,7 +211,7 @@ export default function ProgressPhotosScreen() {
         <View style={styles.center}><PulseLoader caption="Loading your photos…" /></View>
       ) : entries.length === 0 ? (
         <EmptyState
-          kind="chart"
+          kind="photo"
           title="No progress photos yet"
           body="Attach a photo the next time you log a measurement from Profile → Body Stats, and it'll show up here, in order."
         />
