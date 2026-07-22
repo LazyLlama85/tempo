@@ -46,7 +46,7 @@ const LEVELS: { id: Experience; label: string; years: string; sub: string; icon:
 const EQUIPMENT: { id: Equipment; label: string; description: string; icon: string }[] = [
   { id: 'full_gym', label: 'Full gym', description: 'Barbells, cables, machines — the works', icon: 'business-outline' },
   { id: 'dumbbells', label: 'Dumbbells', description: 'Adjustable or fixed dumbbells at home', icon: 'barbell-outline' },
-  { id: 'barbell', label: 'Barbell & plates', description: 'Home setup with a rack or bench', icon: 'fitness-outline' },
+  { id: 'barbell', label: 'Barbell & plates', description: 'Home setup with a rack or bench', icon: 'disc-outline' },
   { id: 'kettlebell', label: 'Kettlebells', description: 'One or two kettlebells at home', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance bands', description: 'Bands and bodyweight only', icon: 'pulse-outline' },
   { id: 'pull_up_bar', label: 'Pull-up & dip bar', description: 'Doorway bar, dip station, or rings', icon: 'body-outline' },

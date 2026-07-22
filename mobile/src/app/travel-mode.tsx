@@ -34,7 +34,7 @@ import type { Equipment, TravelMode } from '@/types'
 const EQUIP: { id: Equipment; label: string; desc: string; icon: string }[] = [
   { id: 'full_gym', label: 'Full gym', desc: 'Hotel or guest gym — machines & racks', icon: 'business-outline' },
   { id: 'dumbbells', label: 'Dumbbells', desc: 'A pair of dumbbells', icon: 'barbell-outline' },
-  { id: 'barbell', label: 'Barbell & plates', desc: 'Barbell with a rack or bench', icon: 'fitness-outline' },
+  { id: 'barbell', label: 'Barbell & plates', desc: 'Barbell with a rack or bench', icon: 'disc-outline' },
   { id: 'kettlebell', label: 'Kettlebells', desc: 'One or two kettlebells', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance bands', desc: 'Travel bands', icon: 'pulse-outline' },
   { id: 'pull_up_bar', label: 'Pull-up & dip bar', desc: 'A bar, dip station, or rings', icon: 'body-outline' },

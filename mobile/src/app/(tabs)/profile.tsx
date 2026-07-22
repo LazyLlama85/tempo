@@ -62,7 +62,7 @@ const EQUIPMENT_OPTIONS: { id: string; label: string; icon: string }[] = [
   { id: 'bodyweight', label: 'No equipment', icon: 'walk-outline' },
   { id: 'pull_up_bar', label: 'Pull-up & dip bar', icon: 'body-outline' },
   { id: 'dumbbells', label: 'Dumbbells', icon: 'barbell-outline' },
-  { id: 'barbell', label: 'Barbell', icon: 'barbell' },
+  { id: 'barbell', label: 'Barbell', icon: 'disc-outline' },
   { id: 'kettlebell', label: 'Kettlebells', icon: 'fitness-outline' },
   { id: 'resistance_bands', label: 'Resistance Bands', icon: 'pulse-outline' },
   { id: 'full_gym', label: 'Full Gym', icon: 'business-outline' },
