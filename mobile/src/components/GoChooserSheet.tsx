@@ -51,7 +51,7 @@ export function GoChooserSheet({ visible, todayState, focus, time, onContinue, o
   const due = todayState === 'due'
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
       <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
         <Text style={s.title}>{copy.title}</Text>
         <Text style={s.subtitle}>{copy.subtitle}</Text>

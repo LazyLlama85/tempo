@@ -2484,6 +2484,22 @@ Two small onboarding/tutorial polish fixes:
   that had no ScrollView). Now wrapped in `ScrollView`, matching every sibling onboarding step
   (`goal.tsx` etc.).
 
+### Swept the app for the same "content clips off-screen" bug class (2026-07-21)
+Following the why-tempo.tsx fix, an audit of every screen/sheet found two more confirmed
+instances of the same bug (a stacked content column with no `ScrollView`, so it can run off the
+bottom of the screen on a smaller phone or with larger Dynamic Type):
+- **`calendar-setup.tsx`** — the subtitle, optional reconnect banner, both calendar cards (Google
+  + Device, one with a Pro-gated "choose calendars" sub-row), and the hint text were all in a
+  plain `View` styled `styles.scroll` — named for scrolling but never actually a `ScrollView`.
+- **`components/RecoveryCheckIn.tsx`** — the largest instance found: 4 metric rows (label + 5-way
+  scale + hints) plus the readiness preview and Save button, inside a `TempoSheet` capped at 90%
+  height with no `scroll` prop — the save button itself could be unreachable.
+
+Both fixed (real `ScrollView` / `TempoSheet scroll` prop). Also added the `scroll` prop
+defensively to four shorter sheets flagged as lower-risk by the same audit
+(`PlateCalcSheet`, `ShareCardSheet`, `GoChooserSheet`, `SaveProgressSheet`) — free safety net,
+no visual change for content that already fits.
+
 ### Notification settings: fixed master-toggle revert, collapsed the per-type list (2026-07-21)
 The master push switch (`app/settings.tsx`'s `togglePush`) used to unconditionally re-fetch
 `getMasterPushEnabled` after every toggle and trust whatever it read — so a failed/dropped write

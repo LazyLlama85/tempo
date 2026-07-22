@@ -45,7 +45,7 @@ export function PlateCalcSheet({ visible, onClose, initialWeight, unit }: Props)
   const barOptions = unit === 'kg' ? [15, 20] : [35, 45]
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
       <View style={s.sheet}>
         <View style={s.headerRow}>
           <Ionicons name="barbell" size={20} color={C.primary} />

@@ -103,7 +103,7 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
   }
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>Share your card</Text>

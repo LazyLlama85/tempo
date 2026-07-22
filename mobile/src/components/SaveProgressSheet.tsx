@@ -84,7 +84,7 @@ export function SaveProgressSheet({ visible, onClose, context, onLinked }: SaveP
   }
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    <TempoSheet visible={visible} onClose={onClose} scroll>
       <View style={styles.container}>
         {done ? (
           <View style={styles.doneBox}>

@@ -37,7 +37,12 @@ export function RecoveryCheckIn({ visible, userId, onClose, onSaved }: Props) {
   }
 
   return (
-    <TempoSheet visible={visible} onClose={onClose}>
+    // scroll: true — 4 metric rows (each a label + 5-button scale + hints) plus
+    // the readiness preview and save button can run taller than the sheet's
+    // capped 90% height on a smaller phone or with larger Dynamic Type; without
+    // it the bottom of the sheet (readiness preview, save button) was
+    // unreachable, not just visually tight.
+    <TempoSheet visible={visible} onClose={onClose} scroll>
         <View style={styles.sheet}>
           <Text style={styles.eyebrow}>DAILY CHECK-IN</Text>
           <Text style={styles.title}>How are you recovering?</Text>

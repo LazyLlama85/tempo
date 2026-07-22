@@ -8,7 +8,7 @@
 // else, or disconnect. Reached from Profile → Settings → Calendar.
 
 import { useCallback, useState } from 'react'
-import { StyleSheet, TouchableOpacity, View, Text, Alert, ActivityIndicator, Linking } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, Text, Alert, ActivityIndicator, Linking, ScrollView } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -179,7 +179,10 @@ export default function CalendarSetupScreen() {
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
       />
 
-      <View style={styles.scroll}>
+      {/* Was a plain View — with the reconnect banner + both calendar cards +
+          the Pro-gated "choose calendars" sub-row all present at once, content
+          could exceed the screen with no way to reach the hint text below. */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.subtitle}>
           Pick the calendar you actually use. Tempo reads it to schedule around your real life, and
           (when you turn it on in Settings) can add your workouts to it too.
@@ -254,14 +257,14 @@ export default function CalendarSetupScreen() {
           Both work the same way — connect whichever you actually check. Tempo only reads busy
           times to plan around; your event details are never stored on our servers.
         </Text>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   )
 }
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.surface },
-  scroll: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.md },
+  scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 20 },
   reconnectBanner: {
     flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start',
