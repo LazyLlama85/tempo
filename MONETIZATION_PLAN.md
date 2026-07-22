@@ -20,7 +20,18 @@
 > run your adaptive plan, use the whole library); Pro unlocks *depth, foresight, and unlimited
 > creation* on top.
 
-> **FOUNDER DECISION (2026-07-18):** keep the **current price** ($4.99/mo · $34.99/yr) and give the
+> **⚠️ SUPERSEDED — FOUNDER DECISION (2026-07-22): $7.99/mo · $49.99/yr.** Live in App Store Connect
+> and Play Console as of that date. The reasoning: the 07-18 price was the category floor, which
+> signals "utility" exactly when Tempo is trying to position as a coach, and a floor price is hard to
+> triple later. $7.99/$49.99 is a real middle — cheap enough to test demand, high enough not to
+> contradict the coach story, and a believable step to the ~$12.99 a proven Coach would support.
+> There is **no paying cohort**, so raising again later applies cleanly to new signups only.
+> Mechanically this cost nothing: prices come from the stores and the app hardcodes none, so no
+> RevenueCat change and no build were needed (see `PRO_SETUP_GUIDE.md` → "Changing prices later").
+> The paywall now auto-renders **$4.17/mo billed yearly** and a **SAVE 48%** badge.
+> The §5 table below is kept for the reasoning; its numbers are the old ones.
+>
+> **FOUNDER DECISION (2026-07-18, superseded):** keep the **current price** ($4.99/mo · $34.99/yr) and give the
 > free tier real limits on **user-created content** — **1 Tempo plan + 1 custom plan, 5 custom
 > exercises, 5 saved custom workouts.** This is the *freemium content-cap* model (Hevy/Strong), and
 > it's internally consistent: a Strong/Hevy-level price paired with a Strong/Hevy-level free cap. It
@@ -324,7 +335,9 @@ Per Tempo's working method — arguing to *reject* this before recommending it:
 ## 10. Decisions
 
 **Settled (founder, 2026-07-18):**
-- **Price:** keep current $4.99/mo · $34.99/yr. *(Revisit when Coach ships.)*
+- **Price (2026-07-22, current):** **$7.99/mo · $49.99/yr** — live in both stores. Revisit when Coach
+  ships and apply-rate is measured; ~$12.99/mo is the coach-tier target if it lands.
+- ~~**Price:** keep current $4.99/mo · $34.99/yr.~~ *(2026-07-18, superseded above.)*
 - **Free/Pro line:** capped free tier — 1 Tempo plan + 1 custom plan, 5 custom exercises, 5 saved
   custom workouts; core training loop (logging, adaptive plan, library) uncapped.
 

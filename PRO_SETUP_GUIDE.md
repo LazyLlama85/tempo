@@ -12,7 +12,7 @@
 >   **`tempo_pro_month`** + **`tempo_pro_year`** attached, current offering **`default`** wires
 >   `$rc_monthly`→month and `$rc_annual`→year, In-App-Purchase Key + App-Store-Connect API key both
 >   "Valid credentials". **Complete.**
-> - **App Store Connect:** subscription group *Tempo Pro* with Monthly **$4.99** + Yearly **$34.99**
+> - **App Store Connect:** subscription group *Tempo Pro* with Monthly **$7.99** + Yearly **$49.99**
 >   (all 175 territories), localizations + review screenshots present, and the **7-day free trial**
 >   (Introductory Offer → Free for the first week, all territories) is **live on the annual plan**.
 >   **Complete.**
@@ -69,8 +69,11 @@ Inside the group, **Create** each of these:
 
 | Plan | Product ID (as actually created) | Price | Duration |
 |---|---|---|---|
-| Annual | `tempo_pro_year` | **$34.99** | 1 Year |
-| Monthly | `tempo_pro_month` | **$4.99** | 1 Month |
+| Annual | `tempo_pro_year` | **$49.99** | 1 Year |
+| Monthly | `tempo_pro_month` | **$7.99** | 1 Month |
+
+> **Price changed 2026-07-22** (was $34.99 / $4.99). See "Changing prices later" at the end of
+> Part D2 — **there is nothing to change in RevenueCat or in the app** when a price moves.
 
 For **each** subscription fill in:
 - **Reference Name** (internal): e.g. "Tempo Pro Annual".
@@ -254,16 +257,14 @@ same RevenueCat entitlement + offering serve Android. Progress as of 2026-07-18:
 
 1. **✅ Google Play merchant account — DONE** (founder). The *Monetize with Play* page no longer shows
    the "set up a merchant account" block.
-2. **✅ Play subscriptions created + activated** (2026-07-18): `tempo_pro_month` → monthly base plan
-   **$4.99** (Active); `tempo_pro_year` → yearly base plan **$34.99** (Active) **+ a `free-trial`
-   offer** (Free trial phase, **1 week**, eligibility "New customer acquisition → Never had any
-   subscription" — one trial per user, matching iOS). Prices auto-converted to all 174–177 regions.
+2. **✅ Play subscriptions created + activated** (2026-07-18, **repriced 2026-07-22**):
+   `tempo_pro_month` → monthly base plan **$7.99**; `tempo_pro_year` → yearly base plan **$49.99**
+   **+ a `free-trial` offer** (Free trial phase, **1 week**, eligibility "New customer acquisition →
+   Never had any subscription" — one trial per user, matching iOS). Prices auto-converted to all
+   174–177 regions.
 3. **⛔ RevenueCat → Play Store app → Service account credentials JSON — STILL EMPTY (do this next).**
-   RevenueCat needs a Google Cloud **service-account JSON** (with Play Android Publisher API access,
-   granted under Play Console → Users and permissions / API access), plus **Real-time developer
-   notifications** (Pub/Sub) for renewals. Without it, RevenueCat can't validate Android purchases
-   *and can't even import the Play products.* *(founder — credential; RevenueCat's "Google Play" setup
-   docs walk it step by step. This is now the ONLY thing blocking Android.)*
+   Without it RevenueCat can't validate Android purchases *and can't even import the Play products*.
+   **This is the only thing blocking Android.** Full walkthrough in **D2.1** below.
 4. **RevenueCat wiring** (after 3): import `tempo_pro_month:monthly` / `tempo_pro_year:yearly` (Play
    products are `subscriptionId:basePlanId`), **attach both to the `Tempo: Fitness Planner Pro`
    entitlement**, and add them to the **`default` offering**'s `$rc_monthly` / `$rc_annual` packages
@@ -279,6 +280,105 @@ same RevenueCat entitlement + offering serve Android. Progress as of 2026-07-18:
 
 The `pro_enabled` flag and the paywall/caps code are already cross-platform — once step 3 (credential)
 + step 4 (wiring) are done and an Android build ships, Pro works on Android identically to iOS.
+
+---
+
+### D2.1 — Google Play service-account credentials (the step 3 walkthrough)
+
+Founder-only; ~15 minutes of clicking, then **up to 36 hours of waiting**. Start it early — the wait
+is the long pole on Android, not the setup.
+
+You are creating a robot Google account that RevenueCat uses to ask Play "is this purchase real, and
+is it still active?" It lives in **Google Cloud Console** (the project behind your Play account) and
+is then *invited into* **Play Console** like a team member.
+
+**Step 1 — Enable three APIs.** Google Cloud Console → make sure you're in the project linked to your
+Play developer account → **APIs & Services → Library**, and Enable each:
+- **Google Play Android Developer API** (a.k.a. Android Publisher API) — purchase validation.
+- **Google Play Developer Reporting API** — reporting.
+- **Cloud Pub/Sub API** — real-time developer notifications (renewals, cancellations, refunds
+  reaching RevenueCat without polling). **Easy to forget, and the most common cause of "renewals
+  don't show up."**
+
+Each shows **Manage** instead of **Enable** once it's on.
+
+**Step 2 — Create the service account.** Cloud Console → **IAM & Admin → Service Accounts → Create
+service account**. Name it something obvious like `revenuecat`. **Create and continue.**
+
+**Step 3 — Grant it two roles** (on the "Grant this service account access to project" step):
+- **Pub/Sub Editor** — lets it receive Play's notifications. *(If you later hit permission errors,
+  Pub/Sub Admin is the documented fallback.)*
+- **Monitoring Viewer** — lets RevenueCat monitor the notification queue.
+
+Skip the optional third step → **Done**.
+
+**Step 4 — Create the JSON key.** In the Service Accounts list, the **⋮** menu on your new account →
+**Manage keys → Add key → Create new key → JSON** → it downloads immediately.
+⚠️ **This file is a credential — treat it like a password.** Do **not** commit it to this repo, do not
+put it in `mobile/`, do not paste it into a chat. Upload it to RevenueCat, then delete the download.
+Google auto-disables service accounts whose keys it detects as leaked.
+
+**Step 5 — Invite the service account into Play Console.** Play Console → **Users and permissions →
+Invite new user** → paste the service account's **email address** (it looks like
+`revenuecat@your-project.iam.gserviceaccount.com`, visible in the Service Accounts list).
+- Under **App permissions**, add **Tempo** (`com.fittempo.app`).
+- Grant these **Account permissions**:
+  - **View app information and download bulk reports** (read-only)
+  - **View financial data, orders, and cancellation survey responses**
+  - **Manage orders and subscriptions**
+- **Invite user.**
+
+**Step 6 — Upload to RevenueCat.** RevenueCat → **Project Settings → Apps → your Play Store app** →
+**Service Account Credentials JSON** → upload the file → Save.
+
+**Step 7 — Wait, then verify.** Google's docs say **up to 36 hours** for the credential to start
+working. Until then RevenueCat may show a validation error (503/521) — that is expected, not a
+mistake you made. Documented accelerant: open Play Console → **Monetize → Subscriptions**, make a
+trivial edit to a product description and save it; that sometimes nudges validation through sooner.
+
+**When it's working**, RevenueCat can import the Play products, and you can do step 4 of D2 above
+(attach `tempo_pro_month:monthly` / `tempo_pro_year:yearly` to the `Tempo: Fitness Planner Pro`
+entitlement and add them to the `default` offering's existing `$rc_monthly` / `$rc_annual` packages,
+so each package holds *both* the App Store and the Play product).
+
+**If it doesn't work after 36 hours**, check in this order — these are the documented failure modes:
+1. Was **Cloud Pub/Sub API** actually enabled? (Step 1, third one.)
+2. Are all **three** Play Console account permissions granted? (Step 5.)
+3. Is the uploaded JSON the right file, from the right project?
+4. Has a **signed AAB/APK ever been uploaded** to this Play app? Play won't serve the API for an app
+   with no release. *(Tempo is in Closed testing, so this one is satisfied.)*
+5. Was the service account auto-disabled? (Cloud Console → Service Accounts → check it's enabled.)
+
+---
+
+### Changing prices later (e.g. the 2026-07-22 move to $7.99 / $49.99)
+
+**There is nothing to do in RevenueCat, and nothing to do in the app.** This is worth stating plainly
+because it looks like it should require work:
+
+- **Prices come from the stores, not from RevenueCat.** The SDK reads the live product from StoreKit
+  (iOS) / Billing Client (Android) on the device. RevenueCat maps products to entitlements; it does
+  not store the price you charge.
+- **The app hardcodes no prices.** `app/paywall.tsx` renders `product.priceString`,
+  `pricePerMonthString`, and an auto-computed savings % straight from the current offering. At
+  $7.99 / $49.99 the paywall will show **$4.17/mo billed yearly** and a **SAVE 48%** badge with no
+  code change. (It also updates over the air — even the layout ships via `eas update`.)
+- **The 7-day free trial is unaffected** — it's an Introductory Offer (iOS) / offer phase (Play)
+  attached to the annual product, independent of the base price.
+
+What to actually verify after a reprice:
+- [ ] **App Store Connect** → each subscription shows the new price as *current*, all territories.
+      There is no existing paying cohort, so "preserve prices for existing subscribers" is moot —
+      apply to everyone.
+- [ ] **Play Console** → each base plan shows the new price and is still **Active**. Play treats a
+      base plan's **ID and billing period as immutable** once created; price is editable, but if the
+      console won't let you change it, the fallback is a **new base plan** at the new price with the
+      old one deactivated — in which case the RevenueCat product id changes
+      (`tempo_pro_year:<new-base-plan-id>`) and the offering must be re-pointed at it.
+- [ ] **RevenueCat → Offerings → `default`** still shows both packages resolving to a product, with
+      the new price displayed. If RevenueCat shows a stale price, it's a cache — it refreshes from
+      the stores; the *device* is the source of truth for what the user is charged.
+- [ ] Open the paywall on a real device and confirm the price, the `/mo` line, and the savings badge.
 
 ---
 

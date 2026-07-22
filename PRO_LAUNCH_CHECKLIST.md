@@ -30,7 +30,7 @@ can make a **real sandbox purchase** and watch it unlock.
       succeed but never unlock Pro. *(Recommendation: if it's not too late, rename the entitlement to
       a simple `pro` and change the env var to match — short slugs are the convention. Either works as
       long as they're identical.)*
-- [ ] **Products** attached to the entitlement: your monthly ($4.99) and annual ($34.99) App Store
+- [ ] **Products** attached to the entitlement: your monthly ($7.99) and annual ($49.99) App Store
       subscription products (import them from App Store Connect once created there — step 2).
 - [ ] **Offering** — create one and mark it **current**. The paywall reads `offerings.current`.
 - [ ] **Packages** inside that offering — add the monthly product as the **Monthly** package and the
@@ -48,9 +48,9 @@ can make a **real sandbox purchase** and watch it unlock.
 
 - [ ] **Subscription group** (e.g. "Tempo Pro") — both products live in the same group so they're
       mutually exclusive and upgrade/downgrade cleanly.
-- [ ] **Monthly** auto-renewable subscription — product id, $4.99, localized display name +
+- [ ] **Monthly** auto-renewable subscription — product id, $7.99, localized display name +
       description, review screenshot.
-- [ ] **Annual** auto-renewable subscription — product id, $34.99, localized display name +
+- [ ] **Annual** auto-renewable subscription — product id, $49.99, localized display name +
       description, review screenshot.
 - [ ] **Pricing** set for your storefront(s); add localizations if you sell internationally.
 - [ ] **Review information** — Apple requires the paywall to show Restore + Terms + Privacy (it does),
@@ -89,7 +89,7 @@ me to look it up.
 - [ ] On the TestFlight build, signed into your sandbox account, with your uuid allow-listed:
   - Free path still works end-to-end (create/log/schedule/quick workout) — nothing gated for others.
   - Progress → the **Volume Trends** card shows the Pro lock; tapping a PR / "Search all" opens the paywall.
-  - Paywall shows **live** $4.99 / $34.99, the correct savings %, and (if configured) the trial CTA.
+  - Paywall shows **live** $7.99 / $49.99, the correct savings % (48%), and (if configured) the trial CTA.
   - Buy annual (sandbox) → paywall closes, analytics unlocks instantly.
   - Kill + relaunch → still Pro. Restore Purchases → recovers. (Sandbox subs expire fast — good for
     testing the downgrade → re-lock, which must **not** delete any data.)
