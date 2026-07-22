@@ -1012,6 +1012,21 @@ you moving."*
   straight into `/onboarding/goal` with zero warning, unlike Profile's Change Plan; it now shows the
   same confirm sheet first (`reviewPlanConfirm`).
 - **Quick Workout** (`quick-workout.tsx`): pick minutes + focus → generated session, one tap to start.
+  **The session actually fits the window now (2026-07-22).** Two independent estimators disagreed:
+  `quickWorkout.exerciseCostSeconds` budgeted with a local `SETUP = 30` and rest only *between* sets
+  (`sets - 1`), while `durationEstimate.estimateSessionSec` — the one the **runner displays the
+  moment the session opens** — uses `SETUP_SEC = 90` and counts a rest *per set*. On a 5-exercise
+  build that is ~5 min of unbudgeted setup plus 4 uncounted rests, so a "15-Minute Muscle Builder"
+  opened reading **"EST. 21 MINS"** (observed in the running app). `exerciseCostSeconds` now imports
+  `SETUP_SEC` and uses the estimator's own per-set accounting, so the budget and the displayed number
+  are the same maths. Because honest accounting made a 15-minute window fit only *two* full-rest
+  exercises, the "short sessions get denser" tuning gained a **≤20-minute tier** (sets capped at 2,
+  rest capped at 50s, straight sets) — the fix for a short window is spending less of it resting, not
+  fewer movements. Every duration now lands *under* its budget (10→~8, 15→~13, 20→~17, 30→~27,
+  45→~41, 60→~55 min): a session that ends early beats one that overruns. Covered by
+  `__tests__/quickWorkoutDuration.test.ts`, which asserts the property rather than any exercise count
+  — *whatever* the builder emits, the runner's estimate must fit the requested window — so the two
+  estimators cannot silently drift apart again (verified failing 5/8 against the old logic).
   **Redesigned (2026-07-21):** replaced 8 duration chips with one `Slider` (5–60, snaps to
   `QUICK_DURATIONS` via `snapToQuickMinutes` on release); "Target Area" chips are now real body parts
   (Arms/Chest/Back/Shoulders/Legs/Core/Cardio — `quickWorkout.ts`'s `TARGET_AREA_OPTIONS`) instead of

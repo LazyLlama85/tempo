@@ -18,6 +18,7 @@ import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
 import { toDateStr } from '@/lib/dates'
 import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
+import { SETUP_SEC } from '@/lib/durationEstimate'
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -210,10 +211,24 @@ function dayOfYear(d = new Date()): number {
   return Math.floor((d.getTime() - start.getTime()) / 86400000)
 }
 
-// One exercise's wall-clock cost in seconds (setup + sets + inter-set rest).
+// One exercise's wall-clock cost in seconds (setup + sets + rest).
+//
+// This MUST agree with lib/durationEstimate.estimateSessionSec, because that is
+// what the runner shows the user the moment the session opens. It previously
+// didn't, in two ways that both flattered the builder: setup was 30s against the
+// shared SETUP_SEC of 90, and rest was counted only BETWEEN sets (`sets - 1`)
+// where the estimator counts one per set. On a 5-exercise session that is ~5
+// minutes of unbudgeted setup plus 4 uncounted rest periods — which is why a
+// "15-Minute Muscle Builder" opened reading "EST. 21 MINS" (observed 2026-07-22).
+// Quick Workout's entire promise is that the session fits the window you gave it,
+// so the budget now uses the shared constants and the same per-set accounting.
+// `durationEstimate.ts` exists precisely because the optimistic maths was, in its
+// own words, fantasy; this file simply hadn't adopted it.
+//
+// `scheme.setSeconds` is kept for work time (it is per-purpose — a cardio set is
+// not a strength set) where the estimator falls back to a generic WORK_SEC.
 function exerciseCostSeconds(scheme: PurposeScheme): number {
-  const SETUP = 30
-  return SETUP + scheme.sets * scheme.setSeconds + Math.max(0, scheme.sets - 1) * scheme.restSeconds
+  return SETUP_SEC + scheme.sets * (scheme.setSeconds + scheme.restSeconds)
 }
 
 // Pick the highest-impact unused exercise of a pattern, rotated by `seed` for variety.
@@ -262,8 +277,21 @@ function selectExercises(
   const MAX = minutes <= 10 ? 4 : minutes <= 20 ? 5 : 8
 
   // Short sessions get denser: fewer sets, shorter rest so the time is all work.
+  //
+  // The ≤20 tier is new (2026-07-22) and is the direct consequence of making
+  // exerciseCostSeconds honest above. Under the old optimistic budget a 15-minute
+  // request fit 3 full-rest exercises that actually ran ~20 minutes; under correct
+  // accounting the same scheme fits only TWO, which reads as a thin workout rather
+  // than a tight one. The real problem was never the exercise count — it was
+  // spending 70s of a 15-minute window resting between every set. So a mid-length
+  // window now trims rest and sets the way the ≤10 tier already did, just less
+  // aggressively: ~3 exercises of genuine work, and an estimate the runner agrees
+  // with. Trading rest for movements is the right call at this length; it is not
+  // at 45+, where the full scheme still applies untouched.
   const tuned: PurposeScheme = minutes <= 10
     ? { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 40), structure: 'circuit' }
+    : minutes <= 20
+    ? { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 50) }
     : scheme
 
   const byPattern: Record<string, ExerciseRow[]> = {}
