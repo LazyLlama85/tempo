@@ -28,7 +28,7 @@ import {
   fetchMeasurements, logMeasurement, computeWeightTrend, computeMetricTrend,
 } from '@/lib/bodyMeasurements'
 import {
-  useUnitStore, unitLabel, displayWeight, inputToLbs, formatWeightDelta,
+  useUnitStore, unitLabel, displayWeight, inputToLbs, formatWeightDelta, compactVolume,
 } from '@/lib/units'
 import { useProAccess } from '@/stores/entitlements'
 import { ProGate, ProBadge } from '@/components/ProGate'
@@ -203,6 +203,12 @@ export default function ProfileScreen() {
   const avatar = parseAvatar(profile?.avatar_url)
   const level = computeLevel(stats.totalWorkouts)
 
+  // Weight display unit (lb/kg) — a device preference; storage stays lbs.
+  // (The lb/kg TOGGLE moved to Settings; the value itself is read here for Body
+  // Stats, the measurement-log modal, and the Volume insight tile below — which
+  // is why it's declared up here rather than beside its other consumers.)
+  const unit = useUnitStore((s) => s.unit)
+
   // Profile insights (premium redesign) — a history-based readiness + progress stats.
   const readiness = useMemo(() => readinessFromHistory(workouts, logTimes, new Date()), [workouts, logTimes])
 
@@ -213,7 +219,11 @@ export default function ProfileScreen() {
   // have. Three tiles is a full row (flexBasis 30%), so the layout stays clean.
   const insightTiles: InsightTile[] = [
     { icon: 'trophy', label: 'PRs', value: String(stats.prs?.length ?? 0), tint: C.gold },
-    { icon: 'barbell', label: 'Volume', value: stats.totalVolume ?? '0', tint: C.primaryBright },
+    // Unit-aware and abbreviated. `stats.totalVolume` is a raw lbs string, so a kg
+    // user was shown lbs here while Progress showed the same metric correctly
+    // converted — two different numbers for "volume", and this one unlabelled.
+    // compactVolume also stops lifetime totals truncating in a ~72pt tile.
+    { icon: 'barbell', label: `Volume (${unitLabel(unit)})`, value: compactVolume(stats.totalVolumeNum ?? 0, unit), tint: C.primaryBright },
     { icon: 'heart', label: 'Readiness', value: String(readiness.score), tint: readiness.score >= 80 ? C.readyHigh : readiness.score >= 55 ? C.readyMed : C.readyLow },
   ]
 
@@ -265,11 +275,6 @@ export default function ProfileScreen() {
   const [injuryModal, setInjuryModal] = useState(false)
   const [injurySel, setInjurySel] = useState<string[]>([])
   const [injurySaving, setInjurySaving] = useState(false)
-
-  // Weight display unit (lb/kg) — a device preference; storage stays lbs.
-  // (The lb/kg TOGGLE moved to Settings; the value itself is still read here
-  // for Body Stats + the measurement-log modal.)
-  const unit = useUnitStore((s) => s.unit)
 
   // Straggler confirm migrated off native Alert.alert onto the branded OptionSheet.
   const [changePlanSheet, setChangePlanSheet] = useState(false)

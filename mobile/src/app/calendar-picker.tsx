@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react'
 import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
@@ -84,7 +85,14 @@ export default function CalendarPickerScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    // Safe-area root, matching every other `presentation: 'modal'` screen (this
+    // was the only one of 28 rooted at a plain View). iOS insets a modal itself so
+    // it looked fine there, but on ANDROID a modal is full-screen: the header and
+    // its Close button rendered under the status bar / camera cutout, and the
+    // fixed Save footer below sat in the gesture area. 'bottom' is included
+    // because the Save button lives outside the ScrollView — same as
+    // calendar-setup.tsx, which has the identical header + footer structure.
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScreenHeader
         title="Choose Calendars"
         size="sm"
@@ -143,7 +151,7 @@ export default function CalendarPickerScreen() {
           </PressableScale>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   )
 }
 

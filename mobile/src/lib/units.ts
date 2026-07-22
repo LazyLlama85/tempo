@@ -69,6 +69,21 @@ export function displayVolume(lbs: number, unit: WeightUnit): string {
   return Math.round(n).toLocaleString()
 }
 
+/**
+ * Volume for TIGHT spaces — the profile stat tiles, which are ~72pt of content
+ * on a 375pt phone and render at 25pt with `numberOfLines={1}`.
+ * `displayVolume` is right everywhere it has room, but lifetime volume only ever
+ * grows: "1,284,500" is nine glyphs and truncates to "1,284,5…" — and it does so
+ * for the most engaged users, who have earned the number they can no longer read.
+ * Abbreviates above 10k so the tile stays legible at any width and any tenure.
+ */
+export function compactVolume(lbs: number, unit: WeightUnit): string {
+  const n = Math.round(unit === 'kg' ? lbs / LB_PER_KG : lbs)
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`
+  return n.toLocaleString()
+}
+
 /** Display-unit NUMBER → stored lbs (for prefilling inputs the user then edits). */
 export function toInputString(lbs: number | null | undefined, unit: WeightUnit): string {
   if (lbs == null) return ''
