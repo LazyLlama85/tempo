@@ -33,7 +33,6 @@ import {
   Inter_700Bold,
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter'
-import { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque'
 import { JetBrainsMono_500Medium, JetBrainsMono_700Bold } from '@expo-google-fonts/jetbrains-mono'
 import * as SplashScreen from 'expo-splash-screen'
 
@@ -171,8 +170,6 @@ function RootLayoutInner() {
     Inter_500Medium,
     Inter_700Bold,
     Inter_800ExtraBold,
-    BricolageGrotesque_700Bold,
-    BricolageGrotesque_800ExtraBold,
     JetBrainsMono_500Medium,
     JetBrainsMono_700Bold,
   })

@@ -33,7 +33,8 @@ you moving."*
 - **Backend:** **Supabase** — Postgres (with Row-Level Security), Auth, Edge Functions (Deno),
   Storage, and `pg_cron` + `pg_net` for scheduling.
 - **Telemetry:** **PostHog** (product analytics) + **Sentry** (crash/error). Both no-op without keys.
-- **Fonts/UI:** Inter (`@expo-google-fonts/inter`) for body/UI, **Bricolage Grotesque** (display)
+- **Fonts/UI:** Inter (`@expo-google-fonts/inter`) for body/UI **and display** (ExtraBold set
+  tight — the separate Bricolage Grotesque display face was removed 2026-07-22)
   + **JetBrains Mono** (numerals) loaded in the root layout for the redesign type system;
   `@expo/vector-icons` (Ionicons), `expo-image`, `react-native-reanimated`,
   `react-native-gesture-handler`, `expo-glass-effect`.
@@ -1344,11 +1345,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `#4E8BFF`, ember secondary accent for attention/heat, **`gold`/`goldSoft`** for records) and
   `paperLight` (warm near-white + deep electric blue `#0058BC`), exported as `Palettes` + the
   `Palette` type. Identity lives in the components/motion, not a paint swap.
-  Every palette carries `fontDisplay`/`fontDisplayBold`/`fontNumeric` tokens (**Bricolage
-  Grotesque** display + **JetBrains Mono** numerals). **JetBrains Mono is now reserved for the live
+  Every palette carries `fontDisplay`/`fontDisplayBold`/`fontNumeric` tokens (**Inter
+  ExtraBold/Bold** display + **JetBrains Mono** numerals). Display and body are deliberately the
+  *same* family: hierarchy comes from weight + size + negative tracking, not a second typeface —
+  one fewer font to load at cold start and no mismatch between a headline and the copy under it.
+  **JetBrains Mono is now reserved for the live
   runner instrument** (countdown timer + set/weight/reps columns, where tabular alignment matters);
   every stat card, tile, ring and duration (profile, progress, home, quick-workout, reports,
-  celebration) uses the Bricolage display face, so numbers read as one consistent, premium voice
+  celebration) uses the Inter display face, so numbers read as one consistent, premium voice
   rather than a "code-y" mono. A shared **`Motion`** export (fast/base/slow durations + spring)
   keeps the whole app on one clock. `BottomTabInset` reflects the floating dock (96).
   **Redesign foundation (additive — no existing token changed):** every palette also carries
@@ -1719,19 +1723,28 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   score** with per-group bars, per-muscle detail (frequency, weekly sets, recovery %, last trained,
   volume trend + Train/See-progress actions), and auto insights. New Pro id `muscle_intelligence` in
   `proFeatures.ts` (+ a paywall point). **Gating is dormant-safe**: `useProGate().locked` is only true
-  once Pro is LIVE and the user isn't subscribed — then free users get a premium *preview* (dimmed map
-  + locked detail + a feature-specific "Unlock Muscle Intelligence" upsell); while Pro is dormant
-  everyone sees it in full. Three map modes: **Status** (status colours + recovery-% callout bubbles),
+  once Pro is LIVE and the user isn't subscribed — then free users get a premium *preview*
+  + locked detail + a feature-specific "Unlock Muscle Intelligence" upsell; while Pro is dormant
+  everyone sees it in full. **The locked preview substitutes rather than obscures (2026-07-22):**
+  `MuscleMap` takes a `locked` prop which swaps every shading input for the exported
+  `SAMPLE_STATUS_BY_GROUP` / `SAMPLE_STATUS_BY_SLUG` / `SAMPLE_HEAT_BY_GROUP` /
+  `SAMPLE_RANK_BY_GROUP` constants *before* a single colour is computed, drops selection and the
+  tap handler, and covers the figure with a `BlurView` (iOS) over a `C.scrimHeavy` fill (the
+  Android path, where BlurView is unreliable — this must never fail open). The previous treatment
+  was `dimmed` (opacity 0.5), which still showed every status colour — i.e. it gave away the exact
+  insight Pro is sold on. Because the real data never reaches the figure, nothing leaks even if the
+  blur fails to render or the user screenshots it. The `rank` mode's "Most trained: … / Least: …"
+  footnote is `locked`-gated for the same reason. Three map modes: **Status** (status colours + recovery-% callout bubbles),
   **Heatmap** (7/30/90-day training-stimulus glow), and **Rank** (per-muscle training tier
   Beginner→World Class from `fitnessInsights.muscleRank` — most→least trained, for the "how developed"
   Progress view). (The old **Train → Readiness** segment also embedded this body map — removed along
   with the rest of the segmented control in the 2026-07-16 Plan redesign; Progress's Body
-  Intelligence card is now the only surface for it, still **Pro-gated** the same way — free = dimmed
-  + a lock overlay, score/ring stays free.) A
+  Intelligence card is now the only surface for it, still **Pro-gated** the same way — free = the
+  sample body under a blur + a lock overlay and a "Sample shown" caption, score/ring stays free.) A
   **post-workout teaser** on `workout-complete` surfaces it at a high-intent moment (only when locked).
   `MuscleMap`'s public API (`view` / `statusByGroup` / `heatByGroup` / `rankByGroup` / `mode` /
-  `selected` / `onSelect` / `dimmed` / `bubbles` / `size` + the `muscleStatusColor` / `muscleTierColor`
-  exports) is unchanged — internally each Tempo group maps to the library's fine muscle slugs per view
+  `selected` / `onSelect` / `dimmed` / `locked` / `bubbles` / `size` + the `muscleStatusColor` /
+  `muscleTierColor` / `SAMPLE_*` exports) is otherwise unchanged — internally each Tempo group maps to the library's fine muscle slugs per view
   (`GROUP_TO_SLUGS_FRONT/BACK`), colours are computed by the same status/heat/rank engine and passed as
   per-part `color`, and bubble anchors are re-derived from the anatomy path data (centroid per group,
   normalized to the 724×1448 viewBox) so recovery-% / rank callouts still land on the right muscle.

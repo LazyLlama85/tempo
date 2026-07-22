@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 // ── Tempo design language ─────────────────────────────────────────────────────
 // One identity, two modes. Tempo is a training *instrument*: near-black ink
 // surfaces, ONE electric-blue primary (the brand color), ember for attention/
-// heat, gold for records — with Bricolage Grotesque display type and JetBrains
+// heat, gold for records — with tight Inter ExtraBold display type and JetBrains
 // Mono numerals. The old classic/craft fork is gone: this is the design, not a
 // palette option. Identity lives in the components and motion (pulse mark,
 // floating dock, rings, celebrations), not in a paint swap.
@@ -15,8 +15,8 @@ import { Platform } from 'react-native';
 
 // Dark — "Ink". The default: electric blue on near-black.
 const inkDark = {
-  fontDisplay: 'BricolageGrotesque_800ExtraBold',
-  fontDisplayBold: 'BricolageGrotesque_700Bold',
+  fontDisplay: 'Inter_800ExtraBold',
+  fontDisplayBold: 'Inter_700Bold',
   fontNumeric: 'JetBrainsMono_700Bold',
   // Backgrounds — cool ink elevation ramp
   surface: '#0F1014',
@@ -61,6 +61,12 @@ const inkDark = {
   glassBorder: 'rgba(255,255,255,0.09)',
   glassHighlight: 'rgba(255,255,255,0.14)',
   scrim: 'rgba(0,0,0,0.55)',
+  // Heavy, SURFACE-tinted scrim for locked/Pro-teaser content. Unlike `scrim`
+  // (a neutral dim for modal backdrops) this is opaque enough to make the content
+  // underneath genuinely unreadable — a dimmed Pro preview still leaks the answer —
+  // while staying light enough in each mode that `text`/`textSecondary` laid on top
+  // keep their contrast. Also the Android fallback wherever BlurView can't be trusted.
+  scrimHeavy: 'rgba(15,16,20,0.82)',
   // Chart system — axes/grid/labels for the Progress dashboards.
   chartGrid: 'rgba(255,255,255,0.06)',
   chartAxis: '#333A45',
@@ -87,8 +93,8 @@ export type Palette = { [K in keyof typeof inkDark]: string };
 
 // Light — "Paper". Warm near-white + the deep electric blue: the editorial read.
 const paperLight: Palette = {
-  fontDisplay: 'BricolageGrotesque_800ExtraBold',
-  fontDisplayBold: 'BricolageGrotesque_700Bold',
+  fontDisplay: 'Inter_800ExtraBold',
+  fontDisplayBold: 'Inter_700Bold',
   fontNumeric: 'JetBrainsMono_700Bold',
   surface: '#FCF8F9',
   background: '#FFFFFF',
@@ -126,6 +132,7 @@ const paperLight: Palette = {
   glassBorder: 'rgba(20,28,48,0.08)',
   glassHighlight: 'rgba(255,255,255,0.92)',
   scrim: 'rgba(18,22,30,0.34)',
+  scrimHeavy: 'rgba(252,248,249,0.88)',
   chartGrid: 'rgba(20,28,48,0.08)',
   chartAxis: '#C7CBD4',
   chartLabel: '#525A68',
@@ -169,7 +176,10 @@ export const Typography = {
 } as const;
 
 // Three type roles (loaded in the root layout):
-//   • display — Bricolage Grotesque, for big titles / hero headlines / wordmark
+//   • display — Inter ExtraBold set tight (negative tracking), for big titles /
+//               hero headlines / wordmark. Deliberately the same family as body
+//               copy: hierarchy comes from weight + size + tracking, not a second
+//               typeface. One font file family = faster cold start, no mismatch.
 //   • sans    — Inter, for all body / UI / labels / buttons
 //   • numeric — JetBrains Mono (tabular), reserved for the LIVE session instrument:
 //               the runner's countdown timer + set / weight / reps columns, where
@@ -177,9 +187,9 @@ export const Typography = {
 //               (profile, progress, home, quick-workout, reports, celebration) use
 //               the DISPLAY face instead — one consistent, premium numeric voice.
 export const Fonts = Platform.select({
-  ios: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'BricolageGrotesque_700Bold', displayBold: 'BricolageGrotesque_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'Menlo' },
-  android: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'BricolageGrotesque_700Bold', displayBold: 'BricolageGrotesque_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'monospace' },
-  default: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'BricolageGrotesque_700Bold', displayBold: 'BricolageGrotesque_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'monospace' },
+  ios: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'Inter_700Bold', displayBold: 'Inter_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'Menlo' },
+  android: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'Inter_700Bold', displayBold: 'Inter_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'monospace' },
+  default: { sans: 'Inter_400Regular', medium: 'Inter_500Medium', bold: 'Inter_700Bold', extraBold: 'Inter_800ExtraBold', display: 'Inter_700Bold', displayBold: 'Inter_800ExtraBold', numeric: 'JetBrainsMono_500Medium', numericBold: 'JetBrainsMono_700Bold', mono: 'monospace' },
 });
 
 // Motion — shared durations so the whole app moves to one clock.

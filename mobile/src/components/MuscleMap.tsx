@@ -7,8 +7,9 @@
 // selects it (a slug in status mode, a coarse group in the other modes).
 
 import Body, { type Slug, type ExtendedBodyPart } from 'react-native-body-highlighter'
-import { View, StyleSheet } from 'react-native'
-import { useTheme, type Palette } from '@/theme'
+import { View, StyleSheet, Platform } from 'react-native'
+import { BlurView } from 'expo-blur'
+import { useTheme, useThemeStore, type Palette } from '@/theme'
 import type { MuscleStatus, MuscleTier } from '@/lib/fitnessInsights'
 
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core'
@@ -64,6 +65,33 @@ function invertGroups(m: Record<MuscleGroup, Slug[]>): Partial<Record<Slug, Musc
 const SLUG_TO_GROUP_FRONT = invertGroups(GROUP_TO_SLUGS_FRONT)
 const SLUG_TO_GROUP_BACK = invertGroups(GROUP_TO_SLUGS_BACK)
 
+// ── Locked (Pro-teaser) sample body ───────────────────────────────────────────
+// A dimmed real map still leaks the whole answer: which muscles are fatigued,
+// which are weak, which are under-trained — exactly what Pro is being sold for.
+// So `locked` swaps in this fixed, plausible-looking SAMPLE dataset *before*
+// anything is shaded, and covers the figure with a blur/scrim. Substituting
+// rather than obscuring means there is no real data on screen to leak even if
+// the blur fails to render (Android) or the user screenshots it.
+export const SAMPLE_STATUS_BY_GROUP: Partial<Record<MuscleGroup, MuscleStatus>> = {
+  chest: 'optimal', back: 'growing', shoulders: 'optimal',
+  arms: 'attention', legs: 'fatigued', core: 'growing',
+}
+export const SAMPLE_STATUS_BY_SLUG: Partial<Record<string, MuscleStatus>> = {
+  chest: 'optimal', trapezius: 'growing', deltoids: 'optimal',
+  biceps: 'attention', triceps: 'attention', forearm: 'optimal',
+  quadriceps: 'fatigued', hamstring: 'fatigued', gluteal: 'growing',
+  calves: 'attention', adductors: 'optimal', tibialis: 'optimal',
+  abs: 'growing', obliques: 'optimal',
+  'upper-back': 'growing', 'lower-back': 'optimal',
+}
+export const SAMPLE_HEAT_BY_GROUP: Partial<Record<MuscleGroup, number>> = {
+  chest: 0.8, back: 0.62, shoulders: 0.5, arms: 0.35, legs: 1, core: 0.45,
+}
+export const SAMPLE_RANK_BY_GROUP: Partial<Record<MuscleGroup, MuscleTier>> = {
+  chest: 'advanced', back: 'intermediate', shoulders: 'intermediate',
+  arms: 'novice', legs: 'elite', core: 'novice',
+}
+
 function hexToRgba(hex: string, a: number): string {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim())
   if (!m) return hex
@@ -73,7 +101,7 @@ function hexToRgba(hex: string, a: number): string {
 
 export function MuscleMap({
   view, statusByGroup = {}, statusBySlug, heatByGroup, rankByGroup, mode = 'status',
-  selected, selectedSlug, onSelect, onSelectSlug, dimmed = false, size = 220,
+  selected, selectedSlug, onSelect, onSelectSlug, dimmed = false, locked = false, size = 220,
 }: {
   view: BodyView
   /** Coarse per-group status (heatmap/rank fallback). */
@@ -90,33 +118,50 @@ export function MuscleMap({
   onSelect?: (g: MuscleGroup) => void
   onSelectSlug?: (slug: string) => void
   dimmed?: boolean
+  /**
+   * Pro-locked preview. Renders the SAMPLE_* body instead of the caller's data
+   * (so no real shading exists to leak), ignores selection, and covers the figure
+   * with a blur + scrim. Callers may layer their own CTA on top.
+   */
+  locked?: boolean
   size?: number
 }) {
   const C = useTheme()
+  const themeMode = useThemeStore((st) => st.mode)
   const isFront = view === 'front'
   const groupMap = isFront ? GROUP_TO_SLUGS_FRONT : GROUP_TO_SLUGS_BACK
   const slugToGroup = isFront ? SLUG_TO_GROUP_FRONT : SLUG_TO_GROUP_BACK
 
+  // Locked → every shading input becomes sample data before a single colour is
+  // computed. Selection is dropped too: a highlighted muscle would still point at
+  // something real. Everything below this line is identical for both states.
+  const srcStatusByGroup = locked ? SAMPLE_STATUS_BY_GROUP : statusByGroup
+  const srcStatusBySlug = locked ? SAMPLE_STATUS_BY_SLUG : statusBySlug
+  const srcHeatByGroup = locked ? SAMPLE_HEAT_BY_GROUP : heatByGroup
+  const srcRankByGroup = locked ? SAMPLE_RANK_BY_GROUP : rankByGroup
+  const srcSelected = locked ? null : selected
+  const srcSelectedSlug = locked ? null : selectedSlug
+
   const colorForGroup = (g: MuscleGroup): string => {
     if (mode === 'heatmap') {
-      const heat = Math.max(0, Math.min(1, heatByGroup?.[g] ?? 0))
+      const heat = Math.max(0, Math.min(1, srcHeatByGroup?.[g] ?? 0))
       return hexToRgba(C.primary, 0.14 + heat * 0.86)
     }
-    if (mode === 'rank') return muscleTierColor(C, rankByGroup?.[g])
-    return muscleStatusColor(C, statusByGroup[g])
+    if (mode === 'rank') return muscleTierColor(C, srcRankByGroup?.[g])
+    return muscleStatusColor(C, srcStatusByGroup[g])
   }
 
   // Status mode with per-muscle data → shade each muscle individually.
-  const fine = mode === 'status' && !!statusBySlug
+  const fine = mode === 'status' && !!srcStatusBySlug
 
   const data: ExtendedBodyPart[] = []
   if (fine) {
     const slugsForView = new Set<Slug>(Object.values(groupMap).flat())
     slugsForView.forEach((slug) => {
-      const st = statusBySlug![slug]
+      const st = srcStatusBySlug![slug]
       if (!st) return // untrained muscle → defaultFill
       const color = muscleStatusColor(C, st)
-      const sel = selectedSlug === slug
+      const sel = srcSelectedSlug === slug
       data.push(sel ? { slug, color, styles: { stroke: C.text, strokeWidth: 2 } } : { slug, color })
     })
   } else {
@@ -124,7 +169,7 @@ export function MuscleMap({
       const slugs = groupMap[g]
       if (!slugs.length) return
       const color = colorForGroup(g)
-      const sel = selected === g
+      const sel = srcSelected === g
       slugs.forEach((slug) =>
         data.push(sel ? { slug, color, styles: { stroke: C.text, strokeWidth: 2 } } : { slug, color }))
     })
@@ -144,7 +189,7 @@ export function MuscleMap({
           scale={scale}
           border={C.outline}
           defaultFill={C.surfaceContainerHigh}
-          onBodyPartPress={(onSelect || onSelectSlug) ? (p) => {
+          onBodyPartPress={(!locked && (onSelect || onSelectSlug)) ? (p) => {
             const s = p.slug
             if (!s) return
             if (fine && onSelectSlug) { onSelectSlug(s); return }
@@ -153,6 +198,18 @@ export function MuscleMap({
           } : undefined}
         />
       </View>
+      {locked && (
+        // pointerEvents none so the caller's own CTA (or the surrounding card's
+        // press target) still receives taps — this layer only obscures.
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={24} tint={themeMode === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
+          {/* Carries the obscuring on Android, where BlurView is unreliable, and
+              deepens it on iOS. Must never fail open. */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: C.scrimHeavy }]} />
+        </View>
+      )}
     </View>
   )
 }

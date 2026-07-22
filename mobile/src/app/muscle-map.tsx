@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
-import { useTheme, useThemedStyles, type Palette } from '@/theme'
+import { useTheme, useThemedStyles, useThemeStore, type Palette } from '@/theme'
 import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
 import { EmptyState } from '@/components/EmptyState'
@@ -47,6 +47,7 @@ export default function MuscleMapScreen() {
   const userId = session?.user.id ?? ''
   const { muscleTimeline, muscleFineTimeline, isLoading } = useProgressStats(userId)
   const { locked } = useProGate()
+  const themeMode = useThemeStore((st) => st.mode)
 
   const [view, setView] = useState<BodyView>('front')
   const [selected, setSelected] = useState<MuscleGroup | null>(null)   // coarse (heatmap/rank)
@@ -157,26 +158,46 @@ export default function MuscleMapScreen() {
             {/* The map */}
             <FadeInView key={`${view}-${mode}`} style={s.mapCard}>
               <View style={s.heroGlow} pointerEvents="none" />
-              <MuscleMap
-                view={view}
-                statusByGroup={statusByGroup}
-                statusBySlug={statusBySlug}
-                heatByGroup={heatByGroup}
-                rankByGroup={rankByGroup}
-                mode={mode}
-                selected={selected}
-                onSelect={(g) => setSelected(g === selected ? null : g)}
-                selectedSlug={selMuscle}
-                onSelectSlug={(sl) => { if (statusBySlug[sl]) setSelMuscle((prev) => (prev === sl ? null : (sl as BodyMuscle))) }}
-                dimmed={locked}
-                size={210}
-              />
-              {locked && (
-                <View style={s.mapLockPill}>
-                  <Ionicons name="lock-closed" size={12} color={C.onPrimary} />
-                  <Text style={s.mapLockPillText}>Pro preview</Text>
-                </View>
-              )}
+              <View style={s.mapFigureWrap}>
+                {/* `locked` makes MuscleMap render its SAMPLE body under a blur —
+                    the real statusByGroup/BySlug never reaches the figure. */}
+                <MuscleMap
+                  view={view}
+                  statusByGroup={statusByGroup}
+                  statusBySlug={statusBySlug}
+                  heatByGroup={heatByGroup}
+                  rankByGroup={rankByGroup}
+                  mode={mode}
+                  selected={selected}
+                  onSelect={(g) => setSelected(g === selected ? null : g)}
+                  selectedSlug={selMuscle}
+                  onSelectSlug={(sl) => { if (statusBySlug[sl]) setSelMuscle((prev) => (prev === sl ? null : (sl as BodyMuscle))) }}
+                  locked={locked}
+                  size={210}
+                />
+                {locked && (
+                  // The unlock CTA on top of MuscleMap's own blur layer.
+                  <PressableScale
+                    style={StyleSheet.absoluteFill}
+                    scaleTo={0.98}
+                    onPress={openPaywall}
+                    accessibilityRole="button"
+                    accessibilityLabel="Unlock your body map with Tempo Pro"
+                  >
+                    <View style={s.mapLockScrim}>
+                      <View style={s.mapLockIcon}>
+                        <Ionicons name="lock-closed" size={20} color={C.onPrimary} />
+                      </View>
+                      <Text style={s.mapLockTitle}>Your body map is Pro</Text>
+                      <Text style={s.mapLockBody}>This is sample data. Unlock to see your own recovery, balance and weak points.</Text>
+                      <View style={s.mapLockCta}>
+                        <Text style={s.mapLockCtaText}>Unlock with Pro</Text>
+                        <Ionicons name="arrow-forward" size={15} color={C.onPrimary} />
+                      </View>
+                    </View>
+                  </PressableScale>
+                )}
+              </View>
               {mode === 'status' ? (
                 <View style={s.legend}>
                   {(['optimal', 'growing', 'attention', 'fatigued'] as MuscleStatus[]).map((st) => (
@@ -204,7 +225,9 @@ export default function MuscleMapScreen() {
                   ))}
                 </View>
               )}
-              {mode === 'rank' && rank.mostTrained && (
+              {/* Locked-gated: this line names the user's real most/least-trained
+                  groups — the same insight the blurred figure is hiding. */}
+              {mode === 'rank' && !locked && rank.mostTrained && (
                 <Text style={s.footNote}>Most trained: {GROUP_LABEL[rank.mostTrained]} · Least: {GROUP_LABEL[rank.leastTrained ?? '']}</Text>
               )}
             </FadeInView>
@@ -427,6 +450,26 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   heroGlow: { position: 'absolute', top: -40, alignSelf: 'center', width: 260, height: 260, borderRadius: 130, backgroundColor: C.primaryGlow },
   mapLockPill: { position: 'absolute', top: Spacing.md, right: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   mapLockPillText: { fontFamily: 'Inter_700Bold', fontSize: 10.5, color: C.onPrimary, letterSpacing: 0.3 },
+
+  // Locked map: the figure and its blur/scrim overlay share this wrapper so the
+  // overlay covers the body exactly (not the card's legend + toggles below it).
+  mapFigureWrap: { position: 'relative' },
+  mapLockScrim: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingHorizontal: Spacing.lg,
+  },
+  mapLockIcon: {
+    width: 40, height: 40, borderRadius: Radius.full, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
+  mapLockTitle: { fontFamily: C.fontDisplay, fontSize: 17, color: C.text, letterSpacing: -0.2, textAlign: 'center' },
+  mapLockBody: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 17, textAlign: 'center' },
+  mapLockCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
+    backgroundColor: C.primary, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 9,
+  },
+  mapLockCtaText: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.onPrimary },
   legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.md },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 9, height: 9, borderRadius: 5 },

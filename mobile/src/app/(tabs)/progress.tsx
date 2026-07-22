@@ -427,16 +427,23 @@ export default function ProgressScreen() {
                     <Ionicons name="chevron-forward" size={14} color={C.outline} />
                   </View>
                 </View>
+                {/* `locked` swaps in MuscleMap's SAMPLE body under a blur — a merely
+                    dimmed real map still showed every status colour, i.e. the exact
+                    insight Pro is sold on. */}
                 <MuscleMap
                   view="front"
                   statusByGroup={bodyIntelStatusByGroup}
                   mode="status"
                   selected={null}
                   onSelect={() => router.push('/muscle-map' as any)}
-                  dimmed={proLocked}
+                  locked={proLocked}
                   size={150}
                 />
-                <Text style={styles.bodyIntelSub}>Your muscle map — balance, recovery & weak points, at a glance.</Text>
+                <Text style={styles.bodyIntelSub}>
+                  {proLocked
+                    ? 'Sample shown. Unlock Pro to see your own balance, recovery & weak points.'
+                    : 'Your muscle map — balance, recovery & weak points, at a glance.'}
+                </Text>
               </PressableScale>
             )}
             {insights && (
