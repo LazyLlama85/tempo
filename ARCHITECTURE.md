@@ -2432,7 +2432,8 @@ the only new state. `lib/pauseMode.ts`:
 - `checkMissedWorkouts` (`lib/missedWorkouts.ts`) gained a belt-and-suspenders guard — fetches
   `paused_until` and no-ops while `today < paused_until` — even though pausePlan's shift already
   means there's structurally nothing in range to mark missed.
-- UI: `app/pause-mode.tsx` (duration presets 1wk/10d/2wk/1mo, or Resume Now), a Settings row
+- UI: `app/pause-mode.tsx` (a `Slider` from 1–60 days, plus 4/7/10/14/30-day quick-pick chips, or
+  Resume Now — any exact day count is selectable, not just the presets), a Settings row
   (Calendar & Scheduling section), and a Home context-item banner (priority 1, right after the
   returning-user banner) with an inline "Resume now" action. Free, uncapped — this is core-loop
   reliability, not a Pro feature.

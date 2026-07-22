@@ -20,14 +20,14 @@ import { useAuthStore } from '@/stores/auth'
 import { pausePlan, resumePlan, describePauseUntil } from '@/lib/pauseMode'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { track } from '@/lib/analytics'
+import { Slider } from '@/components/Slider'
 
-type DurId = 'week' | 'tenDays' | 'twoWeeks' | 'month'
-const DURATIONS: { id: DurId; label: string; days: number }[] = [
-  { id: 'week', label: '1 week', days: 7 },
-  { id: 'tenDays', label: '10 days', days: 10 },
-  { id: 'twoWeeks', label: '2 weeks', days: 14 },
-  { id: 'month', label: '1 month', days: 30 },
-]
+// Any exact day count is valid (matches pauseMode.ts's ~60-day shift horizon
+// comment) — quick-pick chips underneath the slider just save a drag for the
+// common cases (a long weekend, a week, two weeks, a month).
+const MIN_DAYS = 1
+const MAX_DAYS = 60
+const QUICK_PICKS = [4, 7, 10, 14, 30]
 
 export default function PauseModeScreen() {
   const C = useTheme()
@@ -40,7 +40,7 @@ export default function PauseModeScreen() {
   const pausedUntil = profile?.paused_until ?? null
   const active = !!pausedUntil
 
-  const [dur, setDur] = useState<DurId>('week')
+  const [days, setDays] = useState(7)
   const [saving, setSaving] = useState(false)
 
   const refreshAfterChange = async () => {
@@ -51,7 +51,6 @@ export default function PauseModeScreen() {
   const handlePause = async () => {
     if (!userId || saving) return
     setSaving(true)
-    const days = DURATIONS.find(d => d.id === dur)!.days
     const res = await pausePlan(supabase, userId, days)
     setSaving(false)
     if (!res.ok) { Alert.alert('Could not pause', 'Please try again.'); return }
@@ -106,24 +105,38 @@ export default function PauseModeScreen() {
         {!active && (
           <>
             <Text style={styles.sectionLabel}>HOW LONG?</Text>
+            <View style={styles.durationCard}>
+              <Text style={styles.durationBig}>{days}<Text style={styles.durationUnit}> {days === 1 ? 'day' : 'days'}</Text></Text>
+              <View style={styles.sliderWrap}>
+                <Slider
+                  value={days}
+                  min={MIN_DAYS}
+                  max={MAX_DAYS}
+                  step={1}
+                  onChange={setDays}
+                  accessibilityLabel="Days away"
+                  formatValue={(v) => `${v}d`}
+                />
+              </View>
+            </View>
             <View style={styles.durWrap}>
-              {DURATIONS.map(d => {
-                const on = dur === d.id
+              {QUICK_PICKS.map(d => {
+                const on = days === d
                 return (
                   <TouchableOpacity
-                    key={d.id}
+                    key={d}
                     style={[styles.durChip, on && styles.durChipOn]}
-                    onPress={() => setDur(d.id)}
+                    onPress={() => setDays(d)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{d.label}</Text>
+                    <Text style={[styles.durChipText, on && styles.durChipTextOn]}>{d} days</Text>
                   </TouchableOpacity>
                 )
               })}
             </View>
             <Text style={styles.hint}>
               Back to your normal plan {describePauseUntil(
-                (() => { const d = new Date(); d.setDate(d.getDate() + DURATIONS.find(x => x.id === dur)!.days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })(),
+                (() => { const d = new Date(); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })(),
               )}.
             </Text>
           </>
@@ -175,6 +188,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   activeText: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, color: C.success },
 
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
+  durationCard: {
+    alignItems: 'center', backgroundColor: C.background, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm, paddingBottom: Spacing.xs,
+  },
+  durationBig: { fontFamily: C.fontDisplay, fontSize: 40, color: C.text, letterSpacing: -1 },
+  durationUnit: { fontFamily: 'Inter_500Medium', fontSize: 16, color: C.textSecondary },
+  sliderWrap: { alignSelf: 'stretch', width: '100%' },
   durWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   durChip: {
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full,
