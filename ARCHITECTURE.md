@@ -2043,6 +2043,19 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   not real RevenueCat subscriptions, so a genuine subscriber would be metered as free — must be
   resolved (receipt verification or a RevenueCat-webhook-maintained table) **before** flipping
   `pro_enabled` globally. Not user-visible while Pro is dormant. See the function's README.
+  **Client half — `lib/coach.ts`** *(Batch C2)*: `buildCoachContext()` is **pure** (rows in, pack
+  out — same design rule as `fitnessInsights`, so it stays unit-testable), `fetchCoachContext()` is
+  the only place that knows which tables to read (every sub-query independently best-effort: a
+  coach that can't see your weight is still useful, one that won't open isn't),
+  `sendCoachMessage()` / `fetchCoachHistory()` / `setActionState()` are the wire, and
+  `describeAction()` / `actionCta()` render the confirm card — `describeAction` doubles as the
+  **fallback copy** when the model returns a tool call with no text block. The context pack is
+  deliberately small (it's the biggest input line on every request): short keys, sorted arrays,
+  **absent data omitted rather than sent as null** (a null invites the model to comment on missing
+  data), a 14-day schedule horizon, and hard caps on PRs/feedback so it can't grow unbounded.
+  Errors are typed (`quota` / `offline` / `unavailable` / `failed`) so the screen can tell a
+  paywall moment apart from a network blip. 17 unit tests cover determinism, omission, horizon
+  edges, and that `describeAction` never returns an empty string for any tool.
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).
