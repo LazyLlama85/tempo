@@ -14,7 +14,21 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 night, latest): `LAUNCH_SCORE_PLAN.md` T2.1 shipped — a real second Pro pillar.**
+- **NEW (2026-07-23 late night, latest): T3.2 turned out to be already done — corrected the audit
+  instead of writing code.** Scoped as "fix the muscle-classification bug," but reading the actual
+  source found `MASTER_FIX_PLAN.md`'s F1/F6 fixes (already marked done 07-19) genuinely landed:
+  `trainingLoad.ts`'s `MUSCLE_REGION` is exact-match (no more `lateral_deltoids`→pull,
+  `abductors`→core substring bugs), `adaptation.ts` counts both `plan` and `split` sourced misses,
+  `generatePlan.ts` writes a real `week_offset` column adaptation never touches. Writing "fix" code
+  against already-correct logic would have been pure regression risk for nothing, so the actual work
+  was verifying (20 tests across the 3 affected suites, all green) and correcting three
+  `PRODUCT_AUDIT.html` rows that were penalizing the app for bugs that no longer exist: Personalization
+  6→7, Fitness Science 5→6 — both explicitly marked as corrections, not new-work credit. **Flagged,
+  not swept:** Reliability and Scheduling Experience cite the same 07-19 batch (F1/F2/F3) and may be
+  similarly stale — out of scope for T3.2's fitness-science-specific thread, real follow-up work.
+  No code changed this task. **Next: T3.1 (accessibility batch) or T1.2 whenever hardware is free.**
+
+- **2026-07-23 night: `LAUNCH_SCORE_PLAN.md` T2.1 shipped — a real second Pro pillar.**
   Founder said "continue, I'll test at the end," so T1.2 (on-device pass, needs real hardware) was
   deferred and T1.3 (price to $4.99/$34.99) stayed flagged as a dashboard-only founder call — moved
   straight to T2.1: a per-lift PR forecast. New pure module `lib/prForecast.computePRForecast` —
