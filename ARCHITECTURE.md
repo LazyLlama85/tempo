@@ -740,6 +740,24 @@ you moving."*
   engines now skip creating today's row when its natural slot has already passed, mirroring the
   existing past-date skip exactly (`generatePlan.ts`'s comment: "Never create a past-dated session…";
   the same logic now also covers "today, but too late for this slot").
+  (6) **Those two skips deleted the sessions instead of moving them, gutting the first week
+  (fixed 2026-07-23, `generatePlan.currentWeekSlots`).** The plan's day-slots are absolute weekdays
+  (a 3-day plan is Mon/Wed/Fri), so generating on a Wednesday dropped Monday (past) *and* Wednesday
+  (start time behind the clock) and kept only Friday — one session. A Friday or Saturday signup kept
+  **zero**. Observed on device: `plan-preview`'s reveal, captioned *"Your first week, planned."*,
+  showed five rest days and two workouts to a user who had just asked to train three times a week.
+  `currentWeekSlots(plannedSlots, todaySlot, todayUsable, blocked)` now re-lays the current calendar
+  week across the days that are actually left, honouring the plan's own rhythm rather than cramming:
+  the minimum gap is derived from weekly frequency (`floor(7 / daysPerWeek)`), so a 3-day plan keeps
+  rest days between sessions while a 5-day plan stays consecutive as its design intends. It never
+  exceeds `days_per_week` and never exceeds the days remaining. Effect for a 3-day plan, sessions in
+  the signup week: Mon 2→3, Tue 2→3, Wed 1→2, Thu 1→2, Fri 0→1, Sat 0→1, Sun 0→0 (the week really
+  is over). It is keyed on the **calendar date**, not the week index — the rollover/extension path
+  passes the plan's *original* `start_date` as `startMonday`, so week 0 there is not necessarily the
+  current week — and the per-slot past-date guards are deliberately left intact underneath, so no
+  redistribution can ever produce a past-dated row. Covered by
+  `__tests__/currentWeekSlots.test.ts` (11 tests, verified failing 4/11 against the old
+  drop-only behaviour).
   **Set logging is instant:** tapping ✓ logs the set immediately (light haptic, rest timer
   auto-starts at the workout's effective rest); **RPE is an optional post-log follow-up bar**
   that updates the `set_logs` row — it never gates logging or the timer. Each set row has a

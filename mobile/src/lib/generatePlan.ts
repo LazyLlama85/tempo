@@ -99,6 +99,57 @@ function chooseDaySlots(daysPerWeek: number, blocked: Set<number>): number[] {
   return slots
 }
 
+/**
+ * Day-slots to use for the CURRENT week when a plan is generated mid-week.
+ *
+ * The plan's normal slots are absolute weekdays (a 3-day plan is Mon/Wed/Fri).
+ * Generating on a Wednesday means Monday is already gone and Wednesday's own
+ * start time is usually behind the clock, so those slots used to be skipped
+ * outright — the sessions were deleted, not moved. A Wednesday-morning signup
+ * on a 3-day plan kept exactly ONE session (Friday), and the onboarding reveal
+ * screen — captioned "Your first week, planned." — showed five rest days and
+ * two workouts to someone who had just asked to train three times a week
+ * (observed on device 2026-07-22). A Sunday signup kept ZERO.
+ *
+ * This re-lays the week's sessions across the days that are actually left,
+ * honouring the plan's own rhythm rather than cramming: `gap` is derived from
+ * the user's weekly frequency (a 3-day plan trains every ~2 days and keeps that
+ * spacing; a 5-day plan is consecutive by design and stays consecutive). It
+ * never invents more sessions than the plan asks for, and never schedules more
+ * than the remaining days allow.
+ *
+ * Pure and total so it can be unit-tested; the caller keeps its own past-date
+ * guards, so nothing here can produce a past-dated session.
+ *
+ * @param plannedSlots  the plan's normal weekday slots (1=Mon … 7=Sun)
+ * @param todaySlot     today's weekday, 1=Mon … 7=Sun
+ * @param todayUsable   whether today's start time is still ahead of the clock
+ * @param blocked       weekdays the user marked unavailable
+ */
+export function currentWeekSlots(
+  plannedSlots: number[],
+  todaySlot: number,
+  todayUsable: boolean,
+  blocked: Set<number>,
+): number[] {
+  const earliest = todayUsable ? todaySlot : todaySlot + 1
+  const candidates: number[] = []
+  for (let d = earliest; d <= 7; d++) if (!blocked.has(d)) candidates.push(d)
+  if (!candidates.length || !plannedSlots.length) return []
+
+  const target = Math.min(plannedSlots.length, candidates.length)
+  // The plan's own training rhythm: 3 days/week → every ~2 days; 5+ → consecutive.
+  const gap = Math.max(1, Math.floor(7 / plannedSlots.length))
+
+  const out: number[] = []
+  let last = Number.NEGATIVE_INFINITY
+  for (const d of candidates) {
+    if (out.length >= target) break
+    if (d - last >= gap) { out.push(d); last = d }
+  }
+  return out
+}
+
 const EXPERIENCE_ORDER: Experience[] = ['beginner', 'intermediate', 'advanced']
 
 function getStartMonday(): Date {
@@ -544,6 +595,8 @@ interface BlockBuildCtx {
   timeOfDay: TimeOfDay
   experience: Experience
   goal: Goal
+  /** Days the user marked unavailable — needed to re-lay the current week (see currentWeekSlots). */
+  blockedWeekdays: Set<number>
 }
 
 async function buildBlockContext(
@@ -619,6 +672,7 @@ async function buildBlockContext(
   const days = clampDays(profile.days_per_week)
   return {
     slots: chooseDaySlots(days, constraints.blockedWeekdays),
+    blockedWeekdays: constraints.blockedWeekdays,
     templates: buildSessionTemplates(profile.goal, days, profile.include_cardio),
     bySlot,
     // How many exercises fit the user's preferred session length FOR THIS GOAL —
@@ -655,7 +709,25 @@ function buildBlockRows(
     // weekProgression cycles the wave modulo the block length, so week 5 starts a
     // fresh Base week — the plan repeats its mesocycle instead of ending.
     const progression = weekProgression(week, ctx.experience, mode)
-    for (const slot of ctx.slots) {
+
+    // Mid-week generation: re-lay THIS calendar week's sessions across the days
+    // that are actually left, instead of silently dropping the ones already
+    // past (see currentWeekSlots). Keyed on the real date, not the week index —
+    // for the rollover/extension path `startMonday` is the plan's ORIGINAL start,
+    // so week 0 there is not necessarily the current week.
+    const weekMonday = new Date(startMonday)
+    weekMonday.setDate(startMonday.getDate() + week * 7)
+    const isCurrentWeek = formatDate(weekMonday) === formatDate(getStartMonday())
+    const slotsForWeek = isCurrentWeek
+      ? currentWeekSlots(
+          ctx.slots,
+          ((new Date().getDay() + 6) % 7) + 1, // today, 1=Mon … 7=Sun
+          startTimeFor(ctx.timeOfDay, sessionCount) > nowStr,
+          ctx.blockedWeekdays,
+        )
+      : ctx.slots
+
+    for (const slot of slotsForWeek) {
       const date = new Date(startMonday)
       date.setDate(startMonday.getDate() + week * 7 + (slot - 1))
 
