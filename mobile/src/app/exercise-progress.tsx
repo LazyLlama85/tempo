@@ -5,7 +5,7 @@
 // the "am I actually getting stronger?" proof — aggregate volume charts say how
 // much you did; this says whether the number that matters is going up.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
@@ -19,6 +19,8 @@ import { useAuthStore } from '@/stores/auth'
 import { SvgLineChart } from '@/components/SvgLineChart'
 import { estimate1RM } from '@/lib/progression'
 import { useWeightUnit, unitLabel, displayWeight, formatWeight } from '@/lib/units'
+import { ProGate } from '@/components/ProGate'
+import { computePRForecast } from '@/lib/prForecast'
 
 interface SessionPoint {
   date: Date
@@ -101,6 +103,17 @@ export default function ExerciseProgressScreen() {
 
   const fmtDay = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
 
+  // Foresight, not a chart — LAUNCH_SCORE_PLAN.md T2.1. Computed from the SAME
+  // free per-session data the chart above already has; only the CARD is
+  // Pro-gated, not the underlying calculation, so a free user with enough
+  // history gets a real, earned paywall moment instead of a lock icon over
+  // nothing. Returns null (renders nothing at all) when there isn't enough
+  // signal for an honest projection — never a fabricated ETA.
+  const forecast = useMemo(
+    () => computePRForecast(points.map((p) => ({ date: p.date, e1rm: p.bestE1rm }))),
+    [points],
+  )
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
@@ -174,6 +187,28 @@ export default function ExerciseProgressScreen() {
                 </View>
               </View>
 
+              {/* Foresight (Pro) — the payable half of this screen. Only renders
+                  at all when computePRForecast found an honest, real trend;
+                  otherwise there is nothing to gate. */}
+              {forecast && (
+                <ProGate feature="pr_forecasting">
+                  <View style={styles.forecastCard}>
+                    <View style={styles.forecastIcon}>
+                      <Ionicons name="trending-up" size={20} color={C.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.forecastEyebrow}>PROJECTED</Text>
+                      <Text style={styles.forecastHeadline}>
+                        {displayWeight(forecast.targetLbs, unit)} {unitLabel(unit)} by {forecast.projectedDateLabel}
+                      </Text>
+                      <Text style={styles.forecastSub}>
+                        At your current pace of +{displayWeight(forecast.ratePerWeek, unit)} {unitLabel(unit)}/week est. 1RM
+                      </Text>
+                    </View>
+                  </View>
+                </ProGate>
+              )}
+
               {/* Latest session summary */}
               {latest && (
                 <View style={styles.latestRow}>
@@ -232,4 +267,17 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   latestRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   latestText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary },
+
+  forecastCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: C.primarySoft, borderRadius: Radius.xl, padding: Spacing.md,
+    borderWidth: 1, borderColor: C.primaryLine,
+  },
+  forecastIcon: {
+    width: 40, height: 40, borderRadius: Radius.md,
+    backgroundColor: C.background, alignItems: 'center', justifyContent: 'center',
+  },
+  forecastEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, letterSpacing: 0.6 },
+  forecastHeadline: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text, marginTop: 2 },
+  forecastSub: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, marginTop: 2 },
 })

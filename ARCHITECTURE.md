@@ -420,8 +420,21 @@ you moving."*
   workout" bar appears once ≥1 is picked, pushing `/workout-builder?addExerciseIds=…` pre-loaded
   with the picks. Reached from the Plan tab header (book icon, always visible) — no longer linked
   from Profile), **`exercise-progress`** (one lift's strength story: per-session best est-1RM line trend,
-  best-ever tiles, Δ vs a month ago; opened from PR rows on Progress/Profile/**`pr-browser`** and
-  from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
+  best-ever tiles, Δ vs a month ago, and — **`LAUNCH_SCORE_PLAN.md` T2.1, 2026-07-23** — a **Pro-gated
+  PR forecast card** (`lib/prForecast.computePRForecast`): a real least-squares fit of the same
+  free e1RM history the chart already shows, projected to the next round-number milestone
+  (`nextMilestone`, now exported from `lib/goalProjection.ts` and shared) as a calendar date, not
+  "N weeks" — "235 lbs by October 15." Deliberately more honest than `goalProjection.ts`'s Home-hero
+  ETA, which assumes a fixed rate by experience level because it only has one bench-max number;
+  here there's real per-session data for the specific lift on screen, so the module fits an actual
+  trend instead of assuming one. Returns null — renders nothing, not a lock icon over nothing — below
+  4 sessions, under a 14-day span, on a flat/declining trend, or when the projection is over a year
+  out; only the DISPLAY is Pro-gated (`<ProGate feature="pr_forecasting">`), so a free user with
+  enough history gets a real, earned paywall moment rather than a tease with no insight behind it.
+  New gate id `pr_forecasting` in `proFeatures.ts` (deliberately not reusing `long_horizon_planning`'s
+  copy, which describes a different, larger, unbuilt feature) + a `PAYWALL_POINTS` bullet, added the
+  moment the surface went live. 8 new unit tests. Opened from PR rows on Progress/Profile/**`pr-browser`**
+  and from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
   jump to its `exercise-progress` trend), **`calendar-setup`** (dedicated connect/disconnect screen
   for Google + Device Calendar, replacing the old `Alert.alert` checklist; shows a "needs
   reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`calendar-picker`**

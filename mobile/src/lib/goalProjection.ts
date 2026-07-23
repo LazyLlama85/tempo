@@ -23,7 +23,9 @@ export interface GoalProjection {
 const STRENGTH_RATE: Record<Experience, number> = { beginner: 5, intermediate: 2.5, advanced: 1 }
 
 // Next round milestone at or above a lift (25-lb steps; classic 225 if just under).
-function nextMilestone(current: number): number {
+// Exported for lib/prForecast.ts, which needs the same "what's the next
+// meaningful number" logic for an arbitrary lift, not just bench.
+export function nextMilestone(current: number): number {
   if (current < 225 && current >= 185) return 225
   return Math.ceil((current + 1) / 25) * 25
 }

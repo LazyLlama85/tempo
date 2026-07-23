@@ -19,6 +19,7 @@ export type ProFeatureId =
   | 'advanced_analytics'
   | 'schedule_optimization'
   | 'long_horizon_planning'
+  | 'pr_forecasting'
   | 'premium_personalization'
   | 'smart_notifications'
   | 'tempo_coach'
@@ -62,6 +63,18 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     title: 'Long-Term Planning',
     benefit: 'Goal-date programs, structured training blocks, and your plan months ahead.',
     icon: 'map',
+  },
+  // LAUNCH_SCORE_PLAN.md T2.1 (2026-07-23) — the OTHER half of MONETIZATION_PLAN.md
+  // Pillar 2 (long_horizon_planning is the program-structure half; this is the
+  // per-lift half). Deliberately its own id rather than reusing
+  // long_horizon_planning's copy, which describes a different, larger,
+  // not-yet-built feature (goal-date programs) — hand-writing borrowed upsell
+  // copy for a shipped feature is exactly what this registry exists to prevent.
+  pr_forecasting: {
+    id: 'pr_forecasting',
+    title: 'PR Forecast',
+    benefit: 'A real projection from your own numbers — "at this rate, you’ll hit a 2-plate bench by October."',
+    icon: 'trending-up',
   },
   // ⛔ NOT BUILT (verified 2026-07-22): there is no theme picker and no alternate app
   // icon anywhere in the app — this id has no call site. Registered for later. It must
@@ -166,6 +179,10 @@ export const PAYWALL_POINTS: PaywallPoint[] = [
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'airplane', title: 'Travel Mode & Multi-Calendar', benefit: 'Rewrite workouts to match gear on the road, and read busy time from every calendar you use.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },
+  // 2026-07-23: added the moment exercise-progress.tsx's forecast card shipped
+  // (LAUNCH_SCORE_PLAN.md T2.1) — same rule as every bullet here, only advertise
+  // what's actually live today.
+  { icon: 'trending-up', title: 'PR Forecast', benefit: 'See exactly when you’ll hit your next lift milestone, projected from your own logged sets.' },
   // 2026-07-22: "and premium themes" REMOVED from this bullet. `premium_personalization`
   // is a registered id with ZERO implementation — no theme picker, no alternate app
   // icons, nothing. Advertising it on the purchase screen is the exact App Store

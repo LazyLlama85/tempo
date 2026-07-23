@@ -14,7 +14,28 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 evening, latest): `LAUNCH_SCORE_PLAN.md` written and its first item (T1.1)
+- **NEW (2026-07-23 night, latest): `LAUNCH_SCORE_PLAN.md` T2.1 shipped — a real second Pro pillar.**
+  Founder said "continue, I'll test at the end," so T1.2 (on-device pass, needs real hardware) was
+  deferred and T1.3 (price to $4.99/$34.99) stayed flagged as a dashboard-only founder call — moved
+  straight to T2.1: a per-lift PR forecast. New pure module `lib/prForecast.computePRForecast` —
+  least-squares fit over the same free e1RM history `exercise-progress.tsx`'s chart already shows,
+  projected to the next round milestone as a calendar date ("235 lbs by October 15," not "10 weeks").
+  More honest than the existing Home-hero ETA (`goalProjection.ts`), which assumes a fixed rate
+  because it only has one bench number — here there's real per-lift data, so it fits an actual trend.
+  Exported `nextMilestone` from `goalProjection.ts` for reuse rather than duplicating it. **Gating
+  design:** the forecast computes unconditionally from data that's already free; only the
+  `<ProGate feature="pr_forecasting">` card is locked — so a free user with enough history gets a
+  real, earned paywall moment, and a user without enough history sees nothing on either tier (never
+  a fabricated ETA). New gate id `pr_forecasting` (own copy, not borrowed from `long_horizon_planning`,
+  a different unbuilt feature) + a `PAYWALL_POINTS` bullet, added the moment it went live. 8 new unit
+  tests (order-independence, all four null-guards, the happy path). `tsc` clean, 351/351 total.
+  `PRODUCT_AUDIT.html`: Subscription Value 6→7 (two real pillars now, not one plus accessories);
+  Personalization's note updated, score deliberately held (still penalized for the split-user
+  missed-session gap and the muscle-classifier bug — T3.2, still open); Long-Term Defensibility
+  deliberately NOT moved (a regression fit isn't a moat). **Next: T3.1 (accessibility batch) or
+  T3.2 (the muscle-classification bug) — or T1.2 whenever hardware is available.**
+
+- **2026-07-23 evening: `LAUNCH_SCORE_PLAN.md` written and its first item (T1.1)
   shipped — founder asked "how come the app is still at 5.9, what's worth doing before launch that
   both raises the score and gets people to buy."** Answer: most of the low rows (Retention,
   Conversion, PMF, Virality, Referral, App Store, half of Trust) are frozen by the audit's own rule
