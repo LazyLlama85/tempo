@@ -813,6 +813,26 @@ you moving."*
   free-running, non-square sizing (`width`/`height`, not just a square `size`), and an
   `onAnimationFailure` guard that hides the view rather than crashing whatever screen embedded it —
   new infrastructure alongside the existing hand-built primitives, not a replacement for them.
+  **🚨 CRITICAL, UNFIXED (2026-07-22) — the muscle figure renders BLANK on Android.** Confirmed on
+  the emulator with real training data: `app/muscle-map.tsx` shows its toggles (Front/Back,
+  Status/Heatmap/Rank) and its "Recovery by muscle" readout (Quads 0%, Glutes 0%), but the body
+  itself is an empty gap — not even the `border` outline draws. The same screen renders correctly
+  on web, so it is platform-specific, and **the signature Pro feature currently shows nothing on
+  the platform the app actually ships to.** Diagnosis so far: (1) **`react-native-svg` itself works
+  on native** — `SvgProgressRing` (Progress → Consistency Score) draws its arc correctly, so this
+  is not a broken SVG pipeline; (2) there is exactly **one** copy of `react-native-svg` (15.15.4) in
+  `node_modules`, so it is not the classic duplicate-instance bug, even though
+  `react-native-body-highlighter` declares it as a direct dependency (`^15.9.0`) rather than a peer;
+  (3) **3.2.0 is already the latest** published version, so there is no version bump to take; (4) the
+  app runs `newArchEnabled=true`, and this codebase already has one library that "silently renders
+  nothing" on this RN 0.85 / React 19 / new-arch stack (`@gorhom/bottom-sheet`, see the sheets
+  note), so a Fabric incompatibility is the leading hypothesis. The notable structural difference
+  between the working and broken cases is that `SvgProgressRing` uses numeric `width`/`height` with
+  **no `viewBox`**, while the library renders `<Svg viewBox="0 0 724 1448" width={200*scale}
+  height={400*scale}>`. **Not yet determined:** whether Tempo's own `viewBox`-based charts
+  (`SvgLineChart`, `SvgGrowBar` — every trend chart in Progress/exercise-progress/weekly-report)
+  are affected too. That check needs an account with non-zero volume history and is the first thing
+  to do next, because it decides whether this is one broken feature or every chart in the app.
   **⚠ Known ASSET defect (2026-07-22) — two coach poses are clipped in the source art, not by
   layout.** Founder reported the sprinting coach looking cut off; measuring every pose's vector
   bounds against its composition proved it is the artwork. Six poses carry a clean ~10px margin
