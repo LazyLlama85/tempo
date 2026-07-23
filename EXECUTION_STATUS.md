@@ -14,7 +14,37 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 late night, latest): `LAUNCH_SCORE_PLAN.md` T3.1 shipped — the last buildable
+- **NEW (2026-07-23 very late, latest): finished the audit-accuracy sweep and did a real
+  recomputation — Product Score 5.9 → 6.2.** Founder asked to keep working on making the audit's
+  own Red Team criticisms stop being possible user reactions. The Red Team's "shared thread" is
+  explicit that scope isn't the answer — focus + reliability + proof is — so instead of chasing
+  individual persona complaints with new UI, finished what T3.2 flagged and deferred: checked
+  whether Reliability and Scheduling Experience were also penalizing the app for already-fixed
+  07-19 bugs. They were. Verified against the live source, not assumed: all 5 named silent-write
+  mutations now handle their errors correctly (including `maybePromoteExperience`, which has a
+  comment explaining exactly why LEVEL UP must not fire on a failed write, and doesn't); the F5
+  app-open race is closed (`stores/auth.ts` no longer runs the sweep, `index.tsx` is the single
+  documented owner); `TempoErrorBoundary` wraps the root; F2's all-day-event fix is live on both
+  the Google and device calendar paths used for actual scheduling (the `!e.allDay` filter still in
+  `calendarService.ts`'s display functions is correct — F2's own spec excluded the display path).
+  Two gaps genuinely remain and are said so in the rows: no offline write queue (never actually
+  scoped into a fix batch), and `autoSchedule.ts` still has no dedicated test file. Reliability
+  4→6, Scheduling Experience's note corrected (already at 6 from this morning). No code changed —
+  this was verification, like T3.2.
+  **Then, because 7 rows had moved today (not the 1-2 that correctly didn't justify touching the
+  headline earlier), did a REAL recomputation** — summed all 48 rows' current cells directly out
+  of the table (shown in the audit, not asserted): Product Score (40 rows) = 247/40 = 6.175 → 6.2.
+  Market Proof (8 rows) = 34/8 = 4.25 → 4.3, unchanged — which also confirms those rows genuinely
+  weren't touched. Updated the hero number, its CSS progress-bar width, and the explanatory
+  paragraph together this time (the exact thing 07-17's entry caught itself failing to do once).
+  Historical Update Log entries that quote "5.9" as of when they were written — including this
+  morning's own T1.1 entry — are correctly left alone; they're a record of what was true then.
+  **`LAUNCH_SCORE_PLAN.md` queue is fully clear except T1.2 (on-device pass), which needs
+  hardware. Next real work is either T1.2 whenever hardware is free, or picking up
+  `MASTER_FIX_PLAN.md`'s remaining P1 craft (C5-C10) / the offline-write-queue and
+  `autoSchedule.ts` test-coverage gaps just named above.**
+
+- **2026-07-23 late night: `LAUNCH_SCORE_PLAN.md` T3.1 shipped — the last buildable
   item on the pre-launch list; queue is now empty except hardware-gated/founder-gated items.**
   Bounded accessibility pass, exactly per `MASTER_FIX_PLAN.md` C4's own "highest-impact, not
   exhaustive" scope: (1) selection-chip `accessibilityState` on quick-workout's purpose/equipment-
