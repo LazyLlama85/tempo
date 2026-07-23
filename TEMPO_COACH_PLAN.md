@@ -310,7 +310,7 @@ Entry points are what make it a product instead of a buried tab. Ship at least #
 ## 7. Gating & metering (the conversion mechanism)
 
 ```
-free  → 3 coach messages per week   (server-enforced)
+free  → 3 coach messages per MONTH  (server-enforced)   ← founder call, 2026-07-23
 Pro   → unlimited, soft cap 200/month to bound cost
 ```
 
@@ -320,10 +320,22 @@ Running out mid-conversation, right after it just did something useful, is the h
 paywall moment the app has — and unlike the current invisible scheduler gate, the user knows exactly
 what they are buying.
 
+**The 3/month cap, and what it costs (recorded so the tradeoff is not forgotten).** The original
+design was 3/**week**. The founder moved it to 3/month so free users "can't do much". That is a
+legitimate call and it is what's built — but be honest about the mechanism it weakens: at 3/week a
+free user hits the wall repeatedly, each time in a moment where the Coach has just proven useful,
+which is what makes the wall a *purchase moment*. At 3/month they hit it once and then face four
+weeks of a dead surface, which is what makes a wall a *reason to stop opening the app*. **The number
+to watch is the conversion rate on `paywall_shown` with `context: 'tempo_coach'`.** If that's flat
+while Coach opens keep happening, the cap is too tight and 3/week (or 5/month) is the fix — not more
+tools. Cost is not the reason to keep it tight: at 3/month a free user costs roughly $0.08/month on
+`claude-sonnet-5`, so the cap is a product lever, not a budget one.
+
 Implementation:
-- Enforce in the Edge Function: count `role='user'` rows since the start of the user's week; if
-  `>= 3` and not Pro, return `402` with `{ error: 'quota', remaining: 0 }`.
-- Client shows remaining count in the header ("2 left this week") when `locked` is true.
+- Enforce in the Edge Function: count `role='user'` rows since the start of the user's calendar
+  month; if `>= 3` and not Pro, return `402` with `{ error: 'quota', remaining: 0 }`. Both tiers now
+  share the same month window, so there is one boundary function instead of two.
+- Client shows remaining count in the header ("2 left this month") when `locked` is true.
 - On `402` → `track('paywall_shown', { context: 'tempo_coach' })` → route to `/paywall`.
 - Pro status: the Edge Function must check entitlement itself. Read `app_config.pro_enabled` +
   the user's row the same way `lib/proConfig.fetchProState` does — **do not trust a client-sent
@@ -365,14 +377,29 @@ Rough per-message estimate at `claude-opus-4-8` ($5 / $25 per MTok):
 | **Total** | | **≈ $0.04 / message** |
 
 - A Pro user at ~20 messages/month ≈ **$0.80/month** — comfortably inside any sane subscription price.
-- A free user at the 3/week cap ≈ **$0.55/month**. This is the number to watch: free users are the
-  many. 10,000 weekly-active free users exercising the full cap is roughly $5.5k/month.
+- A free user at the **3/month** cap ≈ **$0.13/month**. 10,000 monthly-active free users exercising
+  the full cap is roughly **$1.3k/month**. (At the original 3/week cap this line was ~$0.55/user and
+  ~$5.5k/month — the cap change did most of the cost work on its own.)
 
-**Levers if that bites, in order:** (1) trim the context pack — it's the biggest input line and the
-easiest to shrink; (2) drop `effort` to `'low'` for free-tier turns; (3) reduce the free cap to 2/week;
-(4) route free-tier traffic to a cheaper model. Lever 4 is a one-line change
-(`const MODEL_FREE = 'claude-haiku-4-5'`) but it is a **product decision, not an optimization** —
-a visibly worse free Coach undermines the taste-the-tentpole strategy. Ask the founder before pulling it.
+**Model choice (2026-07-23).** `claude-sonnet-5` is the recommended default over `claude-opus-4-8`:
+~$0.026/message vs ~$0.043 (intro pricing $2/$10 per MTok through 2026-08-31 makes it ~$0.017), it
+takes the **identical request body** (adaptive thinking, `output_config.effort`, `strict` tools), and
+it is near-Opus on exactly the axis that matters here — picking the right tool and only using ids
+that exist in the context. `claude-haiku-4-5` is ~5× cheaper again but **does not support adaptive
+thinking or `effort`** (both 400), so it would need a branched request shape, and it is the most
+likely of the three to fumble a five-tool choice.
+
+**Non-Anthropic providers (Grok 4.1 Fast, Gemini Flash, GPT-5-mini)** are ~10–20× cheaper per token
+again, and the 3/month cap has made that saving nearly irrelevant — a few hundred dollars a month at
+a scale Tempo does not have. What it would cost: a second SDK in Deno, a different tool-calling
+dialect, divergent refusal/stop-reason handling, and an unproven answer on strict-schema tool
+reliability. A Coach that proposes moving a workout that doesn't exist is worse than no Coach.
+**Decision: stay on Anthropic.** Revisit only if the `usage` log line shows real spend at real scale.
+
+**Levers if cost ever bites, in order:** (1) trim the context pack — it's the biggest input line and
+the easiest to shrink; (2) drop `effort` to `'low'` for free-tier turns; (3) route free-tier traffic
+to a cheaper model. Lever 3 is a **product decision, not an optimization** — a visibly worse free
+Coach undermines the taste-the-tentpole strategy. Ask the founder before pulling it.
 
 **Verify before launch:** run `client.messages.countTokens()` against a real context pack rather than
 trusting the table above. Add a `usage` log line in the Edge Function (`input_tokens`,
@@ -424,7 +451,7 @@ scheduling engine would come from, and it deserves its own "nothing else changed
 | Action proposed, then applied elsewhere | Re-validate on Apply: re-read the target row; if it moved/completed, show "that already changed" and refresh — never blind-write. |
 | Action proposed on a stale plan | Same guard. The `workout_id` must still exist and be `scheduled`. |
 | Two Applies at once | Disable the button on first press; `action_state` transition is idempotent. |
-| Quota exhausted mid-thread | `402` → inline "You've used your 3 free coach messages this week" + Upgrade. History stays readable. |
+| Quota exhausted mid-thread | `402` → inline "You've used your free coach messages for this month" + Upgrade. History stays readable. |
 | Pro flipped off mid-session | The next send re-checks server-side. Client `locked` follows the store. |
 | Model returns no tool and no text | Should be impossible; if it happens, show a generic "I didn't catch that — try rephrasing" and log to Sentry. |
 | Model proposes an action for a nonexistent workout | Validate args client-side before rendering the card. Invalid → render text only, log to Sentry. |

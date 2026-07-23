@@ -2136,8 +2136,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`verify_jwt` is ON** (unlike `retention-push`) — an unauthenticated LLM endpoint is a free API
   for the internet. Every query runs as the *caller*, so `coach_messages` RLS is the real access
   control and no service-role client is created. **Quota is server-side** and counted from Postgres,
-  never from a client-sent flag: free (`proEnabled && !isPro`) = 3 messages/week Monday-anchored,
-  Pro/dormant = 200/month soft cap; `402` signals the paywall moment. Rows are written only *after*
+  never from a client-sent flag: free (`proEnabled && !isPro`) = **3 messages per calendar month**
+  (founder call 2026-07-23, tightened from 3/week — both tiers now share one month window),
+  Pro/dormant = 200/month soft cap; `402` signals the paywall moment. The tighter cap is a product
+  lever, not a cost one (a free user costs ~$0.13/month on Opus, ~$0.08 on Sonnet 5) — see
+  `TEMPO_COACH_PLAN.md` §7 for the recorded tradeoff: fewer wall-hits means fewer high-intent
+  paywall moments, so `paywall_shown{context:'tempo_coach'}` conversion is the number that decides
+  whether 3/month was too tight. Rows are written only *after*
   a successful reply, so a failed request never burns an allowance. Every call logs input/output
   token counts — that log, not the plan's estimate, is how real per-message cost gets known.
   **`ANTHROPIC_API_KEY` lives only in Supabase secrets** (`npx supabase secrets set`); it must never

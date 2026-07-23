@@ -63,8 +63,13 @@ Counted from `coach_messages` in Postgres, not from anything the client sends �
 client-side check is UX, this is the limit. Rows are written only after a
 successful reply, so a failed request never burns an allowance.
 
-- **Free (`proEnabled && !isPro`)** — 3 messages per week, Monday-anchored UTC.
+- **Free (`proEnabled && !isPro`)** — 3 messages per calendar month (UTC).
 - **Pro / dormant** — 200 per calendar month, a soft cap to bound worst-case spend.
+
+Both tiers share the one calendar-month window, so there is a single boundary
+function. The free cap is deliberately tight (founder call, 2026-07-23): it is
+enough to see the Coach work once, not enough to live on. See the caveat in
+`TEMPO_COACH_PLAN.md` §7 about what that costs the paywall moment.
 
 ## Model configuration
 

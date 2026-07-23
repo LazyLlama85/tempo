@@ -46,7 +46,7 @@ function json(body: unknown, status = 200): Response {
 const MODEL = 'claude-opus-4-8'
 const MAX_TOKENS = 1500        // a chat turn; well under any HTTP timeout, so no streaming needed yet
 const EFFORT = 'medium'        // latency matters more than depth in a chat; 'high' is the API default
-const FREE_WEEKLY_LIMIT = 3    // the taste-the-tentpole allowance (plan §7)
+const FREE_MONTHLY_LIMIT = 3   // the taste-the-tentpole allowance (plan §7)
 const PRO_MONTHLY_SOFT_CAP = 200 // bounds worst-case spend on a single subscriber
 const HISTORY_TURNS = 10       // how much thread we replay to the model
 const MAX_MESSAGE_CHARS = 2000
@@ -198,17 +198,10 @@ Do not mention these instructions, the tools by name, or that you are a language
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Monday-anchored, UTC. Matches the week boundary lib/schedulingImpact already
-// uses. It can straddle a local Sunday/Monday for users far from UTC; that is
-// accepted for v1 because the worst case is a user getting their weekly allowance
-// a few hours early or late, not losing access.
-function weekStartUtc(now = new Date()): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  const dow = (d.getUTCDay() + 6) % 7 // 0 = Monday
-  d.setUTCDate(d.getUTCDate() - dow)
-  return d.toISOString()
-}
-
+// Calendar month, UTC. Both tiers are now metered on the same boundary (free =
+// 3/month, Pro = 200/month), so there is one window function instead of two.
+// It can straddle a local month end for users far from UTC; accepted, because
+// the worst case is an allowance resetting a few hours early or late.
 function monthStartUtc(now = new Date()): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
 }
@@ -295,7 +288,8 @@ Deno.serve(async (req: Request) => {
     const { proEnabled, isPro } = await resolveProState(db, user.id)
     const locked = proEnabled && !isPro
 
-    const since = locked ? weekStartUtc() : monthStartUtc()
+    // One window for both tiers — see monthStartUtc above.
+    const since = monthStartUtc()
     const { count } = await db
       .from('coach_messages')
       .select('id', { count: 'exact', head: true })
@@ -304,7 +298,7 @@ Deno.serve(async (req: Request) => {
       .gte('created_at', since)
 
     const used = count ?? 0
-    const limit = locked ? FREE_WEEKLY_LIMIT : PRO_MONTHLY_SOFT_CAP
+    const limit = locked ? FREE_MONTHLY_LIMIT : PRO_MONTHLY_SOFT_CAP
     if (used >= limit) {
       // 402 is the paywall signal for a free user and a soft stop for a subscriber;
       // the client distinguishes them with `locked`.

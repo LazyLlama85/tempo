@@ -221,7 +221,7 @@ export default function CoachScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
         title="Coach"
-        subtitle={remaining != null && locked ? `${remaining} left this week` : undefined}
+        subtitle={remaining != null && locked ? `${remaining} left this month` : undefined}
         size="sm"
         leading={<DismissButton kind="x" onPress={() => router.back()} label="Close" />}
       />
@@ -309,7 +309,7 @@ function errorBanner(e: CoachError): string {
       return 'Coach needs a connection. Your message is still here — retry when you’re back online.'
     case 'quota':
       return e.locked
-        ? 'You’ve used your free coach messages for this week.'
+        ? 'You’ve used your free coach messages for this month.'
         : 'You’ve hit this month’s coach limit.'
     case 'unavailable':
       return 'Coach isn’t available right now. Try again shortly.'
