@@ -130,14 +130,28 @@ export default function MuscleMapScreen() {
             <View style={s.toggleRow}>
               <View style={s.viewToggle}>
                 {(['front', 'back'] as BodyView[]).map((v) => (
-                  <PressableScale key={v} style={[s.viewBtn, v === view && s.viewBtnOn]} scaleTo={0.95} onPress={() => { setView(v); setSelected(null); setSelMuscle(null) }}>
+                  <PressableScale
+                    key={v}
+                    style={[s.viewBtn, v === view && s.viewBtnOn]}
+                    scaleTo={0.95}
+                    onPress={() => { setView(v); setSelected(null); setSelMuscle(null) }}
+                    accessibilityState={{ selected: v === view }}
+                    accessibilityLabel={v === 'front' ? 'Front view' : 'Back view'}
+                  >
                     <Text style={[s.viewBtnText, v === view && { color: C.onPrimary }]}>{v === 'front' ? 'Front' : 'Back'}</Text>
                   </PressableScale>
                 ))}
               </View>
               <View style={s.viewToggle}>
                 {(['status', 'heatmap', 'rank'] as MapMode[]).map((m) => (
-                  <PressableScale key={m} style={[s.viewBtn, m === mode && s.viewBtnOn]} scaleTo={0.95} onPress={() => { setMode(m); setSelected(null); setSelMuscle(null) }}>
+                  <PressableScale
+                    key={m}
+                    style={[s.viewBtn, m === mode && s.viewBtnOn]}
+                    scaleTo={0.95}
+                    onPress={() => { setMode(m); setSelected(null); setSelMuscle(null) }}
+                    accessibilityState={{ selected: m === mode }}
+                    accessibilityLabel={m === 'status' ? 'Status view' : m === 'heatmap' ? 'Heatmap view' : 'Rank view'}
+                  >
                     <Text style={[s.viewBtnText, m === mode && { color: C.onPrimary }]}>{m === 'status' ? 'Status' : m === 'heatmap' ? 'Heatmap' : 'Rank'}</Text>
                   </PressableScale>
                 ))}
@@ -147,7 +161,14 @@ export default function MuscleMapScreen() {
             {mode === 'heatmap' && (
               <View style={s.rangeRow}>
                 {([7, 30, 90] as const).map((r) => (
-                  <PressableScale key={r} style={[s.rangeChip, r === heatRange && s.rangeChipOn]} scaleTo={0.94} onPress={() => setHeatRange(r)}>
+                  <PressableScale
+                    key={r}
+                    style={[s.rangeChip, r === heatRange && s.rangeChipOn]}
+                    scaleTo={0.94}
+                    onPress={() => setHeatRange(r)}
+                    accessibilityState={{ selected: r === heatRange }}
+                    accessibilityLabel={`Last ${r} days`}
+                  >
                     <Text style={[s.rangeChipText, r === heatRange && { color: C.onPrimary }]}>Last {r} days</Text>
                   </PressableScale>
                 ))}

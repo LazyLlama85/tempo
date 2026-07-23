@@ -308,7 +308,12 @@ export default function SocialScreen() {
                     <PressableScale style={styles.addBtn} onPress={() => handleAccept(f)} scaleTo={0.9}>
                       <Text style={styles.addBtnText}>Accept</Text>
                     </PressableScale>
-                    <TouchableOpacity onPress={() => handleRemove(f)} hitSlop={6}>
+                    <TouchableOpacity
+                      onPress={() => handleRemove(f)}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Decline request from ${f.display_name ?? 'this user'}`}
+                    >
                       <Ionicons name="close-circle" size={22} color={C.outline} />
                     </TouchableOpacity>
                   </View>,
@@ -491,7 +496,12 @@ export default function SocialScreen() {
                   {personRow(
                     f,
                     <View style={styles.reqActions}>
-                      <TouchableOpacity onPress={() => handleRemove(f)} hitSlop={6}>
+                      <TouchableOpacity
+                        onPress={() => handleRemove(f)}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${f.display_name ?? 'this friend'}`}
+                      >
                         <Ionicons name="ellipsis-horizontal" size={18} color={C.outline} />
                       </TouchableOpacity>
                       <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />

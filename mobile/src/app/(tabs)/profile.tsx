@@ -1010,6 +1010,9 @@ export default function ProfileScreen() {
                     style={[styles.avatarPick, { backgroundColor: p.color }, sel && styles.avatarPickSel]}
                     onPress={() => setAvatarId(p.id)}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel }}
+                    accessibilityLabel={`${p.icon.charAt(0).toUpperCase()}${p.icon.slice(1)} avatar`}
                   >
                     <Ionicons name={p.icon as any} size={22} color="#fff" />
                     {sel && (

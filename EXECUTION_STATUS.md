@@ -14,7 +14,24 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 late night, latest): T3.2 turned out to be already done — corrected the audit
+- **NEW (2026-07-23 late night, latest): `LAUNCH_SCORE_PLAN.md` T3.1 shipped — the last buildable
+  item on the pre-launch list; queue is now empty except hardware-gated/founder-gated items.**
+  Bounded accessibility pass, exactly per `MASTER_FIX_PLAN.md` C4's own "highest-impact, not
+  exhaustive" scope: (1) selection-chip `accessibilityState` on quick-workout's purpose/equipment-
+  preset chips and muscle-map's view/mode/range toggles; (2) paywall's Restore/Terms/Privacy footer
+  links are now real accessible buttons (`hitSlop` dropped — `Text` doesn't accept it in this RN
+  version); (3) a targeted regex sweep for icon-only touchables across the four worst screens found
+  and fixed 3 real gaps — profile's avatar picker, social's decline-request and remove-friend
+  buttons. `tsc` clean, 351/351 (no new tests — accessibility props aren't unit-tested in this
+  codebase). `PRODUCT_AUDIT.html`: Accessibility 4→5, explicitly small — this is single-digit fixes
+  against an 808-touchable/110-annotation ratio, most of `plan.tsx`/`index.tsx` untouched, nothing
+  confirmed with a real screen reader.
+  **`LAUNCH_SCORE_PLAN.md` status: T1.1 ✅, T1.3 ✅ (flagged to founder), T2.1 ✅, T3.1 ✅, T3.2 ✅
+  (was already fixed — audit corrected). Only T1.2 (on-device verification pass) remains, and it
+  needs a physical device/AVD — founder said they'll test at the end.** Nothing left for this
+  session to build without hardware in the loop.
+
+- **2026-07-23 late night: T3.2 turned out to be already done — corrected the audit
   instead of writing code.** Scoped as "fix the muscle-classification bug," but reading the actual
   source found `MASTER_FIX_PLAN.md`'s F1/F6 fixes (already marked done 07-19) genuinely landed:
   `trainingLoad.ts`'s `MUSCLE_REGION` is exact-match (no more `lateral_deltoids`→pull,

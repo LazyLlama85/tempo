@@ -289,7 +289,14 @@ export default function QuickWorkoutScreen() {
         {/* Training style + equipment — real, but not what a beginner needs
             staring at by default. Tucked behind one disclosure instead of two
             more always-visible pill rows. */}
-        <TouchableOpacity style={styles.moreToggle} onPress={() => setMoreOpen(v => !v)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.moreToggle}
+          onPress={() => setMoreOpen(v => !v)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: moreOpen }}
+          accessibilityLabel={moreOpen ? 'Show fewer options' : 'Show more options'}
+        >
           <Text style={styles.moreToggleText}>{moreOpen ? 'Fewer options' : 'More options'}</Text>
           <Ionicons name={moreOpen ? 'chevron-up' : 'chevron-down'} size={15} color={C.textSecondary} />
         </TouchableOpacity>
@@ -307,6 +314,9 @@ export default function QuickWorkoutScreen() {
                     style={[styles.purposeChip, active && styles.purposeChipActive]}
                     onPress={() => handlePickPurpose(p)}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={pm.label}
                   >
                     <Ionicons name={pm.icon as any} size={15} color={active ? C.onPrimary : C.primary} />
                     <Text style={[styles.purposeText, active && styles.purposeTextActive]}>{pm.label}</Text>
@@ -324,6 +334,9 @@ export default function QuickWorkoutScreen() {
                 style={[styles.presetChip, !selectedPresetId && styles.presetChipActive]}
                 onPress={() => handlePickPreset(null)}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !selectedPresetId }}
+                accessibilityLabel="All my gear"
               >
                 <Ionicons name="home" size={14} color={!selectedPresetId ? C.onPrimary : C.primary} />
                 <Text style={[styles.presetChipText, !selectedPresetId && styles.presetChipTextActive]}>All my gear</Text>
@@ -341,6 +354,9 @@ export default function QuickWorkoutScreen() {
                       onPress={() => handlePickPreset(pr.id)}
                       onLongPress={() => setPresetSheet({ open: true, edit: pr })}
                       activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={locked ? `${pr.name}, Pro` : pr.name}
                     >
                       <Ionicons name="cube" size={14} color={on ? C.onPrimary : C.primary} />
                       <Text style={[styles.presetChipText, on && styles.presetChipTextActive]} numberOfLines={1}>{pr.name}</Text>
@@ -358,7 +374,13 @@ export default function QuickWorkoutScreen() {
                   </View>
                 )
               })}
-              <TouchableOpacity style={styles.presetNew} onPress={() => setPresetSheet({ open: true, edit: null })} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={styles.presetNew}
+                onPress={() => setPresetSheet({ open: true, edit: null })}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="New equipment preset"
+              >
                 <Ionicons name="add" size={15} color={C.primary} />
                 <Text style={styles.presetNewText}>New</Text>
               </TouchableOpacity>
