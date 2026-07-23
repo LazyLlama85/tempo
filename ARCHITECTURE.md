@@ -1775,10 +1775,15 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   scheduling wedge visible and honest ("Tempo planned & scheduled N of your workouts around your
   week"), with no fabricated "workouts you'd have skipped" guesses. Surfaced as a **Weekly Report**
   card (this-week count, hidden at zero), a personalized **paywall** proof line (all-time count,
-  hidden below 3), and — **B1.1, closing the gap to a primary tab** — a **Progress** stat card
-  (all-time + this-week, hidden at zero) right after Completion Rate, so the wedge is visible on a
-  bottom-tab screen, not only on side screens reached by tapping through. `TEMPO_SCHEDULED_SOURCES`
-  is the single source of truth for "by Tempo".
+  hidden below 1), a **Progress** stat card (all-time + this-week, hidden at zero) right after
+  Completion Rate, and — **`LAUNCH_SCORE_PLAN.md` T1.1, 2026-07-23, the version that actually
+  changes a new user's first impression** — the **Home-tab hero itself**: a subtitle line under the
+  hero headline ("Tempo has scheduled N workouts around your real life") in both the pending-today
+  and day-complete states, above the fold, on the one screen every user opens the app to. Same
+  `['scheduling_impact', userId]` React Query key as Progress, so the two tabs share one cache
+  entry; added to `queryInvalidation.TRAINING_KEYS` so completing a workout moves the number live
+  instead of waiting out a 5-minute staleTime — the whole point of putting it in the hero is that a
+  user watches it change. `TEMPO_SCHEDULED_SOURCES` is the single source of truth for "by Tempo".
 - **Fitness Intelligence (`fitnessInsights.ts`, new — powers the Progress-dashboard redesign):**
   pure derivations over the data Tempo already has (scheduled_workouts status, workout_logs
   `started_at`, set_logs) that turn Progress from a stats page into a coach that explains behaviour.

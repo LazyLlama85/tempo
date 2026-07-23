@@ -34,6 +34,11 @@ const TRAINING_KEYS = [
   // Pro user right before this same sweep) could leave a stale card showing
   // for a conflict that no longer exists.
   ['calendar_conflicts'],
+  // The Home-hero + Progress + paywall proof number (fetchSchedulingImpact) —
+  // without this it sat on a 5-minute staleTime, so completing a workout would
+  // not visibly move the ONE number this whole surface exists to make you
+  // watch. LAUNCH_SCORE_PLAN.md T1.1.
+  ['scheduling_impact'],
 ] as const
 
 export function invalidateTrainingData(queryClient: QueryClient) {

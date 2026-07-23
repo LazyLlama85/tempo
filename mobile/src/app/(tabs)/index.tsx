@@ -71,6 +71,7 @@ import { projectGoal } from '@/lib/goalProjection'
 import { OptionSheet } from '@/components/OptionSheet'
 import { TempoSheet } from '@/components/TempoSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
+import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
 
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
@@ -497,6 +498,18 @@ export default function ScheduleScreen() {
   // (previously) Train's Readiness segment feed into `readinessFromHistory` —
   // reused here for the hero's readiness chip so it needed zero new queries.
   const { stats, workouts: histWorkouts, logTimes } = useProgressStats(userId)
+  // The wedge, quantified, as the Home hero itself (Roadmap-by-ROI #2 — "perform
+  // the magic trick with the lights on," not a side-tab stat card). Same query
+  // key as progress.tsx's B1.1 card, so the two tabs share one cache entry
+  // instead of double-fetching. Rendered ONLY when >0 — an honest empty state,
+  // never a fabricated number — right in the hero, above the fold, on the
+  // screen every user opens the app to.
+  const { data: schedulingImpact } = useQuery<SchedulingImpact>({
+    queryKey: ['scheduling_impact', userId],
+    queryFn: () => fetchSchedulingImpact(supabase, userId),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  })
   // Display unit (lb/kg). Home showed volume as raw lbs in two places — the
   // Session Complete card and the TOTAL VOLUME tile — while History, Progress,
   // session detail and the profile all converted, so a kg user saw two different
@@ -1969,6 +1982,11 @@ export default function ScheduleScreen() {
             <View style={styles.feed}>
               <Text style={styles.eyebrow}>TODAY</Text>
               <Text style={styles.headline}>{heroHeadline}</Text>
+              {schedulingImpact != null && schedulingImpact.scheduledByTempo > 0 && (
+                <Text style={styles.proofLine}>
+                  Tempo has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
+                </Text>
+              )}
 
               {/* Today counted — the streak reads hot/active here, not muted.
                   Check-in stays reachable here too (Phase 8) — a finished day
@@ -2048,6 +2066,11 @@ export default function ScheduleScreen() {
                   the same weight. */}
               <Text style={styles.eyebrow}>{heroWorkout ? 'SCHEDULED TODAY' : 'TODAY'}</Text>
               <Text style={styles.headline}>{heroHeadline}</Text>
+              {schedulingImpact != null && schedulingImpact.scheduledByTempo > 0 && (
+                <Text style={styles.proofLine}>
+                  Tempo has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
+                </Text>
+              )}
 
               {/* Readiness + streak — the two "should I push today" signals, at a
                   glance, without needing to visit Progress first. Readiness taps
@@ -2525,6 +2548,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   headline: {
     fontFamily: C.fontDisplay, fontSize: 30, color: C.text,
     lineHeight: 35, letterSpacing: -0.6, marginTop: 4, marginBottom: Spacing.lg,
+  },
+  // The proof-number line (LAUNCH_SCORE_PLAN.md T1.1): pulled up toward the
+  // headline (negative marginTop cancels most of headline's own bottom margin)
+  // so it reads as the headline's own subtitle rather than a separate block,
+  // then a modest gap of its own before the meta row.
+  proofLine: {
+    fontFamily: 'Inter_500Medium', fontSize: 13.5, color: C.textSecondary,
+    lineHeight: 19, marginTop: -Spacing.md, marginBottom: Spacing.sm,
   },
 
   // ── The one action area (below the timeline, not inside a card) ───────────

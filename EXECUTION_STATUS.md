@@ -14,7 +14,29 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 pm, latest): Coach batch C4 — the action layer — plus the free-tier cap and
+- **NEW (2026-07-23 evening, latest): `LAUNCH_SCORE_PLAN.md` written and its first item (T1.1)
+  shipped — founder asked "how come the app is still at 5.9, what's worth doing before launch that
+  both raises the score and gets people to buy."** Answer: most of the low rows (Retention,
+  Conversion, PMF, Virality, Referral, App Store, half of Trust) are frozen by the audit's own rule
+  until a real cohort transacts — chasing 8.2 pre-launch isn't a real target. Wrote an ordered plan
+  of what IS real: launch-appropriate, moves a Product-quality row, plausibly moves a buying
+  decision. Tier 1 = proof-number as the Home hero + an on-device verification pass + price back to
+  $4.99/$34.99 (dashboard only, founder's call — flagged, not executed). Tier 2 = one foresight
+  surface (PR/goal forecast); Coach deployment stays a founder's-call fast-follow, not a launch
+  blocker. Tier 3 = accessibility batch (C4), the muscle-classification fitness-science bug, P1
+  craft. Tracked as tasks #1–#6. **T1.1 done:** the `schedulingImpact` number (already on Weekly
+  Report, a Progress stat card, and the paywall) is now the Home-tab hero's own subtitle line —
+  "Tempo has scheduled N workouts around your real life" — in both hero states, above the fold, on
+  the screen every user opens the app to. Shares Progress's exact query key (one cache entry); added
+  `scheduling_impact` to `queryInvalidation.TRAINING_KEYS` in passing — it wasn't there, so the
+  number wouldn't move for up to 5 minutes after logging a workout, which defeats the point of
+  putting it in a hero. `tsc` clean, 343/343 tests. `PRODUCT_AUDIT.html`: Value Proposition 5→6,
+  Scheduling Experience 5→6 — small, honest moves for a one-line change; the headline 5.9 is
+  deliberately left alone (2 rows of 40 is below what a non-recomputed update can honestly claim).
+  **Next: T1.2, the on-device verification pass** — the biggest remaining risk, since a real amount
+  of recent work (Coach C3/C4 included) is `tsc`-clean and never run on a physical device.
+
+- **2026-07-23 pm: Coach batch C4 — the action layer — plus the free-tier cap and
   model decisions.** Three founder calls landed on top of C3: (1) **free tier is 3 messages per
   calendar month, not 3/week** — both tiers now meter on one month window; recorded in plan §7 that
   this is a *product* lever, not a cost one, and that it removes most of the wall-hits that were
