@@ -26,11 +26,31 @@ export const PRO_ENTITLEMENT = process.env.EXPO_PUBLIC_PRO_ENTITLEMENT || 'pro'
 
 // Platform SDK key, falling back to the cross-platform Test Store key so wiring
 // works before the real appl_/goog_ keys are set.
+//
+// The fallback is deliberately NOT used when it holds a key for the *other*
+// platform. RevenueCat keys are platform-scoped (`appl_` / `goog_` / `amzn_`),
+// and only the Test Store key (`test_`) is cross-platform, so handing an
+// `appl_` key to the Android SDK can never work — it just fails at runtime with
+// "The specified API Key is not recognized", which reads like a broken key
+// rather than a missing one. That is exactly what a local Android dev build hit
+// (2026-07-23): `.env.local` defines EXPO_PUBLIC_REVENUECAT_KEY as the iOS
+// `appl_` key and leaves _ANDROID_KEY commented out, so the fallback silently
+// mis-fired. (Real builds were unaffected — `eas.json` sets both platform keys.)
+// Treating a wrong-platform key as absent means the SDK simply stays
+// unconfigured, which every call site already handles gracefully via
+// `purchasesReady()`.
+function usableFallbackKey(): string | undefined {
+  const k = process.env.EXPO_PUBLIC_REVENUECAT_KEY
+  if (!k) return undefined
+  const wrongPlatform = Platform.OS === 'ios' ? k.startsWith('goog_') : k.startsWith('appl_')
+  return wrongPlatform ? undefined : k
+}
+
 const API_KEY =
   (Platform.OS === 'ios'
     ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY
     : process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY) ||
-  process.env.EXPO_PUBLIC_REVENUECAT_KEY
+  usableFallbackKey()
 
 // ── Guarded native-module load (never throws at import) ─────────────────────────
 // Held loosely-typed (like lib/haptics) so this one file never breaks against a

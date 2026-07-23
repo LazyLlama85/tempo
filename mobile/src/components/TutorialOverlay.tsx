@@ -201,9 +201,26 @@ export function TutorialOverlay() {
     : null
 
   // Tooltip sits below the target (or above, per placement / screen room).
-  const below = hole ? (step.placement === 'top' ? false : hole.y + hole.h < sh * 0.6) : true
+  //
+  // When it goes ABOVE, it is anchored by `bottom`, so its TOP edge is wherever
+  // the card's own height puts it — and nothing used to stop that running off
+  // the top of the screen. Spotlighting an element in the lower half of Home
+  // produced a card whose "1 of 4" and "Skip" row sat *underneath the status
+  // bar*, overlapping the clock and the wifi/battery icons (seen on device
+  // 2026-07-23). `insets.top` was already read in this component but only
+  // `insets.bottom` was ever applied.
+  //
+  // Two guards, because clamping alone can squash the card into something
+  // unusable: if there genuinely isn't room above, flip it below instead; and
+  // whatever is left, cap its height so it can never cross into the inset.
+  const MIN_TOOLTIP_H = 180
+  const roomAbove = hole ? hole.y - 12 - insets.top - 8 : Number.POSITIVE_INFINITY
+  const wantsBelow = hole ? (step.placement === 'top' ? false : hole.y + hole.h < sh * 0.6) : true
+  const below = wantsBelow || (!!hole && roomAbove < MIN_TOOLTIP_H)
+
   const tooltipTop = hole ? (below ? hole.y + hole.h + 12 : undefined) : sh / 2 - 90
   const tooltipBottom = hole && !below ? sh - hole.y + 12 : undefined
+  const tooltipMaxHeight = hole && !below ? Math.max(MIN_TOOLTIP_H, roomAbove) : undefined
 
   const isLast = stepIndex + 1 >= steps.length
 
@@ -234,7 +251,10 @@ export function TutorialOverlay() {
       {/* Tooltip card */}
       <View
         pointerEvents="box-none"
-        style={[styles.tipWrap, { top: tooltipTop, bottom: tooltipBottom, paddingHorizontal: Spacing.containerPadding }]}
+        style={[
+          styles.tipWrap,
+          { top: tooltipTop, bottom: tooltipBottom, maxHeight: tooltipMaxHeight, paddingHorizontal: Spacing.containerPadding },
+        ]}
       >
         <View style={styles.tipCard}>
           <View style={styles.tipStepRow}>
