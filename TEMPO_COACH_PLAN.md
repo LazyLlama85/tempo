@@ -76,7 +76,7 @@ move it. The tools in §4 are all thin wrappers over code that already exists an
 
 ## 2. The AI API — what you actually need
 
-**Provider:** Anthropic. **Model:** `claude-opus-4-8`.
+**Provider:** Anthropic. **Model:** `claude-sonnet-5` (was `claude-opus-4-8`; changed 2026-07-23 — see §9).
 
 ### Setup (founder-side, do this before writing code)
 
@@ -100,7 +100,7 @@ npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 ### Model configuration
 
 ```ts
-const MODEL = 'claude-opus-4-8'   // $5 / $25 per million tokens (input / output), 1M context
+const MODEL = 'claude-sonnet-5'   // $3 / $15 per million tokens (input / output), 1M context
 ```
 
 API details that matter and are easy to get wrong on this model:
@@ -366,7 +366,9 @@ shipping it.
 
 ## 9. Cost model
 
-Rough per-message estimate at `claude-opus-4-8` ($5 / $25 per MTok):
+Rough per-message estimate — the table below is at `claude-opus-4-8` rates ($5 / $25 per MTok), the
+original design. **The shipped model is `claude-sonnet-5` ($3 / $15), so halve the cost column: about
+$0.026 per message, or ~$0.017 while intro pricing runs through 2026-08-31.**
 
 | Component | Tokens | Cost |
 |---|---|---|
@@ -381,7 +383,7 @@ Rough per-message estimate at `claude-opus-4-8` ($5 / $25 per MTok):
   the full cap is roughly **$1.3k/month**. (At the original 3/week cap this line was ~$0.55/user and
   ~$5.5k/month — the cap change did most of the cost work on its own.)
 
-**Model choice (2026-07-23).** `claude-sonnet-5` is the recommended default over `claude-opus-4-8`:
+**Model choice (2026-07-23) — DECIDED, and shipped in the function.** `claude-sonnet-5` over `claude-opus-4-8`:
 ~$0.026/message vs ~$0.043 (intro pricing $2/$10 per MTok through 2026-08-31 makes it ~$0.017), it
 takes the **identical request body** (adaptive thinking, `output_config.effort`, `strict` tools), and
 it is near-Opus on exactly the axis that matters here — picking the right tool and only using ids

@@ -2122,7 +2122,9 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   (`npx supabase functions deploy tempo-coach`) and setting the secret. The provider decision
   (Claude vs a cheaper model for free-tier turns) is still open, and the RevenueCat-invisible-to-
   server gap below is still unresolved. — the server half of **Tempo Coach**, the Pro tentpole.
-  A thin, authenticated, metered proxy to the Anthropic Messages API (`claude-opus-4-8`) — it is
+  A thin, authenticated, metered proxy to the Anthropic Messages API (**`claude-sonnet-5`** since
+  2026-07-23, down from `claude-opus-4-8`: ~40% cheaper per message, identical request body, so it
+  is a one-line swap back if apply-rate ever shows the model fumbling tool choice) — it is
   deliberately **not** an agent: it never writes to a training table and never executes a tool.
   It takes the user's message plus a context pack the app assembled, and returns
   `{ text, action }` where `action` is a **proposed** tool call the app renders as a confirm card;

@@ -73,7 +73,7 @@ enough to see the Coach work once, not enough to live on. See the caveat in
 
 ## Model configuration
 
-`claude-opus-4-8`, `max_tokens: 1500`, `thinking: { type: 'adaptive' }`,
+`claude-sonnet-5`, `max_tokens: 1500`, `thinking: { type: 'adaptive' }`,
 `output_config: { effort: 'medium' }`. Gotchas for this model, all of which are
 400s if you get them wrong:
 

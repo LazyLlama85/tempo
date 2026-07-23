@@ -43,7 +43,12 @@ function json(body: unknown, status = 200): Response {
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Changing MODEL is a product + cost decision, not an optimization — see
 // TEMPO_COACH_PLAN.md §9 before touching it.
-const MODEL = 'claude-opus-4-8'
+// Sonnet 5 over Opus 4.8 (2026-07-23): ~$3/$15 per MTok vs $5/$25 — roughly 40%
+// cheaper per message — for a task that is narrow by construction (read a small
+// context pack, write 2-3 sentences, sometimes pick one of five tools). It takes
+// the IDENTICAL request body, so this is a one-line swap in either direction if
+// apply-rate ever shows the model fumbling tool choice. See TEMPO_COACH_PLAN.md §9.
+const MODEL = 'claude-sonnet-5'
 const MAX_TOKENS = 1500        // a chat turn; well under any HTTP timeout, so no streaming needed yet
 const EFFORT = 'medium'        // latency matters more than depth in a chat; 'high' is the API default
 const FREE_MONTHLY_LIMIT = 3   // the taste-the-tentpole allowance (plan §7)
