@@ -14,7 +14,31 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-22 pm, latest): founder device-testing queue — the #1-priority "won't load on
+- **NEW (2026-07-23, latest): Tempo Coach un-parked by the founder — batch C3 (the screen) built.**
+  Coach was parked on 2026-07-22; the founder reversed that and asked to start building it. Per
+  `TEMPO_COACH_PLAN.md` §10 the next batch was C3, and only C3: `src/app/coach.tsx` — a modal route
+  (registered in `_layout.tsx`), inverted `FlatList` thread, `KeyboardAvoidingView` composer capped
+  at 2000 chars, `TempoPulse` "Thinking…" state, four starter prompts on the empty state, typed-error
+  inline banner (offline / quota / unavailable / failed), and a **Tap to retry** affordance on any
+  user message whose reply never arrived (excluded from the history replayed to the model, since the
+  server only counts rows it persisted — a failure never burns an allowance). The context pack is
+  fetched **once per screen open** and reused per turn. **Text only, deliberately:** a reply carrying
+  a proposed action renders its text (or `describeAction()` as the fallback sentence) with **no Apply
+  affordance** — the confirm card + executor switch are C4, which the plan insists gets its own
+  session because that is where scheduling-engine regressions would come from. Added the four
+  `coach_*` events to `EventProperties`; three fire here, `coach_action_applied` waits for C4. No
+  entry points yet (C5) — the route is reachable directly, which is the "use it yourself for a day"
+  state the plan asks for. `tsc` clean, 328/328 tests green.
+  **⚠ Blocked on the founder, not on code — Coach cannot answer anything until both of these run:**
+  (1) `cd mobile && npx supabase functions deploy tempo-coach` (never deployed; the function does not
+  exist in the project), and (2) `npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`. Without the
+  key the function returns 503 and the screen shows "Coach isn't available right now".
+  **Next: C4 — actions** (`ConfirmCard`, executor switch, re-validate-on-Apply, `action_state`
+  writes, `describeSaveError` on failure), ideally after the function is live so C3 can be used for
+  real first. Still-open Coach decisions: provider choice for free-tier turns, and the
+  server-can't-see-RevenueCat-subscriptions gap (must be closed before `pro_enabled` goes global).
+
+- **2026-07-22 pm: founder device-testing queue — the #1-priority "won't load on
   first launch" root cause, 8 more targeted fixes, and Apple Health export (plan confirmed with
   founder first, per standing instruction).** Root cause of the blank-screen bug: 4 Zustand stores
   (`theme`, `entitlements`, `units`, `focusModePref`) read the SQLite-backed `localStorage`

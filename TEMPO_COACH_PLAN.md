@@ -1,23 +1,25 @@
 # Tempo Coach — Implementation Plan
 
-> # ⏸ PARKED (founder decision, 2026-07-22)
-> **Coach is deferred. Pro launches with the existing gate model instead.** Do not build C3–C5.
+> # ▶ UNPARKED (founder, 2026-07-23) — building resumed
+> **C1 + C2 + C3 are built. Next batch: C4 (the action layer).**
 >
-> **What exists and is safe to leave alone:**
-> - `coach_messages` table — **applied to the live project**, empty, unreferenced by any shipped
->   code. Costs nothing. Do not drop it; recreating churns migrations for no benefit.
-> - `supabase/functions/tempo-coach/` — written, **never deployed**. It cannot be called and cannot
->   spend money. There is no `ANTHROPIC_API_KEY` set, and it returns 503 without one.
-> - `src/lib/coach.ts` + its 17 tests — compile and pass, but **nothing imports them**. Dead code by
->   design, kept because it is ~60% of a feature that is likely wanted later.
+> **Blocking on the founder, not on code:**
+> 1. **Deploy the function** — `cd mobile && npx supabase functions deploy tempo-coach`.
+>    It has never been deployed; it does not exist in the Supabase project.
+> 2. **Set the key** — `npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...` (billing enabled).
+>    Without it the function returns 503 and the screen shows "Coach isn't available right now".
 >
-> **If Coach is picked back up:** the open decisions are (a) provider — Claude vs Grok 4.1 Fast, a
-> ~30× cost difference where the deciding axis is strict-schema tool-call reliability, not price;
-> and (b) the server-can't-see-RevenueCat-subscriptions gap in §7. Nothing else has changed.
+> Until both are done the Coach screen opens and behaves correctly but can't answer anything.
+>
+> **Still-open decisions** (neither blocks C4): (a) provider — Claude vs a cheaper model for
+> free-tier turns, where the deciding axis is strict-schema tool-call reliability, not price;
+> (b) the server-can't-see-RevenueCat-subscriptions gap in §7, which must be resolved before
+> `pro_enabled` is flipped globally.
 >
 > ---
 >
-> **Status:** design doc, written 2026-07-22. C1 + C2 built; C3–C5 not started, now parked.
+> **Status:** design doc, written 2026-07-22. C1 + C2 built 2026-07-22; **C3 built 2026-07-23**;
+> C4–C5 not started.
 > **Audience:** the implementing session (Claude Sonnet). This document is the spec — follow the
 > build order in §10, one batch per session, per `CLAUDE.md`'s Execution Protocol.
 > **Companions:** `MONETIZATION_PLAN.md` (why Coach is the Pro tentpole), `proFeatures.ts`

@@ -248,6 +248,7 @@ function RootLayoutInner() {
           <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="quick-workout" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="coach" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="availability" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="travel-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="pause-mode" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

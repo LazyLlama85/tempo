@@ -160,6 +160,14 @@ export type EventProperties = {
   // session": did the plan itself actually get built. Fired once, right after
   // a successful generatePlan() call in onboarding.
   plan_generated: { goal: string; days_per_week: number }
+  // ── Tempo Coach (TEMPO_COACH_PLAN.md §8) ────────────────────────────────────
+  // `coach_action_applied` with outcome:'applied' is THE metric for this feature.
+  // A coach whose proposals are never applied is a chatbot, and we want to find
+  // that out from data rather than from vibes.
+  coach_opened: { entry: 'home' | 'plan' | 'progress' | 'tab' | 'direct' }
+  coach_message_sent: { has_action: boolean; locked: boolean }
+  coach_action_proposed: { tool: string }
+  coach_action_applied: { tool: string; outcome: 'applied' | 'dismissed' | 'failed' }
 }
 
 export type AuthMethod = 'google' | 'apple' | 'guest'

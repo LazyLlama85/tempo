@@ -2114,12 +2114,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
   screen); until then the table was write-only from the app's perspective despite its own RLS
   already granting users SELECT on their own rows.
-- **tempo-coach** ⏸ **PARKED 2026-07-22 — WRITTEN BUT NEVER DEPLOYED.** Founder deferred Coach; Pro
-  launches on the existing gate model. The function does not exist in the Supabase project, has no
-  `ANTHROPIC_API_KEY`, and returns 503 without one — it cannot be called and cannot spend money.
-  `coach_messages` is applied but empty and unreferenced; `lib/coach.ts` compiles and its tests pass
-  but nothing imports it. All of it is inert. See `TEMPO_COACH_PLAN.md`'s header before reviving it.
-  The design below is retained as the spec. — the server half of **Tempo Coach**, the Pro tentpole.
+- **tempo-coach** ▶ **UNPARKED 2026-07-23 (founder) — still NOT DEPLOYED.** Coach is being built
+  again; batch C3 (the screen) has landed, so `lib/coach.ts` is no longer dead code. **The function
+  itself still does not exist in the Supabase project and there is no `ANTHROPIC_API_KEY`** — it
+  returns 503 without one, so until it is deployed the screen opens, loads (empty) history and
+  shows "Coach isn't available right now" on send. Two things gate a working Coach: deploying it
+  (`npx supabase functions deploy tempo-coach`) and setting the secret. The provider decision
+  (Claude vs a cheaper model for free-tier turns) is still open, and the RevenueCat-invisible-to-
+  server gap below is still unresolved. — the server half of **Tempo Coach**, the Pro tentpole.
   A thin, authenticated, metered proxy to the Anthropic Messages API (`claude-opus-4-8`) — it is
   deliberately **not** an agent: it never writes to a training table and never executes a tool.
   It takes the user's message plus a context pack the app assembled, and returns
@@ -2157,6 +2159,23 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Errors are typed (`quota` / `offline` / `unavailable` / `failed`) so the screen can tell a
   paywall moment apart from a network blip. 17 unit tests cover determinism, omission, horizon
   edges, and that `describeAction` never returns an empty string for any tool.
+  **Screen — `app/coach.tsx`** *(Batch C3, 2026-07-23)*: the thread itself, registered as a modal
+  route in `_layout.tsx`. Inverted `FlatList` (new messages at the bottom, keyboard pushes the
+  thread up for free), user bubbles right / coach bubbles left, a `KeyboardAvoidingView` composer
+  capped at 2000 chars, a `TempoPulse` "Thinking…" indicator, and a four-starter empty state
+  (a blank composer is the biggest reason a chat surface never gets a first message).
+  **Text only in this batch by design** — a reply carrying a proposed action renders its text (or
+  `describeAction()` as the fallback sentence when the model returns a tool call with no text), but
+  **no Apply affordance**; the confirm card + executor switch are C4, kept in their own session so
+  the scheduling-engine writes get an isolated diff review. The context pack is fetched **once per
+  screen open** and reused for every turn (the plan isn't changing while the user types). A failed
+  send leaves the user's bubble on screen with **Tap to retry** and excludes it from the history
+  replayed to the model — the server only counts rows it persisted, so a failure never burns an
+  allowance. Typed `CoachError`s drive the inline banner (offline / quota / unavailable / failed).
+  **No entry points yet** (they're C5): the route is reachable directly, which is exactly the
+  "use it yourself for a day before building the action layer" state the plan asks for. Analytics:
+  `coach_opened`, `coach_message_sent`, `coach_action_proposed` fire here; `coach_action_applied`
+  — the metric that decides whether Coach is a product or a chatbot — waits for C4.
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).
