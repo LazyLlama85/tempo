@@ -2181,8 +2181,36 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   allowance. Typed `CoachError`s drive the inline banner (offline / quota / unavailable / failed).
   **No entry points yet** (they're C5): the route is reachable directly, which is exactly the
   "use it yourself for a day before building the action layer" state the plan asks for. Analytics:
-  `coach_opened`, `coach_message_sent`, `coach_action_proposed` fire here; `coach_action_applied`
-  — the metric that decides whether Coach is a product or a chatbot — waits for C4.
+  `coach_opened`, `coach_message_sent`, `coach_action_proposed` fire here.
+  **Action layer — `lib/coachActions.ts` + the confirm card** *(Batch C4, 2026-07-23)*: the half
+  that makes Coach a product rather than a chatbot. Two safety layers doing different jobs.
+  (1) **`validateAction()` — pure, runs before the card renders.** `strict: true` on the tool
+  schema guarantees the model's args are well-*typed*; it guarantees nothing about whether they're
+  *real*. So a `move_workout` whose `workout_id` was not in the context pack we sent, a date in the
+  past, a well-formed-but-nonexistent date (`2026-02-31`), equipment outside the `Equipment` union,
+  or an unknown tool name are all **refused — the reply renders as text only and the rejection goes
+  to Sentry**. A card offering to move a session that doesn't exist is worse than no card.
+  (2) **A re-read inside every executor, at Apply time.** Between "here's what I'd change" and the
+  tap, the target can move, complete, or vanish (another device, the missed-workout sweep, an auto
+  re-slot) — each executor re-reads its row and returns `stale` rather than blind-writing. A
+  truncated reply (`stop_reason: max_tokens`) never renders an action at all, since the args may
+  have been cut mid-object. Executors are **thin routers over code that already exists**:
+  `rescheduleWholeWeek`, `rescheduleWorkout` + `resyncMovedWorkout`, `getAlternatives` +
+  `saveSubstitution`, `saveTravelMode` — all **dynamically imported**, both so the pure validation
+  half stays unit-testable without a native-module shim and so the Coach screen doesn't pull
+  expo-calendar / expo-notifications into its module-eval graph. `reschedule_week` carries the
+  **same `schedule_optimization` Pro gate the Plan tab enforces** — the Coach must not become a free
+  side door around a paywall. `explain` is read-only and navigates instead of writing.
+  The card settles into a past-tense line on apply/dismiss/stale and writes `action_state` back via
+  the assistant row id (the Edge Function now **returns `message_id`** — without it there is no way
+  to record apply-rate). Double-tap is guarded by a single `applying` row id. 15 unit tests in
+  `coachActions.test.ts` cover the validation layer; the executors are not re-tested here because
+  they are the same already-covered lib functions.
+  **Dev stub — `lib/coachStub.ts`** *(temporary)*: canned keyword-routed replies, one per tool, so
+  the whole apply flow can be device-tested **before an `ANTHROPIC_API_KEY` exists**. Double-gated
+  (`__DEV__` **and** `EXPO_PUBLIC_COACH_STUB=1`, which no EAS profile sets), dynamically imported so
+  a release build never loads it, and every stub reply carries `messageId: null` so it cannot write
+  `action_state` and pollute apply-rate. **Delete it once the function is deployed.**
 
 ### 4.3 Scheduling & storage
 - **pg_cron** job `retention-push-hourly` invokes `retention-push` every hour (via `pg_net`).

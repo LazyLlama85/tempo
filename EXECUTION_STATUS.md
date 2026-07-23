@@ -14,7 +14,32 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23, latest): Tempo Coach un-parked by the founder — batch C3 (the screen) built.**
+- **NEW (2026-07-23 pm, latest): Coach batch C4 — the action layer — plus the free-tier cap and
+  model decisions.** Three founder calls landed on top of C3: (1) **free tier is 3 messages per
+  calendar month, not 3/week** — both tiers now meter on one month window; recorded in plan §7 that
+  this is a *product* lever, not a cost one, and that it removes most of the wall-hits that were
+  supposed to BE the paywall moment (watch `paywall_shown{context:'tempo_coach'}` conversion);
+  (2) **model is `claude-sonnet-5`**, down from `claude-opus-4-8` — ~40% cheaper, identical request
+  body, one line back if apply-rate shows bad tool choice; non-Anthropic providers (Grok-class)
+  rejected because the cap change made the saving irrelevant while strict-schema tool reliability
+  stays unproven; (3) **C4 built without an API key**, which is possible precisely because of the
+  propose/apply split — the action layer never needed the model, only a `CoachAction` object.
+  **What C4 is:** `lib/coachActions.ts` (pure `validateAction` + a dynamically-imported executor
+  switch over `rescheduleWholeWeek` / `rescheduleWorkout`+`resyncMovedWorkout` / `getAlternatives`+
+  `saveSubstitution` / `saveTravelMode`), the ConfirmCard in `coach.tsx`, Pro gating that matches the
+  Plan tab (`schedule_optimization` on `reschedule_week` — no free side door), re-read-before-write
+  staleness guards, double-tap guard, settled states, `action_state` writes (the Edge Function now
+  returns `message_id`, without which apply-rate is unrecordable), and 15 unit tests. Invalid
+  proposals (invented `workout_id`, past date, unknown equipment, truncated reply) render as **text
+  only** and log to Sentry. **Dev stub** `lib/coachStub.ts` gives canned per-tool replies behind
+  `__DEV__ && EXPO_PUBLIC_COACH_STUB=1` so the whole flow is device-testable today — **delete it once
+  the function is deployed.** `tsc` clean, 343/343 tests green, nothing device-tested.
+  **Still blocked on the founder:** `npx supabase functions deploy tempo-coach` +
+  `npx supabase secrets set ANTHROPIC_API_KEY=...`. **Next: C5** (remaining-count UI, paywall
+  routing, the three entry points, `tempo_coach` in `PAYWALL_POINTS`) — or a device pass on C3+C4
+  with the stub first, which is the higher-value move.
+
+- **2026-07-23 am: Tempo Coach un-parked by the founder — batch C3 (the screen) built.**
   Coach was parked on 2026-07-22; the founder reversed that and asked to start building it. Per
   `TEMPO_COACH_PLAN.md` §10 the next batch was C3, and only C3: `src/app/coach.tsx` — a modal route
   (registered in `_layout.tsx`), inverted `FlatList` thread, `KeyboardAvoidingView` composer capped

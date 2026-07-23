@@ -20,23 +20,27 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, StyleSheet,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { Spacing, Radius } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useProGate } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
+import { captureException } from '@/lib/crashReporting'
 import {
-  describeAction, fetchCoachContext, fetchCoachHistory, sendCoachMessage,
-  type CoachContext, type CoachError, type CoachMessage,
+  actionCta, describeAction, fetchCoachContext, fetchCoachHistory, sendCoachMessage, setActionState,
+  type CoachAction, type CoachContext, type CoachError, type CoachMessage,
 } from '@/lib/coach'
+import { actionGate, executeCoachAction, validateAction } from '@/lib/coachActions'
 
 const MAX_CHARS = 2000
 
@@ -54,10 +58,19 @@ const STARTERS = [
 interface Row extends CoachMessage {
   /** Set on a user row whose reply never arrived — renders a Retry affordance. */
   failed?: CoachError
+  /** Past-tense line shown once an action settled, replacing the buttons. */
+  settled?: string
 }
 
 let rowSeq = 0
 const localId = () => `local-${++rowSeq}`
+
+/** Settled-line copy for proposals restored from history (no outcome text stored). */
+const SETTLED_COPY: Record<string, string> = {
+  applied: 'You applied this.',
+  dismissed: 'You left this one.',
+  failed: 'This didn’t go through.',
+}
 
 export default function CoachScreen() {
   const C = useTheme()
@@ -74,6 +87,11 @@ export default function CoachScreen() {
   const [banner, setBanner] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<number | null>(null)
   const [locked, setLocked] = useState(false)
+  /** Row id currently being applied — disables both buttons (double-tap guard). */
+  const [applying, setApplying] = useState<string | null>(null)
+
+  const queryClient = useQueryClient()
+  const { requirePro } = useProGate()
 
   // The context pack is fetched once per screen open and reused for every turn.
   // It's a snapshot of a plan that isn't changing while the user types, and
@@ -106,7 +124,14 @@ export default function CoachScreen() {
           .catch(() => { contextRef.current = null }),
       ])
       if (cancelled) return
-      setRows(history)
+      // A proposal the user already acted on in an earlier session must not come
+      // back as a live button — re-tapping would re-run the write against a
+      // week that has since moved on. Give it its settled line instead.
+      setRows(history.map((m) => (
+        m.action && m.action_state && m.action_state !== 'proposed'
+          ? { ...m, settled: SETTLED_COPY[m.action_state] }
+          : m
+      )))
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -169,23 +194,105 @@ export default function CoachScreen() {
     setRemaining(reply.remaining)
     setLocked(reply.locked)
 
+    // Validate the proposal BEFORE it can become a button. `strict: true` on the
+    // tool schema guarantees the args are well-typed, not that they're real — a
+    // card offering to move a workout that doesn't exist is worse than no card,
+    // so an invalid action renders as text only and goes to Sentry.
+    let action = reply.action
+    if (action) {
+      const check = validateAction(action, contextRef.current)
+      if (!check.valid) {
+        captureException(new Error(`coach: invalid ${action.name} — ${check.reason}`), {
+          tool: action.name,
+          reason: check.reason,
+        })
+        action = null
+      }
+    }
+
     // Never ship an empty bubble: fall back to a locally-generated sentence
-    // describing whatever the model proposed.
+    // describing whatever the model proposed. Uses the ORIGINAL action, so a
+    // rejected proposal still reads as a sentence rather than a blank turn.
     const body = reply.text.trim()
       || (reply.action ? describeAction(reply.action) : "I didn't catch that — try rephrasing?")
 
+    // A truncated reply must not render an action — half a proposal is not a
+    // proposal, and the args may have been cut mid-object.
+    const renderable = reply.truncated ? null : action
+
     setRows((prev) => [...prev, {
-      id: localId(),
+      // The server row id when we have one, so Apply can stamp action_state
+      // against the real row; a local id otherwise (stub, or a failed insert).
+      id: reply.messageId ?? localId(),
       role: 'assistant',
       content: reply.truncated ? `${body}…` : body,
-      action: reply.action,
-      action_state: reply.action ? 'proposed' : null,
+      action: renderable,
+      action_state: renderable ? 'proposed' : null,
       created_at: new Date().toISOString(),
     }])
 
-    track('coach_message_sent', { has_action: !!reply.action, locked: reply.locked })
-    if (reply.action) track('coach_action_proposed', { tool: reply.action.name })
+    track('coach_message_sent', { has_action: !!renderable, locked: reply.locked })
+    if (renderable) track('coach_action_proposed', { tool: renderable.name })
   }, [rows, sending, userId])
+
+  // ── Applying a proposal ─────────────────────────────────────────────────────
+  // The whole point of the propose/apply split: this runs the SAME lib function
+  // a button press already uses, with the user's own session, only after a tap.
+
+  const settle = useCallback((rowId: string, state: 'applied' | 'dismissed' | 'failed', summary: string) => {
+    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, action_state: state, settled: summary } : r)))
+    // Stub replies carry a local id — never write those, or apply-rate gets
+    // polluted with rows that don't exist.
+    if (!rowId.startsWith('local-')) setActionState(supabase, rowId, state)
+  }, [])
+
+  const applyAction = useCallback(async (row: Row) => {
+    const action = row.action
+    if (!action || applying) return
+
+    // Same gate the Plan tab enforces — the Coach must not be a side door
+    // around a paywall the rest of the app respects. requirePro() routes to
+    // the paywall and returns false when locked.
+    const gate = actionGate(action)
+    if (gate && !requirePro(gate)) {
+      track('paywall_shown', { context: 'tempo_coach' })
+      return
+    }
+
+    setApplying(row.id)
+    const outcome = await executeCoachAction(supabase, userId, action, queryClient)
+    setApplying(null)
+
+    if (outcome.ok) {
+      // `explain` is read-only — it navigates instead of settling into a
+      // "changed" state, because nothing changed.
+      if (outcome.route) {
+        track('coach_action_applied', { tool: action.name, outcome: 'applied' })
+        settle(row.id, 'applied', 'Opened.')
+        router.push(outcome.route as never)
+        return
+      }
+      track('coach_action_applied', { tool: action.name, outcome: 'applied' })
+      settle(row.id, 'applied', outcome.summary)
+      return
+    }
+
+    track('coach_action_applied', { tool: action.name, outcome: 'failed' })
+    if (outcome.kind === 'stale') {
+      // The target moved between proposal and tap. Settle the card so it can't
+      // be tapped again against stale state, and say so plainly.
+      settle(row.id, 'failed', outcome.message)
+      return
+    }
+    // A transient failure leaves the card tappable — retrying is reasonable.
+    Alert.alert(outcome.title, outcome.message)
+  }, [applying, queryClient, requirePro, router, settle, userId])
+
+  const dismissAction = useCallback((row: Row) => {
+    if (applying) return
+    if (row.action) track('coach_action_applied', { tool: row.action.name, outcome: 'dismissed' })
+    settle(row.id, 'dismissed', 'Left as it was.')
+  }, [applying, settle])
 
   // The list is inverted so new messages sit at the bottom and the keyboard
   // pushes the thread up for free; the data is reversed for the same reason.
@@ -195,11 +302,60 @@ export default function CoachScreen() {
 
   const renderRow = ({ item }: { item: Row }) => {
     const mine = item.role === 'user'
+    const proposed = !mine && item.action && item.action_state === 'proposed'
+    const settled = !mine && item.action && item.settled
     return (
       <View style={styles.rowWrap}>
         <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleCoach]}>
           <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.content}</Text>
         </View>
+
+        {/* The confirm card — the whole feature's defensibility lives here.
+            "Here's what I'd change — Apply?" beats a plan that mutated while
+            you were reading it. */}
+        {proposed && item.action ? (
+          <View style={styles.card}>
+            <View style={styles.cardHead}>
+              <Ionicons name={actionIcon(item.action)} size={16} color={C.primary} />
+              <Text style={styles.cardTitle}>{describeAction(item.action)}</Text>
+            </View>
+            <View style={styles.cardBtns}>
+              <TouchableOpacity
+                style={styles.cardGhost}
+                onPress={() => dismissAction(item)}
+                disabled={applying != null}
+                accessibilityRole="button"
+              >
+                <Text style={styles.cardGhostText}>Not now</Text>
+              </TouchableOpacity>
+              <PressableScale
+                style={[styles.cardApply, applying != null && { opacity: 0.5 }]}
+                onPress={() => applyAction(item)}
+                disabled={applying != null}
+                accessibilityRole="button"
+                accessibilityLabel={actionCta(item.action)}
+              >
+                {applying === item.id ? (
+                  <ActivityIndicator size="small" color={C.onPrimary} />
+                ) : (
+                  <Text style={styles.cardApplyText}>{actionCta(item.action)}</Text>
+                )}
+              </PressableScale>
+            </View>
+          </View>
+        ) : null}
+
+        {settled ? (
+          <View style={styles.settledRow}>
+            <Ionicons
+              name={item.action_state === 'applied' ? 'checkmark-circle' : 'ellipse-outline'}
+              size={14}
+              color={item.action_state === 'applied' ? C.primary : C.outline}
+            />
+            <Text style={styles.settledText}>{item.settled}</Text>
+          </View>
+        ) : null}
+
         {item.failed ? (
           <TouchableOpacity
             style={styles.retry}
@@ -303,6 +459,17 @@ export default function CoachScreen() {
   )
 }
 
+function actionIcon(action: CoachAction): keyof typeof Ionicons.glyphMap {
+  switch (action.name) {
+    case 'reschedule_week': return 'calendar'
+    case 'move_workout': return 'swap-horizontal'
+    case 'swap_exercise': return 'repeat'
+    case 'start_travel_mode': return 'airplane'
+    case 'explain': return 'information-circle'
+    default: return 'sparkles'
+  }
+}
+
 function errorBanner(e: CoachError): string {
   switch (e.kind) {
     case 'offline':
@@ -348,6 +515,29 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingVertical: 2,
   },
   retryText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary },
+
+  card: {
+    alignSelf: 'flex-start', maxWidth: '92%', marginTop: 2,
+    backgroundColor: C.background, borderWidth: 1.5, borderColor: C.primaryLine,
+    borderRadius: Radius.lg, padding: Spacing.md, gap: Spacing.sm,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardTitle: {
+    flex: 1, fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 20, color: C.text,
+  },
+  cardBtns: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: Spacing.xs },
+  cardGhost: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  cardGhostText: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.textSecondary },
+  cardApply: {
+    minWidth: 108, height: 40, borderRadius: Radius.full, backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.md,
+  },
+  cardApplyText: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.onPrimary },
+
+  settledRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingLeft: 2, paddingTop: 2 },
+  settledText: {
+    flex: 1, fontFamily: 'Inter_500Medium', fontSize: 12.5, lineHeight: 18, color: C.textSecondary,
+  },
 
   empty: {
     flex: 1, alignItems: 'center', justifyContent: 'center',

@@ -18,8 +18,14 @@
 >
 > ---
 >
-> **Status:** design doc, written 2026-07-22. C1 + C2 built 2026-07-22; **C3 built 2026-07-23**;
-> C4–C5 not started.
+> **Status:** design doc, written 2026-07-22. C1 + C2 built 2026-07-22; **C3 + C4 built 2026-07-23**;
+> C5 (metering UI, entry points, `PAYWALL_POINTS`) not started.
+>
+> **Deviation from §10, recorded:** C3 and C4 landed in the same session, which the build order
+> explicitly warns against. The mitigation is that C4 was built against a **dev stub**
+> (`lib/coachStub.ts`, `EXPO_PUBLIC_COACH_STUB=1`) rather than live model output, so the action
+> layer has deterministic inputs and its own isolated diff — which is arguably a *better* test bed
+> than a nondeterministic model. What is NOT mitigated: neither batch has been run on a device.
 > **Audience:** the implementing session (Claude Sonnet). This document is the spec — follow the
 > build order in §10, one batch per session, per `CLAUDE.md`'s Execution Protocol.
 > **Companions:** `MONETIZATION_PLAN.md` (why Coach is the Pro tentpole), `proFeatures.ts`

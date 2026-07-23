@@ -373,21 +373,31 @@ Deno.serve(async (req: Request) => {
     // Written after a successful reply on purpose: a failed request must not burn
     // the user's weekly allowance. Insert failures are logged, not fatal — losing
     // a history row is far better than losing the answer the user is waiting for.
-    const { error: insErr } = await db.from('coach_messages').insert([
-      { user_id: user.id, role: 'user', content: message },
-      {
-        user_id: user.id,
-        role: 'assistant',
-        content: text || '',
-        action,
-        action_state: action ? 'proposed' : null,
-      },
-    ])
+    // The assistant row's id is RETURNED, not just written: it is the handle the
+    // client needs to stamp action_state ('applied' / 'dismissed' / 'failed')
+    // when the user acts on the proposal. Apply-rate is the metric this whole
+    // feature is judged on, and without this id there is no way to record it.
+    const { data: inserted, error: insErr } = await db
+      .from('coach_messages')
+      .insert([
+        { user_id: user.id, role: 'user', content: message },
+        {
+          user_id: user.id,
+          role: 'assistant',
+          content: text || '',
+          action,
+          action_state: action ? 'proposed' : null,
+        },
+      ])
+      .select('id, role')
     if (insErr) console.error('[tempo-coach] history insert failed:', insErr.message)
+
+    const messageId = (inserted ?? []).find((r: { role: string }) => r.role === 'assistant')?.id ?? null
 
     return json({
       text,
       action,
+      message_id: messageId,
       truncated: resp.stop_reason === 'max_tokens',
       remaining: Math.max(0, limit - used - 1),
       locked,

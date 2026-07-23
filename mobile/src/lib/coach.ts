@@ -60,6 +60,13 @@ export interface CoachMessage {
 export interface CoachReply {
   text: string
   action: CoachAction | null
+  /**
+   * The `coach_messages` row id of the assistant turn, so the screen can stamp
+   * `action_state` when the user applies or dismisses the proposal. Null when
+   * the history insert failed (the answer still shows; only apply-rate
+   * telemetry is lost) or when the reply came from the dev stub.
+   */
+  messageId: string | null
   /** The model hit max_tokens — show the partial text, don't render the action. */
   truncated: boolean
   /** Messages left in the current window, or null when the server didn't say. */
@@ -303,6 +310,19 @@ export async function sendCoachMessage(
   client: SupabaseClient,
   args: { message: string; context: CoachContext; history: CoachMessage[] },
 ): Promise<CoachSendResult> {
+  // Dev-only offline stub. Double-gated (`__DEV__` AND an env flag that is
+  // absent from every EAS profile), dynamically imported so the module is never
+  // even reached in a release build, and it returns messageId: null so nothing
+  // it produces can be mistaken for a persisted turn. It exists so the C4 apply
+  // flow — confirm card, executors, re-validation, failure copy — can be driven
+  // on a real device before an ANTHROPIC_API_KEY exists. DELETE IT once the
+  // Edge Function is deployed; a canned-reply path that survives to the App
+  // Store is a Coach that answers with fiction.
+  if (coachStubEnabled()) {
+    const { stubReply } = await import('./coachStub')
+    return { ok: true, reply: stubReply(args.message, args.context) }
+  }
+
   const { data, error } = await client.functions.invoke('tempo-coach', {
     body: {
       message: args.message,
@@ -337,11 +357,21 @@ export async function sendCoachMessage(
     reply: {
       text: d.text,
       action: d.action ?? null,
+      messageId: (d as { message_id?: string | null }).message_id ?? null,
       truncated: d.truncated ?? false,
       remaining: d.remaining ?? null,
       locked: d.locked ?? false,
     },
   }
+}
+
+/**
+ * Is the offline dev stub active? Requires BOTH a dev build and an explicit
+ * env flag, which is deliberately absent from `eas.json`'s preview/production
+ * profiles — so there is no configuration of a shipped binary where this is on.
+ */
+export function coachStubEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_COACH_STUB === '1'
 }
 
 export async function fetchCoachHistory(
