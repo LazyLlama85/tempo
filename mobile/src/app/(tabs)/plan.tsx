@@ -2259,7 +2259,7 @@ export default function WorkoutsScreen() {
       <View style={styles.sessionBar}>
         <View style={styles.sessionLeft}>
           <Text style={styles.sessionLabel}>ACTIVE SESSION</Text>
-          <Text style={styles.sessionTitle}>{workout.focus}</Text>
+          <Text style={styles.sessionTitle} numberOfLines={1}>{workout.focus}</Text>
         </View>
         <View style={styles.sessionRight}>
           <Text style={styles.estLabel}>
@@ -2998,14 +2998,26 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   headerLogo: { fontFamily: C.fontDisplay, fontSize: 16, color: C.primary, letterSpacing: 2 },
   avatar: { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  // The title and the timer sit on one row. Neither side used to be flex-
+  // constrained and the title had no numberOfLines, so both children claimed
+  // their intrinsic width and simply collided: a Quick Workout called
+  // "15-Minute Muscle Builder" rendered as "15-Minute Muscle Builder115:59"
+  // with no gap and the timer jammed against the screen edge (seen on device).
+  // The measurements are not marginal — that title alone is ~300dp of the
+  // ~371dp available on a Pixel 8, so it overflows even with a two-digit
+  // timer; a three-digit one (a session left open over an hour, which happens
+  // whenever someone forgets to hit Complete) just makes it obvious.
+  // Now the title side flexes and truncates while the timer keeps its full
+  // width — the elapsed time must never be the thing that gets clipped.
   sessionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
-  sessionLeft: { gap: 2 },
+  sessionLeft: { flex: 1, minWidth: 0, gap: 2 },
   sessionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },
   sessionTitle: { fontFamily: C.fontDisplay, fontSize: 24, color: C.text, letterSpacing: -0.24 },
-  sessionRight: { alignItems: 'flex-end', gap: 2 },
+  sessionRight: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
   estLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary, letterSpacing: 0.6 },
   timerText: { fontFamily: C.fontNumeric, fontSize: 24, color: C.text, letterSpacing: -0.5 },
   progressTrack: { height: 3, backgroundColor: C.surfaceContainerHigh, marginHorizontal: Spacing.containerPadding, borderRadius: Radius.full, marginBottom: Spacing.md },
