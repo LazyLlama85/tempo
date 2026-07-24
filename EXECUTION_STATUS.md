@@ -14,7 +14,37 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23 very late, latest): finished the audit-accuracy sweep and did a real
+- **NEW (2026-07-23, past midnight, latest): `autoSchedule.ts` test coverage — the last named
+  Reliability gap that was actually buildable tonight.** Founder asked whether pricing had been
+  changed on App Store Connect/Play Console — **no, it hasn't, and can't be from here**; T1.3 was
+  always flagged, never executed, that's a dashboard-only founder action. Then asked to keep
+  fixing things. Of the two remaining Reliability gaps named in the last pass (no offline write
+  queue, no `autoSchedule.ts` tests), picked the test-coverage one — bounded, additive-only, zero
+  risk to production code — over the offline queue, which would mean real new logic on the
+  highest-traffic mutation path in the app (`handleSetDone`) for what turned out to be a narrower
+  gap than the audit originally implied (see below).
+  New `autoSchedule.test.ts`: `autoSchedulingEnabled` (pure) plus `findCalendarConflicts`'s overlap
+  math — 9 tests (overlap detected, non-overlap not, ignored events excluded, manual-mode users
+  untouched, a failed calendar read degrades to no-conflicts not a false positive, completed/
+  skipped workouts never flagged). Required mocking 5 native-touching service modules
+  (`calendarService`, `calendarSync`, the two Google-calendar services, `notifications`,
+  `crashReporting`) the same way `adaptation.test.ts`/`generatePlan.test.ts` already do — none of
+  their real behavior matters to what's under test, only that Jest can load the file without
+  hitting `expo-calendar`. Deliberately did NOT attempt `autoScheduleUpcoming`/
+  `resolveCalendarConflicts` — they WRITE and reach 5+ external services; `findCalendarConflicts`
+  already locks the same overlap-math core read-only, at a fraction of the mocking cost.
+  **Also corrected the offline-write-queue finding's severity while confirming it's still open:**
+  read `plan.tsx`'s actual `handleSetDone` failure path — a failed set-log insert already un-checks
+  the set and prompts a visible, one-time "tap ✓ to retry," so a network blip doesn't silently
+  vanish the way the audit's original phrasing implied. The real gap is narrower: only if the user
+  closes the app before retrying is that one set (not the whole workout) lost. Real, not fixed, not
+  credited — but written accurately instead of at the original, scarier severity.
+  `tsc` clean, 360/360. `PRODUCT_AUDIT.html`: Reliability 6→7 (one of its two named residual gaps
+  closed). No headline recomputation needed — 248/40 = 6.2 exactly, same as already shown.
+  **Next: T1.2 (needs hardware) or the offline-write-queue itself, if wanted — real feature work
+  on a core path, flagged rather than attempted without a green light.**
+
+- **2026-07-23 very late: finished the audit-accuracy sweep and did a real
   recomputation — Product Score 5.9 → 6.2.** Founder asked to keep working on making the audit's
   own Red Team criticisms stop being possible user reactions. The Red Team's "shared thread" is
   explicit that scope isn't the answer — focus + reliability + proof is — so instead of chasing
