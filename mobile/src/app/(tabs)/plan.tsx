@@ -50,6 +50,7 @@ import { useFocusModeEnabled } from '@/lib/focusModePref'
 import { useSessionActiveStore } from '@/stores/sessionActive'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { describeSaveError } from '@/lib/saveErrors'
+import { queuePendingSetLog, clearPendingSetLog } from '@/lib/pendingSetLogs'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource } from '@/data/exerciseMedia'
 import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
@@ -1142,7 +1143,7 @@ export default function WorkoutsScreen() {
       }
     }
 
-    const { error } = await supabase.from('set_logs').insert({
+    const setLogPayload = {
       workout_log_id: workoutLogId,
       exercise_id: exId,
       set_number: idx + 1,
@@ -1155,7 +1156,8 @@ export default function WorkoutsScreen() {
       rpe: null,
       is_warmup: !!set.warmup,
       completed_at: new Date().toISOString(),
-    })
+    }
+    const { error } = await supabase.from('set_logs').insert(setLogPayload)
     if (error) {
       // Un-check it — a ✓ that never reached the server would silently drop the
       // set from PRs, volume, and next session's PREV column. The exercise may have
@@ -1165,11 +1167,22 @@ export default function WorkoutsScreen() {
         ? { ...prev, [exId]: prev[exId].map((s, i) => i === idx ? { ...s, done: false } : s) }
         : prev)
       setRpeFollowUp(cur => (cur?.exId === exId && cur?.idx === idx ? null : cur))
+      // Durable fallback for "the user never taps retry and closes the app" —
+      // the visible retry prompt above is still the primary recovery path;
+      // this just means a network blip can't silently cost the set entirely.
+      // See lib/pendingSetLogs.ts.
+      queuePendingSetLog(setLogPayload).catch(() => {})
       if (!setSaveWarned.current) {
         setSaveWarned.current = true
         const info = describeSaveError(error, 'save this set')
         Alert.alert('Set didn’t save', `${info.message}\n\nYour numbers are still in the row — tap the ✓ to retry.`)
       }
+    } else {
+      // Clears a stale queued attempt if this set had failed once already and
+      // is now succeeding via the manual retry — otherwise a later app-open
+      // flush would insert it a second time. No-op (cheap) in the overwhelmingly
+      // common case where nothing was ever queued for this set.
+      clearPendingSetLog(setLogPayload).catch(() => {})
     }
   }
 

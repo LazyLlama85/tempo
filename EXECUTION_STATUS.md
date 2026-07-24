@@ -14,7 +14,33 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-23, past midnight, latest): `autoSchedule.ts` test coverage — the last named
+- **NEW (2026-07-24, latest): built the offline set-log retry queue — the last named Reliability
+  gap, and the first thing this multi-session run shipped as real new production code rather than
+  verification or bounded additive work.** Founder explicitly asked for it after the last pass
+  named it and deliberately held off. `lib/pendingSetLogs.ts`: on a failed `set_logs` insert,
+  `plan.tsx`'s `handleSetDone` now ALSO stages the exact payload in a local durable queue —
+  extends `prefStorage.ts`'s existing write-both-ways storage (one JSON array under one key), not
+  a second storage mechanism. A successful insert (first attempt OR the user's manual "tap ✓ to
+  retry") clears any stale queued entry keyed on `workout_log_id:exercise_id:set_number`, so a
+  later background flush can never double-insert a set that already landed — designed against
+  that risk deliberately, since `set_logs` has no DB-level unique constraint to lean on. The queue
+  replays once at cold app-open, wired into the exact single-owner sweep `MASTER_FIX_PLAN.md` F5
+  already established for scheduling (independent of everything else in it, runs first,
+  mount-only per F5's own "no resume-time sweep" guidance). Deliberately scoped to ONE table and
+  ONE call site, not a generic offline-write framework — CLAUDE.md's guardrail against
+  unrequested abstraction. 7 new tests. `tsc` clean, 367/367 total.
+  **`PRODUCT_AUDIT.html`: Reliability's note updated, score deliberately HELD at 7, not raised.**
+  This is real new code on the single highest-traffic mutation path in the app and none of it —
+  the queue, the dedup logic, whether the underlying storage actually survives an app kill on a
+  real device — has touched hardware. The row already holds every other verified fix to the same
+  standard; the new feature doesn't get an exception because it closes a gap the founder asked for.
+  **T1.2 (on-device pass) is now the only thing that turns any of tonight's work, or the last two
+  sessions', from code-verified into actually proven — including whether this queue's own core
+  premise (does the local storage survive a real app kill) holds up.** Also reconfirmed this
+  session: pricing on App Store Connect/Play Console has NOT been touched and cannot be from this
+  repo — T1.3 stays flagged, dashboard-only, founder's call.
+
+- **2026-07-23, past midnight: `autoSchedule.ts` test coverage — the last named
   Reliability gap that was actually buildable tonight.** Founder asked whether pricing had been
   changed on App Store Connect/Play Console — **no, it hasn't, and can't be from here**; T1.3 was
   always flagged, never executed, that's a dashboard-only founder action. Then asked to keep

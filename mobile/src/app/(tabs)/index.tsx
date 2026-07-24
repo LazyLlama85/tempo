@@ -72,6 +72,7 @@ import { OptionSheet } from '@/components/OptionSheet'
 import { TempoSheet } from '@/components/TempoSheet'
 import type { WeekProgression, AdaptationMode } from '@/lib/periodization'
 import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
+import { flushPendingSetLogs } from '@/lib/pendingSetLogs'
 
 const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'Build Muscle',
@@ -650,8 +651,11 @@ export default function ScheduleScreen() {
   // triggered independently from the auth listener, with no ordering
   // guarantee against this effect — the race behind MASTER_FIX_PLAN.md F1's
   // plan-cliff bug). Fixed sequence, documented once here so it can't drift:
-  //   dedupe -> missed -> adaptation -> extend -> autoschedule -> splits ->
-  //   travel -> conflicts.
+  //   pending set logs -> dedupe -> missed -> adaptation -> extend ->
+  //   autoschedule -> splits -> travel -> conflicts.
+  // Pending-set-log flush runs first and is independent of everything after
+  // it — no ordering dependency, just "recover it before anything else touches
+  // this user's data" (lib/pendingSetLogs.ts).
   // Dedupe and the missed-workout sweep both run BEFORE extendActivePlan on
   // purpose: either can clear a stale 'scheduled' row that would otherwise
   // block the rollover's insert for that date (dedupe removes it outright;
@@ -661,6 +665,11 @@ export default function ScheduleScreen() {
   useEffect(() => {
     if (!userId) return
     ;(async () => {
+      // Replay any set logs that failed to save last session and were never
+      // manually retried before the app closed — independent of everything
+      // else in this sweep, so it runs first. Cold-open only, matching this
+      // sweep's own established mount-only scope (lib/pendingSetLogs.ts).
+      try { await flushPendingSetLogs(supabase) } catch { /* best-effort */ }
       // Pause mode: time simply passing needs no date shift (everything already
       // landed in the right place) — just clear the now-stale flag so the rest
       // of the sweep (and Home's banner) sees a normal, unpaused state.

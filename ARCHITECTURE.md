@@ -925,7 +925,20 @@ you moving."*
   after the completion writes verify — a failed save keeps the session live with a "tap Complete
   again" alert instead of showing confetti over an unsaved workout. All three failure alerts
   classify the error through `saveErrors.describeSaveError`, so an expired session in the gym
-  isn't mislabeled "check your connection". The rest-length picker is a branded `OptionSheet`
+  isn't mislabeled "check your connection".
+  **Offline set-log retry queue (`lib/pendingSetLogs.ts`, 2026-07-24):** the visible "tap ✓ to
+  retry" above only lives in React state — if the user closes the app before retrying, the set was
+  gone (never written anywhere durable). Scoped fix, not a generic offline-write framework
+  (deliberately — CLAUDE.md's guardrails on unrequested abstraction): on a failed `set_logs` insert,
+  `handleSetDone` also stages the exact payload in a local JSON queue (extends `prefStorage.ts`'s
+  existing write-both-ways storage, one key, not a second mechanism); on a successful insert
+  (first attempt OR manual retry) it clears any stale queued entry for that same natural key
+  (`workout_log_id:exercise_id:set_number`) so a later flush can't double-insert it. The queue is
+  replayed once, at cold app-open, from the SAME single-owner sweep F5 established
+  (`index.tsx`'s effect) — mount-only, matching that fix's own "don't add a resume-time sweep"
+  guidance, and independent of everything else in the sequence so it runs first. A device that
+  stays offline across many opens keeps retrying rather than losing entries; a hard cap (200)
+  prevents unbounded growth if it never reconnects. 7 unit tests (`pendingSetLogs.test.ts`). The rest-length picker is a branded `OptionSheet`
   (60/90s/**2min suggested**/3min/**custom stepper**) rather than an Alert (Android caps alerts at
   3 buttons); the pick **persists as that workout's rest** (`lib/restPrefs`, SQLite localStorage)
   and drives the auto-started rest after every set.
