@@ -20,24 +20,34 @@
 > run your adaptive plan, use the whole library); Pro unlocks *depth, foresight, and unlimited
 > creation* on top.
 
-> **⚠️ SUPERSEDED — FOUNDER DECISION (2026-07-22): $7.99/mo · $49.99/yr.** Live in App Store Connect
-> and Play Console as of that date. The reasoning: the 07-18 price was the category floor, which
-> signals "utility" exactly when Tempo is trying to position as a coach, and a floor price is hard to
-> triple later. $7.99/$49.99 is a real middle — cheap enough to test demand, high enough not to
-> contradict the coach story, and a believable step to the ~$12.99 a proven Coach would support.
-> There is **no paying cohort**, so raising again later applies cleanly to new signups only.
-> Mechanically this cost nothing: prices come from the stores and the app hardcodes none, so no
-> RevenueCat change and no build were needed (see `PRO_SETUP_GUIDE.md` → "Changing prices later").
-> The paywall now auto-renders **$4.17/mo billed yearly** and a **SAVE 48%** badge.
+> **⚠️ SUPERSEDED AGAIN — FOUNDER DECISION (2026-07-27): back to $4.99/mo · $34.99/yr.** Live in App
+> Store Connect and Play Console as of that date (`LAUNCH_SCORE_PLAN.md` T1.3). Reasoning: $7.99/$49.99
+> was priced as a Coach-tier that isn't in the launch build — Tempo Coach (C1–C4) is built but
+> undeployed, so charging a coach price for a scheduling + muscle-map + travel tier was a
+> self-contradiction a reviewer or churned free user would notice. $4.99/$34.99 matches what actually
+> ships (a real Strong/Hevy-class utility tier) and removes that gap. Raise back toward ~$7.99–$12.99
+> the moment Coach deploys and apply-rate proves it out — there is still no paying cohort, so this
+> reverts cleanly. Mechanically free both times: prices come from the stores, the app hardcodes none.
+>
+> **⚠️ SUPERSEDED — FOUNDER DECISION (2026-07-22): $7.99/mo · $49.99/yr.** Was live in App Store Connect
+> and Play Console from that date until 2026-07-27 (see above). The reasoning: the 07-18 price was the
+> category floor, which signals "utility" exactly when Tempo is trying to position as a coach, and a
+> floor price is hard to triple later. $7.99/$49.99 is a real middle — cheap enough to test demand,
+> high enough not to contradict the coach story, and a believable step to the ~$12.99 a proven Coach
+> would support. Superseded because Coach still wasn't in the launch build when it mattered.
 > The §5 table below is kept for the reasoning; its numbers are the old ones.
 >
 > **⚠️ SUPERSEDED — OFFER TYPE (2026-07-22, founder-confirmed):** the Yearly plan's introductory offer
-> is a **paid 50%-off first year** ($24.99 of $49.99), not the 7-day free trial this doc originally
+> is a **paid first-year offer** ($24.99), not the 7-day free trial this doc originally
 > specced (§5, §6). This is the correct, intentional live configuration in App Store Connect / Play
 > Console — every "7-day free trial" line below (§5, §6, §7, §9) describes the superseded plan.
 > `paywall.tsx` already has the exact logic this needs (a "FOUNDING PRICE"-style discount badge off
 > `introPrice`, not a trial-CTA), so this needed no code change either. The Monthly plan has no
-> introductory offer.
+> introductory offer. **Kept at a flat $24.99 through the 2026-07-27 base-price drop** (founder's
+> call): against the new $34.99 base that's ~29% off instead of the original 50%, but it's still a
+> clean, marketable "founding member" number on both stores, and it matches identically across iOS
+> and Android — not worth re-deriving a discount percentage off a price ($49.99) that's no longer
+> the reference point.
 >
 > **FOUNDER DECISION (2026-07-18, superseded):** keep the **current price** ($4.99/mo · $34.99/yr) and give the
 > free tier real limits on **user-created content** — **1 Tempo plan + 1 custom plan, 5 custom
@@ -343,9 +353,11 @@ Per Tempo's working method — arguing to *reject* this before recommending it:
 ## 10. Decisions
 
 **Settled (founder, 2026-07-18):**
-- **Price (2026-07-22, current):** **$7.99/mo · $49.99/yr** — live in both stores. Revisit when Coach
-  ships and apply-rate is measured; ~$12.99/mo is the coach-tier target if it lands.
-- ~~**Price:** keep current $4.99/mo · $34.99/yr.~~ *(2026-07-18, superseded above.)*
+- **Price (2026-07-27, current):** **$4.99/mo · $34.99/yr** — live in both stores
+  (`LAUNCH_SCORE_PLAN.md` T1.3). Yearly's intro offer stays flat at **$24.99 for the first year**
+  on both platforms. Raise back toward $7.99–$12.99/mo once Coach ships and apply-rate is measured.
+- ~~**Price:** $7.99/mo · $49.99/yr.~~ *(2026-07-22, superseded — was priced for a Coach tier not in
+  the launch build.)*
 - **Free/Pro line:** capped free tier — 1 Tempo plan + 1 custom plan, 5 custom exercises, 5 saved
   custom workouts; core training loop (logging, adaptive plan, library) uncapped.
 

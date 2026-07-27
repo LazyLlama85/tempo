@@ -14,7 +14,24 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-- **NEW (2026-07-24, latest): built the offline set-log retry queue — the last named Reliability
+- **NEW (2026-07-27, latest): `LAUNCH_SCORE_PLAN.md` T1.3 done — price realigned to $4.99/mo ·
+  $34.99/yr on both stores, live.** The founder did the actual dashboard edits (App Store Connect +
+  Play Console), in-browser, with Claude navigating and confirming each step — ASC's "All Prices and
+  Currencies" tool turned out to have no discoverable save action reachable via automation (verified
+  via a network trace: selecting a price there only ever fired a read-only `GET`, never a
+  `POST`/`PATCH`), so the founder completed that one manually; Play Console's "Set prices" flow had
+  a real, automatable confirm dialog and was done end-to-end via browser automation, including the
+  Yearly base plan. The yearly `founding-price-2026` / paid-intro offer was deliberately left at a
+  flat **$24.99 for the first year** on both platforms (founder's call) — it was ~50% off the old
+  $49.99 base, now ~29% off the new $34.99 base, but re-deriving a discount percentage off a price
+  that's no longer the reference point wasn't worth it; $24.99 is still a clean number and now
+  matches identically on iOS and Android. `MONETIZATION_PLAN.md` and `PRODUCT_AUDIT.html` updated
+  in the same turn (Monetization score held — this is a dashboard config correction, not new build
+  quality, per the audit's own scoring rule; the row's stale "founding offer doesn't exist in ASC
+  yet" note was corrected). **`LAUNCH_SCORE_PLAN.md`'s launch-critical minimum (T1.1–T1.3) is now
+  fully clear; only T1.2 (on-device verification pass) remains, and it needs hardware.**
+
+- **2026-07-24: built the offline set-log retry queue — the last named Reliability
   gap, and the first thing this multi-session run shipped as real new production code rather than
   verification or bounded additive work.** Founder explicitly asked for it after the last pass
   named it and deliberately held off. `lib/pendingSetLogs.ts`: on a failed `set_logs` insert,
