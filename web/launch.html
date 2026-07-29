@@ -471,27 +471,6 @@
   .tl-msg[hidden] { display: none; }
   .tl-msg.is-ember .tl-msg-ic { background: var(--ember-soft); color: var(--ember); }
 
-  /* ───────────────────────── 7. Proof marquee ───────────────────────── */
-  .marquee {
-    padding: 0; border-block: 1px solid var(--line);
-    background: rgba(255,255,255,0.015);
-    overflow: hidden;
-    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  }
-  .marquee-track {
-    display: flex; gap: 44px; width: max-content;
-    padding: 18px 0;
-    animation: slide 46s linear infinite;
-  }
-  .marquee:hover .marquee-track { animation-play-state: paused; }
-  @keyframes slide { to { transform: translateX(-50%); } }
-  .m-item {
-    display: inline-flex; align-items: center; gap: 9px;
-    font-size: 13.5px; font-weight: 500; color: var(--text-2); white-space: nowrap;
-  }
-  .m-item svg { color: var(--blue); flex-shrink: 0; }
-
   /* ───────────────────────── 8. Statement / compare ───────────────────────── */
   .statement { text-align: center; }
   .statement h2 { max-width: 900px; margin: 18px auto 0; }
@@ -516,95 +495,6 @@
   .cmp li .ic { flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
   .cmp.bad  li .ic { background: rgba(255,255,255,0.06); color: var(--text-3); }
   .cmp.good li .ic { background: var(--blue-soft); color: var(--blue-bright); }
-
-  /* ───────────────────────── 9. Interactive planner ───────────────────────── */
-  .planner {
-    background: linear-gradient(180deg, var(--surface), var(--bg));
-    border-block: 1px solid var(--line);
-  }
-  .planner-shell {
-    display: grid; grid-template-columns: 300px minmax(0, 1fr);
-    gap: 28px; align-items: start;
-    background: var(--card); border: 1px solid var(--line-2);
-    border-radius: var(--r-xl); padding: 26px;
-    box-shadow: var(--shadow);
-  }
-  .controls { display: flex; flex-direction: column; gap: 22px; }
-  .ctrl-label {
-    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
-    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
-    display: block; margin-bottom: 10px;
-  }
-  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
-  .chip {
-    font: 600 13px/1 var(--font-body);
-    padding: 9px 13px; border-radius: 9px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
-    color: var(--text-2); cursor: pointer;
-    transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.14s;
-  }
-  .chip:hover { border-color: var(--line-3); color: var(--text); }
-  .chip[aria-pressed="true"] {
-    background: var(--blue-soft); border-color: rgba(78,139,255,0.55);
-    color: var(--blue-bright);
-  }
-  .chip .n { font-family: var(--font-mono); font-weight: 700; }
-
-  .plan-out { min-width: 0; }
-  .week {
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 6px;
-  }
-  .wcol {
-    background: rgba(255,255,255,0.022); border: 1px solid var(--line);
-    border-radius: 12px; padding: 8px 6px 6px; min-height: 260px;
-    display: flex; flex-direction: column;
-  }
-  .wcol.train { border-color: rgba(78,139,255,0.4); background: rgba(78,139,255,0.055); }
-  .wday {
-    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
-    text-align: center; margin-bottom: 8px;
-  }
-  .wcol.train .wday { color: var(--blue-bright); }
-  .wbusy {
-    border-radius: 5px; margin-bottom: 4px; overflow: hidden;
-    border: 1px solid var(--line);
-    background: repeating-linear-gradient(45deg,
-      rgba(255,255,255,0.07) 0 5px, rgba(255,255,255,0.02) 5px 10px);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .wbusy span {
-    font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
-    letter-spacing: 0.02em; color: var(--text-3); white-space: nowrap;
-  }
-  .wsession {
-    margin-top: auto;
-    background: linear-gradient(150deg, #2B5FD6, #4E8BFF);
-    border-radius: 9px; padding: 9px 8px; color: #fff;
-    box-shadow: 0 6px 18px rgba(78,139,255,0.28);
-    animation: pop 0.4s var(--spring) both;
-    animation-delay: var(--pd, 0ms);
-  }
-  @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.94); } to { opacity: 1; transform: none; } }
-  .wsession .wt { font-family: var(--font-mono); font-size: 10px; font-weight: 700; opacity: 0.9; }
-  .wsession .wf { font-family: var(--font-display); font-size: 12.5px; font-weight: 700; line-height: 1.15; margin-top: 3px; letter-spacing: -0.01em; }
-  .wsession .wd { font-family: var(--font-mono); font-size: 9.5px; opacity: 0.78; margin-top: 3px; }
-  .wrest {
-    margin-top: auto; text-align: center; padding: 10px 4px;
-    font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
-    border: 1px dashed var(--line-2); border-radius: 9px;
-  }
-  .plan-summary {
-    margin-top: 16px; padding: 14px 16px;
-    background: rgba(255,255,255,0.03); border: 1px solid var(--line);
-    border-radius: 12px;
-    display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center;
-  }
-  .ps-item { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--text-2); }
-  .ps-item b { font-family: var(--font-mono); font-size: 17px; color: var(--text); font-weight: 700; }
-  .planner-note { margin-top: 14px; font-size: 12.5px; color: var(--text-3); }
 
   /* ───────────────────────── 10. Feature rows + device ───────────────────────── */
   .frow {
@@ -665,6 +555,12 @@
   .s-h { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.02em; margin-top: 3px; }
   .s-p { font-size: 10.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
   .s-row { display: flex; align-items: center; gap: 8px; }
+  .mockup-chip {
+    font: 600 11px/1 var(--font-body);
+    padding: 7px 10px; border-radius: 9px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
+    color: var(--text-2);
+  }
   .s-btn {
     margin-top: 10px; background: var(--blue); color: #fff;
     border-radius: 9px; padding: 8px; text-align: center;
@@ -735,41 +631,28 @@
   .tb.on { color: var(--blue); }
   .tb span { font-size: 8px; font-weight: 600; }
 
-  /* ───────────────────────── 11. Everything-else grid ───────────────────────── */
-  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .tile {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: var(--r); padding: 24px 22px;
-    transition: border-color 0.22s, transform 0.22s var(--ease), background 0.22s;
+  /* ───────────────────────── 11. Everything-else index ───────────────────────── */
+  .more-list { border-top: 1px solid var(--line); }
+  .more-row {
+    display: grid; grid-template-columns: 50px 38px minmax(0, 1fr);
+    column-gap: 22px; align-items: start;
+    padding: 28px 0; border-bottom: 1px solid var(--line);
+    transition: background 0.22s;
   }
-  .tile:hover { border-color: var(--line-2); transform: translateY(-3px); background: var(--card-2); }
-  .tile-ic {
-    width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
-    background: var(--blue-soft); color: var(--blue-bright); margin-bottom: 15px;
+  .more-row:hover { background: rgba(255,255,255,0.018); }
+  .more-n {
+    font-family: var(--font-mono); font-size: 25px; font-weight: 700;
+    color: var(--text-3); letter-spacing: -0.02em; line-height: 1.15;
   }
-  .tile h4 { font-size: 16.5px; letter-spacing: -0.02em; }
-  .tile p { font-size: 13.5px; color: var(--text-2); margin-top: 7px; line-height: 1.55; }
-  .tile .tag { margin-top: 12px; }
-
-  /* ───────────────────────── 12. First-week timeline ───────────────────────── */
-  .week1 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
-  .w1 { padding: 0 24px 0 0; position: relative; }
-  .w1::before {
-    content: ''; position: absolute; left: 0; top: 13px; right: 0; height: 1px;
-    background: linear-gradient(90deg, var(--blue), rgba(78,139,255,0.12));
+  .more-row.pro .more-n { color: var(--blue-bright); }
+  .more-ic {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    background: var(--blue-soft); color: var(--blue-bright); margin-top: 1px;
   }
-  .w1:last-child::before { background: linear-gradient(90deg, var(--blue), transparent); }
-  .w1-dot {
-    position: relative; width: 11px; height: 11px; border-radius: 50%;
-    background: var(--blue); box-shadow: 0 0 0 4px rgba(78,139,255,0.16);
-    margin: 8px 0 22px;
-  }
-  .w1 .when {
-    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue-bright);
-  }
-  .w1 h4 { font-size: 17px; margin: 9px 0 8px; letter-spacing: -0.02em; }
-  .w1 p { font-size: 13.5px; color: var(--text-2); line-height: 1.55; padding-right: 8px; }
+  .more-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+  .more-body h4 { font-size: 18px; letter-spacing: -0.02em; flex-shrink: 0; }
+  .more-body p { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 480px; flex: 1 1 300px; }
+  .more-body .tag { flex-shrink: 0; }
 
   /* ───────────────────────── 13. Comparison table ───────────────────────── */
   .table-scroll { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--line-2); }
@@ -914,8 +797,6 @@
     .hero { padding-top: 128px; }
     .hero .lead { max-width: none; }
     .timeline-card { max-width: 520px; }
-    .planner-shell { grid-template-columns: 1fr; }
-    .controls { flex-direction: row; flex-wrap: wrap; gap: 20px 32px; }
   }
   @media (max-width: 900px) {
     .nav-links { display: none; }
@@ -924,28 +805,13 @@
     .compare-2 { grid-template-columns: 1fr; }
     .frow, .frow.flip .fr-copy { grid-template-columns: 1fr; order: 0; }
     .frow { gap: 40px; }
-    .grid-3 { grid-template-columns: 1fr 1fr; }
-    .week1 { grid-template-columns: 1fr 1fr; gap: 34px 0; }
     .price-grid { grid-template-columns: 1fr; }
     .privacy-panel { grid-template-columns: 1fr; }
     .foot-top { grid-template-columns: 1fr; gap: 34px; }
   }
-  @media (max-width: 720px) {
-    .week { grid-template-columns: 1fr; gap: 8px; }
-    .wcol { min-height: 0; flex-direction: row; align-items: center; gap: 12px; padding: 10px 12px; }
-    .wday { margin: 0; width: 40px; flex-shrink: 0; text-align: left; }
-    .wbusy { display: none; }
-    .wsession, .wrest { margin-top: 0; flex: 1; }
-    .wsession { display: flex; align-items: baseline; gap: 10px; }
-    .wsession .wf { margin-top: 0; }
-    .wrest { text-align: left; padding: 8px 12px; }
-  }
   @media (max-width: 640px) {
-    .grid-3 { grid-template-columns: 1fr; }
-    .week1 { grid-template-columns: 1fr; gap: 26px; }
-    .w1 { padding-right: 0; }
-    .w1::before { display: none; }
-    .w1-dot { margin: 0 0 12px; }
+    .more-row { grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; }
+    .more-ic { display: none; }
     .foot-cols { grid-template-columns: 1fr 1fr; }
     .notify { flex-direction: column; }
     .device { width: 264px; }
@@ -968,7 +834,6 @@
     </a>
     <div class="nav-links">
       <a href="#how">How it works</a>
-      <a href="#plan-it">Try it</a>
       <a href="#features">Features</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
@@ -984,7 +849,6 @@
 
 <div class="drawer" id="drawer">
   <a href="#how">How it works</a>
-  <a href="#plan-it">Try it</a>
   <a href="#features">Features</a>
   <a href="#pricing">Pricing</a>
   <a href="#faq">FAQ</a>
@@ -1091,20 +955,6 @@
   </div>
 </header>
 
-<!-- ═══════════════ MARQUEE ═══════════════ -->
-<section class="marquee" aria-label="What's included">
-  <div class="marquee-track" id="marquee">
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google &amp; Apple Calendar</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg> 1,300+ exercise library</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg> 5&ndash;30 min Quick Workouts</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg> Auto-reschedules a busy week</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Free/busy only &mdash; never event details</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3"/><path d="M22 4 12 14.01l-3-3"/></svg> Logs offline, syncs later</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg> Progressive overload built in</span>
-    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg> Travel Mode &amp; multi-calendar</span>
-  </div>
-</section>
-
 <!-- ═══════════════ STATEMENT + COMPARE ═══════════════ -->
 <section class="statement" id="how">
   <div class="wrap">
@@ -1136,74 +986,6 @@
           <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A real session sized to the window &mdash; down to five minutes</li>
           <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A hard month makes the plan easier, not you a failure</li>
         </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ INTERACTIVE PLANNER ═══════════════ -->
-<section class="planner" id="plan-it">
-  <div class="wrap">
-    <div class="sec-head center" data-sr>
-      <span class="eyebrow">Try it before you download</span>
-      <h2 class="h-lg">Show me my week.</h2>
-      <p class="lead">Set your goal, your days, and what your life looks like. This runs the same
-        split logic and spacing rules Tempo uses on a real calendar &mdash; the app just does it
-        against your actual free/busy time instead of a typical week.</p>
-    </div>
-
-    <div class="planner-shell" data-sr>
-      <div class="controls">
-        <div>
-          <span class="ctrl-label" id="lbl-goal">Goal</span>
-          <div class="chips" role="group" aria-labelledby="lbl-goal" data-group="goal">
-            <button class="chip" data-val="muscle"   aria-pressed="true">Build muscle</button>
-            <button class="chip" data-val="strength" aria-pressed="false">Get stronger</button>
-            <button class="chip" data-val="fatloss"  aria-pressed="false">Lose fat</button>
-          </div>
-        </div>
-        <div>
-          <span class="ctrl-label" id="lbl-days">Days per week</span>
-          <div class="chips" role="group" aria-labelledby="lbl-days" data-group="days">
-            <button class="chip" data-val="2" aria-pressed="false"><span class="n">2</span></button>
-            <button class="chip" data-val="3" aria-pressed="false"><span class="n">3</span></button>
-            <button class="chip" data-val="4" aria-pressed="true"><span class="n">4</span></button>
-            <button class="chip" data-val="5" aria-pressed="false"><span class="n">5</span></button>
-            <button class="chip" data-val="6" aria-pressed="false"><span class="n">6</span></button>
-          </div>
-        </div>
-        <div>
-          <span class="ctrl-label" id="lbl-life">Your week looks like</span>
-          <div class="chips" role="group" aria-labelledby="lbl-life" data-group="life">
-            <button class="chip" data-val="office"  aria-pressed="true">9&ndash;6 office</button>
-            <button class="chip" data-val="parent"  aria-pressed="false">Kids at home</button>
-            <button class="chip" data-val="shift"   aria-pressed="false">Shift work</button>
-            <button class="chip" data-val="student" aria-pressed="false">Student</button>
-          </div>
-        </div>
-        <div>
-          <span class="ctrl-label" id="lbl-len">Session length</span>
-          <div class="chips" role="group" aria-labelledby="lbl-len" data-group="len">
-            <button class="chip" data-val="30" aria-pressed="false"><span class="n">30</span>&nbsp;min</button>
-            <button class="chip" data-val="45" aria-pressed="true"><span class="n">45</span>&nbsp;min</button>
-            <button class="chip" data-val="60" aria-pressed="false"><span class="n">60</span>&nbsp;min</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="plan-out">
-        <div class="week" id="week" role="list" aria-label="Generated week"></div>
-        <div class="plan-summary">
-          <div class="ps-item"><b id="ps-sessions">4</b> <span id="ps-sessions-u">sessions</span></div>
-          <div class="ps-item"><b id="ps-time">3h 0m</b> total</div>
-          <div class="ps-item"><b id="ps-rest">3</b> <span id="ps-rest-u">recovery days</span></div>
-          <div class="ps-item dim" id="ps-note" style="font-size:12.5px">Every session sits in a real gap.</div>
-        </div>
-        <p class="planner-note">
-          Illustrative only &mdash; built from a typical week for that lifestyle. In the app, Tempo reads your
-          own calendar&rsquo;s free/busy time, respects the days you mark unavailable, and re-lays the week when
-          something changes.
-        </p>
       </div>
     </div>
   </div>
@@ -1383,9 +1165,9 @@
             <div class="card-s">
               <div class="s-lbl">Last feedback</div>
               <div class="s-row" style="gap:6px;margin-top:8px">
-                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px">Too easy</span>
-                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px;background:var(--blue-soft);border-color:rgba(78,139,255,0.5);color:var(--blue-bright)">Just right</span>
-                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px">Too hard</span>
+                <span class="mockup-chip">Too easy</span>
+                <span class="mockup-chip" style="background:var(--blue-soft);border-color:rgba(78,139,255,0.5);color:var(--blue-bright)">Just right</span>
+                <span class="mockup-chip">Too hard</span>
               </div>
             </div>
           </div>
@@ -1464,80 +1246,60 @@
 <!-- ═══════════════ EVERYTHING ELSE ═══════════════ -->
 <section style="padding-top:0">
   <div class="wrap">
-    <div class="sec-head center" data-sr>
-      <span class="eyebrow">And the rest</span>
-      <h2 class="h-md">Everything else that shipped with it.</h2>
+    <div class="sec-head" data-sr style="max-width:620px">
+      <h2 class="h-md">Six more things that shipped with it.</h2>
     </div>
-    <div class="grid-3">
-      <div class="tile" data-sr>
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
-        <h4>Quick Workouts</h4>
-        <p>Five to thirty minutes, built for the window you actually have. Pick a length and a focus; Tempo does the rest.</p>
+    <div class="more-list">
+      <div class="more-row" data-sr>
+        <span class="more-n">01</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
+        <div class="more-body">
+          <h4>Quick Workouts</h4>
+          <p>Five to thirty minutes, built for the window you actually have. Pick a length and a focus; Tempo does the rest.</p>
+        </div>
       </div>
-      <div class="tile" data-sr style="--d:60ms">
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg></div>
-        <h4>Splits &amp; custom workouts</h4>
-        <p>Prefer to drive? Build your own split, save templates, and create custom exercises. Tempo still schedules them for you.</p>
+      <div class="more-row" data-sr style="--d:60ms">
+        <span class="more-n">02</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg></div>
+        <div class="more-body">
+          <h4>Splits &amp; custom workouts</h4>
+          <p>Prefer to drive? Build your own split, save templates, and create custom exercises. Tempo still schedules them for you.</p>
+        </div>
       </div>
-      <div class="tile" data-sr style="--d:120ms">
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 8v8M8 21l4-5 4 5M6 12h12"/></svg></div>
-        <h4>Muscle intelligence</h4>
-        <p>An interactive body map of what you&rsquo;ve trained, what&rsquo;s recovered, and where you&rsquo;re quietly lopsided.</p>
-        <span class="tag tag-blue">Pro</span>
+      <div class="more-row pro" data-sr style="--d:120ms">
+        <span class="more-n">03</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 8v8M8 21l4-5 4 5M6 12h12"/></svg></div>
+        <div class="more-body">
+          <h4>Muscle intelligence</h4>
+          <p>An interactive body map of what you&rsquo;ve trained, what&rsquo;s recovered, and where you&rsquo;re quietly lopsided.</p>
+          <span class="tag tag-blue">Pro</span>
+        </div>
       </div>
-      <div class="tile" data-sr style="--d:180ms">
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg></div>
-        <h4>Travel Mode</h4>
-        <p>Hotel gym, a park, or nothing but a floor. Tell Tempo what you&rsquo;ve got and it rewrites the coming sessions to match.</p>
-        <span class="tag tag-blue">Pro</span>
+      <div class="more-row pro" data-sr style="--d:180ms">
+        <span class="more-n">04</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg></div>
+        <div class="more-body">
+          <h4>Travel Mode</h4>
+          <p>Hotel gym, a park, or nothing but a floor. Tell Tempo what you&rsquo;ve got and it rewrites the coming sessions to match.</p>
+          <span class="tag tag-blue">Pro</span>
+        </div>
       </div>
-      <div class="tile" data-sr style="--d:240ms">
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div>
-        <h4>Friends &amp; private groups</h4>
-        <p>A leaderboard, shared workouts, badges, and small private groups &mdash; accountability without a public feed shouting at you.</p>
+      <div class="more-row" data-sr style="--d:240ms">
+        <span class="more-n">05</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div>
+        <div class="more-body">
+          <h4>Friends &amp; private groups</h4>
+          <p>A leaderboard, shared workouts, badges, and small private groups &mdash; accountability without a public feed shouting at you.</p>
+        </div>
       </div>
-      <div class="tile" data-sr style="--d:300ms">
-        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-10"/><path d="M21 5v6h-6"/></svg></div>
-        <h4>PR forecast</h4>
-        <p>A projection from your own logged sets: at this rate, here&rsquo;s the date you hit the next milestone.</p>
-        <span class="tag tag-blue">Pro</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ FIRST WEEK ═══════════════ -->
-<section style="background:var(--surface);border-block:1px solid var(--line)">
-  <div class="wrap">
-    <div class="sec-head center" data-sr>
-      <span class="eyebrow">What actually happens</span>
-      <h2 class="h-lg">Your first four weeks.</h2>
-      <p class="lead">No 40-minute setup, no logging your breakfast. Here&rsquo;s the whole arc.</p>
-    </div>
-    <div class="week1">
-      <div class="w1" data-sr>
-        <div class="w1-dot"></div>
-        <div class="when">Day 1 &middot; 3 min</div>
-        <h4>Answer four questions</h4>
-        <p>Goal, experience, equipment, and the days you can train. Connect a calendar if you want the scheduling &mdash; you can skip it and add it later.</p>
-      </div>
-      <div class="w1" data-sr style="--d:100ms">
-        <div class="w1-dot"></div>
-        <div class="when">Day 1 &middot; 30 sec</div>
-        <h4>Your week appears</h4>
-        <p>A full plan, already placed into the gaps in your real calendar, starting with whatever days are left in this week &mdash; not next Monday.</p>
-      </div>
-      <div class="w1" data-sr style="--d:200ms">
-        <div class="w1-dot"></div>
-        <div class="when">Day 3</div>
-        <h4>Something goes wrong</h4>
-        <p>A meeting eats your session. Tempo flags the clash and re-lays the week around it. This is the part every other app gets wrong.</p>
-      </div>
-      <div class="w1" data-sr style="--d:300ms">
-        <div class="w1-dot"></div>
-        <div class="when">Week 4</div>
-        <h4>The plan changes shape</h4>
-        <p>Three weeks of building, then a deload. Your loads have moved with your logs, and the consistency number is the only score that matters.</p>
+      <div class="more-row pro" data-sr style="--d:300ms">
+        <span class="more-n">06</span>
+        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-10"/><path d="M21 5v6h-6"/></svg></div>
+        <div class="more-body">
+          <h4>PR forecast</h4>
+          <p>A projection from your own logged sets: at this rate, here&rsquo;s the date you hit the next milestone.</p>
+          <span class="tag tag-blue">Pro</span>
+        </div>
       </div>
     </div>
   </div>
@@ -1812,7 +1574,6 @@
         <div class="foot-col">
           <h5>Product</h5>
           <a href="#how">How it works</a>
-          <a href="#plan-it">Plan my week</a>
           <a href="#features">Features</a>
           <a href="#pricing">Pricing</a>
         </div>
@@ -1910,10 +1671,6 @@
     Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
   }
 
-  /* ── Marquee: duplicate the track so the loop is seamless ────── */
-  var mq = document.getElementById('marquee');
-  if (mq) mq.innerHTML += mq.innerHTML;
-
   /* ── Hero timeline story ─────────────────────────────────────────
      0: a free gap is found → 1: the session is placed →
      2: a meeting lands on it → 3: the session moves. Then it loops.
@@ -1975,207 +1732,6 @@
       ans.style.maxHeight = isOpen ? '' : ans.scrollHeight + 'px';
     });
   });
-
-  /* ══════════════════════════════════════════════════════════════════
-     THE WEEK PLANNER
-     Mirrors the app's real logic closely enough to be honest:
-       · split templates per goal + days  (mobile/src/lib/generatePlan.ts)
-       · training-day spacing  gap = max(1, floor(7 / days))
-       · placement into the first free window long enough for the session
-     It runs against a *typical* week for the chosen lifestyle; the app
-     runs the same shape against your actual calendar free/busy data.
-     ══════════════════════════════════════════════════════════════════ */
-
-  // Split templates — the same focus names the app generates.
-  var SPLITS = {
-    muscle: {
-      2: ['Upper A', 'Lower A'],
-      3: ['Push', 'Pull', 'Legs'],
-      4: ['Upper A', 'Lower A', 'Upper B', 'Lower B'],
-      5: ['Push', 'Pull', 'Legs', 'Upper A', 'Lower A'],
-      6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs']
-    },
-    strength: {
-      2: ['Squat Day', 'Press Day'],
-      3: ['Squat Day', 'Press Day', 'Deadlift Day'],
-      4: ['Squat Day', 'Press Day', 'Deadlift Day', 'Pull Day'],
-      5: ['Squat Day', 'Press Day', 'Deadlift Day', 'Pull Day', 'Upper'],
-      6: ['Squat Day', 'Press Day', 'Pull Day', 'Deadlift Day', 'Upper', 'Squat Day']
-    },
-    fatloss: {
-      2: ['Full Body A', 'Full Body B'],
-      3: ['Full Body A', 'Full Body B', 'Full Body C'],
-      4: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning'],
-      5: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning', 'Upper Circuit'],
-      6: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning', 'Upper Circuit', 'Full Body A']
-    }
-  };
-
-  // A typical week's busy time per lifestyle. [startHour, endHour], Mon=0 … Sun=6.
-  var LIVES = {
-    office: {
-      label: 'a 9–6 office week',
-      busy: [
-        [[8.5, 18]], [[8.5, 18]], [[8.5, 18.5]], [[8.5, 18]], [[8.5, 17]],
-        [[10, 13]], [[11, 15]]
-      ]
-    },
-    parent: {
-      label: 'a week with kids at home',
-      busy: [
-        [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]],
-        [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]],
-        [[9, 12], [16, 20]], [[9, 13], [16, 20]]
-      ]
-    },
-    shift: {
-      label: 'a rotating shift pattern',
-      busy: [
-        [[6, 14.5]], [[6, 14.5]], [[13.5, 22]], [[13.5, 22]], [[13.5, 22]],
-        [[6, 14.5]], []
-      ]
-    },
-    student: {
-      label: 'a student timetable',
-      busy: [
-        [[9, 12], [14, 16]], [[10, 13]], [[9, 12], [15, 18]], [[11, 14]],
-        [[9, 11]], [[12, 15]], [[15, 19]]
-      ]
-    }
-  };
-
-  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  var DAY_START = 6, DAY_END = 21.5;   // the window Tempo will schedule inside
-
-  var state = { goal: 'muscle', days: 4, life: 'office', len: 45 };
-
-  function fmt(h) {
-    var hr = Math.floor(h), mn = Math.round((h - hr) * 60);
-    var ap = hr >= 12 ? 'PM' : 'AM';
-    var h12 = hr % 12 === 0 ? 12 : hr % 12;
-    return h12 + ':' + (mn < 10 ? '0' + mn : mn) + ' ' + ap;
-  }
-
-  // Every free window on this day, as [start, end] pairs.
-  function freeWindows(busy) {
-    var blocks = (busy || []).slice().sort(function (a, b) { return a[0] - b[0]; });
-    var out = [], cursor = DAY_START;
-    for (var i = 0; i < blocks.length; i++) {
-      if (blocks[i][0] > cursor) out.push([cursor, blocks[i][0]]);
-      cursor = Math.max(cursor, blocks[i][1]);
-    }
-    if (DAY_END > cursor) out.push([cursor, DAY_END]);
-    return out;
-  }
-
-  // Where the session goes: the LARGEST window that fits it, not merely the first.
-  // Grabbing the first free minute of the day would park every session at 6am and
-  // miss the actual point — Tempo looks for the roomiest real gap. A window that
-  // opens mid-day gets a 15-minute buffer so a session never starts the same
-  // second a meeting ends. Returns null when nothing on the day is long enough.
-  function findSlot(busy, hours) {
-    var need = hours + (10 / 60);   // 10 min of slack, same spirit as the app
-    var best = null, bestLen = 0;
-    freeWindows(busy).forEach(function (w) {
-      var buffer = w[0] > DAY_START ? 0.25 : 0;
-      var len = w[1] - w[0];
-      if (len >= need + buffer && len > bestLen) { bestLen = len; best = w[0] + buffer; }
-    });
-    return best;
-  }
-
-  // Which weekdays get a session. This is the app's own chooseDaySlots(): take the
-  // days that are actually usable, then spread the sessions across them with a
-  // stride so recovery is maximised (3 days over a full week → Mon/Wed/Fri). A day
-  // with no window long enough for the session simply isn't a candidate — which is
-  // the whole point, and why a packed week legitimately returns fewer sessions.
-  function chooseDays(n, life, hours) {
-    var candidates = [];
-    for (var d = 0; d < 7; d++) {
-      if (findSlot(life.busy[d], hours) !== null) candidates.push(d);
-    }
-    var take = Math.min(n, candidates.length);
-    if (take <= 0) return [];
-    var stride = candidates.length / take;
-    var out = [];
-    for (var i = 0; i < take; i++) {
-      var pick = candidates[Math.floor(i * stride)];
-      if (out.indexOf(pick) === -1) out.push(pick);
-    }
-    return out;
-  }
-
-  var weekEl = document.getElementById('week');
-
-  function render() {
-    var life = LIVES[state.life];
-    var hours = state.len / 60;
-    var focuses = SPLITS[state.goal][state.days];
-    var trainDays = chooseDays(state.days, life, hours);
-
-    var html = '', placed = 0;
-    for (var d = 0; d < 7; d++) {
-      var idx = trainDays.indexOf(d);
-      var isTrain = idx !== -1;
-      html += '<div class="wcol' + (isTrain ? ' train' : '') + '" role="listitem">';
-      html += '<div class="wday">' + DAYS[d] + '</div>';
-
-      // Busy blocks, drawn to scale — the shape of the day, and the reason a
-      // session lands where it does. Labelled, because an unlabelled grey bar
-      // reads as a broken image rather than "you are in meetings until six".
-      (life.busy[d] || []).forEach(function (b) {
-        var h = Math.max(14, Math.round((b[1] - b[0]) * 5));
-        html += '<div class="wbusy" style="height:' + h + 'px">'
-             +  '<span>' + fmt(b[0]).replace(':00', '') + '&ndash;' + fmt(b[1]).replace(':00', '') + '</span>'
-             +  '</div>';
-      });
-
-      if (isTrain) {
-        var start = findSlot(life.busy[d], hours);
-        html += '<div class="wsession" style="--pd:' + (idx * 55) + 'ms">'
-             +  '<div class="wt">' + fmt(start) + '</div>'
-             +  '<div class="wf">' + focuses[idx] + '</div>'
-             +  '<div class="wd">' + state.len + ' min</div>'
-             +  '</div>';
-        placed++;
-      } else {
-        html += '<div class="wrest">Recovery</div>';
-      }
-      html += '</div>';
-    }
-    weekEl.innerHTML = html;
-
-    var mins = placed * state.len;
-    var rest = 7 - placed;
-    document.getElementById('ps-sessions').textContent = placed;
-    document.getElementById('ps-time').textContent = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
-    document.getElementById('ps-rest').textContent = rest;
-    document.getElementById('ps-sessions-u').textContent = placed === 1 ? 'session' : 'sessions';
-    document.getElementById('ps-rest-u').textContent = rest === 1 ? 'recovery day' : 'recovery days';
-
-    var note = document.getElementById('ps-note');
-    if (placed < state.days) {
-      note.textContent = 'Only ' + placed + ' of ' + state.days
-        + ' fit in ' + life.label + ' — Tempo schedules what’s real, not what’s wishful.';
-    } else {
-      note.textContent = 'All ' + placed + ' placed inside real gaps in ' + life.label + '.';
-    }
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll('.chips'), function (group) {
-    var key = group.getAttribute('data-group');
-    group.addEventListener('click', function (e) {
-      var btn = e.target.closest('.chip');
-      if (!btn || !group.contains(btn)) return;
-      Array.prototype.forEach.call(group.querySelectorAll('.chip'), function (c) {
-        c.setAttribute('aria-pressed', String(c === btn));
-      });
-      var v = btn.getAttribute('data-val');
-      state[key] = (key === 'days' || key === 'len') ? parseInt(v, 10) : v;
-      render();
-    });
-  });
-  render();
 
   /* ── Notify form (only shown while the stores aren't live) ───── */
   var form = document.getElementById('notify-form');
