@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tempo — Training that moves when your week does</title>
   <meta name="description" content="Tempo reads your calendar, drops real workouts into the gaps you actually have, and re-plans the moment a meeting lands on one. Free on iPhone and Android.">
-  <meta name="theme-color" content="#0B0C0F">
+  <meta name="theme-color" content="#15161F">
 
   <meta property="og:title" content="Tempo — Training that moves when your week does">
   <meta property="og:description" content="Tempo reads your calendar, builds training around the time you actually have, and quietly re-plans when life gets in the way. Free on iPhone and Android.">
@@ -23,30 +23,34 @@
 
   <!--
     ══════════════════════════════════════════════════════════════════════════
-    TEMPO — POST-LAUNCH MARKETING SITE  (v2, "Ink Instrument")
+    TEMPO — POST-LAUNCH MARKETING SITE  (v3, "Fitbod-inspired navy")
 
     This is the launch-day version of the site, meant to replace the waitlist
     page (index.html) once Tempo is live on the App Store and Google Play.
     index.html is untouched; swap the filenames when you're ready to go live.
 
-    ⚠️ BEFORE YOU PUBLISH — three things to fill in:
+    ⚠️ BEFORE YOU PUBLISH:
       1. STORE.ios / STORE.android at the top of the <script> block below.
          Until they're real URLs, every download button falls back to the
          "notify me" form instead of shipping a dead link.
-      2. The ratings strip (search "RATINGS BLOCK") is commented out on
-         purpose. Un-comment it only when you have real App Store / Play
-         numbers — do not ship invented ones.
-      3. The testimonial rail (search "TESTIMONIAL BLOCK") is likewise
-         commented out and waiting for real quotes from real users.
+      2. Every phone frame (.shot-placeholder) is a deliberate blank —
+         drop in real device screenshots before launch, not fabricated UI.
+      3. The ratings strip (search "RATINGS BLOCK") and testimonial rail
+         (search "TESTIMONIAL BLOCK") are commented out on purpose. Un-comment
+         only with real numbers/quotes — do not ship invented ones.
 
       Also: the store badges below are hand-drawn approximations so this file
       stays dependency-free. Before launch, swap them for Apple's and Google's
       official badge assets — both stores require their own artwork.
 
-    Design system matches the app itself (mobile/src/constants/theme.ts):
-    Ink surfaces, #4E8BFF primary = "the plan", #FF6A45 ember = "now/urgent",
-    #D9A13B gold = achievement. Bricolage display · Inter body · JetBrains
-    Mono for every number, exactly like the app's instrument screens.
+    2026-07-29: rebuilt toward the reference look of fitbod.me — flatter dark
+    navy (not the old near-black "Ink Instrument" ramp), one accent color used
+    sparingly (kept Tempo's own #4E8BFF blue rather than Fitbod's coral, so the
+    site still matches the actual app), no ambient gradient glows, no floating
+    status pill, and no built HTML/CSS "simulations" of app screens — every
+    phone frame is an honest blank slot for a real screenshot. Bricolage
+    Grotesque display (now uppercase/tight on hero-scale type) · Inter body ·
+    JetBrains Mono for every number, unchanged from before.
     ══════════════════════════════════════════════════════════════════════════
   -->
 
@@ -55,12 +59,12 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    /* Ink surface ramp — mirrors the app */
-    --bg:        #0B0C0F;
-    --surface:   #0F1014;
-    --card:      #16181E;
-    --card-2:    #1C1F26;
-    --raised:    #23272F;
+    /* Navy surface ramp — flatter and bluer than the old pure-black ink */
+    --bg:        #15161F;
+    --surface:   #191B25;
+    --card:      #1F212C;
+    --card-2:    #262837;
+    --raised:    #2E3140;
 
     --line:      rgba(255,255,255,0.075);
     --line-2:    rgba(255,255,255,0.14);
@@ -70,7 +74,7 @@
     --text-2:    #AEB4C0;
     --text-3:    #767C88;
 
-    /* Colour law: blue = the plan · ember = now · gold = earned · green = done */
+    /* One accent color, used sparingly — matches the app's actual blue */
     --blue:        #4E8BFF;
     --blue-bright: #7CACFF;
     --blue-deep:   #1E4FD0;
@@ -79,11 +83,6 @@
     --ember-soft:  rgba(255,106,69,0.14);
     --gold:        #D9A13B;
     --green:       #22C55E;
-
-    /* Calendar event accents — same hexes the app uses on its timeline */
-    --cal-work:     #EA4335;
-    --cal-personal: #A855F7;
-    --cal-school:   #F59E0B;
 
     --maxw: 1180px;
     --r-sm: 10px;
@@ -96,7 +95,6 @@
 
     --shadow:      0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
     --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px rgba(0,0,0,0.5);
-    --glow:        0 0 0 1px rgba(78,139,255,0.28), 0 12px 40px rgba(78,139,255,0.22);
 
     --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
     --font-body:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -233,25 +231,6 @@
     padding: 2px 7px; border-radius: 999px; border: 2px solid var(--bg);
   }
 
-  .pill {
-    display: inline-flex; align-items: center; gap: 9px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
-    color: var(--text-2); border-radius: 999px;
-    padding: 7px 15px; font-size: 12.5px; font-weight: 600;
-  }
-  .pill .dot {
-    position: relative; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green); flex-shrink: 0;
-  }
-  .pill .dot::after {
-    content: ''; position: absolute; inset: 0; border-radius: 50%;
-    background: var(--green); animation: ping 2.4s var(--ease) infinite;
-  }
-  @keyframes ping {
-    0% { transform: scale(1); opacity: 0.6; }
-    70%, 100% { transform: scale(3.6); opacity: 0; }
-  }
-
   .tag {
     display: inline-flex; align-items: center; gap: 6px;
     font-family: var(--font-mono); font-size: 10px; font-weight: 700;
@@ -310,16 +289,11 @@
 
   /* ───────────────────────── 6. Hero ───────────────────────── */
   .hero { padding: 152px 0 clamp(64px, 8vw, 104px); overflow: hidden; }
-  .hero::before {
-    content: ''; position: absolute; top: -320px; left: 50%; transform: translateX(-50%);
-    width: 1100px; height: 800px; pointer-events: none; z-index: -1;
-    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(78,139,255,0.20), transparent 70%);
-  }
   .hero-grid {
     display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
     gap: clamp(32px, 5vw, 64px); align-items: center;
   }
-  .hero h1 { margin: 24px 0 22px; }
+  .hero h1 { margin: 22px 0 22px; text-transform: uppercase; }
   .hero h1 .line2 { display: block; }
   .hero .lead { max-width: 540px; }
   .hero .stores { margin: 30px 0 18px; }
@@ -330,151 +304,9 @@
   .hero-micro span { display: inline-flex; align-items: center; gap: 7px; }
   .hero-micro svg { color: var(--green); flex-shrink: 0; }
 
-  /* ── The hero instrument: a real day timeline that re-plans itself ── */
-  .timeline-card {
-    background: linear-gradient(180deg, var(--card) 0%, var(--surface) 100%);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-xl);
-    padding: 20px 20px 22px;
-    box-shadow: var(--shadow-lift);
-    position: relative;
-  }
-  .timeline-card::before {
-    content: ''; position: absolute; inset: 0; border-radius: var(--r-xl);
-    padding: 1px; pointer-events: none;
-    background: linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude;
-  }
-  .tl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .tl-day { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-  .tl-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-  .tl-live {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
-  }
-  .tl-live i {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--ember);
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.28; } }
-
-  .tl-body {
-    position: relative;
-    --hpx: 50px;          /* pixels per hour */
-    --t0: 8;              /* timeline starts at 08:00 */
-    height: calc(11.5 * var(--hpx));
-    padding-left: 52px;
-  }
-  .tl-hours { position: absolute; inset: 0; }
-  .tl-hour {
-    position: absolute; left: 0; right: 0;
-    top: calc((var(--h) - var(--t0)) * var(--hpx));
-    border-top: 1px solid var(--line);
-    font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
-    padding-left: 2px; line-height: 1;
-  }
-  .tl-hour span { position: relative; top: -5px; background: transparent; }
-
-  .ev, .slot {
-    position: absolute; left: 52px; right: 0;
-    top: calc((var(--s) - var(--t0)) * var(--hpx));
-    height: calc(var(--e) * var(--hpx) - 4px);
-    border-radius: 9px;
-    padding: 5px 10px;
-    font-size: 11.5px; font-weight: 600; line-height: 1.3;
-    overflow: hidden;
-    transition: top 0.7s var(--ease), height 0.5s var(--ease), opacity 0.45s var(--ease), transform 0.6s var(--spring);
-  }
-  .ev {
-    background: rgba(255,255,255,0.045);
-    border-left: 3px solid var(--c, var(--text-3));
-    color: var(--text-2);
-  }
-  .ev .ev-t { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; color: var(--text-3); letter-spacing: 0.06em; line-height: 1.35; }
-  .ev.work     { --c: var(--cal-work); }
-  .ev.personal { --c: var(--cal-personal); }
-  .ev.school   { --c: var(--cal-school); }
-
-  /* the conflict event that lands mid-animation */
-  .ev.incoming { opacity: 0; transform: translateX(14px); }
-  .tl-body[data-state="2"] .ev.incoming,
-  .tl-body[data-state="3"] .ev.incoming { opacity: 1; transform: none; }
-
-  /* the free-gap outline */
-  .gap {
-    position: absolute; left: 52px; right: 0;
-    top: calc((var(--s) - var(--t0)) * var(--hpx));
-    height: calc(var(--e) * var(--hpx) - 4px);
-    border: 1.5px dashed rgba(78,139,255,0.55);
-    border-radius: 9px;
-    display: flex; align-items: center; gap: 8px; padding: 0 10px;
-    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue-bright);
-    background: rgba(78,139,255,0.05);
-    opacity: 0; transition: opacity 0.4s var(--ease);
-  }
-  .tl-body[data-state="0"] .gap { opacity: 1; }
-
-  /* The Tempo session block — the thing that moves.
-     --s/--e live here rather than inline: an inline custom property would win
-     over the [data-state="3"] rule below and the session would never move. */
-  .slot {
-    --s: 13; --e: 0.75;
-    background: linear-gradient(150deg, #2B5FD6, #4E8BFF);
-    color: #fff; border: 1px solid rgba(255,255,255,0.22);
-    box-shadow: var(--glow);
-    display: flex; flex-direction: column; justify-content: center; gap: 2px;
-    opacity: 0; transform: scale(0.96);
-    z-index: 3;
-  }
-  .tl-body[data-state="0"] .slot { opacity: 0; }
-  .tl-body[data-state="1"] .slot,
-  .tl-body[data-state="2"] .slot,
-  .tl-body[data-state="3"] .slot { opacity: 1; transform: none; }
-  .tl-body[data-state="3"] .slot { --s: 16.75; }
-  .slot-top {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85;
-  }
-  .slot-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; }
-  .slot-meta { font-family: var(--font-mono); font-size: 10px; opacity: 0.8; }
-  .tl-body[data-state="2"] .slot { animation: nudge 0.5s var(--ease); }
-  @keyframes nudge {
-    0%, 100% { box-shadow: var(--glow); }
-    40% { box-shadow: 0 0 0 2px rgba(255,106,69,0.75), 0 12px 40px rgba(255,106,69,0.35); }
-  }
-
-  /* "now" line */
-  .now-line {
-    position: absolute; left: 40px; right: 0;
-    top: calc((12.67 - var(--t0)) * var(--hpx));
-    height: 1px; background: var(--ember); z-index: 4; pointer-events: none;
-  }
-  .now-line::before {
-    content: ''; position: absolute; left: 0; top: -3px;
-    width: 7px; height: 7px; border-radius: 50%; background: var(--ember);
-  }
-
-  .tl-foot {
-    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
-    display: flex; align-items: center; gap: 10px; min-height: 44px;
-  }
-  .tl-msg { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-2); }
-  .tl-msg-ic {
-    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
-    display: grid; place-items: center;
-    background: var(--blue-soft); color: var(--blue-bright);
-  }
-  .tl-msg[hidden] { display: none; }
-  .tl-msg.is-ember .tl-msg-ic { background: var(--ember-soft); color: var(--ember); }
-
   /* ───────────────────────── 8. Statement / compare ───────────────────────── */
   .statement { text-align: center; }
   .statement h2 { max-width: 900px; margin: 18px auto 0; }
-  .statement h2 em { font-style: normal; color: var(--ember); }
 
   .compare-2 {
     display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
@@ -514,7 +346,7 @@
   }
   .flist b { color: var(--text); font-weight: 600; }
 
-  /* Phone */
+  /* Phone frame — an empty slot for a real screenshot, not a built mockup */
   .device-wrap { display: flex; justify-content: center; perspective: 1400px; }
   .device {
     width: 292px; flex-shrink: 0;
@@ -523,113 +355,23 @@
     box-shadow: var(--shadow-lift), 0 0 0 1px rgba(255,255,255,0.09);
   }
   .device-screen {
-    background: #0F1014; border-radius: 34px; overflow: hidden;
+    background: var(--surface); border-radius: 34px; overflow: hidden;
     position: relative; height: 596px;
-    display: flex; flex-direction: column;
   }
   .notch {
     position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
     width: 82px; height: 22px; background: #05060A; border-radius: 999px; z-index: 6;
   }
-  .scr-top { height: 44px; flex-shrink: 0; }
-  .scr {
-    flex: 1; overflow: hidden; padding: 0 16px 12px;
-    display: flex; flex-direction: column; gap: 11px;
+  .shot-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: var(--text-3); text-align: center; padding: 30px;
   }
-  .scr-hd { display: flex; align-items: flex-start; justify-content: space-between; padding: 2px 0 6px; }
-  .scr-eyebrow {
-    font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
-    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+  .shot-placeholder svg { opacity: 0.45; }
+  .shot-placeholder span {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
   }
-  .scr-title { font-family: var(--font-display); font-size: 19px; font-weight: 800; letter-spacing: -0.03em; margin-top: 2px; }
-  .scr-av { width: 28px; height: 28px; border-radius: 50%; background: var(--raised); display: grid; place-items: center; color: var(--text-2); }
-  .card-s {
-    background: var(--card-2); border: 1px solid var(--line);
-    border-radius: 14px; padding: 12px;
-  }
-  .card-s.hero-s {
-    background: linear-gradient(150deg, rgba(78,139,255,0.18), var(--card-2) 65%);
-    border-color: rgba(78,139,255,0.34);
-  }
-  .s-lbl { font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
-  .s-h { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.02em; margin-top: 3px; }
-  .s-p { font-size: 10.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
-  .s-row { display: flex; align-items: center; gap: 8px; }
-  .mockup-chip {
-    font: 600 11px/1 var(--font-body);
-    padding: 7px 10px; border-radius: 9px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
-    color: var(--text-2);
-  }
-  .s-btn {
-    margin-top: 10px; background: var(--blue); color: #fff;
-    border-radius: 9px; padding: 8px; text-align: center;
-    font-size: 11px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-  }
-  .daystrip { display: flex; gap: 5px; }
-  .dcell {
-    flex: 1; text-align: center; padding: 7px 0 6px;
-    border-radius: 10px; background: rgba(255,255,255,0.035);
-    border: 1px solid transparent;
-  }
-  .dcell.on { background: var(--blue-soft); border-color: rgba(78,139,255,0.5); }
-  .dcell .dl { font-family: var(--font-mono); font-size: 7.5px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-3); }
-  .dcell.on .dl { color: var(--blue-bright); }
-  .dcell .dn { font-family: var(--font-mono); font-size: 12px; font-weight: 700; margin-top: 2px; }
-  .dcell .dd { width: 4px; height: 4px; border-radius: 50%; background: var(--blue); margin: 3px auto 0; }
-
-  /* set table (session screen) */
-  .settable { margin-top: 9px; }
-  .setrow {
-    display: grid; grid-template-columns: 22px 1fr 42px 38px 22px;
-    align-items: center; gap: 6px; padding: 7px 0;
-    border-top: 1px solid var(--line);
-    font-family: var(--font-mono); font-size: 10.5px; color: var(--text-2);
-  }
-  .setrow.hd { color: var(--text-3); font-size: 8px; letter-spacing: 0.12em; border-top: 0; }
-  .setrow.done { color: var(--text); }
-  .setrow.active { background: rgba(78,139,255,0.09); border-radius: 8px; padding-inline: 6px; margin-inline: -6px; }
-  .ck { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; }
-  .ck.on { background: var(--green); color: #05230F; }
-  .ck.off { border: 1.5px solid var(--line-3); }
-  .fake-in { height: 17px; border-radius: 5px; background: rgba(255,255,255,0.09); }
-
-  /* progress screen bits */
-  .ring-wrap { display: grid; place-items: center; padding: 4px 0 2px; }
-  .ring { position: relative; width: 116px; height: 116px; }
-  .ring svg { transform: rotate(-90deg); }
-  .ring-c { fill: none; stroke-width: 9; stroke-linecap: round; }
-  .ring-bg { stroke: rgba(255,255,255,0.08); }
-  .ring-fg { stroke: var(--blue); stroke-dasharray: 314; stroke-dashoffset: 69; }
-  .ring-mid {
-    position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
-  }
-  .ring-pct { font-family: var(--font-mono); font-size: 25px; font-weight: 700; }
-  .ring-lbl { font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.14em; color: var(--text-3); margin-top: 1px; }
-  .bars { display: flex; align-items: stretch; gap: 7px; height: 66px; margin-top: 10px; }
-  /* Each column is full-height so the bar's % height has something to resolve
-     against — a percentage inside an auto-height parent collapses to nothing. */
-  .barcol { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-  .bar { width: 100%; background: rgba(78,139,255,0.32); border-radius: 4px 4px 0 0; }
-  .bar.cur { background: var(--blue); }
-  .barlbl { font-family: var(--font-mono); font-size: 7.5px; color: var(--text-3); text-align: center; margin-top: 4px; }
-  .stat-big { font-family: var(--font-mono); font-size: 22px; font-weight: 700; }
-  .stat-big small { font-size: 11px; color: var(--text-3); font-weight: 500; }
-
-  /* muscle map bits */
-  .bodymap { display: flex; justify-content: center; gap: 10px; padding: 6px 0; }
-  .bmcol { display: flex; flex-direction: column; gap: 5px; align-items: center; }
-  .bseg { width: 46px; border-radius: 6px; }
-
-  .tabbar {
-    display: flex; justify-content: space-around; align-items: center;
-    padding: 9px 6px 14px; border-top: 1px solid var(--line);
-    background: rgba(15,16,20,0.9); flex-shrink: 0;
-  }
-  .tb { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-3); }
-  .tb.on { color: var(--blue); }
-  .tb span { font-size: 8px; font-weight: 600; }
 
   /* ───────────────────────── 11. Everything-else index ───────────────────────── */
   .more-list { border-top: 1px solid var(--line); }
@@ -747,13 +489,8 @@
 
   /* ───────────────────────── 17. Final CTA + footer ───────────────────────── */
   .cta {
-    text-align: center; position: relative; overflow: hidden;
+    text-align: center;
     border-top: 1px solid var(--line);
-  }
-  .cta::before {
-    content: ''; position: absolute; bottom: -420px; left: 50%; transform: translateX(-50%);
-    width: 1000px; height: 700px; z-index: -1;
-    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(78,139,255,0.22), transparent 70%);
   }
   .cta .stores { justify-content: center; margin-top: 32px; }
 
@@ -796,7 +533,6 @@
     .hero-grid { grid-template-columns: 1fr; gap: 48px; }
     .hero { padding-top: 128px; }
     .hero .lead { max-width: none; }
-    .timeline-card { max-width: 520px; }
   }
   @media (max-width: 900px) {
     .nav-links { display: none; }
@@ -861,15 +597,13 @@
 <header class="hero" id="top">
   <div class="wrap hero-grid">
     <div>
-      <span class="pill"><span class="dot"></span> Now on iPhone &amp; Android</span>
       <h1 class="h-xl">
-        Your week just changed.
-        <span class="line2 grad">Your training already adjusted.</span>
+        Less scheduling.
+        <span class="line2 grad">More training.</span>
       </h1>
       <p class="lead">
-        Tempo reads your calendar, drops real workouts into the gaps you actually have, and
-        quietly re-plans the moment a meeting lands on one. It&rsquo;s the training app that
-        never asks you to be less busy.
+        Tempo builds your training plan around your actual calendar, then moves it the moment
+        something changes. No missed sessions, no starting over.
       </p>
 
       <div class="stores">
@@ -895,59 +629,16 @@
       </div>
     </div>
 
-    <!-- The hero instrument: a live day that re-plans itself -->
+    <!-- Real device screenshot goes here — placeholder until assets are ready -->
     <div class="hero-visual" data-sr style="--d:150ms">
-      <div class="timeline-card">
-        <div class="tl-head">
-          <div>
-            <div class="tl-day">Tuesday, 16 June</div>
-            <div class="tl-sub">3 events &middot; 1 session scheduled</div>
-          </div>
-          <div class="tl-live"><i></i> Live</div>
-        </div>
-
-        <div class="tl-body" id="tl" data-state="0" aria-hidden="true">
-          <div class="tl-hours">
-            <div class="tl-hour" style="--h:8"><span>8 AM</span></div>
-            <div class="tl-hour" style="--h:10"><span>10 AM</span></div>
-            <div class="tl-hour" style="--h:12"><span>12 PM</span></div>
-            <div class="tl-hour" style="--h:14"><span>2 PM</span></div>
-            <div class="tl-hour" style="--h:16"><span>4 PM</span></div>
-            <div class="tl-hour" style="--h:18"><span>6 PM</span></div>
-          </div>
-
-          <div class="ev work"     style="--s:8.5;  --e:0.75"><div class="ev-t">8:30</div>Standup</div>
-          <div class="ev work"     style="--s:9.5;  --e:1.5"><div class="ev-t">9:30</div>Design review</div>
-          <div class="ev personal" style="--s:11.5; --e:1"><div class="ev-t">11:30</div>1:1 with Sam</div>
-          <div class="ev work incoming" style="--s:13; --e:1"><div class="ev-t">1:00</div>Client review</div>
-          <div class="ev school"   style="--s:18.5; --e:1"><div class="ev-t">6:30</div>Dinner with Alex</div>
-
-          <div class="gap" style="--s:13; --e:0.75">45 min free</div>
-
-          <div class="slot">
-            <div class="slot-top"><span>Tempo &middot; scheduled</span><span>45 min</span></div>
-            <div class="slot-title">Upper Body Push</div>
-          </div>
-
-          <div class="now-line"></div>
-        </div>
-
-        <div class="tl-foot">
-          <div class="tl-msg" id="tl-msg-0">
-            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
-            Found a 45-minute gap between your meetings.
-          </div>
-          <div class="tl-msg" id="tl-msg-1" hidden>
-            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
-            Upper Body Push scheduled for 1:00 PM.
-          </div>
-          <div class="tl-msg is-ember" id="tl-msg-2" hidden>
-            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
-            Client review just landed on your session.
-          </div>
-          <div class="tl-msg" id="tl-msg-3" hidden>
-            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
-            Moved to 4:45 PM. Nothing else changed.
+      <div class="device-wrap">
+        <div class="device">
+          <div class="device-screen">
+            <div class="notch"></div>
+            <div class="shot-placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+              <span>App screenshot</span>
+            </div>
           </div>
         </div>
       </div>
@@ -960,10 +651,9 @@
   <div class="wrap">
     <div class="sec-head center" data-sr>
       <span class="eyebrow">The problem</span>
-      <h2 class="h-lg">Nobody quits because the workout was too hard.<br>They quit because <em>Tuesday happened.</em></h2>
-      <p class="lead">A fixed weekly plan is a promise you make to an app on a calm Sunday and break on a chaotic
-        Wednesday. Tempo starts from the opposite assumption: your week is the constraint, and the plan is the
-        thing that should bend.</p>
+      <h2 class="h-lg">Missed workouts usually aren&rsquo;t a willpower problem.<br>They&rsquo;re a scheduling problem.</h2>
+      <p class="lead">A fixed weekly plan assumes every week looks the same. Tempo assumes the opposite:
+        your calendar is the constraint, and the plan works around it &mdash; not the other way around.</p>
     </div>
 
     <div class="compare-2">
@@ -1003,7 +693,7 @@
     <div class="frow">
       <div class="fr-copy" data-sr>
         <span class="tag tag-blue">The schedule</span>
-        <h3>It books training like a meeting &mdash; then defends it.</h3>
+        <h3>Training gets a real time slot &mdash; and Tempo protects it.</h3>
         <p class="lead">Connect Google or Apple Calendar once. Tempo finds your genuine free windows,
           places each session where it fits your recovery and your day, and writes it back to your
           calendar so the rest of your life can see it.</p>
@@ -1016,48 +706,10 @@
       </div>
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
-          <div class="notch"></div><div class="scr-top"></div>
-          <div class="scr">
-            <div class="scr-hd">
-              <div><div class="scr-eyebrow">Good morning</div><div class="scr-title">Today</div></div>
-              <div class="scr-av"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            </div>
-            <div class="daystrip">
-              <div class="dcell"><div class="dl">Mon</div><div class="dn">15</div></div>
-              <div class="dcell on"><div class="dl">Tue</div><div class="dn">16</div><div class="dd"></div></div>
-              <div class="dcell"><div class="dl">Wed</div><div class="dn">17</div></div>
-              <div class="dcell"><div class="dl">Thu</div><div class="dn">18</div><div class="dd"></div></div>
-              <div class="dcell"><div class="dl">Fri</div><div class="dn">19</div></div>
-            </div>
-            <div class="card-s hero-s">
-              <div class="s-row" style="justify-content:space-between">
-                <span class="tag tag-blue" style="font-size:8px;padding:3px 7px">Scheduled</span>
-                <span class="s-lbl">1:00 PM &middot; 45 min</span>
-              </div>
-              <div class="s-h" style="font-size:17px;margin-top:8px">Upper Body Push</div>
-              <div class="s-p">6 exercises &middot; fits the gap before your 2 PM.</div>
-              <div class="s-btn"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start session</div>
-            </div>
-            <div class="card-s">
-              <div class="s-row">
-                <span style="width:26px;height:26px;border-radius:8px;background:var(--ember-soft);color:var(--ember);display:grid;place-items:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
-                <div style="flex:1;min-width:0">
-                  <div class="s-lbl" style="color:var(--ember)">Quick workout</div>
-                  <div class="s-h" style="font-size:12.5px">Only have 20 minutes?</div>
-                </div>
-              </div>
-            </div>
-            <div class="card-s">
-              <div class="s-lbl">Later today</div>
-              <div class="s-p" style="margin-top:6px">6:30 PM &mdash; Dinner with Alex</div>
-              <div class="s-p" style="opacity:.6">Tempo left this alone.</div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span>App screenshot</span>
           </div>
         </div></div>
       </div>
@@ -1080,45 +732,10 @@
       </div>
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
-          <div class="notch"></div><div class="scr-top"></div>
-          <div class="scr">
-            <div class="scr-hd">
-              <div><div class="scr-eyebrow">Active session</div><div class="scr-title">Upper Push</div></div>
-              <div class="num" style="font-size:18px;color:var(--blue)">18:42</div>
-            </div>
-            <div style="height:4px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden">
-              <div style="width:48%;height:100%;background:var(--blue);border-radius:3px"></div>
-            </div>
-            <div class="card-s">
-              <div class="s-row" style="justify-content:space-between">
-                <div>
-                  <div class="s-h" style="font-size:14px">Barbell Bench Press</div>
-                  <div class="s-lbl" style="margin-top:3px">Chest &middot; Triceps</div>
-                </div>
-                <div class="num" style="font-size:12px;color:var(--text-3)">2/4</div>
-              </div>
-              <div style="margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--blue-soft);border:1px solid rgba(78,139,255,0.28)">
-                <div class="s-lbl" style="color:var(--blue-bright)">Today&rsquo;s target</div>
-                <div class="num" style="font-size:13px;margin-top:3px">135 lb &middot; 8&ndash;10 &times; 4</div>
-              </div>
-              <div class="settable">
-                <div class="setrow hd"><span>Set</span><span>Prev</span><span>lb</span><span>Reps</span><span></span></div>
-                <div class="setrow done"><span>1</span><span>130 &times; 10</span><span>135</span><span>10</span><span class="ck on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span></div>
-                <div class="setrow done"><span>2</span><span>130 &times; 9</span><span>135</span><span>9</span><span class="ck on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span></div>
-                <div class="setrow active"><span>3</span><span>130 &times; 8</span><span class="fake-in"></span><span class="fake-in"></span><span class="ck off"></span></div>
-                <div class="setrow"><span>4</span><span>125 &times; 8</span><span>&mdash;</span><span>&mdash;</span><span class="ck off"></span></div>
-              </div>
-            </div>
-            <div class="card-s" style="display:flex;align-items:center;gap:10px">
-              <span style="width:30px;height:30px;border-radius:50%;border:2px solid var(--blue);display:grid;place-items:center" class="num">45</span>
-              <div><div class="s-lbl">Rest timer</div><div class="s-p" style="margin-top:2px">Auto-starts on each logged set</div></div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
-            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span>App screenshot</span>
           </div>
         </div></div>
       </div>
@@ -1141,41 +758,10 @@
       </div>
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
-          <div class="notch"></div><div class="scr-top"></div>
-          <div class="scr">
-            <div class="scr-hd">
-              <div><div class="scr-eyebrow">Your block</div><div class="scr-title">Week 3 of 4</div></div>
-              <span class="tag tag-ember" style="font-size:8px">Recovery</span>
-            </div>
-            <div class="card-s">
-              <div class="s-lbl">Mesocycle</div>
-              <div style="display:flex;gap:6px;margin-top:10px">
-                <div style="flex:1;text-align:center"><div style="height:34px;border-radius:6px;background:rgba(78,139,255,0.35)"></div><div class="barlbl">W1</div></div>
-                <div style="flex:1;text-align:center"><div style="height:44px;border-radius:6px;background:rgba(78,139,255,0.55)"></div><div class="barlbl">W2</div></div>
-                <div style="flex:1;text-align:center"><div style="height:52px;border-radius:6px;background:var(--blue)"></div><div class="barlbl" style="color:var(--blue)">W3</div></div>
-                <div style="flex:1;text-align:center"><div style="height:24px;border-radius:6px;background:rgba(217,161,59,0.5)"></div><div class="barlbl">W4</div></div>
-              </div>
-              <div class="s-p" style="margin-top:10px">Volume climbs for three weeks, then week four deloads by design.</div>
-            </div>
-            <div class="card-s" style="border-color:rgba(255,106,69,0.35);background:linear-gradient(150deg,rgba(255,106,69,0.12),var(--card-2) 60%)">
-              <div class="s-lbl" style="color:var(--ember)">Plan adjusted</div>
-              <div class="s-h" style="font-size:13px;margin-top:4px">Two sessions missed last week</div>
-              <div class="s-p">Loads eased 10% and the next three weeks were re-stamped. Nothing to catch up on.</div>
-            </div>
-            <div class="card-s">
-              <div class="s-lbl">Last feedback</div>
-              <div class="s-row" style="gap:6px;margin-top:8px">
-                <span class="mockup-chip">Too easy</span>
-                <span class="mockup-chip" style="background:var(--blue-soft);border-color:rgba(78,139,255,0.5);color:var(--blue-bright)">Just right</span>
-                <span class="mockup-chip">Too hard</span>
-              </div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
-            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span>App screenshot</span>
           </div>
         </div></div>
       </div>
@@ -1197,45 +783,10 @@
       </div>
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
-          <div class="notch"></div><div class="scr-top"></div>
-          <div class="scr">
-            <div class="scr-hd">
-              <div><div class="scr-eyebrow">Your performance</div><div class="scr-title">Progress</div></div>
-            </div>
-            <div class="card-s">
-              <div class="s-lbl" style="text-align:center">Consistency &mdash; last 30 days</div>
-              <div class="ring-wrap">
-                <div class="ring">
-                  <svg width="116" height="116" viewBox="0 0 116 116">
-                    <circle class="ring-c ring-bg" cx="58" cy="58" r="50"/>
-                    <circle class="ring-c ring-fg" cx="58" cy="58" r="50"/>
-                  </svg>
-                  <div class="ring-mid"><div class="ring-pct">78%</div><div class="ring-lbl">Keep going</div></div>
-                </div>
-              </div>
-            </div>
-            <div class="card-s" style="display:flex;align-items:center;justify-content:space-between">
-              <div><div class="s-lbl">Current streak</div><div class="stat-big" style="color:var(--gold);margin-top:2px">12 <small>days</small></div></div>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.5.5-2.5.5-2.5S6 11 6 13a6 6 0 0 0 12 0c0-5-6-11-6-11z"/></svg>
-            </div>
-            <div class="card-s">
-              <div class="s-row" style="justify-content:space-between">
-                <div><div class="s-lbl">Volume lifted</div><div class="stat-big" style="margin-top:2px">24.8k <small>lb</small></div></div>
-                <span class="tag tag-blue" style="font-size:8px">This month</span>
-              </div>
-              <div class="bars">
-                <div class="barcol"><div class="bar" style="height:52%"></div><div class="barlbl">W1</div></div>
-                <div class="barcol"><div class="bar" style="height:66%"></div><div class="barlbl">W2</div></div>
-                <div class="barcol"><div class="bar" style="height:58%"></div><div class="barlbl">W3</div></div>
-                <div class="barcol"><div class="bar cur" style="height:84%"></div><div class="barlbl" style="color:var(--blue)">W4</div></div>
-              </div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
-            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
-            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span>App screenshot</span>
           </div>
         </div></div>
       </div>
@@ -1669,43 +1220,6 @@
     Array.prototype.forEach.call(srEls, function (el) { io.observe(el); });
   } else {
     Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
-  }
-
-  /* ── Hero timeline story ─────────────────────────────────────────
-     0: a free gap is found → 1: the session is placed →
-     2: a meeting lands on it → 3: the session moves. Then it loops.
-     Reduced motion: jump straight to the resolved state, no loop.   */
-  var tl = document.getElementById('tl');
-  if (tl) {
-    var msgs = [0, 1, 2, 3].map(function (i) { return document.getElementById('tl-msg-' + i); });
-    var STEPS = [1900, 2600, 2000, 3200];
-
-    function setState(i) {
-      tl.setAttribute('data-state', String(i));
-      msgs.forEach(function (m, j) { if (m) m.hidden = j !== i; });
-    }
-
-    if (reduced) {
-      setState(3);
-    } else {
-      var step = 0, timer = null, running = false;
-      function tick() {
-        setState(step);
-        timer = setTimeout(function () { step = (step + 1) % 4; tick(); }, STEPS[step]);
-      }
-      // Only run while it's on screen — no background timers eating battery.
-      if ('IntersectionObserver' in window) {
-        new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) {
-            if (e.isIntersecting && !running) { running = true; tick(); }
-            else if (!e.isIntersecting && running) { running = false; clearTimeout(timer); }
-          });
-        }, { threshold: 0.25 }).observe(tl);
-      } else { tick(); }
-      document.addEventListener('visibilitychange', function () {
-        if (document.hidden) { clearTimeout(timer); running = false; }
-      });
-    }
   }
 
   /* ── FAQ accordion ───────────────────────────────────────────── */

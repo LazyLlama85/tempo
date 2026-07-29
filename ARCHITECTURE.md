@@ -2903,38 +2903,45 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
-### Post-launch marketing site — `web/launch.html` (2026-07-28, simplified 2026-07-29)
+### Post-launch marketing site — `web/launch.html` (2026-07-28, simplified 2026-07-29, restyled 2026-07-29)
 `web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
 CTA is an email capture, and there is no pricing, no store links, and no comparison against the
 category. None of that survives the App Store listing going live, so the launch-day site is a separate
 file rather than a rewrite — **`index.html` is untouched**; swap the filenames when the stores are live.
 
-- **Design language = the app's, not the old site's.** `index.html` is a cream/paper page; `launch.html`
-  uses the app's own Ink tokens (`mobile/src/constants/theme.ts`): surface ramp `#0B0C0F → #23272F`,
-  primary `#4E8BFF` (= the plan), ember `#FF6A45` (= now/urgent), gold `#D9A13B` (= earned), and the
-  same three faces — Bricolage Grotesque display / Inter body / **JetBrains Mono for every number**.
-  Someone who downloads from this page lands in a product that looks like the page they came from.
-- **Hero instrument.** A real day-timeline (hour rules, calendar-coloured events, a "now" line) that
-  animates a four-state story on a loop: a free gap is found → the session is placed → a meeting lands
-  on it → the session moves. It demonstrates the wedge instead of describing it — this is the site's
-  single value-prop demonstration (calendar-aware scheduling), not one of several. Pauses off-screen
-  and on `visibilitychange`; `prefers-reduced-motion` jumps straight to the resolved state and never loops.
-- **2026-07-29 simplification pass — three sections removed, founder's call.** The page had accumulated
-  the standard AI-landing-page shape (scrolling feature ticker, an interactive configurator widget, a
-  dotted four-step onboarding timeline) that mostly re-stated what the hero already demonstrates live.
-  Removed entirely (HTML + CSS + JS, no dead code left behind): the auto-scrolling capability marquee
-  right below the hero; **`#plan-it`**, the interactive goal/days/lifestyle/session-length week planner
-  (was the one genuinely novel widget on the page — engine-faithful, mirrored `lib/generatePlan.ts`'s
-  split templates and `chooseDaySlots()`'s stride spread — but the founder judged it unnecessary next to
-  the hero's own live demo); and the "Your first four weeks" dotted-timeline section. Nav, drawer, and
-  footer links to `#plan-it` removed with it. The page now reads Hero → problem/compare → four real
-  feature rows (phone-mockup screenshots) → supplementary-features list → comparison table → privacy →
-  pricing → FAQ → CTA — fewer, denser sections instead of many thin ones.
+- **2026-07-29, second pass: rebuilt toward the reference look of fitbod.me.** The founder liked
+  fitbod.me's look/feel specifically and asked for it: flatter dark navy (`--bg:#15161F` up through
+  `--raised:#2E3140`) replacing the old near-black "Ink Instrument" ramp (`#0B0C0F`); one accent color
+  used sparingly — **kept Tempo's own `#4E8BFF` blue rather than switching to Fitbod's coral**, a
+  deliberate call so the site still matches what the actual app looks like, not a literal clone of the
+  reference; no ambient radial-gradient glows behind the hero or final CTA; no floating availability
+  pill above the hero headline; hero headline now bold/uppercase (`text-transform:uppercase` on
+  `.hero h1`, still Bricolage Grotesque, no new font added) in Fitbod's short two-line benefit-statement
+  rhythm ("LESS SCHEDULING. MORE TRAINING." replacing the more whimsical "Your week just changed...").
+  Copy pass elsewhere for the same reason: the "Nobody quits... they quit because Tuesday happened"
+  headline and "a promise you make to an app on a calm Sunday" lead became direct statements
+  ("Missed workouts usually aren't a willpower problem. They're a scheduling problem.").
+- **Every phone-mockup screen is now an honest blank placeholder, not built fake UI.** The hero's
+  animated live day-timeline (the four-state "gap found → session placed → conflict → moved" story,
+  HTML+CSS+JS) and all four feature-row phone screens (fabricated exercise names/weights/stats) were
+  removed entirely — the founder's own read was that invented data presented as screenshots is
+  dishonest in exactly the way the ratings/testimonial blocks were already disciplined about. Replaced
+  with a shared `.shot-placeholder` component: the real device-frame chrome (`.device`/`.device-screen`/
+  `.notch`) stays, filled with a calendar-icon glyph + "App screenshot" label. **Fill these in with real
+  device screenshots before publishing** — same discipline as the store badges and the ratings block.
 - **"Everything else" section is a numbered editorial list, not a card grid.** The six supplementary
   features (Quick Workouts, splits, muscle intelligence, Travel Mode, friends & groups, PR forecast)
   render as a divided list with a mono index number (01–06, blue for Pro rows) instead of the identical
   rounded-card 3-column grid every AI-generated landing page defaults to — same content, no
   card-repetition or 3-col-grid template feel.
+- **2026-07-29, first pass: three template-feeling sections removed.** Also gone, same session, earlier
+  pass: the auto-scrolling capability marquee right below the hero; **`#plan-it`**, the interactive
+  goal/days/lifestyle/session-length week planner (engine-faithful — mirrored `lib/generatePlan.ts`'s
+  split templates and `chooseDaySlots()`'s stride spread — but the founder judged it unnecessary next to
+  the hero's own demo); and the "Your first four weeks" dotted-timeline onboarding section. Nav, drawer,
+  and footer links to `#plan-it` removed with it. The page now reads Hero → problem/compare → four
+  feature rows (screenshot placeholders) → supplementary-features list → comparison table → privacy →
+  pricing → FAQ → CTA.
 - **Claims are sourced, not invented.** Free-tier limits and the Pro list come from `lib/proFeatures.ts`
   (`PAYWALL_POINTS`) and `paywall.tsx`'s `COMPARE`, so the site cannot advertise something the app
   doesn't ship — the same App-Store-rejection rule that governs the in-app paywall. Pricing is
@@ -2950,10 +2957,11 @@ file rather than a rewrite — **`index.html` is untouched**; swap the filenames
   hand-drawn approximations (the file stays dependency-free); **swap for Apple's and Google's official
   artwork before launch**, both stores require their own assets.
 - **Same constraints as the rest of `web/`:** one self-contained file, no bundler, no framework, served
-  as a static asset by GitHub Pages. Verified in-browser at 1920px, 390px, and 386px (via iframe):
-  no horizontal page scroll (the wide comparison table scrolls inside its own `overflow-x:auto`
-  container), mobile drawer, FAQ accordion, and the "Everything else" list's responsive collapse all
-  working, zero console errors.
+  as a static asset by GitHub Pages. Verified in-browser after every removal: no horizontal page scroll
+  (the wide comparison table scrolls inside its own `overflow-x:auto` container), mobile drawer, FAQ
+  accordion, and every remaining `data-sr` scroll-reveal element all working, zero console errors on
+  load. `--cal-work`/`--cal-personal`/`--cal-school`, `--glow`, and the `.pill`/`ping`-keyframe CSS were
+  removed as dead code along with the HTML that used them.
 
 ---
 
