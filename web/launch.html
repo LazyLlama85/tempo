@@ -1,0 +1,2218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tempo — Training that moves when your week does</title>
+  <meta name="description" content="Tempo reads your calendar, drops real workouts into the gaps you actually have, and re-plans the moment a meeting lands on one. Free on iPhone and Android.">
+  <meta name="theme-color" content="#0B0C0F">
+
+  <meta property="og:title" content="Tempo — Training that moves when your week does">
+  <meta property="og:description" content="Tempo reads your calendar, builds training around the time you actually have, and quietly re-plans when life gets in the way. Free on iPhone and Android.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://fittempo.app/">
+  <meta property="og:image" content="https://fittempo.app/tempo-logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="tempo-logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="tempo-logo.png">
+  <link rel="canonical" href="https://fittempo.app/">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!--
+    ══════════════════════════════════════════════════════════════════════════
+    TEMPO — POST-LAUNCH MARKETING SITE  (v2, "Ink Instrument")
+
+    This is the launch-day version of the site, meant to replace the waitlist
+    page (index.html) once Tempo is live on the App Store and Google Play.
+    index.html is untouched; swap the filenames when you're ready to go live.
+
+    ⚠️ BEFORE YOU PUBLISH — three things to fill in:
+      1. STORE.ios / STORE.android at the top of the <script> block below.
+         Until they're real URLs, every download button falls back to the
+         "notify me" form instead of shipping a dead link.
+      2. The ratings strip (search "RATINGS BLOCK") is commented out on
+         purpose. Un-comment it only when you have real App Store / Play
+         numbers — do not ship invented ones.
+      3. The testimonial rail (search "TESTIMONIAL BLOCK") is likewise
+         commented out and waiting for real quotes from real users.
+
+      Also: the store badges below are hand-drawn approximations so this file
+      stays dependency-free. Before launch, swap them for Apple's and Google's
+      official badge assets — both stores require their own artwork.
+
+    Design system matches the app itself (mobile/src/constants/theme.ts):
+    Ink surfaces, #4E8BFF primary = "the plan", #FF6A45 ember = "now/urgent",
+    #D9A13B gold = achievement. Bricolage display · Inter body · JetBrains
+    Mono for every number, exactly like the app's instrument screens.
+    ══════════════════════════════════════════════════════════════════════════
+  -->
+
+  <style>
+  /* ───────────────────────── 1. Tokens ───────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Ink surface ramp — mirrors the app */
+    --bg:        #0B0C0F;
+    --surface:   #0F1014;
+    --card:      #16181E;
+    --card-2:    #1C1F26;
+    --raised:    #23272F;
+
+    --line:      rgba(255,255,255,0.075);
+    --line-2:    rgba(255,255,255,0.14);
+    --line-3:    rgba(255,255,255,0.24);
+
+    --text:      #F3F4F7;
+    --text-2:    #AEB4C0;
+    --text-3:    #767C88;
+
+    /* Colour law: blue = the plan · ember = now · gold = earned · green = done */
+    --blue:        #4E8BFF;
+    --blue-bright: #7CACFF;
+    --blue-deep:   #1E4FD0;
+    --blue-soft:   rgba(78,139,255,0.13);
+    --ember:       #FF6A45;
+    --ember-soft:  rgba(255,106,69,0.14);
+    --gold:        #D9A13B;
+    --green:       #22C55E;
+
+    /* Calendar event accents — same hexes the app uses on its timeline */
+    --cal-work:     #EA4335;
+    --cal-personal: #A855F7;
+    --cal-school:   #F59E0B;
+
+    --maxw: 1180px;
+    --r-sm: 10px;
+    --r:    16px;
+    --r-lg: 22px;
+    --r-xl: 30px;
+
+    --ease:   cubic-bezier(0.16, 1, 0.3, 1);
+    --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+    --shadow:      0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
+    --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px rgba(0,0,0,0.5);
+    --glow:        0 0 0 1px rgba(78,139,255,0.28), 0 12px 40px rgba(78,139,255,0.22);
+
+    --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    --font-body:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* ───────────────────────── 2. Base ───────────────────────── */
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; scroll-padding-top: 88px; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  /* Faint hour-rule texture — the calendar DNA, applied to the whole page */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px);
+    background-size: 100% 56px;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 42%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 42%);
+  }
+  body > * { position: relative; z-index: 1; }
+
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--blue); color: #fff; }
+
+  :focus-visible {
+    outline: 2px solid var(--blue-bright);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .skip {
+    position: absolute; left: 12px; top: -60px; z-index: 300;
+    background: var(--blue); color: #fff; padding: 10px 16px;
+    border-radius: 8px; font-weight: 600; font-size: 14px;
+    transition: top 0.2s var(--ease);
+  }
+  .skip:focus { top: 12px; }
+
+  /* ───────────────────────── 3. Type + layout ───────────────────────── */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 780px; margin-left: auto; margin-right: auto; }
+
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+
+  .h-xl { font-size: clamp(38px, 5vw, 64px); }
+  .h-lg { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.06; }
+  .h-md { font-size: clamp(24px, 2.6vw, 34px); line-height: 1.12; }
+
+  .lead   { font-size: clamp(16.5px, 1.5vw, 19px); color: var(--text-2); line-height: 1.62; }
+  .muted  { color: var(--text-2); }
+  .dim    { color: var(--text-3); }
+
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
+    display: inline-flex; align-items: center; gap: 9px;
+  }
+  .eyebrow::before {
+    content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.6;
+  }
+  .num { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .grad {
+    background: linear-gradient(100deg, var(--blue-bright), var(--blue) 45%, #A9C6FF);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  section { padding: clamp(72px, 9vw, 128px) 0; position: relative; }
+  .sec-head { max-width: 720px; margin-bottom: clamp(40px, 5vw, 64px); }
+  .sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+  .sec-head.center .eyebrow::before { display: none; }
+  .sec-head h2 { margin: 16px 0 0; }
+  .sec-head p  { margin-top: 18px; }
+
+  .rule { height: 1px; background: var(--line); border: 0; }
+
+  /* Scroll reveal */
+  [data-sr] {
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.75s var(--ease), transform 0.75s var(--ease);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-sr].in { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    [data-sr] { opacity: 1 !important; transform: none !important; transition: none !important; }
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+  }
+
+  /* ───────────────────────── 4. Buttons + badges ───────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    font: 600 15px/1 var(--font-body);
+    padding: 14px 22px; border-radius: 12px; border: 1px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.18s, border-color 0.18s, transform 0.16s var(--spring), box-shadow 0.22s, color 0.18s;
+  }
+  .btn-primary { background: var(--blue); color: #fff; box-shadow: 0 6px 20px rgba(78,139,255,0.22); }
+  .btn-primary:hover { background: var(--blue-bright); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(78,139,255,0.34); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: rgba(255,255,255,0.045); color: var(--text); border-color: var(--line-2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.09); border-color: var(--line-3); transform: translateY(-2px); }
+  .btn-sm { padding: 10px 16px; font-size: 14px; border-radius: 10px; }
+  .btn-lg { padding: 17px 28px; font-size: 16.5px; border-radius: 14px; }
+
+  /* Store badges — approximations; swap for official artwork before launch */
+  .stores { display: flex; flex-wrap: wrap; gap: 12px; }
+  .store {
+    display: inline-flex; align-items: center; gap: 11px;
+    background: #fff; color: #0B0C0F;
+    padding: 10px 18px 10px 15px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.9);
+    transition: transform 0.18s var(--spring), box-shadow 0.22s, background 0.2s;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  .store:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0,0,0,0.55); }
+  .store svg { flex-shrink: 0; }
+  .store-txt { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+  .store-txt small { font-size: 10.5px; font-weight: 500; opacity: 0.72; letter-spacing: 0.02em; }
+  .store-txt strong { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .store.is-pending { position: relative; }
+  .store.is-pending::after {
+    content: 'soon'; position: absolute; top: -7px; right: -7px;
+    background: var(--ember); color: #fff; font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 2px solid var(--bg);
+  }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
+    color: var(--text-2); border-radius: 999px;
+    padding: 7px 15px; font-size: 12.5px; font-weight: 600;
+  }
+  .pill .dot {
+    position: relative; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); flex-shrink: 0;
+  }
+  .pill .dot::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: var(--green); animation: ping 2.4s var(--ease) infinite;
+  }
+  @keyframes ping {
+    0% { transform: scale(1); opacity: 0.6; }
+    70%, 100% { transform: scale(3.6); opacity: 0; }
+  }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 6px;
+  }
+  .tag-blue  { background: var(--blue-soft);  color: var(--blue-bright); }
+  .tag-ember { background: var(--ember-soft); color: var(--ember); }
+  .tag-gold  { background: rgba(217,161,59,0.14); color: var(--gold); }
+
+  /* ───────────────────────── 5. Nav ───────────────────────── */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 72px;
+    display: flex; align-items: center;
+    border-bottom: 1px solid transparent;
+    transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s, height 0.3s;
+  }
+  .nav.stuck {
+    height: 64px;
+    background: rgba(11,12,15,0.78);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border-bottom-color: var(--line);
+  }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 20px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .brand span { font-family: var(--font-display); font-size: 19px; font-weight: 800; letter-spacing: -0.04em; }
+  .nav-links { display: flex; align-items: center; gap: 2px; }
+  .nav-links a {
+    font-size: 14px; font-weight: 500; color: var(--text-2);
+    padding: 8px 13px; border-radius: 9px;
+    transition: color 0.16s, background 0.16s;
+  }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .nav-toggle {
+    display: none; width: 42px; height: 42px; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--line-2);
+    border-radius: 11px; color: var(--text); cursor: pointer;
+  }
+  .drawer {
+    position: fixed; inset: 64px 0 auto; z-index: 99;
+    background: rgba(11,12,15,0.97);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px 24px;
+    display: none; flex-direction: column; gap: 4px;
+  }
+  .drawer.open { display: flex; }
+  .drawer a {
+    padding: 14px 8px; font-size: 16px; font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  .drawer .btn { margin-top: 14px; }
+
+  /* ───────────────────────── 6. Hero ───────────────────────── */
+  .hero { padding: 152px 0 clamp(64px, 8vw, 104px); overflow: hidden; }
+  .hero::before {
+    content: ''; position: absolute; top: -320px; left: 50%; transform: translateX(-50%);
+    width: 1100px; height: 800px; pointer-events: none; z-index: -1;
+    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(78,139,255,0.20), transparent 70%);
+  }
+  .hero-grid {
+    display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    gap: clamp(32px, 5vw, 64px); align-items: center;
+  }
+  .hero h1 { margin: 24px 0 22px; }
+  .hero h1 .line2 { display: block; }
+  .hero .lead { max-width: 540px; }
+  .hero .stores { margin: 30px 0 18px; }
+  .hero-micro {
+    display: flex; flex-wrap: wrap; gap: 8px 20px;
+    font-size: 13px; color: var(--text-3);
+  }
+  .hero-micro span { display: inline-flex; align-items: center; gap: 7px; }
+  .hero-micro svg { color: var(--green); flex-shrink: 0; }
+
+  /* ── The hero instrument: a real day timeline that re-plans itself ── */
+  .timeline-card {
+    background: linear-gradient(180deg, var(--card) 0%, var(--surface) 100%);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-xl);
+    padding: 20px 20px 22px;
+    box-shadow: var(--shadow-lift);
+    position: relative;
+  }
+  .timeline-card::before {
+    content: ''; position: absolute; inset: 0; border-radius: var(--r-xl);
+    padding: 1px; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+  .tl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .tl-day { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .tl-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .tl-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
+  }
+  .tl-live i {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--ember);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.28; } }
+
+  .tl-body {
+    position: relative;
+    --hpx: 50px;          /* pixels per hour */
+    --t0: 8;              /* timeline starts at 08:00 */
+    height: calc(11.5 * var(--hpx));
+    padding-left: 52px;
+  }
+  .tl-hours { position: absolute; inset: 0; }
+  .tl-hour {
+    position: absolute; left: 0; right: 0;
+    top: calc((var(--h) - var(--t0)) * var(--hpx));
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+    padding-left: 2px; line-height: 1;
+  }
+  .tl-hour span { position: relative; top: -5px; background: transparent; }
+
+  .ev, .slot {
+    position: absolute; left: 52px; right: 0;
+    top: calc((var(--s) - var(--t0)) * var(--hpx));
+    height: calc(var(--e) * var(--hpx) - 4px);
+    border-radius: 9px;
+    padding: 5px 10px;
+    font-size: 11.5px; font-weight: 600; line-height: 1.3;
+    overflow: hidden;
+    transition: top 0.7s var(--ease), height 0.5s var(--ease), opacity 0.45s var(--ease), transform 0.6s var(--spring);
+  }
+  .ev {
+    background: rgba(255,255,255,0.045);
+    border-left: 3px solid var(--c, var(--text-3));
+    color: var(--text-2);
+  }
+  .ev .ev-t { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; color: var(--text-3); letter-spacing: 0.06em; line-height: 1.35; }
+  .ev.work     { --c: var(--cal-work); }
+  .ev.personal { --c: var(--cal-personal); }
+  .ev.school   { --c: var(--cal-school); }
+
+  /* the conflict event that lands mid-animation */
+  .ev.incoming { opacity: 0; transform: translateX(14px); }
+  .tl-body[data-state="2"] .ev.incoming,
+  .tl-body[data-state="3"] .ev.incoming { opacity: 1; transform: none; }
+
+  /* the free-gap outline */
+  .gap {
+    position: absolute; left: 52px; right: 0;
+    top: calc((var(--s) - var(--t0)) * var(--hpx));
+    height: calc(var(--e) * var(--hpx) - 4px);
+    border: 1.5px dashed rgba(78,139,255,0.55);
+    border-radius: 9px;
+    display: flex; align-items: center; gap: 8px; padding: 0 10px;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue-bright);
+    background: rgba(78,139,255,0.05);
+    opacity: 0; transition: opacity 0.4s var(--ease);
+  }
+  .tl-body[data-state="0"] .gap { opacity: 1; }
+
+  /* The Tempo session block — the thing that moves.
+     --s/--e live here rather than inline: an inline custom property would win
+     over the [data-state="3"] rule below and the session would never move. */
+  .slot {
+    --s: 13; --e: 0.75;
+    background: linear-gradient(150deg, #2B5FD6, #4E8BFF);
+    color: #fff; border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: var(--glow);
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    opacity: 0; transform: scale(0.96);
+    z-index: 3;
+  }
+  .tl-body[data-state="0"] .slot { opacity: 0; }
+  .tl-body[data-state="1"] .slot,
+  .tl-body[data-state="2"] .slot,
+  .tl-body[data-state="3"] .slot { opacity: 1; transform: none; }
+  .tl-body[data-state="3"] .slot { --s: 16.75; }
+  .slot-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85;
+  }
+  .slot-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; }
+  .slot-meta { font-family: var(--font-mono); font-size: 10px; opacity: 0.8; }
+  .tl-body[data-state="2"] .slot { animation: nudge 0.5s var(--ease); }
+  @keyframes nudge {
+    0%, 100% { box-shadow: var(--glow); }
+    40% { box-shadow: 0 0 0 2px rgba(255,106,69,0.75), 0 12px 40px rgba(255,106,69,0.35); }
+  }
+
+  /* "now" line */
+  .now-line {
+    position: absolute; left: 40px; right: 0;
+    top: calc((12.67 - var(--t0)) * var(--hpx));
+    height: 1px; background: var(--ember); z-index: 4; pointer-events: none;
+  }
+  .now-line::before {
+    content: ''; position: absolute; left: 0; top: -3px;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--ember);
+  }
+
+  .tl-foot {
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px; min-height: 44px;
+  }
+  .tl-msg { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-2); }
+  .tl-msg-ic {
+    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: var(--blue-soft); color: var(--blue-bright);
+  }
+  .tl-msg[hidden] { display: none; }
+  .tl-msg.is-ember .tl-msg-ic { background: var(--ember-soft); color: var(--ember); }
+
+  /* ───────────────────────── 7. Proof marquee ───────────────────────── */
+  .marquee {
+    padding: 0; border-block: 1px solid var(--line);
+    background: rgba(255,255,255,0.015);
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-track {
+    display: flex; gap: 44px; width: max-content;
+    padding: 18px 0;
+    animation: slide 46s linear infinite;
+  }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  @keyframes slide { to { transform: translateX(-50%); } }
+  .m-item {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13.5px; font-weight: 500; color: var(--text-2); white-space: nowrap;
+  }
+  .m-item svg { color: var(--blue); flex-shrink: 0; }
+
+  /* ───────────────────────── 8. Statement / compare ───────────────────────── */
+  .statement { text-align: center; }
+  .statement h2 { max-width: 900px; margin: 18px auto 0; }
+  .statement h2 em { font-style: normal; color: var(--ember); }
+
+  .compare-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    margin-top: clamp(40px, 5vw, 64px); text-align: left;
+  }
+  .cmp {
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    padding: 30px 28px; background: var(--card);
+  }
+  .cmp.good {
+    border-color: rgba(78,139,255,0.42);
+    background: linear-gradient(165deg, rgba(78,139,255,0.09), var(--card) 55%);
+    box-shadow: 0 20px 60px rgba(78,139,255,0.10);
+  }
+  .cmp h3 { font-size: 21px; margin: 14px 0 20px; }
+  .cmp ul { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .cmp li { display: flex; gap: 12px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
+  .cmp li .ic { flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+  .cmp.bad  li .ic { background: rgba(255,255,255,0.06); color: var(--text-3); }
+  .cmp.good li .ic { background: var(--blue-soft); color: var(--blue-bright); }
+
+  /* ───────────────────────── 9. Interactive planner ───────────────────────── */
+  .planner {
+    background: linear-gradient(180deg, var(--surface), var(--bg));
+    border-block: 1px solid var(--line);
+  }
+  .planner-shell {
+    display: grid; grid-template-columns: 300px minmax(0, 1fr);
+    gap: 28px; align-items: start;
+    background: var(--card); border: 1px solid var(--line-2);
+    border-radius: var(--r-xl); padding: 26px;
+    box-shadow: var(--shadow);
+  }
+  .controls { display: flex; flex-direction: column; gap: 22px; }
+  .ctrl-label {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+    display: block; margin-bottom: 10px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    font: 600 13px/1 var(--font-body);
+    padding: 9px 13px; border-radius: 9px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--line-2);
+    color: var(--text-2); cursor: pointer;
+    transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.14s;
+  }
+  .chip:hover { border-color: var(--line-3); color: var(--text); }
+  .chip[aria-pressed="true"] {
+    background: var(--blue-soft); border-color: rgba(78,139,255,0.55);
+    color: var(--blue-bright);
+  }
+  .chip .n { font-family: var(--font-mono); font-weight: 700; }
+
+  .plan-out { min-width: 0; }
+  .week {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .wcol {
+    background: rgba(255,255,255,0.022); border: 1px solid var(--line);
+    border-radius: 12px; padding: 8px 6px 6px; min-height: 260px;
+    display: flex; flex-direction: column;
+  }
+  .wcol.train { border-color: rgba(78,139,255,0.4); background: rgba(78,139,255,0.055); }
+  .wday {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
+    text-align: center; margin-bottom: 8px;
+  }
+  .wcol.train .wday { color: var(--blue-bright); }
+  .wbusy {
+    border-radius: 5px; margin-bottom: 4px; overflow: hidden;
+    border: 1px solid var(--line);
+    background: repeating-linear-gradient(45deg,
+      rgba(255,255,255,0.07) 0 5px, rgba(255,255,255,0.02) 5px 10px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wbusy span {
+    font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--text-3); white-space: nowrap;
+  }
+  .wsession {
+    margin-top: auto;
+    background: linear-gradient(150deg, #2B5FD6, #4E8BFF);
+    border-radius: 9px; padding: 9px 8px; color: #fff;
+    box-shadow: 0 6px 18px rgba(78,139,255,0.28);
+    animation: pop 0.4s var(--spring) both;
+    animation-delay: var(--pd, 0ms);
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.94); } to { opacity: 1; transform: none; } }
+  .wsession .wt { font-family: var(--font-mono); font-size: 10px; font-weight: 700; opacity: 0.9; }
+  .wsession .wf { font-family: var(--font-display); font-size: 12.5px; font-weight: 700; line-height: 1.15; margin-top: 3px; letter-spacing: -0.01em; }
+  .wsession .wd { font-family: var(--font-mono); font-size: 9.5px; opacity: 0.78; margin-top: 3px; }
+  .wrest {
+    margin-top: auto; text-align: center; padding: 10px 4px;
+    font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
+    border: 1px dashed var(--line-2); border-radius: 9px;
+  }
+  .plan-summary {
+    margin-top: 16px; padding: 14px 16px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+    border-radius: 12px;
+    display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center;
+  }
+  .ps-item { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .ps-item b { font-family: var(--font-mono); font-size: 17px; color: var(--text); font-weight: 700; }
+  .planner-note { margin-top: 14px; font-size: 12.5px; color: var(--text-3); }
+
+  /* ───────────────────────── 10. Feature rows + device ───────────────────────── */
+  .frow {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr);
+    gap: clamp(32px, 6vw, 80px); align-items: center;
+    padding: clamp(48px, 6vw, 76px) 0;
+  }
+  .frow + .frow { border-top: 1px solid var(--line); }
+  .frow.flip .fr-copy { order: 2; }
+  .frow h3 { font-size: clamp(26px, 3vw, 38px); margin: 16px 0 18px; }
+  .flist { list-style: none; margin-top: 26px; display: flex; flex-direction: column; gap: 15px; }
+  .flist li { display: flex; gap: 13px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
+  .flist .ic {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 7px;
+    display: grid; place-items: center; margin-top: 1px;
+    background: var(--blue-soft); color: var(--blue-bright);
+  }
+  .flist b { color: var(--text); font-weight: 600; }
+
+  /* Phone */
+  .device-wrap { display: flex; justify-content: center; perspective: 1400px; }
+  .device {
+    width: 292px; flex-shrink: 0;
+    background: linear-gradient(155deg, #2A2E36, #14161B);
+    border-radius: 42px; padding: 9px;
+    box-shadow: var(--shadow-lift), 0 0 0 1px rgba(255,255,255,0.09);
+  }
+  .device-screen {
+    background: #0F1014; border-radius: 34px; overflow: hidden;
+    position: relative; height: 596px;
+    display: flex; flex-direction: column;
+  }
+  .notch {
+    position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 82px; height: 22px; background: #05060A; border-radius: 999px; z-index: 6;
+  }
+  .scr-top { height: 44px; flex-shrink: 0; }
+  .scr {
+    flex: 1; overflow: hidden; padding: 0 16px 12px;
+    display: flex; flex-direction: column; gap: 11px;
+  }
+  .scr-hd { display: flex; align-items: flex-start; justify-content: space-between; padding: 2px 0 6px; }
+  .scr-eyebrow {
+    font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+  }
+  .scr-title { font-family: var(--font-display); font-size: 19px; font-weight: 800; letter-spacing: -0.03em; margin-top: 2px; }
+  .scr-av { width: 28px; height: 28px; border-radius: 50%; background: var(--raised); display: grid; place-items: center; color: var(--text-2); }
+  .card-s {
+    background: var(--card-2); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px;
+  }
+  .card-s.hero-s {
+    background: linear-gradient(150deg, rgba(78,139,255,0.18), var(--card-2) 65%);
+    border-color: rgba(78,139,255,0.34);
+  }
+  .s-lbl { font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+  .s-h { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.02em; margin-top: 3px; }
+  .s-p { font-size: 10.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
+  .s-row { display: flex; align-items: center; gap: 8px; }
+  .s-btn {
+    margin-top: 10px; background: var(--blue); color: #fff;
+    border-radius: 9px; padding: 8px; text-align: center;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .daystrip { display: flex; gap: 5px; }
+  .dcell {
+    flex: 1; text-align: center; padding: 7px 0 6px;
+    border-radius: 10px; background: rgba(255,255,255,0.035);
+    border: 1px solid transparent;
+  }
+  .dcell.on { background: var(--blue-soft); border-color: rgba(78,139,255,0.5); }
+  .dcell .dl { font-family: var(--font-mono); font-size: 7.5px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-3); }
+  .dcell.on .dl { color: var(--blue-bright); }
+  .dcell .dn { font-family: var(--font-mono); font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .dcell .dd { width: 4px; height: 4px; border-radius: 50%; background: var(--blue); margin: 3px auto 0; }
+
+  /* set table (session screen) */
+  .settable { margin-top: 9px; }
+  .setrow {
+    display: grid; grid-template-columns: 22px 1fr 42px 38px 22px;
+    align-items: center; gap: 6px; padding: 7px 0;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--text-2);
+  }
+  .setrow.hd { color: var(--text-3); font-size: 8px; letter-spacing: 0.12em; border-top: 0; }
+  .setrow.done { color: var(--text); }
+  .setrow.active { background: rgba(78,139,255,0.09); border-radius: 8px; padding-inline: 6px; margin-inline: -6px; }
+  .ck { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; }
+  .ck.on { background: var(--green); color: #05230F; }
+  .ck.off { border: 1.5px solid var(--line-3); }
+  .fake-in { height: 17px; border-radius: 5px; background: rgba(255,255,255,0.09); }
+
+  /* progress screen bits */
+  .ring-wrap { display: grid; place-items: center; padding: 4px 0 2px; }
+  .ring { position: relative; width: 116px; height: 116px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring-c { fill: none; stroke-width: 9; stroke-linecap: round; }
+  .ring-bg { stroke: rgba(255,255,255,0.08); }
+  .ring-fg { stroke: var(--blue); stroke-dasharray: 314; stroke-dashoffset: 69; }
+  .ring-mid {
+    position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+  }
+  .ring-pct { font-family: var(--font-mono); font-size: 25px; font-weight: 700; }
+  .ring-lbl { font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.14em; color: var(--text-3); margin-top: 1px; }
+  .bars { display: flex; align-items: stretch; gap: 7px; height: 66px; margin-top: 10px; }
+  /* Each column is full-height so the bar's % height has something to resolve
+     against — a percentage inside an auto-height parent collapses to nothing. */
+  .barcol { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+  .bar { width: 100%; background: rgba(78,139,255,0.32); border-radius: 4px 4px 0 0; }
+  .bar.cur { background: var(--blue); }
+  .barlbl { font-family: var(--font-mono); font-size: 7.5px; color: var(--text-3); text-align: center; margin-top: 4px; }
+  .stat-big { font-family: var(--font-mono); font-size: 22px; font-weight: 700; }
+  .stat-big small { font-size: 11px; color: var(--text-3); font-weight: 500; }
+
+  /* muscle map bits */
+  .bodymap { display: flex; justify-content: center; gap: 10px; padding: 6px 0; }
+  .bmcol { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+  .bseg { width: 46px; border-radius: 6px; }
+
+  .tabbar {
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 9px 6px 14px; border-top: 1px solid var(--line);
+    background: rgba(15,16,20,0.9); flex-shrink: 0;
+  }
+  .tb { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-3); }
+  .tb.on { color: var(--blue); }
+  .tb span { font-size: 8px; font-weight: 600; }
+
+  /* ───────────────────────── 11. Everything-else grid ───────────────────────── */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .tile {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 24px 22px;
+    transition: border-color 0.22s, transform 0.22s var(--ease), background 0.22s;
+  }
+  .tile:hover { border-color: var(--line-2); transform: translateY(-3px); background: var(--card-2); }
+  .tile-ic {
+    width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+    background: var(--blue-soft); color: var(--blue-bright); margin-bottom: 15px;
+  }
+  .tile h4 { font-size: 16.5px; letter-spacing: -0.02em; }
+  .tile p { font-size: 13.5px; color: var(--text-2); margin-top: 7px; line-height: 1.55; }
+  .tile .tag { margin-top: 12px; }
+
+  /* ───────────────────────── 12. First-week timeline ───────────────────────── */
+  .week1 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+  .w1 { padding: 0 24px 0 0; position: relative; }
+  .w1::before {
+    content: ''; position: absolute; left: 0; top: 13px; right: 0; height: 1px;
+    background: linear-gradient(90deg, var(--blue), rgba(78,139,255,0.12));
+  }
+  .w1:last-child::before { background: linear-gradient(90deg, var(--blue), transparent); }
+  .w1-dot {
+    position: relative; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--blue); box-shadow: 0 0 0 4px rgba(78,139,255,0.16);
+    margin: 8px 0 22px;
+  }
+  .w1 .when {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue-bright);
+  }
+  .w1 h4 { font-size: 17px; margin: 9px 0 8px; letter-spacing: -0.02em; }
+  .w1 p { font-size: 13.5px; color: var(--text-2); line-height: 1.55; padding-right: 8px; }
+
+  /* ───────────────────────── 13. Comparison table ───────────────────────── */
+  .table-scroll { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--line-2); }
+  table.cmp-table { width: 100%; border-collapse: collapse; min-width: 640px; background: var(--card); }
+  .cmp-table th, .cmp-table td { padding: 15px 18px; text-align: left; font-size: 14px; }
+  .cmp-table thead th {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3);
+    border-bottom: 1px solid var(--line-2); background: rgba(255,255,255,0.02);
+  }
+  .cmp-table thead th.me { color: var(--blue-bright); }
+  .cmp-table tbody tr + tr td { border-top: 1px solid var(--line); }
+  .cmp-table td:first-child { color: var(--text-2); }
+  .cmp-table td.me { background: rgba(78,139,255,0.06); font-weight: 600; }
+  .cmp-table .yes { color: var(--green); }
+  .cmp-table .no  { color: var(--text-3); }
+  .cell { display: inline-flex; align-items: center; gap: 8px; }
+
+  /* ───────────────────────── 14. Pricing ───────────────────────── */
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+  .plan {
+    background: var(--card); border: 1px solid var(--line-2);
+    border-radius: var(--r-lg); padding: 32px 30px;
+    display: flex; flex-direction: column;
+  }
+  .plan.pro {
+    border-color: rgba(78,139,255,0.5);
+    background: linear-gradient(170deg, rgba(78,139,255,0.11), var(--card) 58%);
+    box-shadow: 0 24px 70px rgba(78,139,255,0.12);
+    position: relative;
+  }
+  .plan-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .plan-price { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 6px; }
+  .plan-price .amt { font-family: var(--font-mono); font-size: 42px; font-weight: 700; letter-spacing: -0.03em; }
+  .plan-price .per { font-size: 14px; color: var(--text-3); }
+  .plan-sub { font-size: 13px; color: var(--text-2); min-height: 40px; }
+  .plan ul { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 22px 0 26px; }
+  .plan li { display: flex; gap: 11px; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+  .plan li .ic { flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; margin-top: 2px; background: rgba(255,255,255,0.06); color: var(--text-2); }
+  .plan.pro li .ic { background: var(--blue-soft); color: var(--blue-bright); }
+  .plan .btn { margin-top: auto; }
+  .founding {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 11px 14px;
+    background: rgba(217,161,59,0.10); border: 1px solid rgba(217,161,59,0.32);
+    border-radius: 11px; font-size: 12.5px; color: #EBC77F;
+  }
+  .price-note { margin-top: 22px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+
+  /* ───────────────────────── 15. Privacy panel ───────────────────────── */
+  .privacy-panel {
+    background: linear-gradient(165deg, var(--card), var(--surface));
+    border: 1px solid var(--line-2); border-radius: var(--r-xl);
+    padding: clamp(30px, 4vw, 52px);
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(28px, 4vw, 56px); align-items: center;
+  }
+  .p-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+  .p-list li { display: flex; gap: 13px; font-size: 14.5px; color: var(--text-2); line-height: 1.5; }
+  .p-list .ic { flex-shrink: 0; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: rgba(34,197,94,0.13); color: var(--green); margin-top: 1px; }
+  .p-list b { color: var(--text); font-weight: 600; }
+  .p-visual {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 20px; font-family: var(--font-mono); font-size: 12px;
+  }
+  .p-line { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .p-line:last-child { border-bottom: 0; }
+  .p-line .k { color: var(--text-3); width: 96px; flex-shrink: 0; }
+  .p-line .v { color: var(--text); }
+  .p-line .v.off { color: var(--text-3); text-decoration: line-through; }
+  .p-line .badge { margin-left: auto; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; }
+  .p-line .badge.read { background: rgba(78,139,255,0.14); color: var(--blue-bright); }
+  .p-line .badge.never { background: rgba(255,255,255,0.05); color: var(--text-3); }
+
+  /* ───────────────────────── 16. FAQ ───────────────────────── */
+  .faq { max-width: 820px; margin: 0 auto; border-top: 1px solid var(--line); }
+  .faq-item { border-bottom: 1px solid var(--line); }
+  .faq-q {
+    width: 100%; background: none; border: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    padding: 24px 4px; text-align: left;
+    font-family: var(--font-display); font-size: 17.5px; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text);
+    transition: color 0.16s;
+  }
+  .faq-q:hover { color: var(--blue-bright); }
+  .faq-ic { flex-shrink: 0; color: var(--text-3); transition: transform 0.3s var(--ease), color 0.2s; }
+  .faq-item.open .faq-ic { transform: rotate(45deg); color: var(--blue); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.36s var(--ease); }
+  .faq-a > div { padding: 0 4px 24px; font-size: 14.5px; color: var(--text-2); line-height: 1.65; max-width: 700px; }
+  .faq-a a { color: var(--blue-bright); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ───────────────────────── 17. Final CTA + footer ───────────────────────── */
+  .cta {
+    text-align: center; position: relative; overflow: hidden;
+    border-top: 1px solid var(--line);
+  }
+  .cta::before {
+    content: ''; position: absolute; bottom: -420px; left: 50%; transform: translateX(-50%);
+    width: 1000px; height: 700px; z-index: -1;
+    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(78,139,255,0.22), transparent 70%);
+  }
+  .cta .stores { justify-content: center; margin-top: 32px; }
+
+  .notify {
+    max-width: 460px; margin: 34px auto 0;
+    display: flex; gap: 9px;
+  }
+  .notify input {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.045); border: 1px solid var(--line-2);
+    border-radius: 12px; padding: 14px 16px;
+    color: var(--text); font: 400 15px/1 var(--font-body);
+    transition: border-color 0.18s, background 0.18s;
+  }
+  .notify input::placeholder { color: var(--text-3); }
+  .notify input:focus { border-color: var(--blue); background: rgba(78,139,255,0.06); outline: none; }
+  .form-msg { margin-top: 12px; font-size: 13.5px; min-height: 20px; }
+  .form-msg.ok  { color: var(--green); }
+  .form-msg.err { color: var(--ember); }
+
+  footer { border-top: 1px solid var(--line); padding: 60px 0 40px; background: var(--surface); }
+  .foot-top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 44px; }
+  .foot-brand p { font-size: 13.5px; color: var(--text-3); margin-top: 14px; max-width: 320px; line-height: 1.6; }
+  .foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .foot-col h5 {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 14px;
+  }
+  .foot-col a { display: block; font-size: 14px; color: var(--text-2); padding: 6px 0; transition: color 0.16s; }
+  .foot-col a:hover { color: var(--blue-bright); }
+  .foot-bot {
+    margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;
+    font-size: 12.5px; color: var(--text-3);
+  }
+
+  /* ───────────────────────── 18. Responsive ───────────────────────── */
+  @media (max-width: 1080px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    .hero { padding-top: 128px; }
+    .hero .lead { max-width: none; }
+    .timeline-card { max-width: 520px; }
+    .planner-shell { grid-template-columns: 1fr; }
+    .controls { flex-direction: row; flex-wrap: wrap; gap: 20px 32px; }
+  }
+  @media (max-width: 900px) {
+    .nav-links { display: none; }
+    .nav-toggle { display: inline-flex; }
+    .nav-right .btn-store { display: none; }
+    .compare-2 { grid-template-columns: 1fr; }
+    .frow, .frow.flip .fr-copy { grid-template-columns: 1fr; order: 0; }
+    .frow { gap: 40px; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+    .week1 { grid-template-columns: 1fr 1fr; gap: 34px 0; }
+    .price-grid { grid-template-columns: 1fr; }
+    .privacy-panel { grid-template-columns: 1fr; }
+    .foot-top { grid-template-columns: 1fr; gap: 34px; }
+  }
+  @media (max-width: 720px) {
+    .week { grid-template-columns: 1fr; gap: 8px; }
+    .wcol { min-height: 0; flex-direction: row; align-items: center; gap: 12px; padding: 10px 12px; }
+    .wday { margin: 0; width: 40px; flex-shrink: 0; text-align: left; }
+    .wbusy { display: none; }
+    .wsession, .wrest { margin-top: 0; flex: 1; }
+    .wsession { display: flex; align-items: baseline; gap: 10px; }
+    .wsession .wf { margin-top: 0; }
+    .wrest { text-align: left; padding: 8px 12px; }
+  }
+  @media (max-width: 640px) {
+    .grid-3 { grid-template-columns: 1fr; }
+    .week1 { grid-template-columns: 1fr; gap: 26px; }
+    .w1 { padding-right: 0; }
+    .w1::before { display: none; }
+    .w1-dot { margin: 0 0 12px; }
+    .foot-cols { grid-template-columns: 1fr 1fr; }
+    .notify { flex-direction: column; }
+    .device { width: 264px; }
+    .device-screen { height: 546px; }
+    .hero .stores, .cta .stores { flex-direction: column; align-items: stretch; }
+    .store { justify-content: center; }
+  }
+  </style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav class="nav" id="nav">
+  <div class="wrap">
+    <a href="#top" class="brand" aria-label="Tempo home">
+      <img src="tempo-logo.png" alt="" width="32" height="32">
+      <span>Tempo</span>
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#plan-it">Try it</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="drawer" aria-label="Open menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a href="#get" class="btn btn-primary btn-sm btn-store">Get Tempo</a>
+    </div>
+  </div>
+</nav>
+
+<div class="drawer" id="drawer">
+  <a href="#how">How it works</a>
+  <a href="#plan-it">Try it</a>
+  <a href="#features">Features</a>
+  <a href="#pricing">Pricing</a>
+  <a href="#faq">FAQ</a>
+  <a href="#get" class="btn btn-primary">Get Tempo</a>
+</div>
+
+<main id="main">
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="pill"><span class="dot"></span> Now on iPhone &amp; Android</span>
+      <h1 class="h-xl">
+        Your week just changed.
+        <span class="line2 grad">Your training already adjusted.</span>
+      </h1>
+      <p class="lead">
+        Tempo reads your calendar, drops real workouts into the gaps you actually have, and
+        quietly re-plans the moment a meeting lands on one. It&rsquo;s the training app that
+        never asks you to be less busy.
+      </p>
+
+      <div class="stores">
+        <a class="store" data-store="ios" href="#get">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.72c.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.72-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.87-.76-1.48.02-2.84.86-3.6 2.18-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.75 2.21 1.1-.05 1.52-.71 2.85-.71 1.33 0 1.71.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.54zM14.2 5.9c.61-.74 1.02-1.77.91-2.8-.88.04-1.94.59-2.57 1.32-.56.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.58-1.22z"/></svg>
+          <span class="store-txt"><small>Download on the</small><strong>App Store</strong></span>
+        </a>
+        <a class="store" data-store="android" href="#get">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.6 2.3c-.3.3-.5.8-.5 1.4v16.6c0 .6.2 1.1.5 1.4l.1.1 9.3-9.3v-.2L3.7 2.2l-.1.1z" fill="#00D2FF"/>
+            <path d="M16.1 15.6 13 12.5v-.2l3.1-3.1.1.1 3.7 2.1c1 .6 1 1.6 0 2.2l-3.8 2z" fill="#FFCE00"/>
+            <path d="m16.2 15.5-3.2-3.2-9.4 9.4c.3.4.9.4 1.5.1l11.1-6.3" fill="#FF3A44"/>
+            <path d="M16.2 9.2 5.1 2.9c-.6-.4-1.2-.3-1.5.1l9.4 9.3 3.2-3.1z" fill="#00E676"/>
+          </svg>
+          <span class="store-txt"><small>Get it on</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+
+      <div class="hero-micro">
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> Free to use</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> No ads, ever</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> Reads free/busy only &mdash; never your event details</span>
+      </div>
+    </div>
+
+    <!-- The hero instrument: a live day that re-plans itself -->
+    <div class="hero-visual" data-sr style="--d:150ms">
+      <div class="timeline-card">
+        <div class="tl-head">
+          <div>
+            <div class="tl-day">Tuesday, 16 June</div>
+            <div class="tl-sub">3 events &middot; 1 session scheduled</div>
+          </div>
+          <div class="tl-live"><i></i> Live</div>
+        </div>
+
+        <div class="tl-body" id="tl" data-state="0" aria-hidden="true">
+          <div class="tl-hours">
+            <div class="tl-hour" style="--h:8"><span>8 AM</span></div>
+            <div class="tl-hour" style="--h:10"><span>10 AM</span></div>
+            <div class="tl-hour" style="--h:12"><span>12 PM</span></div>
+            <div class="tl-hour" style="--h:14"><span>2 PM</span></div>
+            <div class="tl-hour" style="--h:16"><span>4 PM</span></div>
+            <div class="tl-hour" style="--h:18"><span>6 PM</span></div>
+          </div>
+
+          <div class="ev work"     style="--s:8.5;  --e:0.75"><div class="ev-t">8:30</div>Standup</div>
+          <div class="ev work"     style="--s:9.5;  --e:1.5"><div class="ev-t">9:30</div>Design review</div>
+          <div class="ev personal" style="--s:11.5; --e:1"><div class="ev-t">11:30</div>1:1 with Sam</div>
+          <div class="ev work incoming" style="--s:13; --e:1"><div class="ev-t">1:00</div>Client review</div>
+          <div class="ev school"   style="--s:18.5; --e:1"><div class="ev-t">6:30</div>Dinner with Alex</div>
+
+          <div class="gap" style="--s:13; --e:0.75">45 min free</div>
+
+          <div class="slot">
+            <div class="slot-top"><span>Tempo &middot; scheduled</span><span>45 min</span></div>
+            <div class="slot-title">Upper Body Push</div>
+          </div>
+
+          <div class="now-line"></div>
+        </div>
+
+        <div class="tl-foot">
+          <div class="tl-msg" id="tl-msg-0">
+            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+            Found a 45-minute gap between your meetings.
+          </div>
+          <div class="tl-msg" id="tl-msg-1" hidden>
+            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+            Upper Body Push scheduled for 1:00 PM.
+          </div>
+          <div class="tl-msg is-ember" id="tl-msg-2" hidden>
+            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+            Client review just landed on your session.
+          </div>
+          <div class="tl-msg" id="tl-msg-3" hidden>
+            <span class="tl-msg-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
+            Moved to 4:45 PM. Nothing else changed.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════ MARQUEE ═══════════════ -->
+<section class="marquee" aria-label="What's included">
+  <div class="marquee-track" id="marquee">
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google &amp; Apple Calendar</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg> 1,300+ exercise library</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg> 5&ndash;30 min Quick Workouts</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg> Auto-reschedules a busy week</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Free/busy only &mdash; never event details</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3"/><path d="M22 4 12 14.01l-3-3"/></svg> Logs offline, syncs later</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg> Progressive overload built in</span>
+    <span class="m-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg> Travel Mode &amp; multi-calendar</span>
+  </div>
+</section>
+
+<!-- ═══════════════ STATEMENT + COMPARE ═══════════════ -->
+<section class="statement" id="how">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">The problem</span>
+      <h2 class="h-lg">Nobody quits because the workout was too hard.<br>They quit because <em>Tuesday happened.</em></h2>
+      <p class="lead">A fixed weekly plan is a promise you make to an app on a calm Sunday and break on a chaotic
+        Wednesday. Tempo starts from the opposite assumption: your week is the constraint, and the plan is the
+        thing that should bend.</p>
+    </div>
+
+    <div class="compare-2">
+      <div class="cmp bad" data-sr>
+        <span class="tag" style="background:rgba(255,255,255,0.06);color:var(--text-3)">Every other plan</span>
+        <h3>You fit your life around the app.</h3>
+        <ul>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> The same week whether you have four free evenings or none</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> Miss one session and you&rsquo;re permanently &ldquo;behind&rdquo;</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> A 60-minute session offered to someone with 20 minutes</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> A broken streak, a guilt notification, an uninstall</li>
+        </ul>
+      </div>
+      <div class="cmp good" data-sr style="--d:110ms">
+        <span class="tag tag-blue">Tempo</span>
+        <h3>The plan fits around your life.</h3>
+        <ul>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Sessions placed in the gaps your calendar actually has</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Miss one and the rest of the week quietly re-lays itself</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A real session sized to the window &mdash; down to five minutes</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A hard month makes the plan easier, not you a failure</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ INTERACTIVE PLANNER ═══════════════ -->
+<section class="planner" id="plan-it">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">Try it before you download</span>
+      <h2 class="h-lg">Show me my week.</h2>
+      <p class="lead">Set your goal, your days, and what your life looks like. This runs the same
+        split logic and spacing rules Tempo uses on a real calendar &mdash; the app just does it
+        against your actual free/busy time instead of a typical week.</p>
+    </div>
+
+    <div class="planner-shell" data-sr>
+      <div class="controls">
+        <div>
+          <span class="ctrl-label" id="lbl-goal">Goal</span>
+          <div class="chips" role="group" aria-labelledby="lbl-goal" data-group="goal">
+            <button class="chip" data-val="muscle"   aria-pressed="true">Build muscle</button>
+            <button class="chip" data-val="strength" aria-pressed="false">Get stronger</button>
+            <button class="chip" data-val="fatloss"  aria-pressed="false">Lose fat</button>
+          </div>
+        </div>
+        <div>
+          <span class="ctrl-label" id="lbl-days">Days per week</span>
+          <div class="chips" role="group" aria-labelledby="lbl-days" data-group="days">
+            <button class="chip" data-val="2" aria-pressed="false"><span class="n">2</span></button>
+            <button class="chip" data-val="3" aria-pressed="false"><span class="n">3</span></button>
+            <button class="chip" data-val="4" aria-pressed="true"><span class="n">4</span></button>
+            <button class="chip" data-val="5" aria-pressed="false"><span class="n">5</span></button>
+            <button class="chip" data-val="6" aria-pressed="false"><span class="n">6</span></button>
+          </div>
+        </div>
+        <div>
+          <span class="ctrl-label" id="lbl-life">Your week looks like</span>
+          <div class="chips" role="group" aria-labelledby="lbl-life" data-group="life">
+            <button class="chip" data-val="office"  aria-pressed="true">9&ndash;6 office</button>
+            <button class="chip" data-val="parent"  aria-pressed="false">Kids at home</button>
+            <button class="chip" data-val="shift"   aria-pressed="false">Shift work</button>
+            <button class="chip" data-val="student" aria-pressed="false">Student</button>
+          </div>
+        </div>
+        <div>
+          <span class="ctrl-label" id="lbl-len">Session length</span>
+          <div class="chips" role="group" aria-labelledby="lbl-len" data-group="len">
+            <button class="chip" data-val="30" aria-pressed="false"><span class="n">30</span>&nbsp;min</button>
+            <button class="chip" data-val="45" aria-pressed="true"><span class="n">45</span>&nbsp;min</button>
+            <button class="chip" data-val="60" aria-pressed="false"><span class="n">60</span>&nbsp;min</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="plan-out">
+        <div class="week" id="week" role="list" aria-label="Generated week"></div>
+        <div class="plan-summary">
+          <div class="ps-item"><b id="ps-sessions">4</b> <span id="ps-sessions-u">sessions</span></div>
+          <div class="ps-item"><b id="ps-time">3h 0m</b> total</div>
+          <div class="ps-item"><b id="ps-rest">3</b> <span id="ps-rest-u">recovery days</span></div>
+          <div class="ps-item dim" id="ps-note" style="font-size:12.5px">Every session sits in a real gap.</div>
+        </div>
+        <p class="planner-note">
+          Illustrative only &mdash; built from a typical week for that lifestyle. In the app, Tempo reads your
+          own calendar&rsquo;s free/busy time, respects the days you mark unavailable, and re-lays the week when
+          something changes.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FEATURE ROWS ═══════════════ -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head" data-sr>
+      <span class="eyebrow">Inside Tempo</span>
+      <h2 class="h-lg">Four things, done properly.</h2>
+    </div>
+
+    <!-- 1. Schedule -->
+    <div class="frow">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-blue">The schedule</span>
+        <h3>It books training like a meeting &mdash; then defends it.</h3>
+        <p class="lead">Connect Google or Apple Calendar once. Tempo finds your genuine free windows,
+          places each session where it fits your recovery and your day, and writes it back to your
+          calendar so the rest of your life can see it.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Gap-aware placement.</b> Sessions land in windows long enough to actually finish them.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Conflict detection.</b> A meeting lands on your workout and Tempo tells you &mdash; or, on Pro, just moves it.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Availability you control.</b> Mark days off, set earliest and latest times, switch on Travel Mode.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Reminders that make sense.</b> A nudge before the session you scheduled, not at a random 6 PM.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div><div class="scr-top"></div>
+          <div class="scr">
+            <div class="scr-hd">
+              <div><div class="scr-eyebrow">Good morning</div><div class="scr-title">Today</div></div>
+              <div class="scr-av"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            </div>
+            <div class="daystrip">
+              <div class="dcell"><div class="dl">Mon</div><div class="dn">15</div></div>
+              <div class="dcell on"><div class="dl">Tue</div><div class="dn">16</div><div class="dd"></div></div>
+              <div class="dcell"><div class="dl">Wed</div><div class="dn">17</div></div>
+              <div class="dcell"><div class="dl">Thu</div><div class="dn">18</div><div class="dd"></div></div>
+              <div class="dcell"><div class="dl">Fri</div><div class="dn">19</div></div>
+            </div>
+            <div class="card-s hero-s">
+              <div class="s-row" style="justify-content:space-between">
+                <span class="tag tag-blue" style="font-size:8px;padding:3px 7px">Scheduled</span>
+                <span class="s-lbl">1:00 PM &middot; 45 min</span>
+              </div>
+              <div class="s-h" style="font-size:17px;margin-top:8px">Upper Body Push</div>
+              <div class="s-p">6 exercises &middot; fits the gap before your 2 PM.</div>
+              <div class="s-btn"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start session</div>
+            </div>
+            <div class="card-s">
+              <div class="s-row">
+                <span style="width:26px;height:26px;border-radius:8px;background:var(--ember-soft);color:var(--ember);display:grid;place-items:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
+                <div style="flex:1;min-width:0">
+                  <div class="s-lbl" style="color:var(--ember)">Quick workout</div>
+                  <div class="s-h" style="font-size:12.5px">Only have 20 minutes?</div>
+                </div>
+              </div>
+            </div>
+            <div class="card-s">
+              <div class="s-lbl">Later today</div>
+              <div class="s-p" style="margin-top:6px">6:30 PM &mdash; Dinner with Alex</div>
+              <div class="s-p" style="opacity:.6">Tempo left this alone.</div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 2. Session -->
+    <div class="frow flip">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-blue">The session</span>
+        <h3>A logbook that already knows your numbers.</h3>
+        <p class="lead">Open a session and the weights are already filled in &mdash; picked from what you
+          lifted last time and how it felt. Log a set with one tap, watch the rest timer, and get
+          on with it.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Today&rsquo;s target, pre-filled.</b> Progressive overload applied automatically, set by set.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>1,300+ exercises</b> with form guides, plus swap-any-exercise for the gear you actually have.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Works offline.</b> Basement gym, no signal &mdash; every set is saved locally and syncs when you&rsquo;re back.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Was that too hard?</b> One answer at the end reshapes next week&rsquo;s loads.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div><div class="scr-top"></div>
+          <div class="scr">
+            <div class="scr-hd">
+              <div><div class="scr-eyebrow">Active session</div><div class="scr-title">Upper Push</div></div>
+              <div class="num" style="font-size:18px;color:var(--blue)">18:42</div>
+            </div>
+            <div style="height:4px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden">
+              <div style="width:48%;height:100%;background:var(--blue);border-radius:3px"></div>
+            </div>
+            <div class="card-s">
+              <div class="s-row" style="justify-content:space-between">
+                <div>
+                  <div class="s-h" style="font-size:14px">Barbell Bench Press</div>
+                  <div class="s-lbl" style="margin-top:3px">Chest &middot; Triceps</div>
+                </div>
+                <div class="num" style="font-size:12px;color:var(--text-3)">2/4</div>
+              </div>
+              <div style="margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--blue-soft);border:1px solid rgba(78,139,255,0.28)">
+                <div class="s-lbl" style="color:var(--blue-bright)">Today&rsquo;s target</div>
+                <div class="num" style="font-size:13px;margin-top:3px">135 lb &middot; 8&ndash;10 &times; 4</div>
+              </div>
+              <div class="settable">
+                <div class="setrow hd"><span>Set</span><span>Prev</span><span>lb</span><span>Reps</span><span></span></div>
+                <div class="setrow done"><span>1</span><span>130 &times; 10</span><span>135</span><span>10</span><span class="ck on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span></div>
+                <div class="setrow done"><span>2</span><span>130 &times; 9</span><span>135</span><span>9</span><span class="ck on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span></div>
+                <div class="setrow active"><span>3</span><span>130 &times; 8</span><span class="fake-in"></span><span class="fake-in"></span><span class="ck off"></span></div>
+                <div class="setrow"><span>4</span><span>125 &times; 8</span><span>&mdash;</span><span>&mdash;</span><span class="ck off"></span></div>
+              </div>
+            </div>
+            <div class="card-s" style="display:flex;align-items:center;gap:10px">
+              <span style="width:30px;height:30px;border-radius:50%;border:2px solid var(--blue);display:grid;place-items:center" class="num">45</span>
+              <div><div class="s-lbl">Rest timer</div><div class="s-p" style="margin-top:2px">Auto-starts on each logged set</div></div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
+            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 3. Adaptation -->
+    <div class="frow">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-ember">The adaptation</span>
+        <h3>It reads the week you actually had.</h3>
+        <p class="lead">Tempo runs a real training block &mdash; three weeks of building, then a lighter
+          deload week. And when your logs say the block isn&rsquo;t landing, it changes the block instead
+          of blaming you.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Missed a few?</b> Tempo drops into a recovery block and re-stamps every upcoming session, not just today&rsquo;s.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Crushing it?</b> Say a session was too easy enough times and Tempo promotes you &mdash; harder exercises, bigger jumps.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Scheduled deloads.</b> Week four backs off on purpose, the way a coach would program it.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Away from your gym?</b> Travel Mode rewrites upcoming sessions for whatever equipment you have.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div><div class="scr-top"></div>
+          <div class="scr">
+            <div class="scr-hd">
+              <div><div class="scr-eyebrow">Your block</div><div class="scr-title">Week 3 of 4</div></div>
+              <span class="tag tag-ember" style="font-size:8px">Recovery</span>
+            </div>
+            <div class="card-s">
+              <div class="s-lbl">Mesocycle</div>
+              <div style="display:flex;gap:6px;margin-top:10px">
+                <div style="flex:1;text-align:center"><div style="height:34px;border-radius:6px;background:rgba(78,139,255,0.35)"></div><div class="barlbl">W1</div></div>
+                <div style="flex:1;text-align:center"><div style="height:44px;border-radius:6px;background:rgba(78,139,255,0.55)"></div><div class="barlbl">W2</div></div>
+                <div style="flex:1;text-align:center"><div style="height:52px;border-radius:6px;background:var(--blue)"></div><div class="barlbl" style="color:var(--blue)">W3</div></div>
+                <div style="flex:1;text-align:center"><div style="height:24px;border-radius:6px;background:rgba(217,161,59,0.5)"></div><div class="barlbl">W4</div></div>
+              </div>
+              <div class="s-p" style="margin-top:10px">Volume climbs for three weeks, then week four deloads by design.</div>
+            </div>
+            <div class="card-s" style="border-color:rgba(255,106,69,0.35);background:linear-gradient(150deg,rgba(255,106,69,0.12),var(--card-2) 60%)">
+              <div class="s-lbl" style="color:var(--ember)">Plan adjusted</div>
+              <div class="s-h" style="font-size:13px;margin-top:4px">Two sessions missed last week</div>
+              <div class="s-p">Loads eased 10% and the next three weeks were re-stamped. Nothing to catch up on.</div>
+            </div>
+            <div class="card-s">
+              <div class="s-lbl">Last feedback</div>
+              <div class="s-row" style="gap:6px;margin-top:8px">
+                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px">Too easy</span>
+                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px;background:var(--blue-soft);border-color:rgba(78,139,255,0.5);color:var(--blue-bright)">Just right</span>
+                <span class="chip" style="pointer-events:none;font-size:11px;padding:7px 10px">Too hard</span>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
+            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 4. Progress -->
+    <div class="frow flip">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-gold">The proof</span>
+        <h3>Consistency you can actually see.</h3>
+        <p class="lead">Not vanity charts. A completion rate that tells the truth, a streak that survives
+          a bad week, and per-lift strength curves that show whether the last month did anything.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Consistency score</b> &mdash; the share of scheduled sessions you actually completed.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Volume &amp; strength trends</b> per lift, with every personal record kept.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Weight &amp; measurement history</b> with a real trend line, not just today&rsquo;s number.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Weekly recap</b> and badges &mdash; a short read on Sunday, not a slot machine.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div><div class="scr-top"></div>
+          <div class="scr">
+            <div class="scr-hd">
+              <div><div class="scr-eyebrow">Your performance</div><div class="scr-title">Progress</div></div>
+            </div>
+            <div class="card-s">
+              <div class="s-lbl" style="text-align:center">Consistency &mdash; last 30 days</div>
+              <div class="ring-wrap">
+                <div class="ring">
+                  <svg width="116" height="116" viewBox="0 0 116 116">
+                    <circle class="ring-c ring-bg" cx="58" cy="58" r="50"/>
+                    <circle class="ring-c ring-fg" cx="58" cy="58" r="50"/>
+                  </svg>
+                  <div class="ring-mid"><div class="ring-pct">78%</div><div class="ring-lbl">Keep going</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="card-s" style="display:flex;align-items:center;justify-content:space-between">
+              <div><div class="s-lbl">Current streak</div><div class="stat-big" style="color:var(--gold);margin-top:2px">12 <small>days</small></div></div>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.5.5-2.5.5-2.5S6 11 6 13a6 6 0 0 0 12 0c0-5-6-11-6-11z"/></svg>
+            </div>
+            <div class="card-s">
+              <div class="s-row" style="justify-content:space-between">
+                <div><div class="s-lbl">Volume lifted</div><div class="stat-big" style="margin-top:2px">24.8k <small>lb</small></div></div>
+                <span class="tag tag-blue" style="font-size:8px">This month</span>
+              </div>
+              <div class="bars">
+                <div class="barcol"><div class="bar" style="height:52%"></div><div class="barlbl">W1</div></div>
+                <div class="barcol"><div class="bar" style="height:66%"></div><div class="barlbl">W2</div></div>
+                <div class="barcol"><div class="bar" style="height:58%"></div><div class="barlbl">W3</div></div>
+                <div class="barcol"><div class="bar cur" style="height:84%"></div><div class="barlbl" style="color:var(--blue)">W4</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Today</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span>Train</span></div>
+            <div class="tb on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span>Progress</span></div>
+            <div class="tb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>You</span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ EVERYTHING ELSE ═══════════════ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">And the rest</span>
+      <h2 class="h-md">Everything else that shipped with it.</h2>
+    </div>
+    <div class="grid-3">
+      <div class="tile" data-sr>
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
+        <h4>Quick Workouts</h4>
+        <p>Five to thirty minutes, built for the window you actually have. Pick a length and a focus; Tempo does the rest.</p>
+      </div>
+      <div class="tile" data-sr style="--d:60ms">
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg></div>
+        <h4>Splits &amp; custom workouts</h4>
+        <p>Prefer to drive? Build your own split, save templates, and create custom exercises. Tempo still schedules them for you.</p>
+      </div>
+      <div class="tile" data-sr style="--d:120ms">
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 8v8M8 21l4-5 4 5M6 12h12"/></svg></div>
+        <h4>Muscle intelligence</h4>
+        <p>An interactive body map of what you&rsquo;ve trained, what&rsquo;s recovered, and where you&rsquo;re quietly lopsided.</p>
+        <span class="tag tag-blue">Pro</span>
+      </div>
+      <div class="tile" data-sr style="--d:180ms">
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg></div>
+        <h4>Travel Mode</h4>
+        <p>Hotel gym, a park, or nothing but a floor. Tell Tempo what you&rsquo;ve got and it rewrites the coming sessions to match.</p>
+        <span class="tag tag-blue">Pro</span>
+      </div>
+      <div class="tile" data-sr style="--d:240ms">
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div>
+        <h4>Friends &amp; private groups</h4>
+        <p>A leaderboard, shared workouts, badges, and small private groups &mdash; accountability without a public feed shouting at you.</p>
+      </div>
+      <div class="tile" data-sr style="--d:300ms">
+        <div class="tile-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-10"/><path d="M21 5v6h-6"/></svg></div>
+        <h4>PR forecast</h4>
+        <p>A projection from your own logged sets: at this rate, here&rsquo;s the date you hit the next milestone.</p>
+        <span class="tag tag-blue">Pro</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FIRST WEEK ═══════════════ -->
+<section style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">What actually happens</span>
+      <h2 class="h-lg">Your first four weeks.</h2>
+      <p class="lead">No 40-minute setup, no logging your breakfast. Here&rsquo;s the whole arc.</p>
+    </div>
+    <div class="week1">
+      <div class="w1" data-sr>
+        <div class="w1-dot"></div>
+        <div class="when">Day 1 &middot; 3 min</div>
+        <h4>Answer four questions</h4>
+        <p>Goal, experience, equipment, and the days you can train. Connect a calendar if you want the scheduling &mdash; you can skip it and add it later.</p>
+      </div>
+      <div class="w1" data-sr style="--d:100ms">
+        <div class="w1-dot"></div>
+        <div class="when">Day 1 &middot; 30 sec</div>
+        <h4>Your week appears</h4>
+        <p>A full plan, already placed into the gaps in your real calendar, starting with whatever days are left in this week &mdash; not next Monday.</p>
+      </div>
+      <div class="w1" data-sr style="--d:200ms">
+        <div class="w1-dot"></div>
+        <div class="when">Day 3</div>
+        <h4>Something goes wrong</h4>
+        <p>A meeting eats your session. Tempo flags the clash and re-lays the week around it. This is the part every other app gets wrong.</p>
+      </div>
+      <div class="w1" data-sr style="--d:300ms">
+        <div class="w1-dot"></div>
+        <div class="when">Week 4</div>
+        <h4>The plan changes shape</h4>
+        <p>Three weeks of building, then a deload. Your loads have moved with your logs, and the consistency number is the only score that matters.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ COMPARISON TABLE ═══════════════ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">Where Tempo sits</span>
+      <h2 class="h-lg">Trackers log. Plan apps prescribe.<br>Tempo schedules.</h2>
+      <p class="lead">A fair read of the category, not a hit piece &mdash; workout trackers and coached plans are
+        genuinely good at what they do. They just both assume you&rsquo;ve already found the time.</p>
+    </div>
+    <div class="table-scroll" data-sr>
+      <table class="cmp-table">
+        <thead>
+          <tr>
+            <th scope="col">&nbsp;</th>
+            <th scope="col">Workout trackers</th>
+            <th scope="col">Coached plan apps</th>
+            <th scope="col" class="me">Tempo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Builds the workout for you</td>
+            <td><span class="cell no">You build it</span></td>
+            <td><span class="cell yes">Yes</span></td>
+            <td class="me"><span class="cell yes">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Knows when you&rsquo;re free</td>
+            <td><span class="cell no">No</span></td>
+            <td><span class="cell no">No</span></td>
+            <td class="me"><span class="cell yes">Reads your calendar</span></td>
+          </tr>
+          <tr>
+            <td>Puts the session at a specific time</td>
+            <td><span class="cell no">No</span></td>
+            <td><span class="cell no">A day at best</span></td>
+            <td class="me"><span class="cell yes">Time &amp; duration</span></td>
+          </tr>
+          <tr>
+            <td>Reacts to a calendar conflict</td>
+            <td><span class="cell no">No</span></td>
+            <td><span class="cell no">No</span></td>
+            <td class="me"><span class="cell yes">Detects &amp; moves it</span></td>
+          </tr>
+          <tr>
+            <td>Shrinks to the time you have</td>
+            <td><span class="cell no">No</span></td>
+            <td><span class="cell no">Fixed length</span></td>
+            <td class="me"><span class="cell yes">5&ndash;30 min sessions</span></td>
+          </tr>
+          <tr>
+            <td>Adapts after missed sessions</td>
+            <td><span class="cell no">No</span></td>
+            <td><span class="cell no">You restart the plan</span></td>
+            <td class="me"><span class="cell yes">Re-stamps the block</span></td>
+          </tr>
+          <tr>
+            <td>Full logging, history &amp; PRs</td>
+            <td><span class="cell yes">Yes</span></td>
+            <td><span class="cell no">Partial</span></td>
+            <td class="me"><span class="cell yes">Yes, free</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PRIVACY ═══════════════ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="privacy-panel" data-sr>
+      <div>
+        <span class="eyebrow" style="color:var(--green)">Calendar privacy</span>
+        <h2 class="h-md" style="margin:16px 0 18px">We ask for the least useful version of your calendar.</h2>
+        <p class="lead" style="margin-bottom:26px">Tempo needs to know <em>when</em> you&rsquo;re busy. It has no
+          reason to know <em>why</em> &mdash; so it never asks for it.</p>
+        <ul class="p-list">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Free/busy times only.</b> Not titles, not attendees, not locations, not notes.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Never sold, never shared.</b> It&rsquo;s used to place your workouts. That&rsquo;s the entire purpose.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Disconnect any time.</b> Turn calendar sync off and Tempo removes the events it added.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Delete everything from inside the app.</b> Profile &rarr; Delete Account, no email ticket required.</span></li>
+        </ul>
+      </div>
+      <div class="p-visual" aria-hidden="true">
+        <div class="p-line"><span class="k">Busy 09:30&ndash;11:00</span><span class="v">&#10003;</span><span class="badge read">Read</span></div>
+        <div class="p-line"><span class="k">Event title</span><span class="v off">Design review</span><span class="badge never">Never</span></div>
+        <div class="p-line"><span class="k">Attendees</span><span class="v off">4 people</span><span class="badge never">Never</span></div>
+        <div class="p-line"><span class="k">Location</span><span class="v off">Room 2B</span><span class="badge never">Never</span></div>
+        <div class="p-line"><span class="k">Notes</span><span class="v off">&mdash;</span><span class="badge never">Never</span></div>
+        <div class="p-line"><span class="k">Free 13:00&ndash;15:00</span><span class="v">&#10003;</span><span class="badge read">Read</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PRICING ═══════════════ -->
+<section id="pricing" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">Pricing</span>
+      <h2 class="h-lg">The whole app works for free.</h2>
+      <p class="lead">Planning, scheduling this week, unlimited logging, the full exercise library, progress
+        and history &mdash; all free, no ads. Pro buys foresight and automation on top: every future week
+        auto-fitted, conflicts resolved for you, and the deeper tooling.</p>
+    </div>
+
+    <div class="price-grid">
+      <div class="plan" data-sr>
+        <div class="plan-name">Free</div>
+        <div class="plan-price"><span class="amt">$0</span><span class="per">forever</span></div>
+        <p class="plan-sub">Everything you need to train consistently, with no trial clock.</p>
+        <ul>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Auto-generated plan for your goal, level &amp; equipment</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Calendar auto-fit for the current week</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Unlimited logging &amp; full history</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Full 1,300+ exercise library &amp; Quick Workouts</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Progress, streaks, PRs &amp; analytics</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> 1 custom plan &middot; 5 custom workouts &amp; exercises</li>
+        </ul>
+        <a href="#get" class="btn btn-ghost btn-lg">Download Tempo</a>
+      </div>
+
+      <div class="plan pro" data-sr style="--d:110ms">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div class="plan-name">Tempo Pro</div>
+          <span class="tag tag-blue">Most useful if your week moves</span>
+        </div>
+        <div class="plan-price"><span class="amt">$4.99</span><span class="per">/ month</span></div>
+        <p class="plan-sub">or <b class="num">$34.99</b> a year &mdash; about <b class="num">$2.92</b> a month.</p>
+        <ul>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Rolling auto-schedule</b> &mdash; every future week fitted to your calendar, not just this one</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Auto-reschedule</b> when a meeting lands on a session</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Re-plan my whole week</b> in one tap, recovery-aware</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Travel Mode</b> &amp; multi-calendar busy time</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Muscle intelligence</b> body map &amp; <b>PR forecast</b></span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span>Unlimited custom plans, workouts &amp; exercises, plus the plate calculator</span></li>
+        </ul>
+        <div class="founding" style="margin-bottom:20px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 3l2.2 5.6L20 9.8l-4 4.2 1 6-5-2.9-5 2.9 1-6-4-4.2 5.8-1.2z"/></svg>
+          <span><b>Founding member:</b> $24.99 for your first year, then $34.99.</span>
+        </div>
+        <a href="#get" class="btn btn-primary btn-lg">Get Tempo &amp; try Pro</a>
+      </div>
+    </div>
+    <p class="price-note">
+      Subscriptions are billed through the App Store or Google Play and can be cancelled there at any time.
+      Prices shown in USD; your store may show local pricing. Pro is optional &mdash; the free app is not a demo.
+    </p>
+  </div>
+</section>
+
+<!--
+  ═══════════ RATINGS BLOCK ═══════════
+  Un-comment once you have REAL App Store / Play numbers, and paste the real figures in.
+  Do not ship invented ratings.
+
+  <section style="padding-top:0">
+    <div class="wrap" style="display:flex;gap:48px;justify-content:center;flex-wrap:wrap;text-align:center">
+      <div><div class="stat-big" style="font-size:40px">4.x</div><div class="dim">App Store &middot; n ratings</div></div>
+      <div><div class="stat-big" style="font-size:40px">4.x</div><div class="dim">Google Play &middot; n ratings</div></div>
+    </div>
+  </section>
+
+  ═══════════ TESTIMONIAL BLOCK ═══════════
+  Same rule — real quotes from real users only, with permission. A three-card rail
+  using .grid-3 / .tile styling will drop straight in here.
+-->
+
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">FAQ</span>
+      <h2 class="h-lg">Straight answers.</h2>
+    </div>
+    <div class="faq" data-sr>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Do I have to connect a calendar?</button>
+        <div class="faq-a"><div>No. Tempo builds and runs your plan perfectly well without one &mdash; you just pick the days you train. Connecting Google or Apple Calendar is what unlocks the part nothing else does: sessions placed at real times in real gaps, and a heads-up when something collides. You can connect it later, or disconnect at any point.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">What exactly can Tempo see in my calendar?</button>
+        <div class="faq-a"><div>Only when you&rsquo;re free and when you&rsquo;re busy. Never event titles, attendees, locations, or notes. When Tempo writes a workout to your calendar it adds its own event &mdash; and removes those events again if you switch calendar sync off. Full detail is in the <a href="privacy.html">Privacy Policy</a>.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Is it really free, or is it a trial?</button>
+        <div class="faq-a"><div>Really free, with no clock on it. The free app generates your plan, fits this week around your calendar, logs unlimited workouts with full history, gives you the whole 1,300+ exercise library, Quick Workouts, and your progress and PRs. Tempo Pro ($4.99/month or $34.99/year) adds rolling auto-scheduling for every future week, automatic conflict resolution, Travel Mode, multi-calendar, the muscle map, PR forecasting, and unlimited custom content. There are no ads in either tier.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">I&rsquo;m a beginner. Will this be too much?</button>
+        <div class="faq-a"><div>No &mdash; beginners are the default. Tempo asks your experience level up front and picks simpler movements, gentler loads, and fewer sets to start. Every exercise has a form guide, and the app promotes you to harder programming only once your own logs show you&rsquo;ve earned it.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">What if I miss a week?</button>
+        <div class="faq-a"><div>Nothing breaks and nothing piles up. Tempo notices the missed sessions, eases the loads, re-stamps your upcoming weeks into a recovery block, and carries on. You will never open the app to a backlog of &ldquo;overdue&rdquo; workouts.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Do I need a gym?</button>
+        <div class="faq-a"><div>No. You tell Tempo what equipment you have &mdash; a full gym, a couple of dumbbells, bands, or nothing at all &mdash; and it only programs what you can actually do. Travel Mode (Pro) rewrites your upcoming sessions when that changes, like a week in a hotel.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Does it work without signal?</button>
+        <div class="faq-a"><div>Yes. Sets are saved on your device as you log them and sync when you&rsquo;re back online, so a basement gym or a plane never costs you a workout.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Can I delete my account and data?</button>
+        <div class="faq-a"><div>Yes, from inside the app: Profile &rarr; Delete Account. It removes your account and associated data &mdash; no support ticket, no waiting. There&rsquo;s also a <a href="delete-account.html">web form</a> if you no longer have the app installed.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">iPhone and Android both?</button>
+        <div class="faq-a"><div>Both, with the same feature set. Your account, plan, and history sync across devices, so switching phones doesn&rsquo;t restart anything.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FINAL CTA ═══════════════ -->
+<section class="cta" id="get">
+  <div class="wrap narrow">
+    <div data-sr>
+      <span class="eyebrow" style="justify-content:center">Get started</span>
+      <h2 class="h-lg" style="margin:18px 0 18px">Stop scheduling your life around training.</h2>
+      <p class="lead">Download Tempo, answer four questions, and see your week planned in under three
+        minutes. Free, no ads, cancel nothing.</p>
+
+      <div class="stores">
+        <a class="store" data-store="ios" href="#get">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.72c.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.72-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.87-.76-1.48.02-2.84.86-3.6 2.18-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.75 2.21 1.1-.05 1.52-.71 2.85-.71 1.33 0 1.71.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.54zM14.2 5.9c.61-.74 1.02-1.77.91-2.8-.88.04-1.94.59-2.57 1.32-.56.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.58-1.22z"/></svg>
+          <span class="store-txt"><small>Download on the</small><strong>App Store</strong></span>
+        </a>
+        <a class="store" data-store="android" href="#get">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.6 2.3c-.3.3-.5.8-.5 1.4v16.6c0 .6.2 1.1.5 1.4l.1.1 9.3-9.3v-.2L3.7 2.2l-.1.1z" fill="#00D2FF"/>
+            <path d="M16.1 15.6 13 12.5v-.2l3.1-3.1.1.1 3.7 2.1c1 .6 1 1.6 0 2.2l-3.8 2z" fill="#FFCE00"/>
+            <path d="m16.2 15.5-3.2-3.2-9.4 9.4c.3.4.9.4 1.5.1l11.1-6.3" fill="#FF3A44"/>
+            <path d="M16.2 9.2 5.1 2.9c-.6-.4-1.2-.3-1.5.1l9.4 9.3 3.2-3.1z" fill="#00E676"/>
+          </svg>
+          <span class="store-txt"><small>Get it on</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+
+      <!-- Fallback: if the store links aren't live yet, this is where the CTA lands -->
+      <div id="notify-wrap" hidden>
+        <p class="dim" style="margin-top:34px;font-size:14px">Not in your store yet? We&rsquo;ll email you the day it lands.</p>
+        <form class="notify" id="notify-form" action="https://formgrid.dev/api/f/1it6zjtm" method="POST">
+          <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address">
+          <button type="submit" class="btn btn-primary">Notify me</button>
+        </form>
+        <p class="form-msg" id="notify-msg" role="status"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a href="#top" class="brand"><img src="tempo-logo.png" alt="" width="32" height="32"><span>Tempo</span></a>
+        <p>The fitness app that schedules training around your real calendar &mdash; so a busy week never becomes a lost one.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h5>Product</h5>
+          <a href="#how">How it works</a>
+          <a href="#plan-it">Plan my week</a>
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="foot-col">
+          <h5>Get Tempo</h5>
+          <a href="#get" data-store="ios">iPhone &mdash; App Store</a>
+          <a href="#get" data-store="android">Android &mdash; Google Play</a>
+          <a href="#faq">FAQ</a>
+        </div>
+        <div class="foot-col">
+          <h5>Legal &amp; support</h5>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="delete-account.html">Delete your account</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>&copy; <span id="year">2026</span> Tempo. All rights reserved.</span>
+      <span>Made for people whose weeks don&rsquo;t cooperate.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⚠️  FILL THESE IN BEFORE PUBLISHING
+     Until they're real URLs, every download button quietly falls back
+     to the "notify me" form at #get instead of shipping a dead link.
+     ══════════════════════════════════════════════════════════════════ */
+  var STORE = {
+    ios:     'REPLACE_WITH_APP_STORE_URL',
+    android: 'REPLACE_WITH_PLAY_STORE_URL'
+  };
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── Store links ─────────────────────────────────────────────── */
+  var live = { ios: STORE.ios.indexOf('http') === 0, android: STORE.android.indexOf('http') === 0 };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-store]'), function (el) {
+    var k = el.getAttribute('data-store');
+    if (live[k]) {
+      el.href = STORE[k];
+      el.target = '_blank';
+      el.rel = 'noopener';
+    } else if (el.classList.contains('store')) {
+      el.classList.add('is-pending');
+    }
+  });
+  if (!live.ios || !live.android) {
+    var nw = document.getElementById('notify-wrap');
+    if (nw) nw.hidden = false;
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────── */
+  var nav = document.getElementById('nav');
+  var drawer = document.getElementById('drawer');
+  var toggle = document.getElementById('nav-toggle');
+
+  function onScroll() { nav.classList.toggle('stuck', window.scrollY > 10); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  toggle.addEventListener('click', function () {
+    var open = drawer.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+  Array.prototype.forEach.call(drawer.querySelectorAll('a'), function (a) {
+    a.addEventListener('click', function () {
+      drawer.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) {
+      drawer.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.focus();
+    }
+  });
+
+  /* ── Scroll reveal ───────────────────────────────────────────── */
+  var srEls = document.querySelectorAll('[data-sr]');
+  if ('IntersectionObserver' in window && !reduced) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    Array.prototype.forEach.call(srEls, function (el) { io.observe(el); });
+  } else {
+    Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
+  }
+
+  /* ── Marquee: duplicate the track so the loop is seamless ────── */
+  var mq = document.getElementById('marquee');
+  if (mq) mq.innerHTML += mq.innerHTML;
+
+  /* ── Hero timeline story ─────────────────────────────────────────
+     0: a free gap is found → 1: the session is placed →
+     2: a meeting lands on it → 3: the session moves. Then it loops.
+     Reduced motion: jump straight to the resolved state, no loop.   */
+  var tl = document.getElementById('tl');
+  if (tl) {
+    var msgs = [0, 1, 2, 3].map(function (i) { return document.getElementById('tl-msg-' + i); });
+    var STEPS = [1900, 2600, 2000, 3200];
+
+    function setState(i) {
+      tl.setAttribute('data-state', String(i));
+      msgs.forEach(function (m, j) { if (m) m.hidden = j !== i; });
+    }
+
+    if (reduced) {
+      setState(3);
+    } else {
+      var step = 0, timer = null, running = false;
+      function tick() {
+        setState(step);
+        timer = setTimeout(function () { step = (step + 1) % 4; tick(); }, STEPS[step]);
+      }
+      // Only run while it's on screen — no background timers eating battery.
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting && !running) { running = true; tick(); }
+            else if (!e.isIntersecting && running) { running = false; clearTimeout(timer); }
+          });
+        }, { threshold: 0.25 }).observe(tl);
+      } else { tick(); }
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { clearTimeout(timer); running = false; }
+      });
+    }
+  }
+
+  /* ── FAQ accordion ───────────────────────────────────────────── */
+  Array.prototype.forEach.call(document.querySelectorAll('.faq-q'), function (q) {
+    // The +/- icon is decorative, so it's injected rather than repeated in markup.
+    q.insertAdjacentHTML('beforeend',
+      '<svg class="faq-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>');
+
+    q.addEventListener('click', function () {
+      var item = q.parentElement;
+      var ans = item.querySelector('.faq-a');
+      var isOpen = item.classList.contains('open');
+
+      Array.prototype.forEach.call(document.querySelectorAll('.faq-item.open'), function (o) {
+        if (o !== item) {
+          o.classList.remove('open');
+          o.querySelector('.faq-a').style.maxHeight = '';
+          o.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      item.classList.toggle('open', !isOpen);
+      q.setAttribute('aria-expanded', String(!isOpen));
+      ans.style.maxHeight = isOpen ? '' : ans.scrollHeight + 'px';
+    });
+  });
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE WEEK PLANNER
+     Mirrors the app's real logic closely enough to be honest:
+       · split templates per goal + days  (mobile/src/lib/generatePlan.ts)
+       · training-day spacing  gap = max(1, floor(7 / days))
+       · placement into the first free window long enough for the session
+     It runs against a *typical* week for the chosen lifestyle; the app
+     runs the same shape against your actual calendar free/busy data.
+     ══════════════════════════════════════════════════════════════════ */
+
+  // Split templates — the same focus names the app generates.
+  var SPLITS = {
+    muscle: {
+      2: ['Upper A', 'Lower A'],
+      3: ['Push', 'Pull', 'Legs'],
+      4: ['Upper A', 'Lower A', 'Upper B', 'Lower B'],
+      5: ['Push', 'Pull', 'Legs', 'Upper A', 'Lower A'],
+      6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs']
+    },
+    strength: {
+      2: ['Squat Day', 'Press Day'],
+      3: ['Squat Day', 'Press Day', 'Deadlift Day'],
+      4: ['Squat Day', 'Press Day', 'Deadlift Day', 'Pull Day'],
+      5: ['Squat Day', 'Press Day', 'Deadlift Day', 'Pull Day', 'Upper'],
+      6: ['Squat Day', 'Press Day', 'Pull Day', 'Deadlift Day', 'Upper', 'Squat Day']
+    },
+    fatloss: {
+      2: ['Full Body A', 'Full Body B'],
+      3: ['Full Body A', 'Full Body B', 'Full Body C'],
+      4: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning'],
+      5: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning', 'Upper Circuit'],
+      6: ['Full Body A', 'Full Body B', 'Full Body C', 'Conditioning', 'Upper Circuit', 'Full Body A']
+    }
+  };
+
+  // A typical week's busy time per lifestyle. [startHour, endHour], Mon=0 … Sun=6.
+  var LIVES = {
+    office: {
+      label: 'a 9–6 office week',
+      busy: [
+        [[8.5, 18]], [[8.5, 18]], [[8.5, 18.5]], [[8.5, 18]], [[8.5, 17]],
+        [[10, 13]], [[11, 15]]
+      ]
+    },
+    parent: {
+      label: 'a week with kids at home',
+      busy: [
+        [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]],
+        [[8.5, 17], [17.5, 21]], [[8.5, 17], [17.5, 21]],
+        [[9, 12], [16, 20]], [[9, 13], [16, 20]]
+      ]
+    },
+    shift: {
+      label: 'a rotating shift pattern',
+      busy: [
+        [[6, 14.5]], [[6, 14.5]], [[13.5, 22]], [[13.5, 22]], [[13.5, 22]],
+        [[6, 14.5]], []
+      ]
+    },
+    student: {
+      label: 'a student timetable',
+      busy: [
+        [[9, 12], [14, 16]], [[10, 13]], [[9, 12], [15, 18]], [[11, 14]],
+        [[9, 11]], [[12, 15]], [[15, 19]]
+      ]
+    }
+  };
+
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var DAY_START = 6, DAY_END = 21.5;   // the window Tempo will schedule inside
+
+  var state = { goal: 'muscle', days: 4, life: 'office', len: 45 };
+
+  function fmt(h) {
+    var hr = Math.floor(h), mn = Math.round((h - hr) * 60);
+    var ap = hr >= 12 ? 'PM' : 'AM';
+    var h12 = hr % 12 === 0 ? 12 : hr % 12;
+    return h12 + ':' + (mn < 10 ? '0' + mn : mn) + ' ' + ap;
+  }
+
+  // Every free window on this day, as [start, end] pairs.
+  function freeWindows(busy) {
+    var blocks = (busy || []).slice().sort(function (a, b) { return a[0] - b[0]; });
+    var out = [], cursor = DAY_START;
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i][0] > cursor) out.push([cursor, blocks[i][0]]);
+      cursor = Math.max(cursor, blocks[i][1]);
+    }
+    if (DAY_END > cursor) out.push([cursor, DAY_END]);
+    return out;
+  }
+
+  // Where the session goes: the LARGEST window that fits it, not merely the first.
+  // Grabbing the first free minute of the day would park every session at 6am and
+  // miss the actual point — Tempo looks for the roomiest real gap. A window that
+  // opens mid-day gets a 15-minute buffer so a session never starts the same
+  // second a meeting ends. Returns null when nothing on the day is long enough.
+  function findSlot(busy, hours) {
+    var need = hours + (10 / 60);   // 10 min of slack, same spirit as the app
+    var best = null, bestLen = 0;
+    freeWindows(busy).forEach(function (w) {
+      var buffer = w[0] > DAY_START ? 0.25 : 0;
+      var len = w[1] - w[0];
+      if (len >= need + buffer && len > bestLen) { bestLen = len; best = w[0] + buffer; }
+    });
+    return best;
+  }
+
+  // Which weekdays get a session. This is the app's own chooseDaySlots(): take the
+  // days that are actually usable, then spread the sessions across them with a
+  // stride so recovery is maximised (3 days over a full week → Mon/Wed/Fri). A day
+  // with no window long enough for the session simply isn't a candidate — which is
+  // the whole point, and why a packed week legitimately returns fewer sessions.
+  function chooseDays(n, life, hours) {
+    var candidates = [];
+    for (var d = 0; d < 7; d++) {
+      if (findSlot(life.busy[d], hours) !== null) candidates.push(d);
+    }
+    var take = Math.min(n, candidates.length);
+    if (take <= 0) return [];
+    var stride = candidates.length / take;
+    var out = [];
+    for (var i = 0; i < take; i++) {
+      var pick = candidates[Math.floor(i * stride)];
+      if (out.indexOf(pick) === -1) out.push(pick);
+    }
+    return out;
+  }
+
+  var weekEl = document.getElementById('week');
+
+  function render() {
+    var life = LIVES[state.life];
+    var hours = state.len / 60;
+    var focuses = SPLITS[state.goal][state.days];
+    var trainDays = chooseDays(state.days, life, hours);
+
+    var html = '', placed = 0;
+    for (var d = 0; d < 7; d++) {
+      var idx = trainDays.indexOf(d);
+      var isTrain = idx !== -1;
+      html += '<div class="wcol' + (isTrain ? ' train' : '') + '" role="listitem">';
+      html += '<div class="wday">' + DAYS[d] + '</div>';
+
+      // Busy blocks, drawn to scale — the shape of the day, and the reason a
+      // session lands where it does. Labelled, because an unlabelled grey bar
+      // reads as a broken image rather than "you are in meetings until six".
+      (life.busy[d] || []).forEach(function (b) {
+        var h = Math.max(14, Math.round((b[1] - b[0]) * 5));
+        html += '<div class="wbusy" style="height:' + h + 'px">'
+             +  '<span>' + fmt(b[0]).replace(':00', '') + '&ndash;' + fmt(b[1]).replace(':00', '') + '</span>'
+             +  '</div>';
+      });
+
+      if (isTrain) {
+        var start = findSlot(life.busy[d], hours);
+        html += '<div class="wsession" style="--pd:' + (idx * 55) + 'ms">'
+             +  '<div class="wt">' + fmt(start) + '</div>'
+             +  '<div class="wf">' + focuses[idx] + '</div>'
+             +  '<div class="wd">' + state.len + ' min</div>'
+             +  '</div>';
+        placed++;
+      } else {
+        html += '<div class="wrest">Recovery</div>';
+      }
+      html += '</div>';
+    }
+    weekEl.innerHTML = html;
+
+    var mins = placed * state.len;
+    var rest = 7 - placed;
+    document.getElementById('ps-sessions').textContent = placed;
+    document.getElementById('ps-time').textContent = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+    document.getElementById('ps-rest').textContent = rest;
+    document.getElementById('ps-sessions-u').textContent = placed === 1 ? 'session' : 'sessions';
+    document.getElementById('ps-rest-u').textContent = rest === 1 ? 'recovery day' : 'recovery days';
+
+    var note = document.getElementById('ps-note');
+    if (placed < state.days) {
+      note.textContent = 'Only ' + placed + ' of ' + state.days
+        + ' fit in ' + life.label + ' — Tempo schedules what’s real, not what’s wishful.';
+    } else {
+      note.textContent = 'All ' + placed + ' placed inside real gaps in ' + life.label + '.';
+    }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chips'), function (group) {
+    var key = group.getAttribute('data-group');
+    group.addEventListener('click', function (e) {
+      var btn = e.target.closest('.chip');
+      if (!btn || !group.contains(btn)) return;
+      Array.prototype.forEach.call(group.querySelectorAll('.chip'), function (c) {
+        c.setAttribute('aria-pressed', String(c === btn));
+      });
+      var v = btn.getAttribute('data-val');
+      state[key] = (key === 'days' || key === 'len') ? parseInt(v, 10) : v;
+      render();
+    });
+  });
+  render();
+
+  /* ── Notify form (only shown while the stores aren't live) ───── */
+  var form = document.getElementById('notify-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = form.querySelector('input');
+      var msg = document.getElementById('notify-msg');
+      var btn = form.querySelector('button');
+      msg.className = 'form-msg';
+      msg.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+
+      fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ email: input.value.trim().toLowerCase() })
+      }).then(function (r) {
+        if (!r.ok) throw new Error('bad response');
+        msg.className = 'form-msg ok';
+        msg.textContent = 'You’re on the list — we’ll email you the day it lands.';
+        form.reset();
+      }).catch(function () {
+        msg.className = 'form-msg err';
+        msg.textContent = 'Something went wrong. Try again in a moment.';
+      }).then(function () {
+        btn.disabled = false;
+        btn.textContent = 'Notify me';
+      });
+    });
+  }
+
+  /* ── Footer year ─────────────────────────────────────────────── */
+  document.getElementById('year').textContent = new Date().getFullYear();
+})();
+</script>
+
+</body>
+</html>

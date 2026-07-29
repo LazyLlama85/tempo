@@ -2903,4 +2903,47 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
+### Post-launch marketing site — `web/launch.html` (2026-07-28)
+`web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
+CTA is an email capture, and there is no pricing, no store links, and no comparison against the
+category. None of that survives the App Store listing going live, so the launch-day site is a separate
+file rather than a rewrite — **`index.html` is untouched**; swap the filenames when the stores are live.
+
+- **Design language = the app's, not the old site's.** `index.html` is a cream/paper page; `launch.html`
+  uses the app's own Ink tokens (`mobile/src/constants/theme.ts`): surface ramp `#0B0C0F → #23272F`,
+  primary `#4E8BFF` (= the plan), ember `#FF6A45` (= now/urgent), gold `#D9A13B` (= earned), and the
+  same three faces — Bricolage Grotesque display / Inter body / **JetBrains Mono for every number**.
+  Someone who downloads from this page lands in a product that looks like the page they came from.
+- **Hero instrument.** A real day-timeline (hour rules, calendar-coloured events, a "now" line) that
+  animates a four-state story on a loop: a free gap is found → the session is placed → a meeting lands
+  on it → the session moves. It demonstrates the wedge instead of describing it. Pauses off-screen and
+  on `visibilitychange`; `prefers-reduced-motion` jumps straight to the resolved state and never loops.
+- **`#plan-it` — the interactive week planner.** The one genuinely new asset. Goal × days × lifestyle ×
+  session length → a rendered week. It is **faithful to the real engine**, not a mock: split templates
+  and focus names come from `lib/generatePlan.ts` (`muscleSessions` / `strengthSessions` /
+  `fatLossSessions`), day selection mirrors `chooseDaySlots()`'s stride spread, and placement picks the
+  **largest** free window that fits (+15 min buffer when the window opens mid-day). A lifestyle whose
+  week genuinely can't fit N sessions returns fewer and says so — the honest answer sells the product
+  better than a fake one. Labelled "illustrative only" in-page.
+- **Claims are sourced, not invented.** Free-tier limits and the Pro list come from `lib/proFeatures.ts`
+  (`PAYWALL_POINTS`) and `paywall.tsx`'s `COMPARE`, so the site cannot advertise something the app
+  doesn't ship — the same App-Store-rejection rule that governs the in-app paywall. Pricing is
+  $4.99/mo · $34.99/yr with the flat $24.99 founding first year (`MONETIZATION_PLAN.md`, 2026-07-27),
+  described as a **paid intro offer, never a "free trial"**, because that's what it is.
+- **No fabricated social proof.** Star ratings and testimonials are the two things a launch site
+  normally invents. Both ship as clearly-marked commented-out blocks (`RATINGS BLOCK` /
+  `TESTIMONIAL BLOCK`) to be filled with real numbers and permissioned quotes. In their place: a
+  factual capability marquee, a category comparison table, and a calendar-privacy panel.
+- **Store links are a single config.** `STORE.ios` / `STORE.android` at the top of the script. Until
+  they're real URLs the badges get a "soon" ribbon and the CTA falls back to the existing
+  `formgrid.dev` notify form — no dead links can ship by forgetting a step. The badges themselves are
+  hand-drawn approximations (the file stays dependency-free); **swap for Apple's and Google's official
+  artwork before launch**, both stores require their own assets.
+- **Same constraints as the rest of `web/`:** one self-contained file, no bundler, no framework, served
+  as a static asset by GitHub Pages. Verified in-browser at 1512px and 412px: no horizontal page
+  scroll (the wide comparison table scrolls inside its own `overflow-x:auto` container), mobile drawer,
+  FAQ accordion, and planner all working, zero console errors.
+
+---
+
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*
