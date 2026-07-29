@@ -2903,12 +2903,35 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
-### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled 2026-07-29, tightened 2026-07-29)
+### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled + tightened 2026-07-29, polish pass 2026-07-29)
 `web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
 CTA is an email capture, and there is no pricing, no store links, and no comparison against the
 category. None of that survives the App Store listing going live, so the launch-day site is a separate
 file rather than a rewrite. **`index.html` is untouched**; swap the filenames when the stores are live.
 
+- **2026-07-29, fourth pass: feature rows loop-fade, no divider between them, category labels off mono.**
+  Three small requests against `#features` (the "Inside Tempo" schedule/session/adaptation/progress
+  rows). First, `.frow + .frow`'s `border-top` divider is gone; Fitbod's reference keeps its feature
+  blocks flowing together on whitespace alone, no hairlines between them (row padding trimmed slightly,
+  `clamp(48px,6vw,76px)` → `clamp(32px,5vw,56px)`, since the divider isn't doing the separation anymore).
+  Second, the small category labels ("The schedule," "The session," "The adaptation," "The proof") move
+  off `--font-mono` onto `--font-body` (Inter) at 12.5px/700 weight with lighter letter-spacing and no
+  pill background, a scoped `.frow .tag` override so the `.tag`/`.tag-blue` etc. classes used elsewhere
+  (Pro badges, the compare-card pills) are untouched. Third, and the bigger change: those same 9
+  `[data-sr]` elements inside `#features` (the section heading plus all 4 `.fr-copy`/`.device-wrap`
+  pairs) now use a second `IntersectionObserver` that toggles `.in` both ways
+  (`e.target.classList.toggle('in', e.isIntersecting)`, no `unobserve`) instead of the site-wide
+  reveal-once-and-stay behavior every other `[data-sr]` element still uses — they fade out again on the
+  way past and fade back in if you scroll back up, matching Fitbod's felt interaction where the section
+  content is alive to your scroll position rather than a one-shot entrance. **Honestly only partially
+  verified:** the CSS/markup changes (font, no divider, correct element partitioning: 9 elements scoped
+  to `#features` vs 19 elsewhere) were confirmed directly; the live fade-out-then-back-in couldn't be
+  watched end-to-end in-browser this session because the automation tab reported
+  `document.visibilityState: "hidden"` throughout (even after a click brought `document.hasFocus()` to
+  `true`), which throttles `IntersectionObserver` callbacks independent of the page's own code. Manually
+  removing/re-adding the `.in` class confirmed the CSS opacity transition itself is wired correctly;
+  the observer logic is the standard toggle idiom and should behave normally in a real, foregrounded
+  browser tab. Worth a real on-device or foregrounded-tab check before calling this fully proven.
 - **2026-07-29, third pass: treated as the live launch page, not a "coming soon" teaser.** The founder's
   own read: the store-link "soon" ribbon (`.store.is-pending`) and the notify-form waitlist fallback
   (`#notify-wrap`, the `formgrid.dev` POST) don't belong on the launch site itself, only on `index.html`.

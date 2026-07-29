@@ -336,11 +336,15 @@
   .frow {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr);
     gap: clamp(32px, 6vw, 80px); align-items: center;
-    padding: clamp(48px, 6vw, 76px) 0;
+    padding: clamp(32px, 5vw, 56px) 0;
   }
-  .frow + .frow { border-top: 1px solid var(--line); }
   .frow.flip .fr-copy { order: 2; }
   .frow h3 { font-size: clamp(26px, 3vw, 38px); margin: 16px 0 18px; }
+  .frow .tag {
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    background: none; padding: 0; border-radius: 0;
+  }
   .flist { list-style: none; margin-top: 26px; display: flex; flex-direction: column; gap: 15px; }
   .flist li { display: flex; gap: 13px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
   .flist .ic {
@@ -1122,13 +1126,24 @@
 
   /* ── Scroll reveal ───────────────────────────────────────────── */
   var srEls = document.querySelectorAll('[data-sr]');
+  var loopEls = document.querySelectorAll('#features [data-sr]');
+  var loopArr = Array.prototype.slice.call(loopEls);
+  var onceEls = Array.prototype.filter.call(srEls, function (el) { return loopArr.indexOf(el) === -1; });
+
   if ('IntersectionObserver' in window && !reduced) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
         if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
       });
     }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    Array.prototype.forEach.call(srEls, function (el) { io.observe(el); });
+    onceEls.forEach(function (el) { io.observe(el); });
+
+    // The "Inside Tempo" feature rows fade back out on the way past too,
+    // instead of staying revealed forever like the rest of the page.
+    var ioLoop = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { e.target.classList.toggle('in', e.isIntersecting); });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    loopArr.forEach(function (el) { ioLoop.observe(el); });
   } else {
     Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
   }
