@@ -2903,65 +2903,76 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
-### Post-launch marketing site — `web/launch.html` (2026-07-28, simplified 2026-07-29, restyled 2026-07-29)
+### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled 2026-07-29, tightened 2026-07-29)
 `web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
 CTA is an email capture, and there is no pricing, no store links, and no comparison against the
 category. None of that survives the App Store listing going live, so the launch-day site is a separate
-file rather than a rewrite — **`index.html` is untouched**; swap the filenames when the stores are live.
+file rather than a rewrite. **`index.html` is untouched**; swap the filenames when the stores are live.
 
+- **2026-07-29, third pass: treated as the live launch page, not a "coming soon" teaser.** The founder's
+  own read: the store-link "soon" ribbon (`.store.is-pending`) and the notify-form waitlist fallback
+  (`#notify-wrap`, the `formgrid.dev` POST) don't belong on the launch site itself, only on `index.html`.
+  Both removed entirely, HTML/CSS/JS. `STORE.ios`/`STORE.android` still need real URLs before publish
+  (unchanged requirement); until then the store buttons simply link to `#get`, no visible badge or
+  fallback form. Also removed the calendar-privacy section (`.privacy-panel`) outright: the founder's
+  view is that calendar privacy isn't a headline feature people are choosing the app for, so a dedicated
+  section forced it. The hero's three-line trust checklist dropped its "reads free/busy only" line for
+  the same reason (now 2 lines, not 3); the privacy FAQ answer stayed, tightened, since a direct question
+  still deserves a direct answer, it just isn't sold as a feature anymore. FAQ's own heading ("Straight
+  answers.") was cut too, called out by name as an unnecessary flourish; the section is now just labeled
+  "Questions." A full copy pass removed every em dash from the visible copy (commas, colons, or a second
+  sentence instead) and trimmed several paragraphs for length without losing the specific claims.
+  Scroll-reveal softened for a smoother settle (`translateY(14px) scale(0.987)`, 0.9s, up from a flatter
+  0.75s slide), and the hero copy now fades in on load via its own staggered CSS keyframe (`.hero-copy`)
+  since it's above the fold and never scrolled into view for the existing IntersectionObserver reveal.
 - **2026-07-29, second pass: rebuilt toward the reference look of fitbod.me.** The founder liked
-  fitbod.me's look/feel specifically and asked for it: flatter dark navy (`--bg:#15161F` up through
+  fitbod.me's look and feel specifically and asked for it: flatter dark navy (`--bg:#15161F` up through
   `--raised:#2E3140`) replacing the old near-black "Ink Instrument" ramp (`#0B0C0F`); one accent color
-  used sparingly — **kept Tempo's own `#4E8BFF` blue rather than switching to Fitbod's coral**, a
+  used sparingly, **kept Tempo's own `#4E8BFF` blue rather than switching to Fitbod's coral**, a
   deliberate call so the site still matches what the actual app looks like, not a literal clone of the
   reference; no ambient radial-gradient glows behind the hero or final CTA; no floating availability
-  pill above the hero headline; hero headline now bold/uppercase (`text-transform:uppercase` on
-  `.hero h1`, still Bricolage Grotesque, no new font added) in Fitbod's short two-line benefit-statement
-  rhythm ("LESS SCHEDULING. MORE TRAINING." replacing the more whimsical "Your week just changed...").
-  Copy pass elsewhere for the same reason: the "Nobody quits... they quit because Tuesday happened"
-  headline and "a promise you make to an app on a calm Sunday" lead became direct statements
-  ("Missed workouts usually aren't a willpower problem. They're a scheduling problem.").
-- **Every phone-mockup screen is now an honest blank placeholder, not built fake UI.** The hero's
-  animated live day-timeline (the four-state "gap found → session placed → conflict → moved" story,
-  HTML+CSS+JS) and all four feature-row phone screens (fabricated exercise names/weights/stats) were
-  removed entirely — the founder's own read was that invented data presented as screenshots is
-  dishonest in exactly the way the ratings/testimonial blocks were already disciplined about. Replaced
-  with a shared `.shot-placeholder` component: the real device-frame chrome (`.device`/`.device-screen`/
-  `.notch`) stays, filled with a calendar-icon glyph + "App screenshot" label. **Fill these in with real
-  device screenshots before publishing** — same discipline as the store badges and the ratings block.
+  pill above the hero headline; hero headline bold/uppercase (`text-transform:uppercase` on `.hero h1`,
+  still Bricolage Grotesque, no new font added) in Fitbod's short two-line benefit-statement rhythm
+  ("LESS SCHEDULING. MORE TRAINING." replacing the more whimsical "Your week just changed...").
+- **Every phone-mockup screen is an honest blank placeholder, not built fake UI.** The hero's animated
+  live day-timeline (the four-state "gap found, session placed, conflict, moved" story, HTML+CSS+JS)
+  and all four feature-row phone screens (fabricated exercise names/weights/stats) were removed
+  entirely, the founder's own read was that invented data presented as screenshots is dishonest in
+  exactly the way the ratings/testimonial blocks were already disciplined about. Replaced with a shared
+  `.shot-placeholder` component: the real device-frame chrome (`.device`/`.device-screen`/`.notch`)
+  stays, filled with a calendar-icon glyph and "App screenshot" label. **Fill these in with real device
+  screenshots before publishing**, same discipline as the store badges and the ratings block.
 - **"Everything else" section is a numbered editorial list, not a card grid.** The six supplementary
   features (Quick Workouts, splits, muscle intelligence, Travel Mode, friends & groups, PR forecast)
-  render as a divided list with a mono index number (01–06, blue for Pro rows) instead of the identical
-  rounded-card 3-column grid every AI-generated landing page defaults to — same content, no
+  render as a divided list with a mono index number (01 to 06, blue for Pro rows) instead of the
+  identical rounded-card 3-column grid every AI-generated landing page defaults to, same content, no
   card-repetition or 3-col-grid template feel.
-- **2026-07-29, first pass: three template-feeling sections removed.** Also gone, same session, earlier
+- **2026-07-29, first pass: three template-feeling sections removed.** Also gone, same day, earliest
   pass: the auto-scrolling capability marquee right below the hero; **`#plan-it`**, the interactive
-  goal/days/lifestyle/session-length week planner (engine-faithful — mirrored `lib/generatePlan.ts`'s
-  split templates and `chooseDaySlots()`'s stride spread — but the founder judged it unnecessary next to
+  goal/days/lifestyle/session-length week planner (engine-faithful, mirrored `lib/generatePlan.ts`'s
+  split templates and `chooseDaySlots()`'s stride spread, but the founder judged it unnecessary next to
   the hero's own demo); and the "Your first four weeks" dotted-timeline onboarding section. Nav, drawer,
   and footer links to `#plan-it` removed with it. The page now reads Hero → problem/compare → four
-  feature rows (screenshot placeholders) → supplementary-features list → comparison table → privacy →
-  pricing → FAQ → CTA.
+  feature rows (screenshot placeholders) → supplementary-features list → comparison table → pricing →
+  FAQ → CTA.
 - **Claims are sourced, not invented.** Free-tier limits and the Pro list come from `lib/proFeatures.ts`
   (`PAYWALL_POINTS`) and `paywall.tsx`'s `COMPARE`, so the site cannot advertise something the app
-  doesn't ship — the same App-Store-rejection rule that governs the in-app paywall. Pricing is
+  doesn't ship, the same App-Store-rejection rule that governs the in-app paywall. Pricing is
   $4.99/mo · $34.99/yr with the flat $24.99 founding first year (`MONETIZATION_PLAN.md`, 2026-07-27),
   described as a **paid intro offer, never a "free trial"**, because that's what it is.
 - **No fabricated social proof.** Star ratings and testimonials are the two things a launch site
   normally invents. Both ship as clearly-marked commented-out blocks (`RATINGS BLOCK` /
-  `TESTIMONIAL BLOCK`) to be filled with real numbers and permissioned quotes. In their place: a
-  category comparison table and a calendar-privacy panel.
+  `TESTIMONIAL BLOCK`) to be filled with real numbers and permissioned quotes.
 - **Store links are a single config.** `STORE.ios` / `STORE.android` at the top of the script. Until
-  they're real URLs the badges get a "soon" ribbon and the CTA falls back to the existing
-  `formgrid.dev` notify form — no dead links can ship by forgetting a step. The badges themselves are
-  hand-drawn approximations (the file stays dependency-free); **swap for Apple's and Google's official
-  artwork before launch**, both stores require their own assets.
+  they're real URLs the buttons just link to `#get`, no dead link ships and no fallback form is needed.
+  The badges themselves are hand-drawn approximations (the file stays dependency-free); **swap for
+  Apple's and Google's official artwork before launch**, both stores require their own assets.
 - **Same constraints as the rest of `web/`:** one self-contained file, no bundler, no framework, served
   as a static asset by GitHub Pages. Verified in-browser after every removal: no horizontal page scroll
   (the wide comparison table scrolls inside its own `overflow-x:auto` container), mobile drawer, FAQ
   accordion, and every remaining `data-sr` scroll-reveal element all working, zero console errors on
-  load. `--cal-work`/`--cal-personal`/`--cal-school`, `--glow`, and the `.pill`/`ping`-keyframe CSS were
-  removed as dead code along with the HTML that used them.
+  load. `--cal-work`/`--cal-personal`/`--cal-school`, `--glow`, `.pill`/`ping`-keyframe CSS, and the
+  privacy-panel and notify-form CSS/HTML/JS were all removed as dead code, not left behind unused.
 
 ---
 
