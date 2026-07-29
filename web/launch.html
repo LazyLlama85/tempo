@@ -381,46 +381,6 @@
     letter-spacing: 0.1em; text-transform: uppercase;
   }
 
-  /* ───────────────────────── 11. Everything-else index ───────────────────────── */
-  .more-list { border-top: 1px solid var(--line); }
-  .more-row {
-    display: grid; grid-template-columns: 50px 38px minmax(0, 1fr);
-    column-gap: 22px; align-items: start;
-    padding: 28px 0; border-bottom: 1px solid var(--line);
-    transition: background 0.22s;
-  }
-  .more-row:hover { background: rgba(255,255,255,0.018); }
-  .more-n {
-    font-family: var(--font-mono); font-size: 25px; font-weight: 700;
-    color: var(--text-3); letter-spacing: -0.02em; line-height: 1.15;
-  }
-  .more-row.pro .more-n { color: var(--blue-bright); }
-  .more-ic {
-    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-    background: var(--blue-soft); color: var(--blue-bright); margin-top: 1px;
-  }
-  .more-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
-  .more-body h4 { font-size: 18px; letter-spacing: -0.02em; flex-shrink: 0; }
-  .more-body p { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 480px; flex: 1 1 300px; }
-  .more-body .tag { flex-shrink: 0; }
-
-  /* ───────────────────────── 13. Comparison table ───────────────────────── */
-  .table-scroll { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--line-2); }
-  table.cmp-table { width: 100%; border-collapse: collapse; min-width: 640px; background: var(--card); }
-  .cmp-table th, .cmp-table td { padding: 15px 18px; text-align: left; font-size: 14px; }
-  .cmp-table thead th {
-    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3);
-    border-bottom: 1px solid var(--line-2); background: rgba(255,255,255,0.02);
-  }
-  .cmp-table thead th.me { color: var(--blue-bright); }
-  .cmp-table tbody tr + tr td { border-top: 1px solid var(--line); }
-  .cmp-table td:first-child { color: var(--text-2); }
-  .cmp-table td.me { background: rgba(78,139,255,0.06); font-weight: 600; }
-  .cmp-table .yes { color: var(--green); }
-  .cmp-table .no  { color: var(--text-3); }
-  .cell { display: inline-flex; align-items: center; gap: 8px; }
-
   /* ───────────────────────── 14. Pricing ───────────────────────── */
   .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
   .plan {
@@ -511,8 +471,6 @@
     .foot-top { grid-template-columns: 1fr; gap: 34px; }
   }
   @media (max-width: 640px) {
-    .more-row { grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; }
-    .more-ic { display: none; }
     .foot-cols { grid-template-columns: 1fr 1fr; }
     .device { width: 264px; }
     .device-screen { height: 546px; }
@@ -750,136 +708,6 @@
           </div>
         </div></div>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ EVERYTHING ELSE ═══════════════ -->
-<section style="padding-top:0">
-  <div class="wrap">
-    <div class="sec-head" data-sr style="max-width:620px">
-      <h2 class="h-md">Six more things that shipped with it.</h2>
-    </div>
-    <div class="more-list">
-      <div class="more-row" data-sr>
-        <span class="more-n">01</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
-        <div class="more-body">
-          <h4>Quick Workouts</h4>
-          <p>Five to thirty minutes, built for the window you actually have. Pick a length and a focus; Tempo does the rest.</p>
-        </div>
-      </div>
-      <div class="more-row" data-sr style="--d:60ms">
-        <span class="more-n">02</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg></div>
-        <div class="more-body">
-          <h4>Splits &amp; custom workouts</h4>
-          <p>Prefer to drive? Build your own split, save templates, and create custom exercises. Tempo still schedules them for you.</p>
-        </div>
-      </div>
-      <div class="more-row pro" data-sr style="--d:120ms">
-        <span class="more-n">03</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 8v8M8 21l4-5 4 5M6 12h12"/></svg></div>
-        <div class="more-body">
-          <h4>Muscle intelligence</h4>
-          <p>An interactive body map of what you&rsquo;ve trained, what&rsquo;s recovered, and where you&rsquo;re quietly lopsided.</p>
-          <span class="tag tag-blue">Pro</span>
-        </div>
-      </div>
-      <div class="more-row pro" data-sr style="--d:180ms">
-        <span class="more-n">04</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.4-.2c.5-.2.7-.6.6-1.2z"/></svg></div>
-        <div class="more-body">
-          <h4>Travel Mode</h4>
-          <p>Hotel gym, a park, or nothing but a floor. Tell Tempo what you&rsquo;ve got and it rewrites the coming sessions to match.</p>
-          <span class="tag tag-blue">Pro</span>
-        </div>
-      </div>
-      <div class="more-row" data-sr style="--d:240ms">
-        <span class="more-n">05</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div>
-        <div class="more-body">
-          <h4>Friends &amp; private groups</h4>
-          <p>A leaderboard, shared workouts, badges, and small private groups. Accountability without a public feed.</p>
-        </div>
-      </div>
-      <div class="more-row pro" data-sr style="--d:300ms">
-        <span class="more-n">06</span>
-        <div class="more-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-10"/><path d="M21 5v6h-6"/></svg></div>
-        <div class="more-body">
-          <h4>PR forecast</h4>
-          <p>A projection from your own logged sets: at this rate, here&rsquo;s the date you hit the next milestone.</p>
-          <span class="tag tag-blue">Pro</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ COMPARISON TABLE ═══════════════ -->
-<section>
-  <div class="wrap">
-    <div class="sec-head center" data-sr>
-      <span class="eyebrow">Where Tempo sits</span>
-      <h2 class="h-lg">Trackers log. Plan apps prescribe.<br>Tempo schedules.</h2>
-      <p class="lead">A fair read of the category, not a hit piece. Workout trackers and coached plans are
-        genuinely good at what they do. They just assume you&rsquo;ve already found the time.</p>
-    </div>
-    <div class="table-scroll" data-sr>
-      <table class="cmp-table">
-        <thead>
-          <tr>
-            <th scope="col">&nbsp;</th>
-            <th scope="col">Workout trackers</th>
-            <th scope="col">Coached plan apps</th>
-            <th scope="col" class="me">Tempo</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Builds the workout for you</td>
-            <td><span class="cell no">You build it</span></td>
-            <td><span class="cell yes">Yes</span></td>
-            <td class="me"><span class="cell yes">Yes</span></td>
-          </tr>
-          <tr>
-            <td>Knows when you&rsquo;re free</td>
-            <td><span class="cell no">No</span></td>
-            <td><span class="cell no">No</span></td>
-            <td class="me"><span class="cell yes">Reads your calendar</span></td>
-          </tr>
-          <tr>
-            <td>Puts the session at a specific time</td>
-            <td><span class="cell no">No</span></td>
-            <td><span class="cell no">A day at best</span></td>
-            <td class="me"><span class="cell yes">Time &amp; duration</span></td>
-          </tr>
-          <tr>
-            <td>Reacts to a calendar conflict</td>
-            <td><span class="cell no">No</span></td>
-            <td><span class="cell no">No</span></td>
-            <td class="me"><span class="cell yes">Detects &amp; moves it</span></td>
-          </tr>
-          <tr>
-            <td>Shrinks to the time you have</td>
-            <td><span class="cell no">No</span></td>
-            <td><span class="cell no">Fixed length</span></td>
-            <td class="me"><span class="cell yes">5&ndash;30 min sessions</span></td>
-          </tr>
-          <tr>
-            <td>Adapts after missed sessions</td>
-            <td><span class="cell no">No</span></td>
-            <td><span class="cell no">You restart the plan</span></td>
-            <td class="me"><span class="cell yes">Re-stamps the block</span></td>
-          </tr>
-          <tr>
-            <td>Full logging, history &amp; PRs</td>
-            <td><span class="cell yes">Yes</span></td>
-            <td><span class="cell no">Partial</span></td>
-            <td class="me"><span class="cell yes">Yes, free</span></td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </section>

@@ -2903,12 +2903,25 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
-### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled + tightened 2026-07-29, polish pass 2026-07-29)
+### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled + tightened 2026-07-29, polish + trim passes 2026-07-29)
 `web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
 CTA is an email capture, and there is no pricing, no store links, and no comparison against the
 category. None of that survives the App Store listing going live, so the launch-day site is a separate
 file rather than a rewrite. **`index.html` is untouched**; swap the filenames when the stores are live.
 
+- **2026-07-29, fifth pass: two sections cut for reading as generic and defensive.** The founder's own
+  read of `#pricing`'s two upstream neighbors: the "Six more things that shipped with it" numbered list
+  (Quick Workouts, splits, muscle intelligence, Travel Mode, friends/groups, PR forecast) was "basic UI,
+  unnecessary" — a completionist feature-dump the 4 main rows and the Pro pricing list already cover
+  (the 3 Pro items in that list are also in the pricing card's own bullet list, so nothing is actually
+  lost by cutting it). The "Where Tempo sits" comparison table (trackers vs. coached apps vs. Tempo,
+  7 rows) was "trying to prove something" — a textbook generic SaaS us-vs-them grid, and one that
+  restated the exact argument the earlier problem/compare section (`#how`'s two-card layout) already
+  made, just in table form. Making the same differentiation case twice, once as a confident statement
+  and once as a defensive grid, undercuts the first, more natural version. Both removed outright: HTML,
+  CSS (`.more-list`/`.more-row`/`.more-n`/`.more-ic`/`.more-body`, `.table-scroll`/`.cmp-table`/`.cell`),
+  and their one 640px responsive override. `#features` now flows directly into `#pricing` with nothing
+  between them, confirmed via `nextElementSibling` walk, not just visually assumed.
 - **2026-07-29, fourth pass: feature rows loop-fade, no divider between them, category labels off mono.**
   Three small requests against `#features` (the "Inside Tempo" schedule/session/adaptation/progress
   rows). First, `.frow + .frow`'s `border-top` divider is gone; Fitbod's reference keeps its feature
@@ -2976,8 +2989,8 @@ file rather than a rewrite. **`index.html` is untouched**; swap the filenames wh
   split templates and `chooseDaySlots()`'s stride spread, but the founder judged it unnecessary next to
   the hero's own demo); and the "Your first four weeks" dotted-timeline onboarding section. Nav, drawer,
   and footer links to `#plan-it` removed with it. The page now reads Hero → problem/compare → four
-  feature rows (screenshot placeholders) → supplementary-features list → comparison table → pricing →
-  FAQ → CTA.
+  feature rows (screenshot placeholders) → pricing → FAQ → CTA, after the fifth pass below also cut
+  the supplementary-features list and the comparison table that used to sit between features and pricing.
 - **Claims are sourced, not invented.** Free-tier limits and the Pro list come from `lib/proFeatures.ts`
   (`PAYWALL_POINTS`) and `paywall.tsx`'s `COMPARE`, so the site cannot advertise something the app
   doesn't ship, the same App-Store-rejection rule that governs the in-app paywall. Pricing is
@@ -2991,11 +3004,11 @@ file rather than a rewrite. **`index.html` is untouched**; swap the filenames wh
   The badges themselves are hand-drawn approximations (the file stays dependency-free); **swap for
   Apple's and Google's official artwork before launch**, both stores require their own assets.
 - **Same constraints as the rest of `web/`:** one self-contained file, no bundler, no framework, served
-  as a static asset by GitHub Pages. Verified in-browser after every removal: no horizontal page scroll
-  (the wide comparison table scrolls inside its own `overflow-x:auto` container), mobile drawer, FAQ
-  accordion, and every remaining `data-sr` scroll-reveal element all working, zero console errors on
-  load. `--cal-work`/`--cal-personal`/`--cal-school`, `--glow`, `.pill`/`ping`-keyframe CSS, and the
-  privacy-panel and notify-form CSS/HTML/JS were all removed as dead code, not left behind unused.
+  as a static asset by GitHub Pages. Verified in-browser after every removal: no horizontal page scroll,
+  mobile drawer, FAQ accordion, and every remaining `data-sr` scroll-reveal element all working, zero
+  console errors on load. `--cal-work`/`--cal-personal`/`--cal-school`, `--glow`, `.pill`/`ping`-keyframe
+  CSS, the privacy-panel/notify-form CSS/HTML/JS, and (fifth pass) the everything-else-list and
+  comparison-table CSS/HTML were all removed as dead code, not left behind unused.
 
 ---
 
