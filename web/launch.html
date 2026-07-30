@@ -19,7 +19,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!--
     ══════════════════════════════════════════════════════════════════════════
@@ -33,7 +33,10 @@
       1. STORE.ios / STORE.android at the top of the <script> block below need
          real URLs. Until then, the store buttons just link to #get (no
          "coming soon" badge, no waitlist form; this page presents as live).
-      2. Every phone frame (.shot-placeholder) is a deliberate blank. Drop in
+      2. Every phone frame (.shot-placeholder / .side-placeholder) is a
+         deliberate blank, each labeled with the exact real screenshot it
+         wants (see the comment above the hero markup for the full list of
+         all seven, chosen so no screen repeats across the page). Drop in
          real device screenshots before launch, not fabricated UI.
       3. The ratings strip (search "RATINGS BLOCK") and testimonial rail
          (search "TESTIMONIAL BLOCK") are commented out on purpose. Uncomment
@@ -97,7 +100,6 @@
 
     --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
     --font-body:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   }
 
   /* ───────────────────────── 2. Base ───────────────────────── */
@@ -154,14 +156,14 @@
   .dim    { color: var(--text-3); }
 
   .eyebrow {
-    font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+    font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
     letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
     display: inline-flex; align-items: center; gap: 9px;
   }
   .eyebrow::before {
     content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.6;
   }
-  .num { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .num { font-family: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 
   .grad {
     background: linear-gradient(100deg, var(--blue-bright), var(--blue) 45%, #A9C6FF);
@@ -237,7 +239,7 @@
 
   .tag {
     display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    font-family: var(--font-body); font-size: 10px; font-weight: 700;
     letter-spacing: 0.12em; text-transform: uppercase;
     padding: 4px 9px; border-radius: 6px;
   }
@@ -308,6 +310,90 @@
   .hero-micro span { display: inline-flex; align-items: center; gap: 7px; }
   .hero-micro svg { color: var(--green); flex-shrink: 0; }
 
+  /* ── Hero visual: main device flanked by two decorative side panels + glow ring ── */
+  .visual-stage {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    min-height: 680px; perspective: 1400px;
+  }
+  .glow-ring {
+    position: absolute; top: 50%; left: 50%; width: 620px; height: 620px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle, rgba(78,139,255,0.38), transparent 62%);
+    filter: blur(38px); z-index: 0; pointer-events: none;
+    animation: ring-pulse 7s ease-in-out infinite;
+  }
+  /* Kept separate from .glow-ring so its stroke stays crisp: a blur filter on
+     the glow blob would otherwise smear a thin border into invisibility. */
+  .glow-ring-line {
+    position: absolute; top: 50%; left: 50%; width: 568px; height: 568px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    border: 1px solid rgba(140,182,255,0.30);
+    box-shadow: 0 0 24px rgba(78,139,255,0.20);
+    z-index: 0; pointer-events: none;
+    animation: ring-pulse 7s ease-in-out infinite;
+  }
+  .glow-ring-line::after {
+    content: ''; position: absolute; inset: 58px; border-radius: 50%;
+    border: 1px solid rgba(140,182,255,0.16);
+  }
+  @keyframes ring-pulse {
+    0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+    50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.035); }
+  }
+
+  .phone-stack {
+    position: relative; z-index: 1; transform-style: preserve-3d;
+    transform: rotateY(calc(var(--mx, 0) * 7deg)) rotateX(calc(var(--my, 0) * -7deg));
+    transition: transform 0.4s var(--ease);
+  }
+  .phone-stack .main-device { position: relative; z-index: 3; }
+
+  .side-panel {
+    position: absolute; top: 50%; width: 172px; height: 360px;
+    background: var(--card); border: 1px solid var(--line-2);
+    border-radius: 26px; box-shadow: var(--shadow);
+    z-index: 2; transition: transform 0.15s linear;
+    overflow: hidden;
+  }
+  .side-left {
+    left: -102px; transform: translateY(-54%) rotate(-9deg) scale(0.88) translateX(calc(var(--mx, 0) * -10px));
+    mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, #000 24%);
+    -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, #000 24%);
+  }
+  .side-right {
+    right: -102px; transform: translateY(-46%) rotate(9deg) scale(0.88) translateX(calc(var(--mx, 0) * -10px));
+    mask-image: linear-gradient(to left, rgba(0,0,0,0.55) 0%, #000 24%);
+    -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.55) 0%, #000 24%);
+  }
+
+  .side-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+    color: var(--text-3); text-align: center; padding: 24px;
+  }
+  /* Icon+label nudged toward the edge that actually peeks out from behind the
+     main phone, since the panel itself is centered but half-hidden. */
+  .side-left .side-placeholder { transform: translateX(-30px); }
+  .side-right .side-placeholder { transform: translateX(30px); }
+  .side-placeholder svg { opacity: 0.45; }
+  .side-placeholder span {
+    font-family: var(--font-body); font-size: 9px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  @media (max-width: 680px) {
+    .visual-stage { min-height: 480px; }
+    .side-panel { width: 130px; height: 280px; }
+    .side-left { left: -64px; }
+    .side-right { right: -64px; }
+    .side-left .side-placeholder { transform: translateX(-20px); }
+    .side-right .side-placeholder { transform: translateX(20px); }
+  }
+  @media (max-width: 460px) {
+    .side-panel { display: none; }
+    .glow-ring { width: 380px; height: 380px; }
+  }
+
   /* ───────────────────────── 8. Statement / compare ───────────────────────── */
   .statement { text-align: center; }
   .statement h2 { max-width: 900px; margin: 18px auto 0; }
@@ -377,7 +463,7 @@
   }
   .shot-placeholder svg { opacity: 0.45; }
   .shot-placeholder span {
-    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    font-family: var(--font-body); font-size: 10.5px; font-weight: 600;
     letter-spacing: 0.1em; text-transform: uppercase;
   }
 
@@ -396,7 +482,7 @@
   }
   .plan-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
   .plan-price { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 6px; }
-  .plan-price .amt { font-family: var(--font-mono); font-size: 42px; font-weight: 700; letter-spacing: -0.03em; }
+  .plan-price .amt { font-family: var(--font-body); font-size: 42px; font-weight: 700; letter-spacing: -0.03em; }
   .plan-price .per { font-size: 14px; color: var(--text-3); }
   .plan-sub { font-size: 13px; color: var(--text-2); min-height: 40px; }
   .plan ul { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 22px 0 26px; }
@@ -442,7 +528,7 @@
   .foot-brand p { font-size: 13.5px; color: var(--text-3); margin-top: 14px; max-width: 320px; line-height: 1.6; }
   .foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
   .foot-col h5 {
-    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    font-family: var(--font-body); font-size: 10.5px; font-weight: 700;
     letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
     margin-bottom: 14px;
   }
@@ -550,17 +636,48 @@
       </div>
     </div>
 
-    <!-- Real device screenshot goes here, placeholder until assets are ready -->
+    <!-- Every device slot below names the exact real screenshot to drop in.
+         All seven are deliberately different screens (hero + 4 feature rows),
+         picked to be the most compelling ones and to never repeat:
+           Hero center (flagship) → Today view (Home tab: plan + Start Workout)
+           Hero left               → Streaks & badges (weekly recap)
+           Hero right              → Exercise library
+           The schedule            → Calendar view (month/week grid)
+           The session             → Live workout (active logging)
+           The adaptation          → Session feedback (post-workout RPE prompt)
+           The proof               → Progress dashboard (charts + PRs) -->
     <div class="hero-visual" data-sr style="--d:150ms">
-      <div class="device-wrap">
-        <div class="device">
-          <div class="device-screen">
-            <div class="notch"></div>
-            <div class="shot-placeholder">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-              <span>App screenshot</span>
+      <div class="visual-stage" id="visual-stage">
+        <div class="glow-ring" aria-hidden="true"></div>
+        <div class="glow-ring-line" aria-hidden="true"></div>
+        <div class="phone-stack" id="phone-stack">
+
+          <div class="side-panel side-left" aria-hidden="true">
+            <div class="side-placeholder">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-1 6-4 6-8 0-3-2-5-3-7-.5 2-1 3-2 3-.5 0-1-1-1-2-2 2-4 4-4 6 0 4 2 7 4 8z"/></svg>
+              <span>Streaks &amp; badges</span>
             </div>
           </div>
+
+          <div class="device-wrap main-device">
+            <div class="device">
+              <div class="device-screen">
+                <div class="notch"></div>
+                <div class="shot-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg>
+                  <span>Today view</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-panel side-right" aria-hidden="true">
+            <div class="side-placeholder">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 10h4M18 10h4M2 14h4M18 14h4M6 12h12"/></svg>
+              <span>Exercise library</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -629,7 +746,7 @@
           <div class="notch"></div>
           <div class="shot-placeholder">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span>App screenshot</span>
+            <span>Calendar view</span>
           </div>
         </div></div>
       </div>
@@ -653,8 +770,8 @@
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
           <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span>App screenshot</span>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1M8 12l2.5 2.5L16 9"/></svg>
+            <span>Live workout</span>
           </div>
         </div></div>
       </div>
@@ -678,8 +795,8 @@
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
           <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span>App screenshot</span>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.5 8.5 8.5 0 0 1-8.9-.6L3 20l1.6-4.6a8.38 8.38 0 0 1-.6-3.9 8.5 8.5 0 0 1 7.5-4.5h.5a8.48 8.48 0 0 1 8 8v.5z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
+            <span>Session feedback</span>
           </div>
         </div></div>
       </div>
@@ -703,8 +820,8 @@
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
           <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span>App screenshot</span>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            <span>Progress dashboard</span>
           </div>
         </div></div>
       </div>
@@ -974,6 +1091,23 @@
     loopArr.forEach(function (el) { ioLoop.observe(el); });
   } else {
     Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
+  }
+
+  /* ── Hero visual parallax (fine-pointer devices only) ───────────── */
+  var stage = document.getElementById('visual-stage');
+  var finePointer = window.matchMedia('(pointer: fine)').matches;
+  if (stage && finePointer && !reduced) {
+    stage.addEventListener('mousemove', function (e) {
+      var r = stage.getBoundingClientRect();
+      var x = ((e.clientX - r.left) / r.width - 0.5) * 2;
+      var y = ((e.clientY - r.top) / r.height - 0.5) * 2;
+      stage.style.setProperty('--mx', x.toFixed(3));
+      stage.style.setProperty('--my', y.toFixed(3));
+    });
+    stage.addEventListener('mouseleave', function () {
+      stage.style.setProperty('--mx', 0);
+      stage.style.setProperty('--my', 0);
+    });
   }
 
   /* ── FAQ accordion ───────────────────────────────────────────── */
