@@ -4,6 +4,7 @@ import {
   StyleSheet, Linking, Animated, ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { TempoSheet } from '@/components/TempoSheet'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
@@ -34,6 +35,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const visible = exercise !== null
   // The verified clip for this movement, by id: our own bundled GIF for the 8 the
   // remote library lacked, or the curated ExerciseDB clip for everything else.
@@ -280,6 +282,28 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 </>
               )}
 
+              {/* Only real DB rows (not the odd caller building a FormExercise without
+                  an id) have set_logs to chart. Reuses the existing exercise-progress
+                  screen (est. 1RM trend + PR forecast) — this is just a new entry
+                  point into it, not a second history view. */}
+              {exercise.id && (
+                <TouchableOpacity
+                  style={styles.historyBtn}
+                  onPress={() => {
+                    const id = exercise.id!
+                    const name = exercise.name
+                    onClose()
+                    router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as never)
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`See ${exercise.name} training history`}
+                >
+                  <Ionicons name="stats-chart-outline" size={16} color={C.primary} />
+                  <Text style={styles.historyBtnText}>See training history</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
                 <Text style={styles.closeBtnText}>Done</Text>
               </TouchableOpacity>
@@ -408,6 +432,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   equipChipText: {
     fontFamily: 'Inter_500Medium', fontSize: 12, color: C.textSecondary, textTransform: 'capitalize',
   },
+
+  // History link
+  historyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    height: 46, borderRadius: Radius.lg, marginTop: Spacing.xs,
+    borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  historyBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary },
 
   // Done button
   closeBtn: {

@@ -277,8 +277,12 @@ export default function MuscleMapScreen() {
                     <Ionicons name="flash" size={15} color={C.onPrimary} />
                     <Text style={s.actionText}>Train this</Text>
                   </PressableScale>
-                  <PressableScale style={[s.actionBtn, s.actionBtnGhost]} scaleTo={0.97} onPress={() => router.push('/(tabs)/progress')}>
-                    <Text style={[s.actionText, { color: C.primary }]}>See progress</Text>
+                  <PressableScale
+                    style={[s.actionBtn, s.actionBtnGhost]}
+                    scaleTo={0.97}
+                    onPress={() => router.push({ pathname: '/muscle-history', params: { muscleSlug: fineSel.muscle, title: fineSel.label } } as never)}
+                  >
+                    <Text style={[s.actionText, { color: C.primary }]}>See history</Text>
                   </PressableScale>
                 </View>
               </FadeInView>
@@ -352,8 +356,12 @@ export default function MuscleMapScreen() {
                         <Ionicons name="flash" size={15} color={C.onPrimary} />
                         <Text style={s.actionText}>Train this</Text>
                       </PressableScale>
-                      <PressableScale style={[s.actionBtn, s.actionBtnGhost]} scaleTo={0.97} onPress={() => router.push('/(tabs)/progress')}>
-                        <Text style={[s.actionText, { color: C.primary }]}>See progress</Text>
+                      <PressableScale
+                        style={[s.actionBtn, s.actionBtnGhost]}
+                        scaleTo={0.97}
+                        onPress={() => router.push({ pathname: '/muscle-history', params: { muscleGroup: sel.group, title: GROUP_LABEL[sel.group] ?? sel.group } } as never)}
+                      >
+                        <Text style={[s.actionText, { color: C.primary }]}>See history</Text>
                       </PressableScale>
                     </View>
                   </>

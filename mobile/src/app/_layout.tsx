@@ -272,6 +272,7 @@ function RootLayoutInner() {
           <Stack.Screen name="session-detail" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-library" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="exercise-progress" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="muscle-history" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="pr-browser" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="calendar-setup" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="calendar-picker" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

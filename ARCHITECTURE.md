@@ -436,7 +436,18 @@ you moving."*
   copy, which describes a different, larger, unbuilt feature) + a `PAYWALL_POINTS` bullet, added the
   moment the surface went live. 8 new unit tests. Opened from PR rows on Progress/Profile/**`pr-browser`**
   and from session-detail), **`pr-browser`** (search ANY exercise, not just your 5 most recent PRs, then
-  jump to its `exercise-progress` trend), **`calendar-setup`** (dedicated connect/disconnect screen
+  jump to its `exercise-progress` trend), **`muscle-history`** (added 2026-07-31 — full training
+  history for a *muscle*, not a single lift: `exercise-progress` already owns the per-exercise
+  strength story, and one lift's weight isn't comparable to another's, so this aggregates every
+  exercise touching a muscle group (`muscleGroup` param, coarse) or a specific muscle
+  (`muscleSlug` param, fine — e.g. "biceps" vs. "triceps", matched against `primary_muscles`/
+  `secondary_muscles` via the shared `useExerciseLibrary` cache) into a Monday-bucketed
+  **sets-per-week** trend + a tappable per-exercise breakdown that drills into `exercise-progress`
+  for the lift-level detail, rather than re-showing a second chart. 3M/6M/1Y/All range chips. Opened
+  from Body Intelligence's per-muscle and per-group detail cards ("See history"); `exercise-progress`
+  itself gained a new entry point too — a "See training history" row in `ExerciseFormSheet` (the form
+  guide sheet used by the Library, Plan runner, and session-detail), so a lift's history is reachable
+  from wherever its form guide already is, not only from PR rows), **`calendar-setup`** (dedicated connect/disconnect screen
   for Google + Device Calendar, replacing the old `Alert.alert` checklist; shows a "needs
   reconnecting" banner when `googleCalendarNeedsReconnect()` is true), **`calendar-picker`**
   (B1.5 — Pro-gated "Choose calendars" modal, reached from `calendar-setup`'s Google card once
@@ -794,6 +805,12 @@ you moving."*
   session-detail. A **one-time first-session coach overlay** (localStorage-gated) explains
   logging / rest / the ⋯ menu / pause. **PERF:** the PREV/prescription history query is bounded
   (`.limit`) + warm-up-filtered instead of scanning all-time `set_logs`.
+  **Fixed — PREV blanking after pause/resume (2026-07-31):** pausing a workout sets `sessionActive`
+  false while the log stays open; the next focus event re-runs `loadWorkout`, which re-fetches this
+  same PREV/prescription history. That query wasn't excluding the *current* (resumed) log's own
+  rows, so once even one set was logged today its `completed_at` — newer than the true last session
+  — made it look like "last session," and PREV blanked for every set not yet logged today. The
+  history fetch now filters out `resumedLog?.id`'s own rows.
   **Honest time estimates** (`lib/durationEstimate`): hub + header use a realistic static
   estimate (prescribed rests + per-exercise setup/transition time) scaled by a **historical pace
   factor** (median actual/planned over recent sessions), and once sets land the header shows an
@@ -992,6 +1009,12 @@ you moving."*
   Phase 2's editable-after-done feature already built (an `UPDATE` by `workout_log_id` + `exercise_id`
   + `set_number`, not a new write path) — so this is the SAME edit-after-logging mechanism the list
   view exposes via its checkmark-tap-to-edit UI, just reachable without leaving Focus Mode.
+  **Auto-dismiss after acknowledgment (2026-07-31):** this "HOW MUCH DID YOU DO?" card used to stay
+  up for the *entire* rest period even after the user edited/saved it or rated RPE, which read as
+  "still needs input" rather than "recorded." `FocusMode` now takes a `lastSetKey` prop (e.g.
+  `"exId:idx"`, since `lastSetFields` is a freshly-built array — a new reference — every render and
+  can't identify "same set" on its own) and collapses the whole card once the user saves a field or
+  taps an RPE chip, keyed so the *next* set's card still shows normally.
   On finish updates logs, fires adaptation re-eval, and routes to the celebration screen. When
   nothing is scheduled the hub shows the Quick Workout empty state (never a dead end); hub links
   include **History** (`workout-history`).
