@@ -30,36 +30,42 @@ retaining and a growth loop compounding. So this OS optimizes for the sequence t
 
 ## 1. The 20% that drives 80% (the vital few — do these no matter what)
 
-**Redirected 2026-07-17** (Phase 9 re-review): the original seven are now mostly *built*. Google
-Calendar went to production the same day this redirect was written — the single most-cited
-reliability risk in this whole document is structurally fixed. The bottleneck has moved from
-"what to build" to **"verify what's built, then measure it"** — building more before that happens
-would be exactly the "ambition outrunning validation" trap §6 warns about, now pointed at Claude's
-own output instead of a hypothetical future feature.
+**Redirected again 2026-07-30** (this is the third redirect of this section — 2026-07-17 moved it
+from "what to build" to "verify what's built"; this pass confirms that's still exactly right, over
+two weeks and a large amount of additional shipped code later). Almost everything Claude-buildable
+without hardware or a founder decision is now done: pricing is live and correct on both stores
+(B2.3 closed 2026-07-27), the entire `LAUNCH_SCORE_PLAN.md` queue is clear except one item, and even
+Tempo Coach — explicitly outside this plan's M4 freeze — is built through its action layer. The
+bottleneck has not moved in two weeks: it is **verification and two founder actions**, not code.
 
-1. **Verify the built backlog on-device** — Focus Mode, the 6-screen onboarding rebuild, the Plan
-   tour, the Feed button, and the Home/Progress fixes (streak, rest-day advice, body intelligence,
-   photo gallery, readiness chip, goal ETA) are ALL 🔍 code-verified/not-device-tested. Nothing in
-   this list scores until it's tested. *(founder)*
-2. **Retention instrumentation + a defined activation event** — still the single most important
-   unblocking dependency; every M4 decision needs this data. *(B0.1 ✅ / B0.3, founder)*
-3. **Confirm Google Calendar survives >7 days on a real device** — production approval (2026-07-17)
-   removes the root cause (Testing-mode token expiry); M0's own criterion ② still needs a real,
-   time-based confirmation before the milestone can close. *(founder)*
-4. **Multi-calendar (B1.5)** — the sequencing gate that blocked this ("let the in-flight
-   `calendar.events` verification finish first") is now clear. The next real Claude-buildable batch,
-   not a new surface — extends the existing calendar integration.
-5. **Pricing + trial config (B2.3)** and **App Store listing + one acquisition channel (B6.1/B6.2)**
-   — founder-only, unblocked, real ROI, not done yet.
-6. **Hold the M4 freeze** — no B4.x (accountability loop, referral), no Tempo Coach, no new feature
-   surface, until B0.3's data says retention holds. This discipline is more important now than
-   before, precisely because so much has shipped that it would be easy to keep shipping instead of
-   measuring.
+1. **T1.2 — the on-device verification pass.** This is now the single blocker on almost everything:
+   Focus Mode, the onboarding rebuild, the Plan/Home tours, the Feed-as-notification-center redesign,
+   Quick Workout's redesign, the whole `LAUNCH_SCORE_PLAN.md` queue (T1.1/T1.3/T2.1/T3.1/T3.2), the
+   offline write queue, and Tempo Coach are ALL 🔍 code-verified/`tsc`-clean/test-covered and **NOT**
+   device-tested. Nothing on that list scores as done until it runs on real hardware. *(founder)*
+2. **Deploy Tempo Coach, or explicitly decide not to yet.** It's built through batch C4 (the action
+   layer) and inert — two commands (`npx supabase functions deploy tempo-coach` +
+   `npx supabase secrets set ANTHROPIC_API_KEY=...`) turn it on. This was a deliberate, explicit
+   founder override of the M4 freeze below (rule 6) — not a violation of it — but it's now sitting
+   built-and-idle, which is its own kind of waste. *(founder)*
+3. **B0.3 — sign off on the activation definition.** `ACTIVATION_DEFINITION.md` is drafted with one
+   open decision (should activation gain a time window); this is still the single most important
+   unblocking dependency for every M4 decision, unchanged since the last two redirects. *(founder)*
+4. **Multi-calendar (B1.5)** — fully built, OAuth scope enabled since 2026-07-18; only needs a
+   founder reconnect + end-to-end test. Not a new build.
+5. **App Store listing + one acquisition channel (B6.1/B6.2)** — `APP_STORE_LISTING.md` is drafted
+   and ready to paste; still needs real screenshots, submission, and a repeatable weekly acquisition
+   motion. Founder-only, unblocked, real ROI, not done yet.
+6. **Hold the M4 freeze for everything except what's already been explicitly excepted.** No B4.x
+   (accountability loop, referral), no new feature surfaces, until B0.3's data says retention holds.
+   Tempo Coach is the one named exception (founder call, 2026-07-22/23) — that doesn't open the door
+   to more exceptions without the same explicit sign-off.
+7. **Once T1.2 clears:** the next real Claude-buildable work is `EXECUTION_STATUS.md`'s Open Backlog
+   (the `MASTER_FIX_PLAN.md` remainder — C4's accessibility tail, C5 through C10) — craft/coherence,
+   not strategy, but genuinely queued and unblocked.
 
-*(The original seven — Calendar reliability, retention instrumentation, the day-timeline hero,
-reschedule-my-week, the Pro re-fence, plain-language copy + progressive disclosure — are now ✅ or
-🔍-pending-device-test. See `EXECUTION_STATUS.md` for the current state of each. Acquisition channel
-(#7 originally) is unchanged: still not started, still founder-only.)
+*(Full per-item status — including everything shipped since this section was last written — lives in
+`EXECUTION_STATUS.md`'s Current Focus + ledger, not duplicated here.)*
 
 ---
 
@@ -140,30 +146,36 @@ Each batch is **one session**: small enough to build + verify + commit without e
 Sizes: **S** ≈ ½ session, **M** ≈ 1 session, **L** = split into sub-batches (a/b). Live status,
 files, and done-when for each live in `EXECUTION_STATUS.md` — **that** is the checklist; this is the map.
 
-**M0** — B0.1 Retention instrumentation *(✅ done)* · B0.2 Google OAuth → Production *(S, mostly console)* ·
-B0.3 PostHog funnel + activation definition *(S, founder)* · B0.4 Feature-freeze policy *(✅ declared)* ·
-B0.5 Device-matrix QA of redesign + fix any blank-render *(M)*.
+**M0** — B0.1 Retention instrumentation *(🔍 code fixed 2026-07-17, needs T1.2 to confirm real events flow)* ·
+B0.2 Google OAuth → Production *(✅ done — approved 2026-07-17)* ·
+B0.3 PostHog funnel + activation definition *(🔍 funnel built; drafted definition awaiting founder sign-off)* ·
+B0.4 Feature-freeze policy *(✅ declared; one explicit exception granted for Tempo Coach, 2026-07-22/23)* ·
+B0.5 Device-matrix QA of redesign + fix any blank-render *(🔍 partial — blocked on T1.2 for everything shipped after 2026-07-17)*.
 
-**M1** — B1.1 Wedge quantifier *(⚠ partial: on Weekly Report + paywall; extend to Home/Progress)* ·
-**B1.2 Calendar day-timeline Home hero** *(L → B1.2a data/selector, B1.2b UI)* ·
-**B1.3 Reschedule-my-whole-week** *(M/L → B1.3a engine over existing reschedule.ts, B1.3b UI + guards)* ·
-B1.4 "15-min swap" surfaced on Home *(S)*.
+**M1** — B1.1 Wedge quantifier *(✅ done — extended to the Home hero itself 2026-07-23)* ·
+**B1.2 Calendar day-timeline Home hero** *(✅ confirmed on-device 2026-07-17)* ·
+**B1.3 Reschedule-my-whole-week** *(✅ done — Coach's action layer now also calls this engine)* ·
+B1.4 "15-min swap" surfaced on Home *(✅ pre-existing)* ·
+B1.5 Multi-calendar *(🔍 code + OAuth scope live; needs one founder reconnect + device test)*.
 
-**M2** — B2.1 Re-fence Pro (free analytics, gate scheduling) *(M — needs B1.3)* ·
-B2.2 Paywall triggers at payable moment *(S — needs B2.1)* · B2.3 Pricing + trial *(S, founder+copy)*.
+**M2** — B2.1 Re-fence Pro (free analytics, gate scheduling) *(✅ done — re-gated further 2026-07-22 onto weekly-repetition pillars)* ·
+B2.2 Paywall triggers at payable moment *(✅ done — rebuilt paywall 2026-07-22, PR-forecast gate added 2026-07-23)* ·
+B2.3 Pricing + trial *(✅ done 2026-07-27 — $4.99/mo, $34.99/yr, live on both stores; founder's actual number, not the original $49–59 estimate)*.
 
-**M3** — B3.1 Plain-language copy sweep *(⚠ partial: goals done; levels + paywall left, S)* ·
-B3.2 Progressive disclosure of social/groups/map *(M)* · B3.3 Onboarding aha animation + time-budget Q *(M)*.
+**M3** — B3.1 Plain-language copy sweep *(✅ done)* ·
+B3.2 Progressive disclosure of social/groups/map *(✅ confirmed on-device)* ·
+B3.3 Onboarding aha animation + time-budget Q *(🔍 rebuilt across multiple rounds — 6-screen onboarding, Welcome + Home tour on `feature/engine-and-first-run` — not yet device-tested in current form)*.
 
-**M4** — B4.1 Single-player accountability loop *(M)* · B4.2 Referral program *(L — needs Supabase)* ·
-B4.3 Cohort retention analysis + iterate *(ongoing, founder+data)*.
+**M4** — B4.1 Single-player accountability loop *(🔲 blocked by M4 freeze)* · B4.2 Referral program *(🔲 blocked by M4 freeze)* ·
+B4.3 Cohort retention analysis + iterate *(🔲 needs B0.3 first)* ·
+Social push nudges + auto-reschedule *(🔲 blocked by M4 freeze — the one undelivered piece of `SOCIAL_UPGRADE_PLAN.md`'s 4-stage social upgrade, which otherwise fully shipped and is live)*.
 
-**M5** — B5.1 Honest readiness label *(S)* · B5.2 HealthKit import *(L, native → rebuild)* ·
-B5.3 Readiness → scheduling feedback *(M)* · B5.4 Volume landmarks under the hood *(M)* ·
-B5.5 Integration/E2E tests on state machines *(M)*.
+**M5** — B5.1 Honest readiness label *(✅ done)* · B5.2 HealthKit import *(🔍 write-direction shipped 2026-07-22, opt-in/off by default, native — inert until next `eas build`; read-direction into readiness still open)* ·
+B5.3 Readiness → scheduling feedback *(🔲 open — `MASTER_FIX_PLAN.md` W2)* · B5.4 Volume landmarks under the hood *(🔍 cap live, no MEV floor, needs a smoke test)* ·
+B5.5 Integration/E2E tests on state machines *(✅ done — suite has grown past 367 tests since)*.
 
-**M6** — B6.1 Wedge-led ASO listing *(S, founder+copy)* · B6.2 One acquisition channel *(ongoing, founder)* ·
-B6.3 "Year in Training" Wrapped *(M)* · B6.4 Table-stakes polish, data-gated *(each S–M)*.
+**M6** — B6.1 Wedge-led ASO listing *(🔍 copy drafted in `APP_STORE_LISTING.md`; needs real screenshots + submission)* · B6.2 One acquisition channel *(🔲 not started, founder-only)* ·
+B6.3 "Year in Training" Wrapped *(⏸ postponed past M4)* · B6.4 Table-stakes polish, data-gated *(⚠ partial — plate calculator and pause/vacation mode already shipped as part of the `MASTER_FIX_PLAN.md` launch queue; superset/circuit support, "love this exercise," and Home/no-equipment mode remain open)*.
 
 ---
 

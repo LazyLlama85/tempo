@@ -6,7 +6,7 @@ action. It never writes to a training table and never executes a tool — the ap
 renders the action as a confirm card and the existing client lib functions do the
 write when the user taps Apply.
 
-Full design rationale: `TEMPO_COACH_PLAN.md` (repo root).
+Full design rationale: `STRATEGY_PLANS.md` §B (repo root), architecture in §B.1.
 
 ## Setup
 
@@ -69,7 +69,7 @@ successful reply, so a failed request never burns an allowance.
 Both tiers share the one calendar-month window, so there is a single boundary
 function. The free cap is deliberately tight (founder call, 2026-07-23): it is
 enough to see the Coach work once, not enough to live on. See the caveat in
-`TEMPO_COACH_PLAN.md` §7 about what that costs the paywall moment.
+`STRATEGY_PLANS.md` §B.6 about what that costs the paywall moment.
 
 ## Model configuration
 
@@ -90,7 +90,7 @@ wants every property in `required`.
 ## Cost
 
 Every call logs a line with `in`/`out` token counts. That log is how the real
-per-message cost gets known — the estimate in `TEMPO_COACH_PLAN.md` §9 (~$0.04)
+per-message cost gets known — the estimate in `STRATEGY_PLANS.md` §B.7 (~$0.04)
 is a projection. Check it against reality before changing the free limit.
 
 ## Known limitation (v1)

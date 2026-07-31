@@ -2,11 +2,12 @@
 
 A detailed description of everything Tempo is — frontend, backend, features, data, integrations.
 
-> **Active fix roadmap:** `MASTER_FIX_PLAN.md` (repo root) is a 2026-07-19 full-codebase review's
-> ordered, execution-ready inventory of everything wrong in the code/logic/UI described below, with
-> per-batch files/edge-cases/tests/Sonnet prompts. `PRODUCT_AUDIT.html` carries the honest re-score
-> that review produced (a separate Product Score vs. Market Proof Score). Read `MASTER_FIX_PLAN.md`
-> before starting new work on any system this document describes.
+> **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
+> inventory of everything still wrong in the code/logic/UI described below (absorbed from the
+> retired `MASTER_FIX_PLAN.md`, a 2026-07-19 full-codebase review), with per-item files/scope.
+> `PRODUCT_AUDIT.html` carries the honest re-score that review produced (a separate Product Score
+> vs. Market Proof Score). Read `EXECUTION_STATUS.md` before starting new work on any system this
+> document describes.
 
 ---
 
@@ -1473,7 +1474,7 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   new `HeroGlow` component. **Confirmed visual direction = "Enriched-Calm"** — calm calendar-first
   base + disciplined functional accents (blue dominant, ember=energy/streaks, gold=records/milestones)
   + depth + one soft glow per screen; no wall-to-wall gradients, stock photos, or tactical copy. The
-  design strategy + direction review live in `DESIGN_STRATEGY.md`; execution plan in `~/.claude/plans/`.
+  design strategy + direction review live in `DESIGN.md` §4; execution plan in `~/.claude/plans/`.
 - **Theme engine:** `src/theme/` — a Zustand store (`useThemeStore`, persisted to the SQLite-backed
   `localStorage`, **default dark**) drives live dark/light switching. Screens read colors via
   `useTheme()` and build styles with `useThemedStyles(makeStyles)` so a mode change re-renders the
@@ -2079,7 +2080,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   no strength inputs; frequency counts only *completed* sessions so it can't be gamed — 8 unit tests
   assert a consistent beginner out-scores a flaky advanced lifter) so the formula is OTA-tunable.
   `social.tsx` renders the trio as a 3-tab board (Weekly Consistency / Streak / Tempo Score) with
-  client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design: `SOCIAL_UPGRADE_PLAN.md`.
+  client-side sort (`fetchLeaderboardV2` + `sortLeaderboard`). Full design doc retired (all 4 stages
+  shipped, see `EXECUTION_STATUS.md` session log); the Tempo Score v1 weights it defined, live in
+  `lib/tempoScore.ts`, are: **Completion 0.35 · Goal adherence 0.25 · Consistency 0.15 · Streak 0.15 ·
+  Frequency 0.10**, each a rolling-28-day component — weighted toward *finishing what's scheduled*
+  over raw volume so a beginner who completes everything out-scores a flaky advanced lifter.
   **Social upgrade Stage 2 — badges + richer feed** (`add_social_badges.sql`, **applied**;
   `lib/badges.ts`): the **single** achievement system (the old `lib/achievements.ts` grid was merged
   in and removed from Progress; `computeLevel` stays for the player level). 12 badges — consistency,
@@ -2160,7 +2165,7 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   It takes the user's message plus a context pack the app assembled, and returns
   `{ text, action }` where `action` is a **proposed** tool call the app renders as a confirm card;
   the actual write happens client-side through the same lib functions a button press already uses,
-  only after the user taps Apply. Rationale in `TEMPO_COACH_PLAN.md` §3 — this avoids a second copy
+  only after the user taps Apply. Rationale in `STRATEGY_PLANS.md` §B.1 — this avoids a second copy
   of the scheduling engine living in Deno, means nothing mutates without a tap, and costs one API
   round-trip per message instead of three or four.
   **Five tools** (`reschedule_week`, `move_workout`, `swap_exercise`, `start_travel_mode`,
@@ -2173,7 +2178,7 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   (founder call 2026-07-23, tightened from 3/week — both tiers now share one month window),
   Pro/dormant = 200/month soft cap; `402` signals the paywall moment. The tighter cap is a product
   lever, not a cost one (a free user costs ~$0.13/month on Opus, ~$0.08 on Sonnet 5) — see
-  `TEMPO_COACH_PLAN.md` §7 for the recorded tradeoff: fewer wall-hits means fewer high-intent
+  `STRATEGY_PLANS.md` §B.6 for the recorded tradeoff: fewer wall-hits means fewer high-intent
   paywall moments, so `paywall_shown{context:'tempo_coach'}` conversion is the number that decides
   whether 3/month was too tight. Rows are written only *after*
   a successful reply, so a failed request never burns an allowance. Every call logs input/output
@@ -2427,7 +2432,7 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `terms.html`, `delete-account.html` (hosted at `fittempo.app/...`). The **privacy policy carries the
   Google API Services "Limited Use" disclosure** required to pass OAuth verification for the sensitive
   `calendar.events` scope. Filled-in submission answers (OAuth verification steps, App Store **App
-  Privacy** + Play **Data safety**) live in `STORE_SUBMISSION.md`; console-upload logos in `brand-assets/`.
+  Privacy** + Play **Data safety**) live in `LAUNCH.md` §4; console-upload logos in `brand-assets/`.
 - **Store assets:** the app icon is a **full-bleed white** 1024² (`icon.png`, alpha stripped →
   Apple-safe), rebuilt from the runner/clock glyph so there is **no black frame**; the Android
   adaptive icon is a white `backgroundColor` + isolated-glyph `foregroundImage` (the accidental
@@ -2994,7 +2999,7 @@ file rather than a rewrite. **`index.html` is untouched**; swap the filenames wh
 - **Claims are sourced, not invented.** Free-tier limits and the Pro list come from `lib/proFeatures.ts`
   (`PAYWALL_POINTS`) and `paywall.tsx`'s `COMPARE`, so the site cannot advertise something the app
   doesn't ship, the same App-Store-rejection rule that governs the in-app paywall. Pricing is
-  $4.99/mo · $34.99/yr with the flat $24.99 founding first year (`MONETIZATION_PLAN.md`, 2026-07-27),
+  $4.99/mo · $34.99/yr with the flat $24.99 founding first year (`STRATEGY_PLANS.md` §A, 2026-07-27),
   described as a **paid intro offer, never a "free trial"**, because that's what it is.
 - **No fabricated social proof.** Star ratings and testimonials are the two things a launch site
   normally invents. Both ship as clearly-marked commented-out blocks (`RATINGS BLOCK` /

@@ -46,8 +46,8 @@ check whether an existing Tempo system already solves part of the problem and wh
 extended safely. Explicitly justify every new architectural component.
 
 (For large multi-part builds, do this analysis up front and proportionally — a short written pass for
-small changes, a full `PLAN.md`-style document for anything touching multiple systems. See `PLAN.md`
-and `AUDIT.md` for the depth expected on big features.)
+small changes, a full plan document for anything touching multiple systems. See `EXECUTION_STATUS.md`'s
+Open Backlog and `STRATEGY_PLANS.md` for the depth expected on big features.)
 
 ## GitHub Push Protocol
 After each logical unit of work (a bug fix, a feature, a self-contained change) — commit it and
