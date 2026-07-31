@@ -62,7 +62,8 @@ Claude-buildable work, in order of value, is: (1) whatever the on-device pass su
 (2) the **Open backlog** below (`MASTER_FIX_PLAN.md`'s remaining C5–C10 craft batches, W2–W6 wedge
 amplifiers once M4 unblocks them, and the four still-open 2026-07-19-addendum runner items).
 
-**Last updated:** 2026-07-30.
+**Last updated:** 2026-07-31 — three founder bug reports fixed + a new muscle-history screen (see
+Session Log); none of it changes the T1.2 blocker above, still code-verified only.
 
 ---
 
@@ -231,6 +232,14 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-07-31 — founder bug reports fixed + muscle-level training history added.** (1) PREV column
+  blanking after pause/resume, traced to `loadWorkout`'s history query not excluding the resumed
+  session's own now-open log — one-line fix. (2) Focus Mode's "HOW MUCH DID YOU DO?" card now
+  collapses once acknowledged instead of sitting up the whole rest period. (3) New `muscle-history`
+  screen (sets-per-week trend + per-exercise breakdown, drilling into the existing `exercise-progress`
+  screen rather than duplicating it) — reached from Body Intelligence's detail cards; `exercise-progress`
+  also gained a new entry point from `ExerciseFormSheet`. tsc clean, 367/367 tests. Not yet on a device —
+  T1.2 below still stands.
 - **2026-07-27 — `LAUNCH_SCORE_PLAN.md` T1.3: pricing realigned to $4.99/mo · $34.99/yr, live on both
   stores.** Founder did the App Store Connect edit manually (no automatable save action existed);
   Play Console's "Set prices" flow was automated end-to-end via browser automation. Yearly founding
