@@ -61,6 +61,11 @@ interface Props {
   // (not resting, or nothing just logged) hides the editor entirely.
   lastSetFields?: FocusModeField[]
   onSaveLastSet?: () => void
+  // Identifies WHICH set lastSetFields/lastSetRpe belong to (e.g. "exId:idx")
+  // so this component can tell "still the same just-logged set" apart from
+  // "a new set just logged" even though lastSetFields is a freshly-built
+  // array (and so a new reference) on every render.
+  lastSetKey?: string | null
   // "How hard was that?" — the same optional RPE follow-up the list view
   // shows, surfaced here too so it's reachable even for an exercise's LAST
   // set (Focus Mode used to close itself the instant that set logged, before
@@ -74,13 +79,19 @@ export function FocusMode({
   visible, onClose, exerciseName, setLabel, targetRepsLabel,
   resting, restSecondsLeft, restTotal, onAdjustRest,
   formImage, onViewForm, done, onSkip, onDone,
-  lastSetFields, onSaveLastSet,
+  lastSetFields, onSaveLastSet, lastSetKey,
   lastSetRpe, onSetRpe,
 }: Props) {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const [savedTick, setSavedTick] = useState(false)
+  // Once the user has acknowledged "how much did you do?" (edited/saved a
+  // field, or rated RPE), collapse the whole card instead of leaving it up
+  // for the rest of the rest period — a form that never goes away doesn't
+  // read as "recorded," it reads as "still needs input." Keyed on
+  // lastSetKey (not just a boolean) so the NEXT set's card still shows.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null)
   // getExerciseGifSource builds a fresh { uri, headers } object every call, so a
   // remote formImage never keeps referential identity across renders — key on the
   // uri (or the local asset number) instead of the object itself, so a load
@@ -92,7 +103,14 @@ export function FocusMode({
   const saveLastSet = () => {
     onSaveLastSet?.()
     setSavedTick(true)
-    setTimeout(() => setSavedTick(false), 1200)
+    setTimeout(() => {
+      setSavedTick(false)
+      setDismissedKey(lastSetKey ?? null)
+    }, 1200)
+  }
+  const setLastSetRpe = (n: number) => {
+    onSetRpe?.(n)
+    setDismissedKey(lastSetKey ?? null)
   }
 
   const ringValue = resting && restSecondsLeft != null
@@ -187,7 +205,7 @@ export function FocusMode({
               <View style={{ height: 24 + 22 }} />
             )}
 
-            {resting && lastSetFields && lastSetFields.length > 0 && (
+            {resting && lastSetFields && lastSetFields.length > 0 && lastSetKey !== dismissedKey && (
               <View style={styles.lastSetCard}>
                 <Text style={styles.lastSetLabel}>HOW MUCH DID YOU DO?</Text>
                 <View style={styles.lastSetRow}>
@@ -226,7 +244,7 @@ export function FocusMode({
                       <PressableScale
                         key={n}
                         style={[styles.rpeChip, lastSetRpe === n && styles.rpeChipActive]}
-                        onPress={() => onSetRpe(n)}
+                        onPress={() => setLastSetRpe(n)}
                         scaleTo={0.88}
                         accessibilityRole="button"
                         accessibilityLabel={`Rate this set RPE ${n}`}

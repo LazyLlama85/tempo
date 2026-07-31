@@ -883,7 +883,12 @@ export default function WorkoutsScreen() {
         .limit(Math.max(60, effectiveIds.length * 20))
 
       for (const ex of ordered) {
-        const rows = (history ?? []).filter(r => r.exercise_id === ex.id)
+        // Exclude the CURRENT session's own log (resumedLog, if this is a
+        // pause/resume reload) — otherwise re-running this on resume, after
+        // even one set is already logged today, sees today's own partial log
+        // as the "most recent" (its completed_at is newer than the real last
+        // session) and PREV blanks for every set not yet logged today.
+        const rows = (history ?? []).filter(r => r.exercise_id === ex.id && r.workout_log_id !== resumedLog?.id)
         const lastLogId = rows[0]?.workout_log_id
         const lastSets = rows
           .filter(r => r.workout_log_id === lastLogId)
@@ -2738,6 +2743,7 @@ export default function WorkoutsScreen() {
             onSkip={focusSkip}
             onDone={focusDone}
             lastSetFields={lastSetFields}
+            lastSetKey={lastLoggedSet ? `${lastLoggedSet.exId}:${lastLoggedSet.idx}` : null}
             onSaveLastSet={lastLoggedSet ? () => saveSetEdit(lastLoggedSet.exId, lastLoggedSet.idx) : undefined}
             lastSetRpe={lastSet?.rpe ?? null}
             onSetRpe={lastLoggedSet ? (n: number) => attachRpe(lastLoggedSet.exId, lastLoggedSet.idx, n) : undefined}
