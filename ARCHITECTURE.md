@@ -827,6 +827,12 @@ you moving."*
   rows, so once even one set was logged today its `completed_at` — newer than the true last session
   — made it look like "last session," and PREV blanked for every set not yet logged today. The
   history fetch now filters out `resumedLog?.id`'s own rows.
+  **Refined 2026-08-02:** that exclusion originally ran in JS *after* the query's `.limit()`, so for a
+  workout with many exercises where several already had a set logged today, today's own rows (sorted
+  first, being most recent) could eat into the capped budget before it reached far enough back for
+  later exercises — theoretical, "low likelihood" per the audit that found it, but a one-line move:
+  `.neq('workout_log_id', resumedLog.id)` is now IN the query itself, so the limit is only ever spent
+  on genuinely relevant historical rows.
   **Honest time estimates** (`lib/durationEstimate`): hub + header use a realistic static
   estimate (prescribed rests + per-exercise setup/transition time) scaled by a **historical pace
   factor** (median actual/planned over recent sessions), and once sets land the header shows an

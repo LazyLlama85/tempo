@@ -22,12 +22,15 @@
 Simulator, not yet a physical device.** It found real, confirmed bugs (not just theoretical
 code-review findings): a live-repro'd cold-launch crash on a from-scratch native build, an
 unauthenticated edge function with full service-role DB access, silent data loss on workout edits,
-and a broken new feature (muscle-history's vocabulary mismatch), among others. All Tier-1
-(blocking) findings from that pass are now fixed (see Session Log) — `tsc`-clean, 367/367 tests.
-**T1.2 is still not fully closed**: a Simulator pass cannot confirm Live Activities, push delivery,
-Sign in with Apple, or anything gated on real hardware — those still need one physical-device pass
-after the next EAS build. The large body of code from the dozen-plus sessions before this one (the
-entire M1–M3 Claude-buildable backlog, `MASTER_FIX_PLAN.md`'s P0/P1 batches, the
+and a broken new feature (muscle-history's vocabulary mismatch), among others. **Both Tier-1
+(blocking) and Tier-2 (real, non-blocking) findings from that pass are now fixed** (see Session
+Log) — `tsc`-clean, 372/372 tests. Tier-3 (product/UX asks from the founder's own live testing) are
+queued in the Open Backlog below (T3.1–T3.6), several explicitly needing founder design/scope input
+before building. **T1.2 is still not fully closed**: a Simulator pass cannot confirm Live
+Activities, push delivery, Sign in with Apple, or anything gated on real hardware — those still
+need one physical-device pass after the next EAS build. The large body of code from the dozen-plus
+sessions before this one (the entire M1–M3 Claude-buildable backlog, `MASTER_FIX_PLAN.md`'s P0/P1
+batches, the
 `LAUNCH_SCORE_PLAN.md` queue, Tempo Coach, the offline set-log retry queue) is now Simulator-
 exercised for the first time via this pass rather than purely code-verified, which is real progress
 even though the harder hardware-only claims remain open.
@@ -67,8 +70,9 @@ Claude-buildable work, in order of value, is: (1) whatever the on-device pass su
 (2) the **Open backlog** below (`MASTER_FIX_PLAN.md`'s remaining C5–C10 craft batches, W2–W6 wedge
 amplifiers once M4 unblocks them, and the four still-open 2026-07-19-addendum runner items).
 
-**Last updated:** 2026-07-31 — three founder bug reports fixed + a new muscle-history screen (see
-Session Log); none of it changes the T1.2 blocker above, still code-verified only.
+**Last updated:** 2026-08-02 — the Mac's first-ever on-device (Simulator) pass ran, found real bugs,
+and every Tier-1 + Tier-2 finding from it is now fixed on Windows (see Session Log); T1.2 above
+still needs a real physical device before it's fully closed.
 
 ---
 
@@ -194,6 +198,12 @@ them).
 | **2026-07-19 addendum — swap/remove sync-to-split** | `replaceExercise`, `persistOrder` in the runner | *Adding* an exercise already correctly syncs to the split when `workout.source === 'split'`; *swapping*/*removing* are deliberately session-only by existing design (own code comments say so). This is a real asymmetry but changing it is a founder product call (should a same-day equipment swap rewrite every future week of your split?), not a guess — Add already offers an explicit "just today, or permanently?" choice; ask whether swap/remove should get the same | 🔲 needs founder call |
 | **2026-07-19 addendum — checkmark + swipe completion animation** | `FocusMode.tsx` | The underlying bug ("abrupt switching") is fixed — this is pure animation polish (a Reanimated transition on the exercise-name/ring swap), not a defect | 🔲 nice-to-have |
 | **N1 — History horizon as the Pro line: free = 4 months, Pro = unlimited** *(founder-requested 2026-08-02)* | `lib/proFeatures.ts` (new gate), `muscle-history.tsx`, `exercise-progress.tsx`, `workout-history.tsx`, `progress.tsx`, `pr-browser.tsx`, `session-detail.tsx`, `paywall.tsx`, `web/` + `launch.html` marketing copy | Free tier sees the last **4 months** of history; Pro unlocks **unlimited**. "History" here means every progress surface — per-exercise stats, muscle stats, session history, PRs, charts — not just one screen. **Hard requirement: free users' data is never deleted, only hidden** — the moment someone buys Pro, everything from their free period is there in full. That means a *read-horizon clamp* at the query/derivation layer, never a delete/prune job, and the range chips (3M/6M/1Y/All) must gate the >4-month options behind the paywall rather than disappear. Must be reflected consistently in three places at once: the app's gating, the paywall's value copy, and the marketing site. Fits the existing "depth & horizon" Pro model already documented for `pr_forecasting` — extend that gate family, don't invent a parallel one | 🔲 queued |
+| **T3.1 — muscle-history interactive chart** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `muscle-history.tsx`, `components/SvgLineChart.tsx` | Founder wants to touch/drag along the sets-per-week line and see the exact value at that point (tooltip/crosshair), not just the shape. Check whether `SvgLineChart` can gain touch/drag support cheaply or needs a small custom gesture layer on top | 🔲 queued |
+| **T3.2 — muscle-history per-exercise weight-progression** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `muscle-history.tsx`'s "BY EXERCISE" breakdown | Founder: "people don't want to just see sets per week but also weight progression... definitely for exercises." The breakdown rows should show a weight/e1RM trend per exercise (data already computed in `exercise-progress.tsx`), not just set counts. Whether the muscle-GROUP rollup should also get an aggregate weight trend is explicitly undecided by the founder — don't invent one, the exercise-level addition is the clear ask | 🔲 queued |
+| **T3.3 — Unit toggle: smoother transition + forgiving tap target** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `settings.tsx`'s LB/KG `TouchableOpacity` pair (~line 630) | Founder: "when you click it should switch, not necessarily have to click on target measurement." Check hit-slop/target sizing and add an animated cross-fade/slide on value change | 🔲 queued |
+| **T3.4 — "Your first session" tip reappears repeatedly** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `lib/tutorial.ts`, `stores/tutorial.ts`, `components/TutorialOverlay.tsx` | Real bug, root cause **not yet identified** — founder sees it "randomly," not just on first use. The audit confirmed `lib/tutorial.ts`'s persistence writes directly to `localStorage` (NOT through `prefStorage.ts`'s dynamic-import path, item fixed above) — don't assume that fix touches this. Investigate: (a) multiple distinct "first workout"-style banners/overlays firing from different trigger points rather than one flag resetting; (b) whether `TutorialOverlay.tsx`'s armed/completed state machine has a path that re-arms an already-complete step; (c) whether a `TUTORIAL_STORE_VERSION` bump is unintentionally invalidating old completion data on load. Trace properly before patching | 🔲 queued — needs investigation, not a guess-patch |
+| **T3.5 — Tempo Coach character redesign** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `app/coach.tsx`, `brand-assets/coach-poses/*` | The coach illustration doesn't show the full body. Design/layout judgment call (crop/framing) — get founder input before touching it | 🔲 queued — needs founder design input |
+| **T3.6 — Focus Mode: remove inline set-editing entirely** *(Mac audit Tier 3, founder's own live testing 2026-08-02)* | `components/FocusMode.tsx` | Founder: "just make it so you can't edit in focus mode, only if they go back to the exercises." Would remove the "HOW MUCH DID YOU DO?" card's inline fields/save button/RPE-chip editing (the `dismissedKey`/`lastSetKey` mechanism fixed 2026-07-31/08-02) and make the card read-only — meaningfully simplifies the component, but is a deliberate redesign of a feature that A2 above just confirmed working as shipped. Confirm scope with the founder before the refactor | 🔲 queued — needs founder scope confirmation |
 | **N3 — Revoke Apple token on account deletion** *(Mac audit 2026-08-02)* | `mobile/supabase/functions/delete-account/index.ts`, `app/sign-in.tsx` | A "deleted" account currently still shows Tempo as an authorized app in the user's Apple ID settings — `delete-account` never calls Apple's `/auth/revoke` endpoint. **Needs new Apple Developer infra the app doesn't have yet**, not just a code change: a Sign in with Apple Service ID + a private key (Team ID/Key ID/`.p8` key from the Apple Developer portal, founder-only), a server-side JWT-signed client-secret generator, capturing Apple's `authorizationCode` at sign-in (available on `credential.authorizationCode`, unused today) and exchanging it for a refresh token to store, then calling revoke with that token on deletion. The related, code-only half — an alert when Apple's sheet resolves with no `identityToken` — is already fixed | 🔲 queued — needs founder Apple Developer credentials first |
 | **N2 — Make "what am I actually changing?" unambiguous across workouts vs. split days** *(founder-requested 2026-08-02)* | `(tabs)/plan.tsx` (add/swap/remove/reorder), `edit-session.tsx`, `lib/splitSchedule.ts`, Workout Builder | Today the scope of an edit is inconsistent and mostly invisible: *adding* an exercise to a split-sourced workout syncs to the split (and therefore to **every** future day using that split — so adding to Monday's Pull day changes Friday's Pull day too), while *swapping* and *removing* are session-only by deliberate design (see the 2026-07-19 swap/remove row above, which this supersedes and absorbs). Founder's ask: a single, clear, consistent model for "this session only" vs. "this day going forward" vs. "every day on this split", surfaced in the UI at the moment of the edit — same treatment for add, swap, remove, reorder, and the Edit-workout screen. Needs a **product decision + written plan before code** (per CLAUDE.md's Working Method): the three-scope model is the likely answer but the default per action, and whether "this day going forward" is even distinguishable from "the split" given the current schema, both need deciding. Related real conflict to resolve: `edit-session.tsx` currently edits one dated instance while Workout Builder edits the split template, with nothing telling the user which they're in | 🔲 queued — needs a plan doc first |
 
@@ -247,6 +257,50 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-02 — first-ever on-device (Simulator) pass ran on the Mac; every Tier-1 + Tier-2 finding
+  fixed on Windows the same day.** The Mac session finally ran T1.2 for real (iOS Simulator, after
+  fixing a CocoaPods `LANG`/locale issue), confirmed the three 2026-07-31 fixes (PREV blanking:
+  fixed; Focus Mode auto-dismiss: fixed; muscle-history "See history": still broken), and found 6
+  new Tier-1 (blocking) + 13 Tier-2 (real, non-blocking) issues via 5 parallel deep-dive reviews.
+  **Tier 1, all closed:** (1) `retention-push` had zero auth check despite `verify_jwt=false` —
+  closed with a Supabase Vault shared secret + `get_retention_push_secret()` RPC, confirmed live
+  (unauthenticated POST → 401, real cron call → 200). (2) `edit-session.tsx` nulled
+  weight/duration/distance/rep-range on every save — now preserves the original config unless the
+  user actually touched that field. (3) `delete-account` never swept Storage — now removes
+  `progress-photos`/`avatars` objects before deleting the auth user. (4) `muscle-history`'s "See
+  history" compared mismatched muscle vocabularies (fixed via the existing `bodyMuscleOf()` mapper)
+  and capped its history query oldest-first instead of newest-first (fixed). (5) Sentry source-map
+  upload was disabled in both EAS profiles (`SENTRY_DISABLE_AUTO_UPLOAD`) — removed, `SENTRY_ORG`/
+  `SENTRY_PROJECT` added; only the auth-token EAS secret is still a founder step. (6) A Live Activity
+  import crashed EVERY cold launch on a from-scratch build — `expo-widgets` calls
+  `requireNativeModule` eagerly at its own top level, so a static `import` threw before the existing
+  try/catch (which only wrapped the `createLiveActivity()` call) could ever run; fixed with a guarded
+  `require()` inside that same try/catch. **Tier 2, all closed:** `prefStorage.ts` write crash under
+  Metro dev bundling; Home's displayed time-range/duration disagreement; `progression.ts`'s deload
+  cut compounding on a same-session reactive grind-cut; `prForecast.ts` anchoring projected dates to
+  `now` instead of the last logged session (silently ballooning during inactivity); two silent
+  write-failure sites (`rescheduleWholeWeek`, `restampFuturePlanForExperience`) now mirror
+  `adaptation.ts`'s failed-id tracking; a friend-feed streak-milestone broadcast used the
+  session-count metric instead of a true distinct-day count (new `distinctDayStreak()`, W6 backlog
+  row updated); `findCalendarConflicts` never surfaced all-day-event conflicts for free users; no
+  in-flight guard on `handleSetDone`/`beginSession` (fast-double-tap double-insert risk); push-tap
+  routing had no default case (added, scoped to retention-push notifications only); `app_open`
+  double-fired on a notification-tap cold launch; calendar-autosync toggle-off was fire-and-forget
+  with no failure feedback; Sign in with Apple silently no-op'd on a missing `identityToken`; and the
+  PREV-blanking fix's own history query excluded the resumed session's rows in JS after the `.limit`
+  instead of in the query itself. Apple token revocation on deletion needs founder-provided Apple
+  Developer credentials that don't exist yet — queued as N3, not half-built. **Tier 3** (6 product/UX
+  items from the founder's own live testing — muscle-history interactive chart + weight-progression,
+  unit-toggle animation, a recurring tutorial-reappears bug needing real investigation, Coach
+  redesign, Focus Mode read-only redesign) queued as T3.1–T3.6 in the Open Backlog, several
+  explicitly needing founder input before building. Also queued from the founder directly this
+  session (not audit findings): **N1** (Pro history horizon — free 4mo/Pro unlimited, across every
+  progress surface + paywall + marketing) and **N2** (a written, unambiguous scope model for
+  add/swap/remove/reorder across "this session" vs. "this day" vs. "the whole split" — needs a
+  product decision + plan doc before code, per CLAUDE.md's Working Method). tsc clean, 372/372 tests
+  (5 new). **Could not push to GitHub this session** — `git push` failed with a 403 (permission
+  denied for the configured git account against `LazyLlama85/tempo.git`); all commits exist locally
+  on `main` only until that's resolved.
 - **2026-07-31 — founder bug reports fixed + muscle-level training history added.** (1) PREV column
   blanking after pause/resume, traced to `loadWorkout`'s history query not excluding the resumed
   session's own now-open log — one-line fix. (2) Focus Mode's "HOW MUCH DID YOU DO?" card now

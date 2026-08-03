@@ -120,6 +120,10 @@ opened. This protocol is what keeps that true.
 ## Running the App
 - Mobile: `cd mobile && npx expo start --ios`
 - Requires `mobile/.env.local` (see `mobile/.env.example` for the full list).
+- **Mac-only CocoaPods gotcha:** `npx expo run:ios` can fail at `pod install` with a Ruby
+  `UnicodeNormalize` error if `LANG`/`LC_ALL` aren't set to a UTF-8 locale (`echo $LANG` empty or
+  `C`). Fix: `export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` before running CocoaPods/Expo build
+  commands. Not applicable on Windows.
 
 ### ⚠️ Native modules — Expo Go no longer works
 The app now depends on native modules that aren't in the Expo Go runtime:

@@ -874,21 +874,28 @@ export default function WorkoutsScreen() {
       // the prescription, so cap the pull instead of scanning years of history
       // (a 10-year account has tens of thousands of set_logs rows). Warm-ups are
       // excluded — they must never drag next session's targets or PREV down.
-      const { data: history } = await supabase
+      let historyQuery = supabase
         .from('set_logs')
         .select('exercise_id, workout_log_id, set_number, weight_lbs, reps_completed, rpe, duration_sec, distance_m, completed_at')
         .in('exercise_id', effectiveIds)
         .not('is_warmup', 'is', true)
+      // Exclude the CURRENT session's own log (resumedLog, if this is a
+      // pause/resume reload) — otherwise re-running this on resume, after even
+      // one set is already logged today, sees today's own partial log as the
+      // "most recent" (its completed_at is newer than the real last session)
+      // and PREV blanks for every set not yet logged today. Fixed 2026-08-02:
+      // this used to filter in JS AFTER the .limit() below, so today's own
+      // rows (sorted first, being most recent) could eat into the capped
+      // budget before it reached far enough back for a workout with many
+      // exercises — now excluded in the query itself, so the limit is only
+      // ever spent on genuinely relevant historical rows.
+      if (resumedLog?.id) historyQuery = historyQuery.neq('workout_log_id', resumedLog.id)
+      const { data: history } = await historyQuery
         .order('completed_at', { ascending: false })
         .limit(Math.max(60, effectiveIds.length * 20))
 
       for (const ex of ordered) {
-        // Exclude the CURRENT session's own log (resumedLog, if this is a
-        // pause/resume reload) — otherwise re-running this on resume, after
-        // even one set is already logged today, sees today's own partial log
-        // as the "most recent" (its completed_at is newer than the real last
-        // session) and PREV blanks for every set not yet logged today.
-        const rows = (history ?? []).filter(r => r.exercise_id === ex.id && r.workout_log_id !== resumedLog?.id)
+        const rows = (history ?? []).filter(r => r.exercise_id === ex.id)
         const lastLogId = rows[0]?.workout_log_id
         const lastSets = rows
           .filter(r => r.workout_log_id === lastLogId)
