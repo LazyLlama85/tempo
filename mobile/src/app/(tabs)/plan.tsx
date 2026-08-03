@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useProgressStats } from '@/hooks/useProgressStats'
 import { fetchSplits, isAutoSplit } from '@/lib/splits'
-import { materializeSplit } from '@/lib/splitSchedule'
+import { materializeSplit, propagateSplitDayEdit } from '@/lib/splitSchedule'
 import { removeWorkoutFromCalendar } from '@/services/calendarSync'
 import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsights'
 import { useProGate } from '@/stores/entitlements'
@@ -599,6 +599,9 @@ export default function WorkoutsScreen() {
   const [skipExerciseConfirm, setSkipExerciseConfirm] = useState<ExerciseRow | null>(null)
   const [removeExerciseConfirm, setRemoveExerciseConfirm] = useState<ExerciseRow | null>(null)
   const [swapSheet, setSwapSheet] = useState<{ ex: ExerciseRow; candidates: ExerciseRow[] } | null>(null)
+  // N2 (2026-08-02): the scope choice shown after picking a swap candidate,
+  // only for a split-sourced workout — see addChoiceEx's identical shape.
+  const [swapChoice, setSwapChoice] = useState<{ oldId: string; oldName: string; next: ExerciseRow } | null>(null)
   // Per-exercise action sheet (machine occupied → swap / move to end / skip / reorder).
   const [exActionEx, setExActionEx] = useState<ExerciseRow | null>(null)
   // Session note ("bench felt heavy today") → workout_logs.notes.
@@ -1363,10 +1366,17 @@ export default function WorkoutsScreen() {
 
   // ── Add exercise mid-session ────────────────────────────────────────────────
 
-  // Append an exercise to the RUNNING session. `permanent` also writes it into
-  // the scheduled row (so an app restart keeps it) and — when the session came
-  // from a split — into the split day itself, so every future week has it.
-  const addExerciseToSession = async (ex: ExerciseRow, permanent: boolean) => {
+  // Append an exercise to the RUNNING session. This ALWAYS persists to the
+  // scheduled row (so a pause/resume or app restart keeps it — fixed
+  // 2026-08-02: this used to only persist when `goingForward` was true,
+  // silently losing a "just for today" addition the moment the session was
+  // reloaded, since loadWorkout always rebuilds `exercises` from this same
+  // column). `goingForward` additionally propagates into the split template
+  // AND every already-materialized future instance of this weekday
+  // (lib/splitSchedule.propagateSplitDayEdit — see its own header comment for
+  // why both are needed), so "going forward" actually means every upcoming
+  // day, not just ones more than ~4 weeks out.
+  const addExerciseToSession = async (ex: ExerciseRow, goingForward: boolean) => {
     const prescription = buildPrescription([], goal, ex.movement_pattern, false, bias, workout?.progression ?? null, classifyExercise(ex).role, { group: ex.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(ex.muscle_group ?? '') ?? 0, experience }, classifyExercise(ex).slot)
     restDefaults.current[ex.id] = prescription.restSeconds
     if (!reduceMotion) {
@@ -1387,27 +1397,17 @@ export default function WorkoutsScreen() {
     setExpandedId(ex.id)
     haptics.tapLight()
 
-    if (!permanent || !workout) return
+    if (!workout) return
     const newIds = [...workout.exercise_ids, ex.id]
     setWorkout({ ...workout, exercise_ids: newIds })
     await supabase.from('scheduled_workouts').update({ exercise_ids: newIds }).eq('id', workout.id)
 
-    // Persist into the owning split day so future weeks include it too.
-    if (workout.source === 'split' && workout.split_id) {
+    if (goingForward && workout.source === 'split' && workout.split_id) {
       try {
-        const { data: splitRow } = await supabase.from('splits').select('*').eq('id', workout.split_id).maybeSingle()
-        if (splitRow) {
-          const split = splitRow as Split
-          const d = new Date(`${workout.planned_date}T00:00:00`)
-          const weekday = ((d.getDay() + 6) % 7) + 1
-          const days = split.days.map(day => {
-            if (day.weekday !== weekday || day.rest) return day
-            if (day.exercise_ids?.includes(ex.id)) return day
-            return { ...day, exercise_ids: [...(day.exercise_ids ?? []), ex.id] }
-          })
-          await supabase.from('splits').update({ days }).eq('id', split.id)
-        }
-      } catch { /* the session + scheduled row still carry it */ }
+        const d = new Date(`${workout.planned_date}T00:00:00`)
+        const weekday = ((d.getDay() + 6) % 7) + 1
+        await propagateSplitDayEdit(supabase, userId, workout.split_id, weekday, { type: 'add', exerciseId: ex.id })
+      } catch { /* the session's own scheduled row still carries it */ }
     }
   }
 
@@ -1458,11 +1458,16 @@ export default function WorkoutsScreen() {
     setExpandedId(cur => (cur === exId ? (exercises.find(e => e.id !== exId)?.id ?? cur) : cur))
   }
 
-  // Skip an exercise for THIS session only — removes it from the live grid and the
-  // scheduled row's order, but never from the plan template. Any sets already
-  // logged for it are deleted so it doesn't count.
+  // Skip an exercise for THIS session — removes it from the live grid and the
+  // scheduled row's order. Any sets already logged for it are deleted so it
+  // doesn't count. `goingForward` (N2, 2026-08-02) additionally removes it
+  // from the split template AND every already-materialized future instance
+  // of this weekday — only offered/meaningful for a split-sourced workout
+  // (see addExerciseToSession's comment for why both matter); a plan/quick
+  // workout (or the default, unconfirmed choice) stays session-only exactly
+  // as before.
   const skipExercise = (ex: ExerciseRow) => setSkipExerciseConfirm(ex)
-  const doSkipExercise = async (ex: ExerciseRow) => {
+  const doSkipExercise = async (ex: ExerciseRow, goingForward = false) => {
     haptics.tapMedium()
     animateReorder()
     const remaining = exercises.filter(e => e.id !== ex.id)
@@ -1479,6 +1484,13 @@ export default function WorkoutsScreen() {
     await persistOrder(remaining.map(e => e.id))
     if (workoutLogId) {
       await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
+    }
+    if (goingForward && workout?.source === 'split' && workout.split_id) {
+      try {
+        const d = new Date(`${workout.planned_date}T00:00:00`)
+        const weekday = ((d.getDay() + 6) % 7) + 1
+        await propagateSplitDayEdit(supabase, userId, workout.split_id, weekday, { type: 'remove', exerciseId: ex.id })
+      } catch { /* the session's own scheduled row still reflects the skip */ }
     }
   }
 
@@ -1539,7 +1551,14 @@ export default function WorkoutsScreen() {
     }
   }
 
-  const replaceExercise = async (oldId: string, next: ExerciseRow) => {
+  // `goingForward` (N2, 2026-08-02) — only meaningful for a split-sourced
+  // workout: propagates the swap into the split template AND every already-
+  // materialized future instance of this weekday (see addExerciseToSession's
+  // comment / lib/splitSchedule.propagateSplitDayEdit for why both matter).
+  // Defaults false — a swap stays session-only unless the caller explicitly
+  // asked "going forward" (the swap sheet only asks when there's a split to
+  // propagate into; a plan/quick workout swaps immediately, as before).
+  const replaceExercise = async (oldId: string, next: ExerciseRow, goingForward = false) => {
     const prescription = buildPrescription([], goal, next.movement_pattern, false, bias, workout?.progression, classifyExercise(next).role, { group: next.muscle_group ?? null, setsThisWeek: weeklySetsByGroup.get(next.muscle_group ?? '') ?? 0, experience }, classifyExercise(next).slot)
     restDefaults.current[next.id] = prescription.restSeconds
 
@@ -1572,6 +1591,14 @@ export default function WorkoutsScreen() {
       const newIds = workout.exercise_ids.map(id => id === oldId ? next.id : id)
       setWorkout({ ...workout, exercise_ids: newIds })
       await supabase.from('scheduled_workouts').update({ exercise_ids: newIds }).eq('id', workout.id)
+
+      if (goingForward && workout.source === 'split' && workout.split_id) {
+        try {
+          const d = new Date(`${workout.planned_date}T00:00:00`)
+          const weekday = ((d.getDay() + 6) % 7) + 1
+          await propagateSplitDayEdit(supabase, userId, workout.split_id, weekday, { type: 'swap', fromId: oldId, toId: next.id })
+        } catch { /* the session's own scheduled row still carries it */ }
+      }
     }
   }
 
@@ -2885,37 +2912,41 @@ export default function WorkoutsScreen() {
         </View>
       </Modal>
 
-      {/* Add exercise mid-session: pick, then decide how long it sticks around. */}
+      {/* Add exercise mid-session: pick, then — only for a split-sourced
+          workout, where "going forward" is an actual, well-defined thing
+          (lib/splitSchedule.propagateSplitDayEdit) — decide how long it
+          sticks around. A plan day (periodization already varies it week to
+          week; there's no fixed template to add "forever" to) or a Quick
+          Workout (a one-off with nothing to recur into) skip the question
+          entirely: it's just added to this session, immediately. */}
       <ExercisePickerSheet
         visible={addExOpen}
         userId={userId}
         client={supabase}
         existingIds={exercises.map(e => e.id)}
         onClose={() => setAddExOpen(false)}
-        onAdd={(ex: Exercise) => { setAddExOpen(false); setAddChoiceEx(ex as unknown as ExerciseRow) }}
+        onAdd={(ex: Exercise) => {
+          setAddExOpen(false)
+          if (workout?.source === 'split' && workout.split_id) {
+            setAddChoiceEx(ex as unknown as ExerciseRow)
+          } else {
+            addExerciseToSession(ex as unknown as ExerciseRow, false).catch(() => {})
+          }
+        }}
         onRemove={() => {}}
       />
       <OptionSheet
         visible={addChoiceEx !== null}
         title={addChoiceEx ? `Add ${addChoiceEx.name}` : ''}
-        // A Quick Workout is a one-off, ad-hoc session with no recurring template
-        // to persist into (source: 'quick', user_plan_id: null) — "permanently"
-        // has no meaning for something that only ever happens once, so offering
-        // it read as a confusing choice for a workout that isn't "saved" in that
-        // sense. Plan/split workouts DO recur, so they keep both choices.
-        subtitle={workout?.source === 'quick' ? 'Adding it to this one-off session.' : 'Just for today, or part of this workout from now on?'}
-        options={
-          workout?.source === 'quick'
-            ? [{ key: 'today', label: 'Add exercise', sub: 'Added to this session', icon: 'today-outline' }]
-            : [
-                { key: 'today', label: 'Add for this session only', sub: 'One-off — tomorrow the workout is unchanged', icon: 'today-outline' },
-                { key: 'permanent', label: 'Add to workout permanently', sub: 'Becomes part of this workout going forward', icon: 'bookmark-outline' },
-              ]
-        }
+        subtitle={`Just for today's ${workout?.focus ?? 'workout'}, or every ${workout?.focus ?? 'day'} on your split from now on?`}
+        options={[
+          { key: 'today', label: 'Add for this session only', sub: 'One-off — the rest of your split is unchanged', icon: 'today-outline' },
+          { key: 'forward', label: `Add to every ${workout?.focus ?? 'day'} on your split`, sub: 'Updates your split template and every upcoming day already scheduled', icon: 'bookmark-outline' },
+        ]}
         onSelect={(key) => {
           const ex = addChoiceEx
           setAddChoiceEx(null)
-          if (ex) addExerciseToSession(ex, key === 'permanent').catch(() => {})
+          if (ex) addExerciseToSession(ex, key === 'forward').catch(() => {})
         }}
         onClose={() => setAddChoiceEx(null)}
       />
@@ -3015,9 +3046,20 @@ export default function WorkoutsScreen() {
       <OptionSheet
         visible={skipExerciseConfirm !== null}
         title="Skip this exercise?"
-        subtitle={skipExerciseConfirm ? `${skipExerciseConfirm.name} will be removed from today's session. Your plan keeps it for next time.` : ''}
-        options={[{ key: 'skip', label: 'Skip today', icon: 'close-circle-outline', destructive: true }]}
-        onSelect={() => { const ex = skipExerciseConfirm; setSkipExerciseConfirm(null); if (ex) void doSkipExercise(ex) }}
+        subtitle={
+          skipExerciseConfirm && workout?.source === 'split' && workout.split_id
+            ? `Just for today's ${workout.focus}, or every ${workout.focus} on your split from now on?`
+            : skipExerciseConfirm ? `${skipExerciseConfirm.name} will be removed from today's session. Your plan keeps it for next time.` : ''
+        }
+        options={
+          workout?.source === 'split' && workout.split_id
+            ? [
+                { key: 'skip', label: 'Skip today only', sub: 'One-off — the rest of your split is unchanged', icon: 'close-circle-outline', destructive: true },
+                { key: 'forward', label: `Remove from every ${workout.focus} on your split`, sub: 'Updates your split template and every upcoming day already scheduled', icon: 'trash-outline', destructive: true },
+              ]
+            : [{ key: 'skip', label: 'Skip today', icon: 'close-circle-outline', destructive: true }]
+        }
+        onSelect={(key) => { const ex = skipExerciseConfirm; setSkipExerciseConfirm(null); if (ex) void doSkipExercise(ex, key === 'forward') }}
         onClose={() => setSkipExerciseConfirm(null)}
       />
 
@@ -3039,9 +3081,32 @@ export default function WorkoutsScreen() {
           const s = swapSheet
           setSwapSheet(null)
           const next = s?.candidates.find(c => c.id === key)
-          if (s && next) void replaceExercise(s.ex.id, next)
+          if (!s || !next) return
+          // Only a split-sourced workout has a real "going forward" to ask
+          // about (N2) — a plan/quick workout swaps immediately, as before.
+          if (workout?.source === 'split' && workout.split_id) {
+            setSwapChoice({ oldId: s.ex.id, oldName: s.ex.name, next })
+          } else {
+            void replaceExercise(s.ex.id, next)
+          }
         }}
         onClose={() => setSwapSheet(null)}
+      />
+
+      <OptionSheet
+        visible={swapChoice !== null}
+        title={swapChoice ? `Swap ${swapChoice.oldName} → ${swapChoice.next.name}` : ''}
+        subtitle={`Just for today's ${workout?.focus ?? 'workout'}, or every ${workout?.focus ?? 'day'} on your split from now on?`}
+        options={[
+          { key: 'today', label: 'Swap for this session only', sub: 'One-off — the rest of your split is unchanged', icon: 'today-outline' },
+          { key: 'forward', label: `Swap on every ${workout?.focus ?? 'day'} on your split`, sub: 'Updates your split template and every upcoming day already scheduled', icon: 'bookmark-outline' },
+        ]}
+        onSelect={(key) => {
+          const s = swapChoice
+          setSwapChoice(null)
+          if (s) void replaceExercise(s.oldId, s.next, key === 'forward')
+        }}
+        onClose={() => setSwapChoice(null)}
       />
 
       {/* Session note — "bench felt heavy today" → workout_logs.notes */}

@@ -60,6 +60,15 @@ export default function EditSessionScreen() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // N2 (2026-08-02, founder-requested): this screen always edits ONE dated
+  // instance, never the split template — but it never said so, and a user
+  // coming from a split day had no way to tell whether "Save" here changes
+  // every future day on that split or just today's. `splitId` (non-null only
+  // for a split-sourced workout) drives an explicit banner + a direct link to
+  // the split editor, so there's always a clear answer to "what am I
+  // actually changing?" without silently expanding this screen's own save
+  // into a per-exercise scope choice the way the runner's add/swap/remove got.
+  const [splitId, setSplitId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workoutId || !userId) return
@@ -67,12 +76,13 @@ export default function EditSessionScreen() {
       try {
         const { data: row } = await supabase
           .from('scheduled_workouts')
-          .select('id, focus, exercise_ids, exercise_config')
+          .select('id, focus, exercise_ids, exercise_config, source, split_id')
           .eq('id', workoutId)
           .eq('user_id', userId)
           .maybeSingle()
         if (!row) return
         setFocus(row.focus ?? '')
+        setSplitId(row.source === 'split' ? ((row as { split_id?: string | null }).split_id ?? null) : null)
         const ids: string[] = row.exercise_ids ?? []
         const cfgs = (row.exercise_config ?? []) as WorkoutExerciseConfig[]
         setHadConfig(cfgs.length > 0)
@@ -191,6 +201,21 @@ export default function EditSessionScreen() {
         <View style={styles.center}><PulseLoader caption="Loading workout…" /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, Spacing.xl) + 40 }]}>
+          {splitId && (
+            <View style={styles.scopeBanner}>
+              <Ionicons name="information-circle-outline" size={16} color={C.primary} />
+              <Text style={styles.scopeBannerText}>
+                Editing today's {focus || 'workout'} only — your split is unchanged.{' '}
+                <Text
+                  style={styles.scopeBannerLink}
+                  onPress={() => { router.back(); router.push({ pathname: '/split-editor', params: { splitId } } as never) }}
+                >
+                  Edit the whole split →
+                </Text>
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.label}>WORKOUT NAME</Text>
           <TextInput
             style={styles.input}
@@ -246,8 +271,10 @@ export default function EditSessionScreen() {
           </PressableScale>
 
           <Text style={styles.hint}>
-            Changes apply to this scheduled session. Exercises you don't pin keep Tempo's
-            adaptive targets, so progression and deloads still work.
+            {splitId
+              ? "Changes here apply to today's session only — they never rewrite your split template."
+              : 'Changes apply to this scheduled session.'}{' '}
+            Exercises you don't pin keep Tempo's adaptive targets, so progression and deloads still work.
           </Text>
         </ScrollView>
       )}
@@ -271,6 +298,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   save: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.primary },
   scroll: { paddingHorizontal: Spacing.containerPadding, gap: Spacing.xs },
   label: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.md },
+  scopeBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm,
+    backgroundColor: C.primarySoft, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: C.primaryLine,
+  },
+  scopeBannerText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.text, lineHeight: 18 },
+  scopeBannerLink: { fontFamily: 'Inter_700Bold', color: C.primary },
   input: {
     height: 50, backgroundColor: C.background, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: C.outlineVariant, paddingHorizontal: Spacing.md,

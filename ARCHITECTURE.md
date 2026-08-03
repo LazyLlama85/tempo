@@ -1879,6 +1879,37 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   hard-skip `kind='auto'`, and `ensureAutoSplit` self-heals by deleting any future `source='split'`
   rows an older build wrongly laid under the mirror, so a plan day can never render twice (once as
   `plan`, once as `split`). Exactly one schedule drives the calendar.
+  **`propagateSplitDayEdit` — N2, "this day, going forward" (2026-08-02, founder-requested).**
+  Before this, the runner's "permanent" add/swap/remove only ever rewrote the split TEMPLATE
+  (`splits.days`) — but `materializeSplit` only ever *inserts* a row for a date that doesn't have one
+  yet; it never re-syncs an already-materialized row after the template changes. So a "permanent" edit
+  made today had ZERO effect on any of the next ~4 weeks' worth of already-scheduled instances of that
+  same weekday (the whole rolling `HORIZON_DAYS` window) — only on whatever gets freshly materialized
+  *past* it, which read to a user as "I added it permanently and none of my upcoming Fridays show it."
+  `propagateSplitDayEdit(client, userId, splitId, weekday, op)` is the real fix: it updates the
+  template (far future) AND every already-scheduled, not-yet-done instance of `weekday` from today
+  onward (near future), so "going forward" means every upcoming day, not just ones months out.
+  Operation-based (`{type:'add'|'remove'|'swap', ...}`, applied to each row's OWN current
+  `exercise_ids`) rather than "copy this session's full list everywhere" — two days sharing a weekday
+  can already carry independent customizations (Friday's Pull day swapped differently from Monday's),
+  and a blind copy would silently clobber one day's edits the moment another day's edit went "going
+  forward." Wired into `(tabs)/plan.tsx`'s three session-composition actions — `addExerciseToSession`,
+  `replaceExercise` (swap), `doSkipExercise` (skip/remove) — each now asks "this session only" vs.
+  "every `{focus}` on your split" **only when the workout is split-sourced** (`source==='split' &&
+  split_id`); a plan day (periodization already varies it week to week — no fixed template to add
+  "forever" to) or a Quick Workout (a one-off with nothing to recur into) skip the question entirely
+  and persist to just this session, immediately. **A real, separate bug found and fixed in the same
+  pass:** "add for this session only" used to NOT persist `exercise_ids` to the scheduled row at all
+  (only in-memory React state) — a pause/resume or app restart re-runs `loadWorkout`, which rebuilds
+  `exercises` straight from that same column, silently losing the addition. Every add now always
+  persists to the session's own row regardless of scope choice; only the split-propagation step is
+  conditional. **`edit-session.tsx`** (the bulk sets/reps/name editor) gained an explicit scope banner
+  + a direct link to `split-editor` when editing a split-sourced day — it always edited one dated
+  instance only and never said so, which was the founder's other named complaint ("nothing telling the
+  user which they're in"); a full per-field scope choice wasn't added there (that screen saves as one
+  bulk update, not per-exercise like the runner), the banner+link is the proportionate fix. 3 new
+  tests (`splitSchedule.test.ts`) lock weekday isolation, past/completed-row exclusion, and the
+  non-clobbering guarantee for a sibling day's own customization.
 - **Starter templates:** `starterTemplates` — app-provided workout presets (Push/Pull/Legs/Upper/
   Lower/Full Body/Bodyweight) and split presets (PPL, PPL-3day, Upper/Lower, Full Body) that
   correspond: `applySplitPreset` fills a split's week **and** saves each of its workouts into the

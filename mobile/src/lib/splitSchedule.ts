@@ -237,3 +237,82 @@ export async function refreshActiveSplit(
   if (!active || isAutoSplit(active)) return 0
   return materializeSplit(client, userId, active, preferredTimeOfDay)
 }
+
+// ── "This day, going forward" — N2, founder-requested 2026-08-02 ────────────
+//
+// The scope-clarity fix for add/swap/remove on a split-sourced workout. Before
+// this, "permanent" only ever rewrote the split TEMPLATE (`splits.days`) — but
+// materializeSplit above only ever INSERTS a row for a date that doesn't have
+// one yet; it never re-syncs an ALREADY-materialized row after the template
+// changes. So a "permanent" edit made today silently had no effect on any of
+// the next ~4 weeks' worth of already-scheduled instances of that same
+// weekday (the entire rolling HORIZON_DAYS window) — it only took effect on
+// whatever gets freshly materialized past that horizon, which reads to a user
+// as "I permanently added it and NONE of my upcoming Fridays show it." This
+// function is the real fix: it updates the template (for the far future) AND
+// every already-scheduled, not-yet-done instance of that weekday from today
+// forward (for the near future), so "going forward" actually means what it
+// says on every day it's supposed to.
+export type SplitDayEditOp =
+  | { type: 'add'; exerciseId: string }
+  | { type: 'remove'; exerciseId: string }
+  | { type: 'swap'; fromId: string; toId: string }
+
+function applyOpToIds(ids: string[], op: SplitDayEditOp): string[] {
+  switch (op.type) {
+    case 'add': return ids.includes(op.exerciseId) ? ids : [...ids, op.exerciseId]
+    case 'remove': return ids.filter((id) => id !== op.exerciseId)
+    case 'swap': return ids.includes(op.fromId) ? ids.map((id) => (id === op.fromId ? op.toId : id)) : ids
+  }
+}
+
+/**
+ * Apply an add/remove/swap OPERATION (not a final exercise list) to a split
+ * day, going forward: the template, plus every already-materialized,
+ * not-yet-done instance of `weekday` from today onward. Operation-based
+ * (rather than "copy this session's current list everywhere") on purpose —
+ * two different days of the same weekday can already carry independent
+ * customizations (e.g. Friday's Pull day was swapped differently from
+ * Monday's), and this must never clobber one day's own edits just because
+ * another day's edit is now going forward. Best-effort per row; a failure on
+ * one instance never blocks the others or the template.
+ */
+export async function propagateSplitDayEdit(
+  client: SupabaseClient,
+  userId: string,
+  splitId: string,
+  weekday: number,
+  op: SplitDayEditOp,
+): Promise<void> {
+  try {
+    const { data: splitRow } = await client.from('splits').select('*').eq('id', splitId).maybeSingle()
+    if (splitRow) {
+      const split = splitRow as Split
+      const days = split.days.map((day) => {
+        if (day.weekday !== weekday || day.rest) return day
+        return { ...day, exercise_ids: applyOpToIds(day.exercise_ids ?? [], op) }
+      })
+      await client.from('splits').update({ days }).eq('id', splitId)
+    }
+  } catch { /* the already-materialized rows below still carry the edit */ }
+
+  try {
+    const today = toDateStr(new Date())
+    const { data: rows } = await client
+      .from('scheduled_workouts')
+      .select('id, planned_date, exercise_ids')
+      .eq('user_id', userId)
+      .eq('split_id', splitId)
+      .eq('status', 'scheduled')
+      .gte('planned_date', today)
+    for (const row of (rows ?? []) as { id: string; planned_date: string; exercise_ids: string[] | null }[]) {
+      const d = new Date(`${row.planned_date}T00:00:00`)
+      const rowWeekday = ((d.getDay() + 6) % 7) + 1
+      if (rowWeekday !== weekday) continue
+      const nextIds = applyOpToIds(row.exercise_ids ?? [], op)
+      // .then(ok, err) not try/catch per-row — one row's failure must not abort
+      // the loop and leave the rest of the week's instances stale.
+      await client.from('scheduled_workouts').update({ exercise_ids: nextIds }).eq('id', row.id).then(() => {}, () => {})
+    }
+  } catch { /* template update above still lands; best-effort on the rest */ }
+}

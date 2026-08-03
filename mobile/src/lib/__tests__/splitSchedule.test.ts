@@ -6,7 +6,7 @@
 // the sweep itself; this locks the caller that activates a SPLIT specifically.
 
 import { createFakeSupabase } from './fakeSupabase'
-import { activateSplit, materializeSplit } from '@/lib/splitSchedule'
+import { activateSplit, materializeSplit, propagateSplitDayEdit } from '@/lib/splitSchedule'
 import type { Split, SplitDay } from '@/types'
 
 jest.mock('@/services/calendarSync', () => ({
@@ -212,5 +212,87 @@ describe('activateSplit — the poisoned-Change-Plan scenario, for splits', () =
     )
     const result = await activateSplit(client, USER, split(), MANUAL)
     expect(result).toBe('failed')
+  })
+})
+
+describe('propagateSplitDayEdit — N2 "this day, going forward" (2026-08-02)', () => {
+  // materializeSplit only ever INSERTS a row for an open date — it never
+  // re-syncs an already-materialized one after the template changes. Without
+  // this function, a "permanent" edit made today would have zero effect on
+  // any already-scheduled instance of the same weekday within the rolling
+  // horizon (the next ~4 weeks) — only on whatever gets freshly materialized
+  // past it. These tests lock the fix: both the template AND every already-
+  // scheduled, not-yet-done instance of the SAME weekday update, while a
+  // DIFFERENT weekday, a PAST instance, and an already-completed instance are
+  // all left alone — and a sibling day's own independent customization
+  // survives, since the operation applies to each row's own current list,
+  // never a copy of the calling session's list.
+  const NEXT_MONDAY = '2026-07-27'
+  const A_THURSDAY = '2026-07-23'   // weekday 4 — must never be touched by a weekday-1 edit
+  const A_PAST_MONDAY = '2026-07-13' // before TODAY — must never be touched
+
+  function fixture() {
+    return {
+      splits: [split({
+        days: [1, 2, 3, 4, 5, 6, 7].map((wd) => splitDay({ weekday: wd, rest: wd > 5, exercise_ids: ['ex1'] })),
+      })],
+      scheduled_workouts: [
+        workoutRow({ id: 'today', split_id: 'split-1', planned_date: TODAY, exercise_ids: ['ex1'] }),
+        // A sibling Monday already has its OWN extra exercise — an
+        // operation-based propagation must preserve it, not overwrite it.
+        workoutRow({ id: 'next-monday', split_id: 'split-1', planned_date: NEXT_MONDAY, exercise_ids: ['ex1', 'ex-extra'] }),
+        workoutRow({ id: 'thursday', split_id: 'split-1', planned_date: A_THURSDAY, exercise_ids: ['ex1'] }),
+        workoutRow({ id: 'past-monday', split_id: 'split-1', planned_date: A_PAST_MONDAY, exercise_ids: ['ex1'] }),
+        workoutRow({ id: 'completed-monday', split_id: 'split-1', planned_date: TODAY, status: 'completed', exercise_ids: ['ex1'] }),
+      ],
+    }
+  }
+
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T09:00:00`)) })
+  afterEach(() => { jest.useRealTimers() })
+
+  it('an "add" propagates to the template and every already-scheduled instance of the same weekday, preserving a sibling day\'s own customization', async () => {
+    const client = createFakeSupabase(fixture())
+    await propagateSplitDayEdit(client, USER, 'split-1', 1, { type: 'add', exerciseId: 'ex-new' })
+
+    const splits = (await client.from('splits').select('*').eq('id', 'split-1')).data
+    const mondayTemplate = (splits[0].days as SplitDay[]).find((d) => d.weekday === 1)!
+    expect(mondayTemplate.exercise_ids).toEqual(['ex1', 'ex-new'])
+
+    const rows = (await client.from('scheduled_workouts').select('*').eq('split_id', 'split-1')).data
+    const byId = new Map(rows.map((r: any) => [r.id, r]))
+    expect(byId.get('today').exercise_ids).toEqual(['ex1', 'ex-new'])
+    // The sibling Monday's pre-existing 'ex-extra' survives — the op applied
+    // to ITS OWN list, not a copy of today's.
+    expect(byId.get('next-monday').exercise_ids).toEqual(['ex1', 'ex-extra', 'ex-new'])
+    expect(byId.get('thursday').exercise_ids).toEqual(['ex1'])       // untouched — different weekday
+    expect(byId.get('past-monday').exercise_ids).toEqual(['ex1'])    // untouched — before today
+    expect(byId.get('completed-monday').exercise_ids).toEqual(['ex1']) // untouched — not 'scheduled'
+  })
+
+  it('a "remove" only removes the id where present, on the template and every matching-weekday scheduled instance', async () => {
+    const client = createFakeSupabase(fixture())
+    await propagateSplitDayEdit(client, USER, 'split-1', 1, { type: 'remove', exerciseId: 'ex1' })
+
+    const splits = (await client.from('splits').select('*').eq('id', 'split-1')).data
+    const mondayTemplate = (splits[0].days as SplitDay[]).find((d) => d.weekday === 1)!
+    expect(mondayTemplate.exercise_ids).toEqual([])
+
+    const rows = (await client.from('scheduled_workouts').select('*').eq('split_id', 'split-1')).data
+    const byId = new Map(rows.map((r: any) => [r.id, r]))
+    expect(byId.get('today').exercise_ids).toEqual([])
+    expect(byId.get('next-monday').exercise_ids).toEqual(['ex-extra']) // only ex1 removed, ex-extra stays
+    expect(byId.get('thursday').exercise_ids).toEqual(['ex1'])        // untouched
+  })
+
+  it('a "swap" only replaces the id where present, leaving a row that never had it unaffected', async () => {
+    const client = createFakeSupabase(fixture())
+    await propagateSplitDayEdit(client, USER, 'split-1', 1, { type: 'swap', fromId: 'ex1', toId: 'ex2' })
+
+    const rows = (await client.from('scheduled_workouts').select('*').eq('split_id', 'split-1')).data
+    const byId = new Map(rows.map((r: any) => [r.id, r]))
+    expect(byId.get('today').exercise_ids).toEqual(['ex2'])
+    expect(byId.get('next-monday').exercise_ids).toEqual(['ex2', 'ex-extra'])
+    expect(byId.get('thursday').exercise_ids).toEqual(['ex1']) // different weekday, untouched
   })
 })
