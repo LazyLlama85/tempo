@@ -22,11 +22,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
 
   initialize: () => {
+    // Cold-start safety net: (tabs)/_layout.tsx and onboarding/_layout.tsx both
+    // render a blank screen for as long as `loading` is true, and this promise
+    // chain was the only thing that ever flipped it — no `.catch`, no timeout.
+    // On a genuinely fresh install this can race with other first-ever SQLite-
+    // backed localStorage opens (the react-query persister, the profile cache)
+    // the same way the theme/entitlements/units stores used to (see the
+    // blank-screen-on-first-launch fixes in _layout.tsx) and never settle,
+    // wedging the app blank until force-quit gives it a fresh process. Force
+    // the gate open after 5s (matches the font-load timeout below) if the real
+    // result hasn't landed yet; a late resolution still applies normally.
+    const timeout = setTimeout(() => {
+      if (get().loading) set({ loading: false })
+    }, 5000)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const res = session ? await fetchProfile(session.user.id) : { ok: true, profile: null }
       // A fetch failure (offline cold start) falls back to the cached profile so an
       // onboarded user is never bounced back into onboarding by a network blip.
       const profile = res.ok ? res.profile : readCachedProfile(session?.user.id)
+      clearTimeout(timeout)
       set({ session, profile, loading: false })
       if (res.ok && session) writeCachedProfile(session.user.id, res.profile)
       // Tie analytics + crash reports to the returning user.
@@ -42,6 +56,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // mechanism behind a plan-cliff bug (MASTER_FIX_PLAN.md F1/F5). Home's
         // sweep ((tabs)/index.tsx) now owns both, in the order that matters.
       }
+    }).catch(() => {
+      clearTimeout(timeout)
+      set({ loading: false })
     })
 
     supabase.auth.onAuthStateChange(async (event, session) => {

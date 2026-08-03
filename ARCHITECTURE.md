@@ -2920,6 +2920,19 @@ stays off until the user opts in in Settings — the runner's gating logic (`pla
 (focusModeEnabled) setFocusOpen(true)`) already respected the preference correctly, only the
 default was wrong.
 
+**Fourth instance found (2026-08-03), in `stores/auth.ts`'s `initialize()`.** Reported again after
+both this fix and the `_layout.tsx`/`crashReporting.ts` fix above — `(tabs)/_layout.tsx` and
+`onboarding/_layout.tsx` both render a blank view for as long as `useAuthStore().loading` is true,
+and the *only* thing that ever flipped it was `supabase.auth.getSession().then(...)`, with no
+`.catch` and no timeout. On a fresh install this can race with the other first-ever SQLite-backed
+`localStorage` opens (the react-query persister, the profile cache) the same way the four stores
+above used to, and if it never settles the gate stays shut forever — force-quitting works because
+the next process finds the SQLite file already created and opens fast. Fixed the same way as the
+font-load gate already does in `_layout.tsx`: a 5s timeout forces `loading: false` if the real
+result hasn't landed, plus a `.catch` so an outright rejection can't wedge it either. A late
+resolution still applies normally (`set({ session, profile, loading: false })`), same as the font
+timeout pattern — this is a safety net, not a replacement for the real result.
+
 ### Apple Health export (§26 L28) — one-way write, iOS only, opt-in (2026-07-22)
 New native dependency: `@kingstinct/react-native-healthkit` (a Nitro module, requires the peer dep
 `react-native-nitro-modules`) + its Expo config plugin in `app.json` (custom
