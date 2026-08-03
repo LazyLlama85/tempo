@@ -32,6 +32,17 @@ interface EditItem {
   // Whether the user pinned sets/reps here (or a config already existed).
   // Untouched plan exercises write NO config, so autoregulation keeps working.
   pinned: boolean
+  // True only once the user actually bumps this item's sets/reps stepper in
+  // THIS session. Distinct from `pinned` (which is also true for a config that
+  // already existed on load) — this is what tells save() whether it's safe to
+  // fall back to the original config verbatim vs. needing to merge in new
+  // sets/reps. This screen has no UI for weight/duration/distance/rep-range at
+  // all, so those must always come from the original config, never be nulled.
+  touched: boolean
+  // The exercise's config row as loaded, if any — preserved verbatim (or
+  // merged with new sets/reps on touch) so weight/duration/distance/rep-range
+  // targets this screen can't edit are never silently wiped on save.
+  origConfig: WorkoutExerciseConfig | null
 }
 
 export default function EditSessionScreen() {
@@ -79,6 +90,8 @@ export default function EditSessionScreen() {
               sets: cfg?.sets ?? 3,
               reps: cfg?.rep_high ?? 10,
               pinned: !!cfg,
+              touched: false,
+              origConfig: cfg ?? null,
             }
           }))
       } finally {
@@ -105,13 +118,13 @@ export default function EditSessionScreen() {
   const bump = (i: number, field: 'sets' | 'reps', delta: number) => {
     haptics.tapLight()
     setItems((p) => p.map((it, idx) => idx === i
-      ? { ...it, pinned: true, [field]: Math.max(1, Math.min(field === 'sets' ? 8 : 30, it[field] + delta)) }
+      ? { ...it, pinned: true, touched: true, [field]: Math.max(1, Math.min(field === 'sets' ? 8 : 30, it[field] + delta)) }
       : it))
   }
   const add = (ex: Exercise) => {
     if (items.some((it) => it.exercise.id === ex.id)) return
     haptics.tapLight()
-    setItems((p) => [...p, { exercise: ex, sets: 3, reps: 10, pinned: false }])
+    setItems((p) => [...p, { exercise: ex, sets: 3, reps: 10, pinned: false, touched: false, origConfig: null }])
   }
 
   const save = async () => {
@@ -120,19 +133,27 @@ export default function EditSessionScreen() {
     setSaving(true)
     try {
       // Config entries only for pinned exercises (or all, when the workout was
-      // fully user-configured to begin with) — see EditItem.pinned.
+      // fully user-configured to begin with) — see EditItem.pinned. An item this
+      // screen never actually touched (`touched: false`) writes its original
+      // config back verbatim, so a save that only reorders/renames/adds another
+      // exercise can't silently wipe an untouched item's weight/duration/distance/
+      // rep-range. A touched item still can't lose weight/duration/distance here
+      // (this screen has no fields for them) — only sets/rep_low/rep_high change.
       const config: WorkoutExerciseConfig[] = items
         .filter((it) => it.pinned || hadConfig)
-        .map((it) => ({
-          exercise_id: it.exercise.id,
-          sets: it.sets,
-          rep_low: it.reps,
-          rep_high: it.reps,
-          weight_lbs: null,
-          duration_sec: null,
-          distance_m: null,
-          metrics: metricsFor(it.exercise),
-        }))
+        .map((it) => {
+          if (!it.touched && it.origConfig) return it.origConfig
+          return {
+            exercise_id: it.exercise.id,
+            sets: it.sets,
+            rep_low: it.touched ? it.reps : (it.origConfig?.rep_low ?? it.reps),
+            rep_high: it.reps,
+            weight_lbs: it.origConfig?.weight_lbs ?? null,
+            duration_sec: it.origConfig?.duration_sec ?? null,
+            distance_m: it.origConfig?.distance_m ?? null,
+            metrics: metricsFor(it.exercise),
+          }
+        })
       const { error } = await supabase
         .from('scheduled_workouts')
         .update({

@@ -443,7 +443,16 @@ you moving."*
   (`muscleSlug` param, fine — e.g. "biceps" vs. "triceps", matched against `primary_muscles`/
   `secondary_muscles` via the shared `useExerciseLibrary` cache) into a Monday-bucketed
   **sets-per-week** trend + a tappable per-exercise breakdown that drills into `exercise-progress`
-  for the lift-level detail, rather than re-showing a second chart. 3M/6M/1Y/All range chips. Opened
+  for the lift-level detail, rather than re-showing a second chart. 3M/6M/1Y/All range chips.
+  **Fixed 2026-08-02 — vocabulary mismatch broke it for most muscles:** `muscleSlug` arrives as a
+  `BodyMuscle` (e.g. `'quadriceps'`, from `muscle-map`'s fine intelligence), but `primary_muscles`/
+  `secondary_muscles` are stored in the exercise library's own raw vocabulary (e.g. `'quads'`) —
+  comparing them directly matched almost nothing, so most muscles falsely showed "No history yet"
+  even with real logged sets. Now routes both sides through `bodyMuscleOf()` (`lib/fitnessInsights.ts`
+  — the same mapper `fineMuscleIntelligence()` already uses) before comparing. Also fixed the same
+  session: the `set_logs` query capped at 4000 rows was ordered ascending *before* the cap, so a
+  power user past the limit kept their oldest sets instead of their most recent — now orders
+  descending, caps, then reverses for the chronological bucketing logic. Opened
   from Body Intelligence's per-muscle and per-group detail cards ("See history"); `exercise-progress`
   itself gained a new entry point too — a "See training history" row in `ExerciseFormSheet` (the form
   guide sheet used by the Library, Plan runner, and session-detail), so a lift's history is reachable
@@ -454,7 +463,14 @@ you moving."*
   connected; dormant until the calendar-list OAuth scope is granted), **`edit-session`** (edit any scheduled session — incl. Tempo-generated — from
   the hub's "Edit workout" chip: add/remove/reorder exercises, pin sets/reps; only *touched*
   exercises get a pinned `exercise_config` entry so untouched plan exercises keep adaptive
-  targets), **`social`** (Friends home — decluttered so the scroll is only content: requests →
+  targets. **Fixed 2026-08-02 — silently destroyed weight/duration/distance/rep-range targets on
+  every save:** `EditItem` only ever tracked `sets`/`reps`, and `save()` unconditionally wrote
+  `weight_lbs`/`duration_sec`/`distance_m` as `null` and collapsed any real rep *range* to a single
+  number, for every pinned exercise on every save — even ones the user never touched, since this
+  screen has no UI to edit those fields at all. Now each `EditItem` carries its `origConfig` (the
+  config row as loaded) and a `touched` flag set only when its own stepper is bumped; `save()`
+  writes an untouched item's original config back verbatim, and a touched item still preserves its
+  original weight/duration/distance — only sets/reps actually change), **`social`** (Friends home — decluttered so the scroll is only content: requests →
   workout invites → leaderboard → activity feed → groups → friends → a Privacy row. The "loose"
   actions moved into sheets: a header **＋** opens **Add friends** (your friend-code card + search by
   name/@username/code + redeem a shared workout), a **New group / join** button opens the Groups
@@ -2161,6 +2177,11 @@ spinner is now reserved only for tight in-button saving states. All motion honor
 
 ### 4.2 Edge Functions (Deno)
 - **delete-account** — App-Store-required full account + data wipe (service role, JWT-scoped to caller).
+  DB rows cascade via `ON DELETE CASCADE`, but Storage doesn't (no FK) — **fixed 2026-08-02**: before
+  deleting the auth user, it now lists+removes every object under `<user_id>/` in both the private
+  `progress-photos` bucket and the public `avatars` bucket (`removeUserFolder()`), so a deleted
+  user's avatar photo no longer stays reachable at its stable public URL forever. Best-effort —
+  a storage failure is logged, never blocks the account deletion itself.
 - **google-calendar-token** — securely stores/uses the user's Google refresh token server-side.
 - **retention-push** — the server-driven retention engine: evaluates per-user rules (**weekly_report**
   on Sunday evenings; **missed_workout** as the daytime "session still open" nudge; **streak_at_risk**
@@ -2173,6 +2194,15 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
   screen); until then the table was write-only from the app's perspective despite its own RLS
   already granting users SELECT on their own rows.
+  **Auth hole closed 2026-08-02:** the function is deployed with `verify_jwt=false` (the pg_cron
+  caller has no user JWT), which meant any unauthenticated POST previously ran with full
+  service-role DB access — reading every user's data and burning Expo push quota. Fixed with a
+  Supabase Vault shared secret (`retention_push_shared_secret`, `add_retention_push_auth.sql`):
+  the cron job (`retention-push-hourly`) now sends it as an `x-retention-push-secret` header,
+  and the function fetches the same value via a new `get_retention_push_secret()` SECURITY
+  DEFINER RPC (Vault's own tables aren't exposed through PostgREST) and rejects any request
+  whose header doesn't match with a 401. Confirmed live: unauthenticated POST → 401, the real
+  cron-style call (secret header) → 200.
 - **tempo-coach** ▶ **UNPARKED 2026-07-23 (founder) — still NOT DEPLOYED.** Coach is being built
   again; batch C3 (the screen) has landed, so `lib/coach.ts` is no longer dead code. **The function
   itself still does not exist in the Supabase project and there is no `ANTHROPIC_API_KEY`** — it

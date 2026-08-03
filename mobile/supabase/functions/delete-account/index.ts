@@ -8,7 +8,15 @@
 // It deletes the auth.users row with the SERVICE ROLE key; every user-owned table
 // references auth.users(id) ON DELETE CASCADE, so profiles, plans, scheduled
 // workouts, logs, set logs, recovery check-ins, substitutions, adaptation events
-// and the Google refresh-token row all go with it. Nothing is left behind.
+// and the Google refresh-token row all go with it.
+//
+// Storage is NOT covered by that cascade — `progress-photos` (private) and
+// `avatars` (public) objects have no FK to auth.users, so they'd survive the user
+// row forever (a deleted user's avatar stays reachable at its stable public URL).
+// Both buckets key every object under `<user_id>/...` (see lib/progressPhotos.ts /
+// lib/avatar.ts), so we list+remove that prefix in each bucket before deleting the
+// auth user. Best-effort: a storage failure is logged but must not block the
+// auth-user deletion the user explicitly requested.
 //
 // Scoped to the caller: a user can only ever delete THEMSELVES (the id comes from
 // their verified JWT, never from the request body).
@@ -17,7 +25,7 @@
 //          (SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are
 //           injected automatically by the platform.)
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +61,13 @@ Deno.serve(async (req: Request) => {
 
     // Service-role client can delete the auth user; cascades wipe all owned rows.
     const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+    // Sweep storage BEFORE deleting the user — once auth.users is gone we'd lose
+    // the id to scope the listing to (RLS is moot with the service-role key, but
+    // the id is still how we know which folder is theirs).
+    await removeUserFolder(admin, 'progress-photos', user.id)
+    await removeUserFolder(admin, 'avatars', user.id)
+
     const { error: delErr } = await admin.auth.admin.deleteUser(user.id)
     if (delErr) {
       console.error('[delete-account] deleteUser failed:', delErr.message)
@@ -67,3 +82,22 @@ Deno.serve(async (req: Request) => {
     return json({ error: `unhandled: ${msg}` }, 500)
   }
 })
+
+// List every object under `<userId>/` in `bucket` and remove them. Storage's
+// `.list()` isn't recursive and only returns direct children, but both buckets
+// here store flat `<userId>/<filename>` paths (no subfolders), so one list +
+// one batch remove covers everything. Never throws — a storage failure here is
+// logged, not surfaced, since it must not block the account deletion itself.
+async function removeUserFolder(admin: SupabaseClient, bucket: string, userId: string): Promise<void> {
+  try {
+    const { data: files, error: listErr } = await admin.storage.from(bucket).list(userId)
+    if (listErr) { console.error(`[delete-account] list ${bucket} failed:`, listErr.message); return }
+    if (!files?.length) return
+    const paths = files.map((f) => `${userId}/${f.name}`)
+    const { error: rmErr } = await admin.storage.from(bucket).remove(paths)
+    if (rmErr) console.error(`[delete-account] remove ${bucket} failed:`, rmErr.message)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error(`[delete-account] removeUserFolder(${bucket}) unhandled:`, msg)
+  }
+}

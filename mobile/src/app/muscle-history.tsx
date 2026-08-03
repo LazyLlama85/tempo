@@ -23,6 +23,7 @@ import { SvgLineChart, type ChartPoint } from '@/components/SvgLineChart'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useExerciseLibrary, muscleGroupOf } from '@/lib/exerciseSearch'
+import { bodyMuscleOf } from '@/lib/fitnessInsights'
 import type { MuscleGroup } from '@/types'
 
 type RangeDays = 90 | 180 | 365 | 0 // 0 = all time
@@ -81,7 +82,15 @@ export default function MuscleHistoryScreen() {
   }, [library])
   const groupExerciseIds = useMemo(() => {
     if (!library) return null
-    if (muscleSlug) return library.filter(e => e.primary_muscles?.includes(muscleSlug) || e.secondary_muscles?.includes(muscleSlug)).map(e => e.id)
+    // muscleSlug is a BodyMuscle (e.g. 'quadriceps', from muscle-map's fine
+    // intelligence) — but primary_muscles/secondary_muscles are stored in the
+    // exercise-library's own raw vocabulary (e.g. 'quads'). Comparing them
+    // directly silently matched almost nothing; bodyMuscleOf() is the existing
+    // mapper (already used by fineMuscleIntelligence()) that translates the raw
+    // vocabulary into the same BodyMuscle space muscleSlug is already in.
+    if (muscleSlug) return library.filter(e =>
+      [...(e.primary_muscles ?? []), ...(e.secondary_muscles ?? [])].some(m => bodyMuscleOf(m) === muscleSlug),
+    ).map(e => e.id)
     if (muscleGroup) return library.filter(e => muscleGroupOf(e) === muscleGroup).map(e => e.id)
     return []
   }, [muscleSlug, muscleGroup, library])
@@ -94,13 +103,17 @@ export default function MuscleHistoryScreen() {
     if (!userId || groupExerciseIds === null) return
     if (groupExerciseIds.length === 0) { setRows([]); setLoading(false); return }
     setLoading(true)
+    // Order DESCENDING before the cap so a power user past 4000 sets keeps their
+    // MOST RECENT sets (the ones a "trend" screen actually cares about), not
+    // their oldest — then reverse back to chronological order for the weekly
+    // bucketing / breakdown logic below, which assumes ascending input.
     supabase.from('set_logs')
       .select('exercise_id, completed_at')
       .in('exercise_id', groupExerciseIds)
       .not('is_warmup', 'is', true)
-      .order('completed_at', { ascending: true })
+      .order('completed_at', { ascending: false })
       .limit(4000)
-      .then(({ data }) => { setRows((data ?? []) as SetRow[]); setLoading(false) })
+      .then(({ data }) => { setRows(((data ?? []) as SetRow[]).reverse()); setLoading(false) })
   }, [userId, groupExerciseIds])
 
   const rangeCutoff = range === 0 ? 0 : Date.now() - range * 86_400_000

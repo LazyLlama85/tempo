@@ -26,7 +26,17 @@
 // Expo reports as dead are disabled so we stop wasting sends on them.
 //
 // Deploy:  npx supabase functions deploy retention-push --no-verify-jwt
-//          (invoked by cron with the service-role key; not user-facing.)
+//          (invoked by cron; not user-facing.)
+//
+// Auth: this function is deployed with verify_jwt=false (cron has no user JWT to
+// present), so a POST with no credentials at all would otherwise run with full
+// service-role DB access — reading every user's data and burning Expo push quota.
+// The only real caller is the pg_cron job (see add_push_notifications.sql /
+// add_retention_push_auth.sql), which sends a shared secret (Supabase Vault, name
+// 'retention_push_shared_secret') as the `x-retention-push-secret` header. This
+// function fetches the same value via the `get_retention_push_secret()` RPC (a
+// SECURITY DEFINER function, since Vault's tables aren't exposed through PostgREST)
+// and compares — no separate Edge Function secret to keep in sync with Vault.
 
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -98,12 +108,19 @@ function ruleEnabled(prefs: Record<string, unknown> | undefined, type: Notificat
 }
 
 Deno.serve(async (req: Request) => {
-  // Cron invokes with the service-role bearer; reject anything else.
   if (req.method !== 'POST') return new Response('method_not_allowed', { status: 405 })
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+  const presented = req.headers.get('x-retention-push-secret')
+  if (!presented) return new Response('unauthorized', { status: 401 })
+  const { data: expected, error: secretErr } = await admin.rpc('get_retention_push_secret')
+  if (secretErr || !expected || presented !== expected) {
+    console.error('[retention-push] rejected: bad or missing shared secret')
+    return new Response('unauthorized', { status: 401 })
+  }
 
   try {
     const candidates = await buildCandidates(admin)
