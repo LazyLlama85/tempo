@@ -160,9 +160,10 @@ you obtain them.
   Disabled in `__DEV__` by design, so test crash capture in a release/preview build.
 - Both initialized in `src/app/_layout.tsx`; failed React Query requests funnel to Sentry.
 - **Sentry source maps:** the `@sentry/react-native/expo` plugin needs `SENTRY_ORG`,
-  `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` at build time to upload symbols. Without
-  them crashes still report, but stack traces won't be symbolicated. Set them as EAS
-  secrets before a production build.
+  `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` at build time to upload symbols — all three
+  are set (`SENTRY_ORG`/`SENTRY_PROJECT` in `eas.json`, `SENTRY_AUTH_TOKEN` as an EAS
+  project secret, added 2026-08-03). Without a valid token, iOS builds fail outright at
+  the `sentry-cli` upload step (not just skip symbolication).
 
 ## Push notifications (server-driven retention)
 The backend (already provisioned in Supabase) drives all retention pushes:
@@ -219,7 +220,7 @@ function changes with `npx supabase functions deploy <name>`.
 ## Pre-publish checklist (iOS + Android)
 - [ ] All required `EXPO_PUBLIC_*` vars set in the production EAS build profile.
 - [ ] APNs key (iOS) + FCM service account (Android) uploaded to Expo for push.
-- [ ] Sentry `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` set for source maps.
+- [x] Sentry `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` set for source maps.
 - [ ] `npx tsc --noEmit` passes in `mobile/`.
 - [ ] Built with EAS (not Expo Go) and smoke-tested on a physical device — push tokens
       and crash reporting only work on real builds/devices.
