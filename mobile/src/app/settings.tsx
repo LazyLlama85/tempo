@@ -328,7 +328,23 @@ export default function SettingsScreen() {
       syncUpcomingWorkouts(supabase, userId, { ...(profile as any), calendar_autosync: true }).catch(() => {})
     } else if (!next) {
       // Clean up after ourselves — delete all Tempo-added events from the calendar.
-      purgeSyncedWorkouts(supabase, userId).catch(() => {})
+      // Fixed 2026-08-02: this used to be fire-and-forget with no failure
+      // feedback at all — if the calendar API failed partway (network,
+      // revoked permission), the toggle still flipped off silently while
+      // stale Tempo events stayed on the user's calendar, contradicting the
+      // UI's own "no Tempo events left behind" promise. purgeSyncedWorkouts
+      // never rejects (each row is its own best-effort try/catch), so the
+      // only way to see a partial failure is comparing removed vs. total.
+      // The toggle itself still stays off either way — that's still the
+      // user's real intent (no NEW events going forward) — this just makes a
+      // cleanup failure visible instead of invisible.
+      const { removed, total } = await purgeSyncedWorkouts(supabase, userId).catch(() => ({ removed: 0, total: 0 }))
+      if (removed < total) {
+        Alert.alert(
+          'Some events may remain',
+          'Auto-sync is off, but Tempo couldn’t confirm every synced event was removed from your calendar. Use "Delete Tempo events from calendar" below to clean up manually.',
+        )
+      }
     }
   }
 

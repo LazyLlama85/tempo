@@ -63,9 +63,13 @@ export async function syncUpcomingWorkouts(
 // Called when the user turns "add workouts to calendar" OFF — their calendar should
 // return to exactly how it was, with no Tempo events left behind. Best-effort per
 // row (removeWorkoutFromCalendar clears the DB pointer even if the calendar delete
-// fails, so the app never shows a stale "In Calendar"). Returns how many it cleared.
-export async function purgeSyncedWorkouts(client: SupabaseClient, userId: string): Promise<number> {
-  if (!userId) return 0
+// fails, so the app never shows a stale "In Calendar"). Returns how many it cleared
+// out of how many it attempted — `total` lets a caller (settings.tsx's autosync
+// toggle) tell "nothing to remove" apart from "some removals actually failed,"
+// which a bare count can't (this never throws — each row's own try/catch means a
+// failure only shows up as `removed < total`, not a rejected promise).
+export async function purgeSyncedWorkouts(client: SupabaseClient, userId: string): Promise<{ removed: number; total: number }> {
+  if (!userId) return { removed: 0, total: 0 }
   const { data } = await client
     .from('scheduled_workouts')
     .select('id, focus, planned_date, planned_start_time, planned_duration_min, calendar_event_id, calendar_provider')
@@ -77,7 +81,7 @@ export async function purgeSyncedWorkouts(client: SupabaseClient, userId: string
   for (const w of rows) {
     try { await removeWorkoutFromCalendar(client, w, userId); removed++ } catch { /* best-effort */ }
   }
-  return removed
+  return { removed, total: rows.length }
 }
 
 // Nuke EVERY Tempo event from the user's calendar(s) — the "remove all Tempo
@@ -91,7 +95,7 @@ export async function removeAllTempoEvents(client: SupabaseClient, userId: strin
 
   // 1) Delete events we still have pointers to (also handles ones the user renamed,
   //    since these delete by id) and clear those pointers.
-  let removed = await purgeSyncedWorkouts(client, userId).catch(() => 0)
+  let removed = (await purgeSyncedWorkouts(client, userId).catch(() => ({ removed: 0, total: 0 }))).removed
 
   // 2) Title/color sweep for orphans on whatever calendar is connected. Wide window
   //    (±18 months) so old and future events are both caught.

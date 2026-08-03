@@ -84,6 +84,12 @@ export default function SignInScreen() {
           token: credential.identityToken,
         })
         if (error) throw error
+      } else {
+        // Fixed 2026-08-02: Apple's native sheet CAN resolve without an
+        // identityToken (a documented edge case, not just theoretical) — this
+        // used to fall through silently, so the user just saw the spinner
+        // vanish with zero explanation and no idea whether it worked.
+        Alert.alert('Apple Sign In Error', 'Apple didn’t return a sign-in token. Please try again.')
       }
     } catch (error: any) {
       if (error.code !== 'ERR_CANCELED') {

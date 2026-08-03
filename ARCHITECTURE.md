@@ -1209,7 +1209,13 @@ you moving."*
   explicit `true` as on. Turning it **on** (with a calendar connected) runs `syncUpcomingWorkouts`
   (adds upcoming, not-yet-synced workouts on app open + after scheduling); turning it **off** runs
   `purgeSyncedWorkouts`, which deletes every Tempo-added event so the calendar returns exactly to how
-  it was. (The old manual "Smart Schedule My Week" screen was removed.) A **"Remove all Tempo events"**
+  it was. **Fixed 2026-08-02:** this was fire-and-forget with no failure feedback — a calendar-API
+  failure mid-purge left the toggle flipped off (correctly reflecting the user's intent going forward)
+  while stale events silently stayed on their calendar, contradicting the toggle's own promise.
+  `purgeSyncedWorkouts` now returns `{ removed, total }` (it never rejects — each row is its own
+  best-effort try/catch, so a partial failure only shows up as `removed < total`) and `settings.tsx`
+  awaits it, alerting the user to clean up manually via "Delete Tempo events from calendar" if some
+  didn't clear. (The old manual "Smart Schedule My Week" screen was removed.) A **"Remove all Tempo events"**
   Settings action (`calendarAutoSync.removeAllTempoEvents`) goes further — beyond the events Tempo still
   tracks, it sweeps each connected calendar by Tempo's title (`Tempo · …`/`Tempo: …`) and color across
   ±18 months (`deleteTempoGoogleEvents` / `deleteTempoDeviceEvents`) to clear **orphans** left by
@@ -2527,6 +2533,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   button carrying the real Google mark (`Ionicons logo-google`) — the old literal "G" / blank Apple
   glyph are gone.
   Offering Apple also satisfies Apple's rule that a third-party login (Google) obliges an Apple option.
+  **Fixed 2026-08-02:** Apple's native sheet can resolve without an `identityToken` (a documented edge
+  case) — this used to fall through silently, leaving the user staring at a vanished spinner with no
+  explanation; now alerts explicitly. **Still open, needs founder Apple Developer credentials (queued
+  as N3 in `EXECUTION_STATUS.md`):** `delete-account` never revokes Apple's own authorization, so a
+  "deleted" account still shows Tempo as an authorized app in the user's Apple ID settings — closing
+  this needs a Sign in with Apple Service ID + private key from the Apple Developer portal (new infra,
+  not just a code change), which only the founder can obtain.
 - **iOS 17 calendar permissions:** `NSCalendarsFullAccessUsageDescription` +
   `NSCalendarsWriteOnlyAccessUsageDescription` are declared alongside the legacy
   `NSCalendarsUsageDescription`, so calendar access prompts correctly on iOS 17+.
