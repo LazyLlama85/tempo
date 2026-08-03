@@ -77,12 +77,21 @@ export function computePRForecast(points: PRForecastPoint[], now: Date = new Dat
   if (ratePerWeek <= 0.05) return null
 
   const intercept = (sumY - slopePerDay * sumX) / n
-  const currentFit = intercept + slopePerDay * xs[xs.length - 1] // fitted value "today", not the noisy last point
+  const currentFit = intercept + slopePerDay * xs[xs.length - 1] // fitted value at the LAST LOGGED SESSION, not "today"
   const target = nextMilestone(Math.round(currentFit))
   const weeksOut = (target - currentFit) / ratePerWeek
   if (!Number.isFinite(weeksOut) || weeksOut <= 0 || weeksOut > MAX_WEEKS_OUT) return null
 
-  const projectedDate = new Date(now.getTime() + weeksOut * MS_PER_WEEK)
+  // The fit is anchored to the LAST LOGGED SESSION (`last`), so `weeksOut` must
+  // project forward from there — not from `now`. Fixed 2026-08-02: this used to
+  // add weeksOut to `now`, so a user who stopped logging this lift got a
+  // projected date silently pushed forward by the entire gap since their last
+  // session, every day that passed without a new set. If the honestly-anchored
+  // projection has already passed (they went quiet long enough that the fit
+  // says they should have hit it by now, with no new data confirming they did),
+  // hide the card rather than show a backwards-looking date.
+  const projectedDate = new Date(last + weeksOut * MS_PER_WEEK)
+  if (projectedDate.getTime() < now.getTime()) return null
 
   return {
     targetLbs: target,

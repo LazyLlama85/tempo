@@ -354,7 +354,7 @@ export async function findCalendarConflicts(client: SupabaseClient, userId: stri
 
   const { data: p } = await client
     .from('user_profiles')
-    .select('scheduling_mode, selected_google_calendar_ids')
+    .select('scheduling_mode, selected_google_calendar_ids, preferred_calendar')
     .eq('user_id', userId)
     .maybeSingle()
   if (!p) return []
@@ -379,6 +379,28 @@ export async function findCalendarConflicts(client: SupabaseClient, userId: stri
     return [] // a calendar hiccup should never surface as a false conflict
   }
 
+  // Fixed 2026-08-02: getCalendarEventsForRange (fetchUserEvents/getRangeEvents)
+  // deliberately excludes all-day events — correct for its OTHER caller, the
+  // Home timeline (an all-day banner doesn't sit on an hourly grid), but wrong
+  // here: a real all-day event (vacation, flight, OOO) is exactly the kind of
+  // conflict this free-tier check exists to surface, and resolveCalendarConflicts
+  // (Pro, same file) already treats all-day events as busy via gatherBusy. Free
+  // users' Home banner never flagged one. Best-effort: a busy-source hiccup here
+  // just means fewer conflicts surfaced, never a crash (unlike the events read
+  // above, which is the primary source and DOES abort on failure).
+  let allDayBusy: BusySlot[] = []
+  try {
+    const busy = filterIgnoredBusy(
+      await gatherBusy((p.preferred_calendar as CalendarProvider | null) ?? null, HORIZON_DAYS, today, p.selected_google_calendar_ids as string[] | null),
+      ignored,
+    )
+    // gatherBusy's blocks carry no title (unlike `events` above) and no
+    // all-day flag either — a >=20-hour span is the practical signal that a
+    // block is a whole-day event rather than just a very long meeting (which
+    // would already have matched via the titled `events` check below anyway).
+    allDayBusy = busy.filter(b => (b.end.getTime() - b.start.getTime()) >= 20 * 3_600_000)
+  } catch { /* best-effort */ }
+
   const conflicts: CalendarConflict[] = []
   for (const w of workouts as WorkoutRow[]) {
     const start = new Date(`${w.planned_date}T${w.planned_start_time}`)
@@ -392,6 +414,15 @@ export async function findCalendarConflicts(client: SupabaseClient, userId: stri
         workoutId: w.id, focus: w.focus, plannedDate: w.planned_date,
         plannedStartTime: w.planned_start_time, plannedDurationMin: w.planned_duration_min,
         eventTitle: hit.title ?? null,
+      })
+      continue
+    }
+    const allDayHit = allDayBusy.some(b => start.getTime() < b.end.getTime() && b.start.getTime() < end.getTime())
+    if (allDayHit) {
+      conflicts.push({
+        workoutId: w.id, focus: w.focus, plannedDate: w.planned_date,
+        plannedStartTime: w.planned_start_time, plannedDurationMin: w.planned_duration_min,
+        eventTitle: null,
       })
     }
   }

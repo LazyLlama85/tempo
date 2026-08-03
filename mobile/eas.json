@@ -20,7 +20,8 @@
         "EXPO_PUBLIC_PRO_ENTITLEMENT": "Tempo: Fitness Planner Pro",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_tvY9sRfvjiqvTzFgJMorP29zJMxZoT7aLKJPs54CP2pm",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_ORG": "tempo-0u",
+        "SENTRY_PROJECT": "react-native"
       }
     },
     "production": {
@@ -37,7 +38,8 @@
         "EXPO_PUBLIC_PRO_ENTITLEMENT": "Tempo: Fitness Planner Pro",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_tvY9sRfvjiqvTzFgJMorP29zJMxZoT7aLKJPs54CP2pm",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_ORG": "tempo-0u",
+        "SENTRY_PROJECT": "react-native"
       }
     }
   },

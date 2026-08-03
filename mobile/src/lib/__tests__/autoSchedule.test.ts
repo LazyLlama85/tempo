@@ -36,7 +36,11 @@ import { createFakeSupabase } from './fakeSupabase'
 import { autoSchedulingEnabled, findCalendarConflicts } from '@/lib/autoSchedule'
 import type { DayEvent } from '@/services/calendarService'
 import { getCalendarEventsForRange } from '@/services/calendarSync'
+import { isGoogleCalendarConnected } from '@/services/googleCalendar/CalendarAuthService'
+import { fetchUserBusySlots } from '@/services/googleCalendar/CalendarApiService'
 const mockGetEvents = getCalendarEventsForRange as jest.Mock
+const mockGoogleConnected = isGoogleCalendarConnected as jest.Mock
+const mockBusySlots = fetchUserBusySlots as jest.Mock
 
 const USER = 'user-1'
 const TODAY = '2026-07-20' // a Monday
@@ -73,6 +77,8 @@ describe('findCalendarConflicts', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T09:00:00`))
     mockGetEvents.mockReset()
+    mockGoogleConnected.mockReset().mockResolvedValue(false)
+    mockBusySlots.mockReset().mockResolvedValue([])
   })
   afterEach(() => { jest.useRealTimers() })
 
@@ -130,6 +136,38 @@ describe('findCalendarConflicts', () => {
   it('returns nothing for a user with no upcoming scheduled workouts', async () => {
     mockGetEvents.mockResolvedValue([event({})])
     const client = createFakeSupabase({ user_profiles: [profile()], scheduled_workouts: [] })
+    expect(await findCalendarConflicts(client, USER)).toEqual([])
+  })
+
+  it('flags a workout that falls inside an all-day event — fixed 2026-08-02, previously invisible here', async () => {
+    // getCalendarEventsForRange (titled events) deliberately excludes all-day
+    // events, so this conflict can ONLY come from the gatherBusy fallback added
+    // in this fix — same source resolveCalendarConflicts (Pro) already used to
+    // silently re-slot around all-day events like vacations/flights/OOO.
+    mockGetEvents.mockResolvedValue([]) // no titled/timed events at all
+    mockGoogleConnected.mockResolvedValue(true)
+    mockBusySlots.mockResolvedValue([
+      { start: new Date('2026-07-21T00:00:00'), end: new Date('2026-07-22T00:00:00') }, // full-day
+    ])
+    const client = createFakeSupabase({
+      user_profiles: [profile()],
+      scheduled_workouts: [workout({})], // 2026-07-21 18:00-19:00
+    })
+    const conflicts = await findCalendarConflicts(client, USER)
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0]).toMatchObject({ workoutId: 'w1', eventTitle: null })
+  })
+
+  it('does not flag a workout against a long-but-not-all-day busy block (under the 20h threshold)', async () => {
+    mockGetEvents.mockResolvedValue([])
+    mockGoogleConnected.mockResolvedValue(true)
+    mockBusySlots.mockResolvedValue([
+      { start: new Date('2026-07-21T08:00:00'), end: new Date('2026-07-21T20:00:00') }, // 12h, not all-day
+    ])
+    const client = createFakeSupabase({
+      user_profiles: [profile()],
+      scheduled_workouts: [workout({})],
+    })
     expect(await findCalendarConflicts(client, USER)).toEqual([])
   })
 

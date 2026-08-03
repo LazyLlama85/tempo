@@ -17,6 +17,7 @@ import { planWeekReschedule, RESCHEDULE_HORIZON_DAYS, type WeekWorkout } from '@
 import { fetchActiveSplit, isAutoSplit } from '@/lib/splits'
 import { materializeSplit } from '@/lib/splitSchedule'
 import { toDateStr } from '@/lib/dates'
+import { captureApiError } from '@/lib/crashReporting'
 import type { CalendarProvider, TimeOfDay } from '@/types'
 
 export interface SlotSuggestion {
@@ -419,15 +420,24 @@ export async function rescheduleWholeWeek(
 
   const rowById = new Map(movableRows.map(r => [r.id, r]))
   let moved = 0
+  // Fixed 2026-08-02: this loop used to discard `{ error }` and increment
+  // `moved` unconditionally, so a failed row-update (offline, RLS) left the UI
+  // reporting "moved N of total" for sessions whose DB row never actually
+  // changed — Pro's highest-visibility feature silently lying about what it
+  // did. Mirrors adaptation.ts's applyAdaptationMode: each row is independent
+  // (no transaction), a failure is reported via captureApiError rather than
+  // silently ignored, and a failed row is never counted as moved.
+  const failedIds: string[] = []
   for (const a of assignments) {
     if (!a.changed) continue
     const r = rowById.get(a.id)
     if (!r) continue
-    await client
+    const { error } = await client
       .from('scheduled_workouts')
       .update({ planned_date: a.date, planned_start_time: a.start_time, status: 'scheduled' })
       .eq('id', a.id)
       .eq('user_id', userId)
+    if (error) { failedIds.push(a.id); continue }
     // Keep the synced calendar event + local reminder pointed at the new day/time.
     await resyncMovedWorkout(client, userId, {
       id: r.id,
@@ -439,6 +449,11 @@ export async function rescheduleWholeWeek(
       calendar_provider: r.calendar_provider,
     })
     moved++
+  }
+  if (failedIds.length) {
+    captureApiError('rescheduleWholeWeek', new Error('partial reschedule failure'), {
+      userId, failedCount: failedIds.length, totalCount: movable.length, failedIds,
+    })
   }
 
   if (moved > 0) {

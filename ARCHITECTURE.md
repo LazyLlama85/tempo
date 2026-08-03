@@ -869,6 +869,29 @@ you moving."*
   `eas update`, the simulator, or by reading the code; the founder's on-device pass after the next EAS
   build is what actually proves the layout, the Dynamic Island regions, and the countdown all render
   correctly.
+  **Fixed 2026-08-02 — total cold-launch crash on a from-scratch native build, not a simulator
+  quirk.** `_layout.tsx` imports `endStaleRestActivities` from this file at module scope; `expo-widgets`'s
+  own module chain (`index.js` → `Widgets.js` → `ExpoWidgets.ios.js`) calls
+  `requireNativeModule('ExpoWidgets')` eagerly at ITS top level, so a static `import { createLiveActivity }
+  from 'expo-widgets'` throws the instant this file loads if the widget extension's native module isn't
+  linked into the running binary yet — before ANY try/catch in this file can run, since imports execute
+  at module-load time, ahead of every function body (the `factory = (() => { try {...} } catch {} })()`
+  guard only ever wrapped the `createLiveActivity()` *call*, not the import). Confirmed live on a fresh
+  `pod install` + 0-error Xcode build. Fixed by moving `createLiveActivity` from a static import to a
+  guarded `require('expo-widgets')` *inside* the existing try/catch — deferring evaluation to exactly
+  the point already designed to tolerate "native module not compiled in yet." Traced (via the actual
+  package source, `node_modules/expo-widgets/build/*` and `node_modules/@expo/ui/src/swift-ui/modifiers/
+  index.ts`) that `@expo/ui/swift-ui/modifiers` has the identical eager-`requireNativeModule('ExpoUI')`
+  pattern but is NOT implicated here — it's imported earlier in file order than `expo-widgets`, so if
+  `ExpoUI` were also unlinked, the crash would have named it first; the live repro specifically named
+  `ExpoWidgets.ios.js:2`, meaning `@expo/ui` was already linked and only the newer `expo-widgets`
+  dependency wasn't. Left untouched (also lower-risk to touch: `Text`/`VStack`/`HStack`/`ProgressView`
+  and the modifier functions ARE referenced inside the `'widget'`-directive `restTimerLayout` function
+  itself, so converting those specific imports to a dynamic `require()` risked breaking the *separate*
+  widget-compile Metro pass's static analysis of that function — `createLiveActivity` is never
+  referenced inside `restTimerLayout`, so it carried none of that risk). **Still needs one more real
+  device/EAS build to fully close**: this fix proves the crash is gone, not that Live Activities
+  correctly render on hardware — that was never provable from a Mac Simulator pass to begin with.
   **Lottie + Tempo Coach, a real vector mascot (2026-07-19):** the founder wants a genuine "Duolingo
   feel" — a recurring mascot, a live logo moment at sign-in — which the app's existing hand-built
   `Animated`+SVG house style (`SvgProgressRing`, `TempoPulse`, `celebration.tsx`'s `ConfettiBurst`)

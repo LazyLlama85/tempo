@@ -72,6 +72,26 @@ export function sessionStreak(rows: StreakRow[], todayStr: string): number {
   return streak
 }
 
+// A TRUE distinct-day streak — each trained day counts once, never once per
+// session that day. `sessionStreak` above deliberately counts sessions (a
+// tracked, larger open question — see EXECUTION_STATUS.md W6 — about whether
+// the Profile hero stat itself should change), but any claim that gets
+// BROADCAST as a specific day-count (e.g. social.ts's "reached a 30-day
+// streak" friend-feed milestone) must be honest about real calendar days: a
+// user training twice in one day must not appear to cross a 30-day milestone
+// after only 15-20 real days.
+export function distinctDayStreak(rows: StreakRow[], todayStr: string): number {
+  const byDay = summarizeDays(rows, todayStr)
+  const days = [...byDay.keys()].sort((a, b) => b.localeCompare(a)) // most-recent first
+  let streak = 0
+  for (const day of days) {
+    const e = byDay.get(day)!
+    if (e.completed > 0) streak += 1                       // trained that day → +1 day, however many sessions
+    else if (isSettledBreak(day, todayStr, e.broken)) break // a past day's committed miss → stop
+  }
+  return streak
+}
+
 // Longest completed run in the window (same day-aware definition as sessionStreak).
 export function longestSessionStreak(rows: StreakRow[], todayStr: string): number {
   const byDay = summarizeDays(rows, todayStr)

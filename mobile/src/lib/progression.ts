@@ -167,6 +167,9 @@ export function buildPrescription(
   let suggestedWeight: number | null = null
   let direction: ProgressionDirection = 'new'
   let reason = 'First time — pick a weight you can control for every rep.'
+  // The actual last-used top weight, BEFORE any reactive up/down adjustment —
+  // what a deload below must cut FROM. See the deload override below.
+  let baselineWeight: number | null = null
 
   const weighted = last.filter(s => s.weight_lbs != null && s.weight_lbs > 0) as
     (SetPerformance & { weight_lbs: number })[]
@@ -176,6 +179,7 @@ export function buildPrescription(
     reason = 'Log the weight you use so Tempo can progress you next time.'
   } else if (weighted.length) {
     const topWeight = Math.max(...weighted.map(s => s.weight_lbs))
+    baselineWeight = topWeight
     const setsAtTop = weighted.filter(s => s.weight_lbs === topWeight)
     const minReps = Math.min(...setsAtTop.map(s => s.reps))
     const rpes = last.map(s => s.rpe).filter((r): r is number => r != null)
@@ -203,10 +207,19 @@ export function buildPrescription(
   }
 
   // ── Deload override: lighten the load and reframe the session as recovery ────
+  // Fixed 2026-08-02: this used to scale `suggestedWeight`, which on a session
+  // that ALSO tripped the reactive "that was a grind" cut (line ~195, topWeight
+  // * 0.9) was already reduced — compounding the two cuts (e.g. a 200 lb top
+  // weight became 155 lb, ~23.5% off, instead of the intended flat 15% deload
+  // cut to 170 lb). A deload is a clean cut from what was ACTUALLY lifted last
+  // time (`baselineWeight`), never stacked on top of a same-session reactive
+  // adjustment — matching CLAUDE.md's documented invariant that the reactive
+  // layer and the periodization layer never double-count (planned intensity
+  // only deviates from 1.0 on a deload).
   if (period?.isDeload && (suggestedWeight != null || direction !== 'new')) {
     return {
       ...base,
-      suggestedWeight: scaleLoad(suggestedWeight),
+      suggestedWeight: scaleLoad(baselineWeight ?? suggestedWeight),
       direction: 'down',
       reason: volumeNote ? `${period.note} ${volumeNote}` : period.note,
       lastSummary,

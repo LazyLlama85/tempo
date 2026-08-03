@@ -18,14 +18,19 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**The single blocker on everything: T1.2, the on-device verification pass.** A large amount of code
-across the last dozen-plus sessions — the entire M1–M3 Claude-buildable backlog, all of
-`MASTER_FIX_PLAN.md`'s P0 (F1–F10) and P1 craft batches done so far (C1–C3, part of C4), the
-`LAUNCH_SCORE_PLAN.md` queue (T1.1, T1.3, T2.1, T3.1, T3.2), Tempo Coach (C1–C4), and the offline
-set-log retry queue — is `tsc`-clean and test-covered but has **never run on a physical device or
-AVD**. Nothing on that list closes for real until it does. The founder has said they'll test at the
-end of this run; until then, no further feature work should be queued on top without flagging that
-risk explicitly.
+**T1.2, the on-device verification pass, RAN for the first time 2026-08-02 — on the Mac's iOS
+Simulator, not yet a physical device.** It found real, confirmed bugs (not just theoretical
+code-review findings): a live-repro'd cold-launch crash on a from-scratch native build, an
+unauthenticated edge function with full service-role DB access, silent data loss on workout edits,
+and a broken new feature (muscle-history's vocabulary mismatch), among others. All Tier-1
+(blocking) findings from that pass are now fixed (see Session Log) — `tsc`-clean, 367/367 tests.
+**T1.2 is still not fully closed**: a Simulator pass cannot confirm Live Activities, push delivery,
+Sign in with Apple, or anything gated on real hardware — those still need one physical-device pass
+after the next EAS build. The large body of code from the dozen-plus sessions before this one (the
+entire M1–M3 Claude-buildable backlog, `MASTER_FIX_PLAN.md`'s P0/P1 batches, the
+`LAUNCH_SCORE_PLAN.md` queue, Tempo Coach, the offline set-log retry queue) is now Simulator-
+exercised for the first time via this pass rather than purely code-verified, which is real progress
+even though the harder hardware-only claims remain open.
 
 **Tempo Coach is built through batch C4 (the action layer) but is completely inert in production.**
 The screen (`app/coach.tsx`), the propose/apply action layer (`lib/coachActions.ts`), Pro gating, and
@@ -78,7 +83,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 | B0.2 | Google OAuth → Production + fix "connects but no events" | ✅ | Reliability, Trust | `CalendarApiService.describeReadError` (in-app diagnostic) | **Done 2026-07-17** — Google approved the app for production, removing the Testing-mode 7-day token-expiry root cause. Still wants an eventual real >7-day on-device confirmation, but the structural cause is gone |
 | B0.3 | PostHog funnel + written activation definition | 🔍 | Measurability | PostHog dashboard "Tempo — Activation & Retention" (id 1865254); `ACTIVATION_DEFINITION.md` | Funnel + retention insights built 2026-07-17 (currently empty pending real events — see B0.1). `ACTIVATION_DEFINITION.md` drafted 2026-07-17 — **awaiting founder sign-off**, one open decision named in the doc |
 | B0.4 | Feature-freeze policy (no new surfaces until M4) | ✅ | Focus | `EXECUTION.md` §1/§9 | Written + in effect. **Exception granted explicitly by the founder for Tempo Coach** (2026-07-22/23) — Coach is built through C4 but deliberately not deployed; the freeze otherwise holds |
-| B0.5 | Device-matrix QA of redesign; fix any blank-render | 🔍 partial | Reliability, Polish | Real device *(founder)* | Home/Settings/editable-sets confirmed on-device 2026-07-17. Everything shipped since (Focus Mode, onboarding rebuild, Plan tour, Feed button, Coach, the whole `LAUNCH_SCORE_PLAN.md` queue, the offline write queue) is code-verified only — **T1.2 covers all of it** |
+| B0.5 | Device-matrix QA of redesign; fix any blank-render | 🔍 partial | Reliability, Polish | Real device *(founder)*; iOS Simulator pass done 2026-08-02 | Home/Settings/editable-sets confirmed on-device 2026-07-17. **2026-08-02: first Simulator pass on everything shipped since** (Focus Mode, onboarding rebuild, Plan tour, Feed button, Coach, the whole `LAUNCH_SCORE_PLAN.md` queue, the offline write queue, muscle-history) — found and fixed 4 blocking bugs (see Session Log). Still needs a real physical-device pass for anything Simulator can't exercise (Live Activity, push delivery, Sign in with Apple) |
 
 ### M1 — The Wedge, Undeniable
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
@@ -178,7 +183,7 @@ them).
 | **W3 — Smart notification timing** | `retention-push` edge function + the calendar data it already reads | Avoid nudging mid-meeting — a "the app actually knows my day" touch. Blocked behind M4 freeze (wedge amplifier, not core loop) | 🔲 postponed |
 | **W4 — Weekly "plan your week" ritual** | new surface | A Sunday-anchored moment built around the wedge. Explicitly flagged as a **new surface** — needs the M4 gate + founder sign-off, not a unilateral build | 🔲 postponed |
 | **W5 — HealthKit import (reading)** | *(= B5.2's unbuilt read direction above)* | | 🔲 |
-| **W6 — Streak counted by days, not sessions** | `lib/streak.ts:69,83` | `sessionStreak` increments per *completed session*, so two workouts in one day add 2 to what's presented as a "day streak" — a real correctness bug, not cosmetic. Fix to count distinct days; optionally add a documented streak-repair grace mechanic if product wants one, but the minimum fix is just correctness | 🔲 |
+| **W6 — Streak counted by days, not sessions** | `lib/streak.ts:69,83` | `sessionStreak`/`longestSessionStreak` still increment per *completed session* for the Profile hero stat + friend-overview display — two workouts in one day still add 2 to what's presented as a "day streak." **Partially addressed 2026-08-02**: the Mac audit found this ALSO fed `social.ts`'s friend-feed milestone broadcast ("reached a 30-day streak"), turning an internal display quirk into a false claim sent to other users. Added `distinctDayStreak()` (same file) and switched ONLY `syncSocialOnOpen`'s milestone check to it — narrowly scoped since redefining `sessionStreak` itself touches the Profile hero stat and friend-overview display everywhere, a bigger blast-radius change deliberately left for this row rather than folded into a mixed fix-pass. Remaining scope: decide whether the Profile hero stat should also switch to the honest day-count (or be relabeled "Session streak"), then migrate its remaining callers | 🔍 partial |
 | **P3 — plate calculator** | `lib/plateCalc.ts`, `components/PlateCalcSheet.tsx` | **Already done** — shipped 2026-07-20/21 as a Pro `plate_calculator` gate, reached from the runner's per-exercise menu. `MASTER_FIX_PLAN.md`'s static P3 list was never updated to reflect this (judgment call, verified against the actual session entry before crediting) | ✅ *(mislabeled open in the source file)* |
 | **P3 — pause/vacation mode** | `lib/` pause logic + Home | **Already done** — shipped 2026-07-22 as L21, the highest-value previously-unbuilt item in the app; streak protection needed no special-casing | ✅ *(mislabeled open in the source file)* |
 | **P3 — exercise preferences ("love this" / "never show again")** | `user_profiles.excluded_exercise_ids`, `lib/exerciseExclusions.ts` | "Never show again" half is done (2026-07-20/21, enforced uniformly across `generatePlan`/`quickWorkout`/`splitSchedule`). "Love this" (a positive preference boost) is still unbuilt | 🔍 half-done |
@@ -188,6 +193,8 @@ them).
 | **2026-07-19 addendum — first-workout rest-time prompt** | `T.firstWorkout` tutorial, the rest-length `OptionSheet` | The capability already exists (rest `OptionSheet` suggests "2 minutes," lets the user pick 60/90/120/180/custom) — it's just never proactively surfaced. Either add a step to the existing `T.firstWorkout` tour pointing at the rest-timer tool, or gate a one-time auto-open on `!firstWorkoutCompleted` inside `beginSession`. Needs founder confirmation it doesn't fight the existing tutorial system | 🔲 |
 | **2026-07-19 addendum — swap/remove sync-to-split** | `replaceExercise`, `persistOrder` in the runner | *Adding* an exercise already correctly syncs to the split when `workout.source === 'split'`; *swapping*/*removing* are deliberately session-only by existing design (own code comments say so). This is a real asymmetry but changing it is a founder product call (should a same-day equipment swap rewrite every future week of your split?), not a guess — Add already offers an explicit "just today, or permanently?" choice; ask whether swap/remove should get the same | 🔲 needs founder call |
 | **2026-07-19 addendum — checkmark + swipe completion animation** | `FocusMode.tsx` | The underlying bug ("abrupt switching") is fixed — this is pure animation polish (a Reanimated transition on the exercise-name/ring swap), not a defect | 🔲 nice-to-have |
+| **N1 — History horizon as the Pro line: free = 4 months, Pro = unlimited** *(founder-requested 2026-08-02)* | `lib/proFeatures.ts` (new gate), `muscle-history.tsx`, `exercise-progress.tsx`, `workout-history.tsx`, `progress.tsx`, `pr-browser.tsx`, `session-detail.tsx`, `paywall.tsx`, `web/` + `launch.html` marketing copy | Free tier sees the last **4 months** of history; Pro unlocks **unlimited**. "History" here means every progress surface — per-exercise stats, muscle stats, session history, PRs, charts — not just one screen. **Hard requirement: free users' data is never deleted, only hidden** — the moment someone buys Pro, everything from their free period is there in full. That means a *read-horizon clamp* at the query/derivation layer, never a delete/prune job, and the range chips (3M/6M/1Y/All) must gate the >4-month options behind the paywall rather than disappear. Must be reflected consistently in three places at once: the app's gating, the paywall's value copy, and the marketing site. Fits the existing "depth & horizon" Pro model already documented for `pr_forecasting` — extend that gate family, don't invent a parallel one | 🔲 queued |
+| **N2 — Make "what am I actually changing?" unambiguous across workouts vs. split days** *(founder-requested 2026-08-02)* | `(tabs)/plan.tsx` (add/swap/remove/reorder), `edit-session.tsx`, `lib/splitSchedule.ts`, Workout Builder | Today the scope of an edit is inconsistent and mostly invisible: *adding* an exercise to a split-sourced workout syncs to the split (and therefore to **every** future day using that split — so adding to Monday's Pull day changes Friday's Pull day too), while *swapping* and *removing* are session-only by deliberate design (see the 2026-07-19 swap/remove row above, which this supersedes and absorbs). Founder's ask: a single, clear, consistent model for "this session only" vs. "this day going forward" vs. "every day on this split", surfaced in the UI at the moment of the edit — same treatment for add, swap, remove, reorder, and the Edit-workout screen. Needs a **product decision + written plan before code** (per CLAUDE.md's Working Method): the three-scope model is the likely answer but the default per action, and whether "this day going forward" is even distinguishable from "the split" given the current schema, both need deciding. Related real conflict to resolve: `edit-session.tsx` currently edits one dated instance while Workout Builder edits the split template, with nothing telling the user which they're in | 🔲 queued — needs a plan doc first |
 
 ---
 
@@ -210,8 +217,15 @@ them).
 6. **RapidAPI key rotation.** `EXPO_PUBLIC_RAPIDAPI_KEY` is still in `eas.json` (confirmed still
    load-bearing — 641/1,285 exercises remain uncached, F9b investigated and deliberately did NOT
    remove it) but the key has been in git history and should be rotated regardless.
-7. **Sentry source-map secrets.** `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` still needed as
-   EAS secrets before a production build, or crashes report without symbolicated stack traces.
+7. **Sentry source-map upload: only the auth token is left.** `SENTRY_DISABLE_AUTO_UPLOAD: "true"`
+   was set in BOTH the `preview` and `production` EAS profiles (contradicting the pre-publish
+   checklist that assumed source maps were being uploaded) — found in the 2026-08-02 Mac audit,
+   removed the same session, and `SENTRY_ORG`/`SENTRY_PROJECT` (`tempo-0u`/`react-native`) added
+   to both profiles in `eas.json`. The one piece that has to be a real EAS secret, not a plaintext
+   `eas.json` value (unlike the other keys already committed there): `SENTRY_AUTH_TOKEN`, generated
+   from the Sentry dashboard (org settings → Auth Tokens, needs `project:releases` scope) and set via
+   `cd mobile && npx eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value <token>`.
+   Without it, crashes still report but stack traces stay unsymbolicated.
 8. **Monthly recurring: exercise GIF/instructions backfill.** 641 GIFs + 1,285 instruction sets still
    remain after the first run (688 GIFs cached 2026-07-17, 0 instructions — the GIF loop consumed the
    whole monthly RapidAPI quota first). Re-run next billing cycle and each month after:

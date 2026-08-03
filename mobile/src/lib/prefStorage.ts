@@ -24,12 +24,24 @@
  * store is already updated by the caller, so a storage failure costs the user the
  * setting on next launch, never the current interaction.
  *
- * Writes BOTH ways on purpose — the synchronous localStorage write keeps the old
- * behaviour (and is what a sync reader elsewhere would still see), while the
- * async kv-store write is what `readPref` below actually reads back.
+ * Mirrors `readPref`'s own early-return: when `localStorage` exists, write ONLY
+ * there and skip the dynamic `expo-sqlite/kv-store` import entirely — on native
+ * `localStorage` IS the SQLite store, and on web `readPref` never even looks at
+ * kv-store once `localStorage` exists, so writing there too was dead work.
+ * **Fixed 2026-08-02:** this used to run the dynamic import unconditionally on
+ * every write, which — exactly like `readPref`'s own header explains — throws
+ * `Requiring unknown module` under Metro's lazy bundling in dev. `readPref`'s
+ * try/catch there was real, but the failure still surfaced as a visible crash
+ * on the very first settings toggle after a fresh reload (the in-memory state
+ * still applied correctly underneath — this was a dev-experience bug, not data
+ * loss, but a jarring one). The kv-store path is now a genuine fallback only,
+ * reached when `localStorage` is unavailable altogether.
  */
 export function writePref(key: string, value: string): void {
-  try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(key, value) } catch { /* best-effort */ }
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (ls) { ls.setItem(key, value); return }
+  } catch { /* fall through to the async store */ }
   void (async () => {
     try {
       const { default: AsyncStorage } = await import('expo-sqlite/kv-store')
@@ -38,9 +50,12 @@ export function writePref(key: string, value: string): void {
   })()
 }
 
-/** Clear a preference, both ways. Same fire-and-forget contract as `writePref`. */
+/** Clear a preference. Same localStorage-first, kv-store-fallback contract as `writePref`. */
 export function removePref(key: string): void {
-  try { (globalThis as { localStorage?: Storage }).localStorage?.removeItem(key) } catch { /* best-effort */ }
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (ls) { ls.removeItem(key); return }
+  } catch { /* fall through to the async store */ }
   void (async () => {
     try {
       const { default: AsyncStorage } = await import('expo-sqlite/kv-store')

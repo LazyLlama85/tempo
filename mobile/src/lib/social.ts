@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Split, SplitDay, WorkoutExerciseConfig, WorkoutTemplate } from '@/types'
-import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
+import { sessionStreak, longestSessionStreak, distinctDayStreak, type StreakRow } from './streak'
 import { computeTempoScore } from './tempoScore'
 import { BADGE_BY_KEY, badgeStatsFromSessions, computeEarnedBadges } from './badges'
 import { todayStr, addDays, toDateStr } from './dates'
@@ -263,7 +263,11 @@ export async function syncSocialOnOpen(client: SupabaseClient, userId: string, d
       .select('planned_date, status')
       .eq('user_id', userId)
       .gte('planned_date', since)
-    const streak = sessionStreak((data ?? []) as StreakRow[], today)
+    // A friend-feed milestone ("reached a 30-day streak") is an active claim
+    // about real calendar days, not just an internal display convention — uses
+    // the honest distinct-day count (see streak.ts) so a user training twice
+    // in one day can't appear to cross a milestone after half the real days.
+    const streak = distinctDayStreak((data ?? []) as StreakRow[], today)
     const events = [7, 14, 30, 50, 100]
       .filter((n) => streak >= n)
       .map((n) => ({ user_id: userId, kind: 'streak_milestone', dedupe: `streak:${n}`, payload: { n } }))

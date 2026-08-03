@@ -36,7 +36,7 @@ import { Text, VStack, HStack, ProgressView } from '@expo/ui/swift-ui'
 import {
   font, foregroundStyle, bold, padding, progressViewStyle, frame, tint, monospacedDigit,
 } from '@expo/ui/swift-ui/modifiers'
-import { createLiveActivity, type LiveActivity, type LiveActivityEnvironment } from 'expo-widgets'
+import type { LiveActivity, LiveActivityEnvironment } from 'expo-widgets'
 
 // Dark-mode blue (`Colors.dark.primary`, constants/theme.ts) — hardcoded, not
 // imported (see the constraint above). Live Activities render on the Lock
@@ -108,9 +108,22 @@ function restTimerLayout(props: RestTimerActivityProps, _environment: LiveActivi
 // that only exists on iOS, and only once a build has actually compiled this
 // dependency in — every export below is a safe no-op until then, and always
 // a no-op on Android (no Live Activity equivalent exists there).
+//
+// `require('expo-widgets')` here — NOT a static top-level `import` — is load-
+// bearing. `expo-widgets`'s own module chain (`index.js` → `Widgets.js` →
+// `ExpoWidgets.ios.js`) calls `requireNativeModule('ExpoWidgets')` eagerly at
+// ITS top level, so a static `import` crashes the instant this FILE is loaded
+// if the widget extension's native module isn't linked into the running
+// binary — before the try/catch below (or the old one that only wrapped the
+// `createLiveActivity()` call) ever runs, since imports execute at module-
+// load time, ahead of any function body. Confirmed live: a from-scratch build
+// with the widget extension not yet wired in crashed on cold launch at the
+// import, not inside a call — this `require()`, evaluated lazily right here
+// inside the guard, is what actually catches that.
 const factory = (() => {
   if (Platform.OS !== 'ios') return null
   try {
+    const { createLiveActivity } = require('expo-widgets') as typeof import('expo-widgets')
     return createLiveActivity<RestTimerActivityProps>('RestTimerActivity', restTimerLayout)
   } catch {
     return null

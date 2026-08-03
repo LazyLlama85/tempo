@@ -102,6 +102,18 @@ describe('progression — buildPrescription autoregulation', () => {
     expect(p.suggestedWeight!).toBeLessThan(105) // scaled by the 0.85 deload intensity
   })
 
+  it('a deload does not compound on top of a same-session reactive grind-cut', () => {
+    // 200 lbs, 5 reps (< repLow 8 for muscle_gain/h_push) → reactive "grind" cut
+    // to 180 (200 * 0.9, rounded to the 5 lb increment) BEFORE periodization.
+    // The 0.85-intensity deload must scale the ORIGINAL 200, not the already-
+    // cut 180 — 200*0.85=170, not 180*0.85=153 (rounds to 155 lbs, a ~23.5%
+    // total cut instead of the intended flat 15%).
+    const deload = weekProgression(3, 'intermediate', 'normal') // isDeload, 0.85 intensity
+    const p = buildPrescription([clean(200, 5, null)], 'muscle_gain', 'h_push', false, 0, deload)
+    expect(p.direction).toBe('down')
+    expect(p.suggestedWeight).toBe(170)
+  })
+
   it('always clamps working sets to a sane 2–6 range', () => {
     const peak = weekProgression(2, 'intermediate', 'normal') // +1 set
     const p = buildPrescription([clean(100, 10, 8)], 'strength', 'h_push', false, 1, peak)

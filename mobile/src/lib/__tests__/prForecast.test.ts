@@ -31,7 +31,7 @@ describe('computePRForecast — honest per-lift foresight', () => {
   })
 
   it('projects the next round milestone on a real upward trend, with a future date', () => {
-    const now = day(1000) // well after the trend's last point
+    const now = day(36) // shortly after the trend's last point (day 35) — normal usage
     const f = computePRForecast(risingTrend(6), now)
     expect(f).not.toBeNull()
     // 6 points, +2 lbs/week to 215 at the last point → next milestone 225.
@@ -39,6 +39,16 @@ describe('computePRForecast — honest per-lift foresight', () => {
     expect(f?.ratePerWeek).toBeCloseTo(2, 0)
     expect(f?.projectedDate.getTime()).toBeGreaterThan(now.getTime())
     expect(f?.projectedDateLabel).toMatch(/\w+ \d+/) // "March 15"-shaped
+  })
+
+  it('returns null when there is a long gap since the last logged session — the projection must not silently balloon forward with every inactive day', () => {
+    // Same rising trend, but "now" is checked 1000 days after the trend's last
+    // point (day 35). The fit itself says this lift should have hit 225 lbs
+    // around day 70 — anchoring the projection to `now` instead of the last
+    // real data point would silently push the ETA to ~5 weeks from TODAY every
+    // time this is recomputed, no matter how long the user has been inactive.
+    const now = day(1000)
+    expect(computePRForecast(risingTrend(6), now)).toBeNull()
   })
 
   it('returns null when the projection is more than a year out — not useful foresight', () => {
@@ -58,7 +68,9 @@ describe('computePRForecast — honest per-lift foresight', () => {
   it('is order-independent — unsorted input fits the same trend', () => {
     const sorted = risingTrend(6)
     const shuffled = [sorted[3], sorted[0], sorted[5], sorted[1], sorted[4], sorted[2]]
-    const now = day(1000)
-    expect(computePRForecast(shuffled, now)?.targetLbs).toBe(computePRForecast(sorted, now)?.targetLbs)
+    const now = day(36)
+    const forecast = computePRForecast(sorted, now)
+    expect(forecast).not.toBeNull()
+    expect(computePRForecast(shuffled, now)?.targetLbs).toBe(forecast?.targetLbs)
   })
 })

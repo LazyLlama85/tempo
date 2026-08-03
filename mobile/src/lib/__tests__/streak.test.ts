@@ -1,4 +1,4 @@
-import { sessionStreak, longestSessionStreak, type StreakRow } from '@/lib/streak'
+import { sessionStreak, longestSessionStreak, distinctDayStreak, type StreakRow } from '@/lib/streak'
 
 const row = (planned_date: string, status: string, source?: string): StreakRow => ({ planned_date, status, source })
 
@@ -90,6 +90,17 @@ describe('streak — consecutive completed sessions (not calendar days)', () => 
 
   it('empty history is a zero streak', () => {
     expect(sessionStreak([], '2026-07-10')).toBe(0)
+  })
+
+  it('distinctDayStreak counts each trained day once, even with two sessions that day', () => {
+    const rows = [
+      row('2026-07-08', 'completed'),
+      row('2026-07-09', 'completed'),
+      row('2026-07-09', 'completed'), // a same-day second session — must not add a second day
+      row('2026-07-10', 'completed'),
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(4) // the session-count metric DOES count it twice
+    expect(distinctDayStreak(rows, '2026-07-10')).toBe(3) // the honest day-count does not
   })
 
   it('longestSessionStreak finds the best completed run in the window', () => {

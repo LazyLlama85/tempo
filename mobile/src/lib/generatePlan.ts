@@ -977,6 +977,13 @@ export async function restampFuturePlanForExperience(
     const focusRotation = new Map<string, number>()
     const priorRot = Math.floor((prior ?? 0) / templatesLen)
     let changed = 0
+    // Fixed 2026-08-02: this loop used to discard `{ error }` and count every
+    // row as changed regardless — a failed write on the "LEVEL UP" re-stamp
+    // left some of the week's future sessions silently un-promoted (still on
+    // the old experience level's exercise selection) with no signal anywhere
+    // that it happened. Mirrors adaptation.ts's applyAdaptationMode: a failure
+    // is reported, not silently ignored, and never counted as a success.
+    const failedIds: string[] = []
     for (const w of future) {
       const baseFocus = stripDeloadFocus(w.focus as string)
       const template = focusToTemplate.get(baseFocus)
@@ -987,7 +994,7 @@ export async function restampFuturePlanForExperience(
       if (!exerciseIds.length) continue
       const weekIndex = (w.week_index as number | null) ?? 0
       const progression = weekProgression(weekIndex, profile.experience, mode)
-      await client
+      const { error } = await client
         .from('scheduled_workouts')
         .update({
           exercise_ids: exerciseIds,
@@ -996,7 +1003,13 @@ export async function restampFuturePlanForExperience(
           planned_duration_min: estimateSessionMinutes(exerciseIds.length, profile.goal, progression.isDeload),
         })
         .eq('id', w.id)
+      if (error) { failedIds.push(w.id as string); continue }
       changed++
+    }
+    if (failedIds.length) {
+      captureApiError('restampFuturePlanForExperience', new Error('partial restamp failure'), {
+        userId, failedCount: failedIds.length, totalCount: future.length, failedIds,
+      })
     }
     return changed
   } catch {
