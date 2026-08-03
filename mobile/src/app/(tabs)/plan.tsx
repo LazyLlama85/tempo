@@ -984,7 +984,17 @@ export default function WorkoutsScreen() {
   // Open the live logging session for a prepared workout: stamp the start time, open
   // a workout_logs row, and switch into the session view. Called on an explicit start
   // or from the hub's "Start session" — never just from viewing the hub.
+  //
+  // beginningSessionRef guards the async gap between tap and `setSessionActive`/
+  // `setWorkoutLogId` actually landing: the button's onPress still reads the PRE-
+  // update `workoutLogId` (null) on a fast double-tap, since React hasn't
+  // re-rendered yet, so both taps would otherwise reach the insert below and
+  // open two concurrent workout_logs rows for the same session.
+  const beginningSessionRef = useRef(false)
   async function beginSession(scheduledId: string) {
+    if (beginningSessionRef.current) return
+    beginningSessionRef.current = true
+    try {
     startedAt.current = new Date()
     accumulatedSec.current = 0
     setElapsed(0)
@@ -1009,6 +1019,9 @@ export default function WorkoutsScreen() {
     setSaveWarned.current = false
     setWorkoutLogId(logRow.id)
     setSessionActive(true)
+    } finally {
+      beginningSessionRef.current = false
+    }
   }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
@@ -1105,10 +1118,23 @@ export default function WorkoutsScreen() {
   // Tapping ✓ logs the set IMMEDIATELY — rest starts, haptic fires, done. RPE is
   // captured after the fact via an optional follow-up bar; it must never gate
   // logging or the rest timer.
+  //
+  // pendingSetLogRef guards against a fast double-tap inserting the SAME set
+  // twice: `set.done` below reads from `sets` state, which React only updates
+  // on the next render — two taps landing before that render both see
+  // `done: false` and would otherwise both reach the insert below (no unique
+  // DB constraint backstops it). A ref updates synchronously, so the second
+  // tap is caught here regardless of render timing. Keyed per set (not a
+  // single flag) so logging one exercise's set never blocks another's.
+  const pendingSetLogRef = useRef<Set<string>>(new Set())
   const handleSetDone = async (exId: string, idx: number) => {
     if (!workoutLogId) return
+    const setKey = `${exId}:${idx}`
+    if (pendingSetLogRef.current.has(setKey)) return
     const set = sets[exId]?.[idx]
     if (!set || set.done) return
+    pendingSetLogRef.current.add(setKey)
+    try {
 
     haptics.tapLight()
     // The very first set this account ever logs — the retention hinge moment.
@@ -1188,6 +1214,10 @@ export default function WorkoutsScreen() {
       // flush would insert it a second time. No-op (cheap) in the overwhelmingly
       // common case where nothing was ever queued for this set.
       clearPendingSetLog(setLogPayload).catch(() => {})
+    }
+
+    } finally {
+      pendingSetLogRef.current.delete(setKey)
     }
   }
 

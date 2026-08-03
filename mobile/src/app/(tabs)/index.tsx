@@ -1138,7 +1138,13 @@ export default function ScheduleScreen() {
   // are one tap away inside the expanded state. Nothing was removed.
   function renderWorkout(w: ScheduledWorkout, hero: boolean) {
     const { done, missed, overdue, conflict, attention, started, accent } = workoutState(w)
-    const endMin = minOfTime(w.planned_start_time) + w.planned_duration_min
+    // Fixed 2026-08-02: this always used planned_duration_min for the RANGE
+    // end, while the minute count printed just below (blockMeta) already
+    // switched to actual_duration_min once done — so a finished session could
+    // read "2:30-3:35 PM · 83 min" when 2:30-3:35 is only 65 minutes. Both
+    // numbers now derive from the same duration.
+    const displayDurationMin = done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min
+    const endMin = minOfTime(w.planned_start_time) + displayDurationMin
     const timeRange = `${formatTime(w.planned_start_time)} – ${formatMin(endMin)}`
     const origin = workoutOrigin(w.source)
     // A status badge only when it actually says something. "TODAY'S WORKOUT" on
@@ -1212,7 +1218,7 @@ export default function ScheduleScreen() {
 
           {/* One calm line instead of three separate chips. */}
           <Text style={styles.blockMeta}>
-            {timeRange} · {(done && w.actual_duration_min ? w.actual_duration_min : w.planned_duration_min)} min · {origin.short}
+            {timeRange} · {displayDurationMin} min · {origin.short}
           </Text>
 
           {missed && (

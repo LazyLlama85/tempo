@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { AppState, Text, TextInput } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, router } from 'expo-router'
@@ -188,9 +188,22 @@ function RootLayoutInner() {
   }, [])
   const ready = fontsLoaded || !!fontError || timedOut
 
+  // Shared between the two effects below — see the app_open double-fire fix.
+  const coldLaunchRef = useRef(true)
+
   useEffect(() => {
     initialize()
     track('app_open')
+    // Fixed 2026-08-02: a cold launch triggered by tapping a push notification
+    // used to fire `app_open` TWICE — once here unconditionally, once more
+    // below when addNotificationResponseReceivedListener receives the SAME
+    // launching notification's response (Expo's listener fires for the
+    // response that launched the app, not just ones tapped while running).
+    // This 2s window treats any notification-tap event that arrives that
+    // soon after mount as the same cold-launch open already counted here; a
+    // genuine tap while the app is already running (well outside this
+    // window) still tracks its own app_open below, as before.
+    const t = setTimeout(() => { coldLaunchRef.current = false }, 2000)
     // Force-quit mid-rest safety net: don't leave a stale Live Activity on the
     // Lock Screen any longer than it takes to reopen the app (iOS also
     // auto-expires them on its own timeout, but this is faster and explicit).
@@ -204,6 +217,7 @@ function RootLayoutInner() {
     loadStoredWeightUnit()
     loadStoredFocusMode()
     loadStoredDevProOverride()
+    return () => clearTimeout(t)
   }, [])
 
   // React Native has no "window focus" — tell React Query when the app comes
@@ -219,13 +233,24 @@ function RootLayoutInner() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as { screen?: string; type?: string }
-      if (data?.type) track('app_open') // attribute the open to the push
+      // Only attribute a FRESH app_open here — see coldLaunchRef's declaration
+      // above. A response arriving within the cold-launch window is the same
+      // open the other effect already tracked, not a second one.
+      if (data?.type && !coldLaunchRef.current) track('app_open')
       switch (data?.screen) {
         case 'quick-workout': router.push('/quick-workout'); break
         case 'plan': router.push('/(tabs)/plan'); break
         case 'home': router.push('/(tabs)'); break
         case 'weekly-report': router.push('/weekly-report' as any); break
         case 'social': router.push('/social' as any); break
+        default:
+          // Fixed 2026-08-02: an unrecognized/future data.screen value used to
+          // silently no-op — but ONLY do this for a retention-push notification
+          // (data.type present). Local notifications (pre-workout reminder,
+          // rest-timer-done — lib/notifications.ts) carry no `data` at all;
+          // tapping those must keep doing nothing special, not yank the user
+          // to Home mid-workout.
+          if (data?.type) router.push('/(tabs)')
       }
     })
     return () => sub.remove()
