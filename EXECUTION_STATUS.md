@@ -257,6 +257,29 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-02 (session 2) — Quick Workout curation + runner bug pass, founder-reported.** Separate
+  from the Mac-audit fix pass earlier the same day (below). **Quick Workout engine (`quickWorkout.ts`,
+  `quick-workout.tsx`):** Target Area chips are now genuinely multi-select (was single-select only,
+  despite the underlying `targetMuscles: string[]` field already supporting a union) — new
+  `computeTargetFromKeys` derives the hard muscle filter + a human-readable label from the active
+  chip `Set`. Fixed the real reported bug: picking "Legs" for a strength-purpose session recommended
+  Jump Rope purely because it lists `calves` as a primary muscle — `forcePatterns` used to force
+  EVERY pattern present in the muscle pool including cardio/mobility regardless of the active
+  purpose; now only forces cardio/mobility when the purpose's own scheme wants them. Also fixed live
+  in the `exercises` table: Jump Rope's `shoulders` was miscategorized as a PRIMARY muscle (moved to
+  secondary). Renamed generated titles from the generic purpose-only mapping ("15-Minute Muscle
+  Builder") to `{Target Area} {Purpose}` ("15-Minute Legs Strength"). 2 new tests lock the cardio-
+  leak fix both directions. **Runner (`plan.tsx`):** `doSkipExercise`'s `exercise_ids` write was
+  fire-and-forget, so a pause immediately after skipping could race the next resume's reload and
+  silently re-materialize the "skipped" exercise — the reported symptoms (estimated time looking
+  wrong, Complete Workout never turning green after a skip); now awaited. "Add to workout
+  permanently" no longer offered for Quick Workouts (one-off, no recurring template to persist into).
+  Tapping the bottom rest-timer pill now opens Focus Mode. **New: a session under 5 minutes doesn't
+  advance the streak** (`MIN_STREAK_MINUTES`, `lib/streak.ts`) — warns before finishing rather than
+  surprising the user after; `actual_duration_min` threaded through `StreakRow` and every first-party
+  streak-computing query. tsc clean, 378/378 tests (6 new). Two items from the same founder message
+  explicitly deferred to N1/N2 in the Open Backlog above (Pro history-horizon model, workout/split
+  edit-scope clarity) — both need a product decision + plan before code, not a quick fix.
 - **2026-08-02 — first-ever on-device (Simulator) pass ran on the Mac; every Tier-1 + Tier-2 finding
   fixed on Windows the same day.** The Mac session finally ran T1.2 for real (iOS Simulator, after
   fixing a CocoaPods `LANG`/locale issue), confirmed the three 2026-07-31 fixes (PREV blanking:

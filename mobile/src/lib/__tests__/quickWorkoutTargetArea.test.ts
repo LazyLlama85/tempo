@@ -95,6 +95,55 @@ describe('quickWorkout — Target Area (targetMuscles)', () => {
     for (const ex of w.exercises) expect(['arm-1', 'arm-2']).toContain(ex.id)
   })
 
+  it('a cardio-pattern exercise does not leak into a strength-purpose Target Area workout just because a muscle overlaps', async () => {
+    // Real bug, founder-reported: picking "Legs" for a muscle_growth/strength
+    // session recommended Jump Rope purely because Jump Rope's primary_muscles
+    // include 'calves' (a real leg muscle) — even though Jump Rope's
+    // movement_pattern is 'cardio', which muscle_growth's own patternPriority
+    // never wants. forcePatterns used to force EVERY pattern present in the
+    // muscle-filtered pool, cardio included; now it only force-includes
+    // cardio/mobility when the ACTIVE purpose's own scheme already wants them.
+    const tables = {
+      exercises: [
+        exRow('leg-squat', 'Goblet Squat', 'squat', ['quads', 'glutes']),
+        exRow('leg-hinge', 'Romanian Deadlift', 'hinge', ['hamstrings', 'glutes']),
+        exRow('leg-cardio', 'Jump Rope', 'cardio', ['calves', 'shoulders']),
+      ],
+      user_profiles: [],
+    }
+    const client = createFakeSupabase(tables)
+    const legsOption = TARGET_AREA_OPTIONS.find(o => o.key === 'legs')!
+
+    const w = await generateQuickWorkout(
+      client, USER,
+      { minutes: 40, purpose: 'muscle_growth', targetMuscles: legsOption.muscles },
+      PROFILE,
+    )
+
+    expect(w.exercises.length).toBeGreaterThan(0)
+    expect(w.exercises.some(ex => ex.id === 'leg-cardio')).toBe(false)
+  })
+
+  it('a cardio-pattern exercise IS included in a Target Area workout when the purpose actually wants cardio', async () => {
+    const tables = {
+      exercises: [
+        exRow('leg-squat', 'Goblet Squat', 'squat', ['quads', 'glutes']),
+        exRow('leg-cardio', 'Jump Rope', 'cardio', ['calves']),
+      ],
+      user_profiles: [],
+    }
+    const client = createFakeSupabase(tables)
+    const legsOption = TARGET_AREA_OPTIONS.find(o => o.key === 'legs')!
+
+    const w = await generateQuickWorkout(
+      client, USER,
+      { minutes: 40, purpose: 'conditioning', targetMuscles: legsOption.muscles },
+      PROFILE,
+    )
+
+    expect(w.exercises.some(ex => ex.id === 'leg-cardio')).toBe(true)
+  })
+
   it('every non-cardio, non-"pick for me" option has a non-empty muscle list, and Cardio uses the pattern instead', () => {
     for (const opt of TARGET_AREA_OPTIONS) {
       if (opt.key === 'cardio') {

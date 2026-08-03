@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -30,6 +30,32 @@ const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
 ]
 
+// Target Area is multi-select (2026-08-02, founder-requested — "users should
+// be able to select multiple body parts"): `keys` is the set of active chips.
+// Muscle-based keys union their muscle lists into a single hard filter;
+// 'cardio' composes with them via targetPattern (a priority nudge WITHIN
+// whatever muscle filter is active, not a competing filter) rather than
+// needing its own OR-logic. `routePattern` is the passive, route-driven
+// "missed leg day" suggestion — it only applies until the user's first
+// explicit chip tap (the caller clears it then), matching how the old
+// single-select build always let an explicit pick override the passive one.
+function computeTargetFromKeys(
+  keys: Set<string>,
+  routePattern: MovementPattern | undefined,
+): { pattern: MovementPattern | undefined; muscles: string[] | undefined; label: string | null } {
+  const muscleKeys = [...keys].filter(k => k !== 'cardio')
+  const muscles = muscleKeys.length
+    ? [...new Set(muscleKeys.flatMap(k => TARGET_AREA_OPTIONS.find(o => o.key === k)?.muscles ?? []))]
+    : undefined
+  const pattern: MovementPattern | undefined = keys.has('cardio') ? 'cardio' : routePattern
+  const labels = [...keys].map(k => TARGET_AREA_OPTIONS.find(o => o.key === k)?.label).filter((l): l is string => !!l)
+  const label = labels.length === 0 ? null
+    : labels.length === 1 ? labels[0]
+    : labels.length === 2 ? `${labels[0]} & ${labels[1]}`
+    : `${labels.slice(0, -1).join(', ')} & ${labels[labels.length - 1]}`
+  return { pattern, muscles, label }
+}
+
 export default function QuickWorkoutScreen() {
   const C = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -52,13 +78,20 @@ export default function QuickWorkoutScreen() {
     (params.purpose as QuickPurpose) || null
   )
   // A missed "leg day" suggestion arrives via route param, pattern-based
-  // (e.g. 'squat') — kept exactly as before, distinct from the muscle-based
-  // Target Area chips below, since the two mechanisms feed generateQuickWorkout
-  // independently (targetPattern reorders priority; targetMuscles hard-filters).
-  const [targetPattern, setTargetPattern] = useState<MovementPattern | undefined>(
+  // (e.g. 'squat') — a passive suggestion only, cleared the moment the user
+  // makes any explicit Target Area pick (see computeTargetFromKeys above).
+  const [routeTargetPattern, setRouteTargetPattern] = useState<MovementPattern | undefined>(
     (params.targetPattern as MovementPattern) || undefined
   )
-  const [targetMuscles, setTargetMuscles] = useState<string[] | undefined>(undefined)
+  // Target Area is multi-select — the set of active chip keys. targetPattern/
+  // targetMuscles/targetAreaLabel below are all DERIVED from this (+ the route
+  // suggestion), so every existing call site that already used targetPattern/
+  // targetMuscles keeps working unchanged.
+  const [selectedAreaKeys, setSelectedAreaKeys] = useState<Set<string>>(new Set())
+  const { pattern: targetPattern, muscles: targetMuscles, label: targetAreaLabel } = useMemo(
+    () => computeTargetFromKeys(selectedAreaKeys, routeTargetPattern),
+    [selectedAreaKeys, routeTargetPattern],
+  )
   const [workout, setWorkout] = useState<QuickWorkout | null>(null)
   const [generating, setGenerating] = useState(true)
   const [starting, setStarting] = useState(false)
@@ -93,7 +126,7 @@ export default function QuickWorkoutScreen() {
 
   const regenerate = useCallback(async (
     m: QuickMinutes, p: QuickPurpose | null, equipOverride: Equipment[] | null,
-    tp: MovementPattern | undefined, tm: string[] | undefined,
+    tp: MovementPattern | undefined, tm: string[] | undefined, al: string | null,
   ) => {
     if (!userId) return
     setGenerating(true)
@@ -122,7 +155,7 @@ export default function QuickWorkoutScreen() {
       const effectivePurpose = p ?? goalToPurpose(profile.goal)
       const w = await generateQuickWorkout(
         supabase, userId,
-        { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, targetMuscles: tm, daysSinceTrained, fromCalendarGap, restrictions },
+        { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, targetMuscles: tm, targetAreaLabel: al, daysSinceTrained, fromCalendarGap, restrictions },
         profile,
       )
       setWorkout(w)
@@ -141,41 +174,43 @@ export default function QuickWorkoutScreen() {
 
   // Pre-generate on open so a Start button is ready immediately (<10s to start).
   useEffect(() => {
-    regenerate(minutes, purpose, null, targetPattern, targetMuscles)
+    regenerate(minutes, purpose, null, targetPattern, targetMuscles, targetAreaLabel)
   }, [regenerate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentEquip = () => selectedPreset?.equipment ?? null
   const handlePickMinutes = (m: QuickMinutes) => {
     setMinutes(m)
-    regenerate(m, purpose, currentEquip(), targetPattern, targetMuscles)
+    regenerate(m, purpose, currentEquip(), targetPattern, targetMuscles, targetAreaLabel)
   }
   const handlePickPurpose = (p: QuickPurpose) => {
     const next = p === purpose ? null : p
     setPurpose(next)
-    regenerate(minutes, next, currentEquip(), targetPattern, targetMuscles)
+    regenerate(minutes, next, currentEquip(), targetPattern, targetMuscles, targetAreaLabel)
   }
-  // Target Area chips are mutually exclusive with each other (and with a
-  // route-driven targetPattern) — picking one clears whichever mechanism the
-  // previous selection used. "Pick for me" is an explicit reset to Tempo's
-  // normal purpose-driven pick, not a filter of its own.
-  const handlePickTargetArea = (opt: TargetAreaOption) => {
+  // Target Area is multi-select: tapping a chip toggles it in/out of
+  // selectedAreaKeys rather than replacing a single selection. "Pick for me"
+  // is an explicit reset to Tempo's normal purpose-driven pick, not a filter
+  // of its own. Any explicit tap clears the passive route-driven pattern
+  // suggestion (a missed "leg day") — an explicit pick always wins.
+  const handleToggleTargetArea = (opt: TargetAreaOption) => {
     if (opt.surprise) {
-      setTargetPattern(undefined)
-      setTargetMuscles(undefined)
-      regenerate(minutes, purpose, currentEquip(), undefined, undefined)
+      setSelectedAreaKeys(new Set())
+      setRouteTargetPattern(undefined)
+      regenerate(minutes, purpose, currentEquip(), undefined, undefined, null)
       return
     }
-    const isActive = opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
-    const nextPattern = isActive ? undefined : opt.pattern
-    const nextMuscles = isActive ? undefined : opt.muscles
-    setTargetPattern(nextPattern)
-    setTargetMuscles(nextMuscles)
-    regenerate(minutes, purpose, currentEquip(), nextPattern, nextMuscles)
+    setRouteTargetPattern(undefined)
+    const next = new Set(selectedAreaKeys)
+    if (next.has(opt.key)) next.delete(opt.key)
+    else next.add(opt.key)
+    setSelectedAreaKeys(next)
+    const { pattern, muscles, label } = computeTargetFromKeys(next, undefined)
+    regenerate(minutes, purpose, currentEquip(), pattern, muscles, label)
   }
   const handlePickPreset = (id: string | null) => {
     setSelectedPresetId(id)
     const pr = id ? presets.find((p) => p.id === id) ?? null : null
-    regenerate(minutes, purpose, pr?.equipment ?? null, targetPattern, targetMuscles)
+    regenerate(minutes, purpose, pr?.equipment ?? null, targetPattern, targetMuscles, targetAreaLabel)
   }
   const handleSavePreset = async (preset: EquipmentPreset) => {
     const next = presets.some((p) => p.id === preset.id)
@@ -184,14 +219,14 @@ export default function QuickWorkoutScreen() {
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
     setSelectedPresetId(preset.id)
-    regenerate(minutes, purpose, preset.equipment, targetPattern, targetMuscles)
+    regenerate(minutes, purpose, preset.equipment, targetPattern, targetMuscles, targetAreaLabel)
     await savePresets(supabase, userId, next)
   }
   const handleDeletePreset = async (id: string) => {
     const next = presets.filter((p) => p.id !== id)
     setPresets(next)
     setPresetSheet({ open: false, edit: null })
-    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null, targetPattern, targetMuscles) }
+    if (selectedPresetId === id) { setSelectedPresetId(null); regenerate(minutes, purpose, null, targetPattern, targetMuscles, targetAreaLabel) }
     await savePresets(supabase, userId, next)
   }
 
@@ -263,18 +298,20 @@ export default function QuickWorkoutScreen() {
         </View>
 
         {/* Target Area — the primary, beginner-friendly decision (real body
-            parts, not training-taxonomy jargon like "push"/"pull"). */}
+            parts, not training-taxonomy jargon like "push"/"pull"). Multi-
+            select: tap as many as you want (e.g. Legs + Cardio together). */}
         <Text style={styles.sectionLabel}>TARGET AREA</Text>
+        <Text style={styles.sectionHint}>Tap as many as you like</Text>
         <View style={styles.targetGrid}>
           {TARGET_AREA_OPTIONS.map(opt => {
             const active = opt.surprise
-              ? !targetPattern && !targetMuscles
-              : opt.pattern ? opt.pattern === targetPattern : (!!opt.muscles && opt.muscles === targetMuscles)
+              ? selectedAreaKeys.size === 0 && !routeTargetPattern
+              : selectedAreaKeys.has(opt.key)
             return (
               <TouchableOpacity
                 key={opt.key}
                 style={[styles.targetChip, active && styles.targetChipActive]}
-                onPress={() => handlePickTargetArea(opt)}
+                onPress={() => handleToggleTargetArea(opt)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
@@ -400,7 +437,7 @@ export default function QuickWorkoutScreen() {
           <View style={styles.emptyRow}>
             <Ionicons name="alert-circle-outline" size={20} color={C.textSecondary} />
             <Text style={styles.emptyText}>
-              No moves match your equipment for this target area. Try another area, or add equipment under More options.
+              No moves match your equipment for {selectedAreaKeys.size > 1 ? 'these target areas' : 'this target area'}. Try another area, or add equipment under More options.
             </Text>
           </View>
         ) : null}
@@ -458,6 +495,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   sliderWrap: { alignSelf: 'stretch', width: '100%' },
 
   sectionLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6, marginTop: Spacing.xs },
+  sectionHint: { fontFamily: 'Inter_400Regular', fontSize: 12, color: C.textSecondary, marginTop: 1 },
   targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   targetChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

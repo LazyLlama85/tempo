@@ -1198,6 +1198,30 @@ you moving."*
   the user's behalf. A due session's "Continue" option still jumps straight into the runner
   (`/(tabs)/plan?workoutId=`), unchanged. The full Quick Workout picker screen is reachable from here
   and from Home's contextual quick-suggestion banner (which passes specific minutes/purpose/pattern).
+  **Multi-select Target Area + curation fixes (2026-08-02, founder-reported):** Target Area chips
+  are now genuinely multi-select — tapping several (e.g. Legs + Cardio) unions their muscle lists
+  into one hard filter, composing with Cardio's own `targetPattern` mechanism as a priority nudge
+  WITHIN that filter rather than a competing one. `computeTargetFromKeys` (quick-workout.tsx) derives
+  `targetPattern`/`targetMuscles`/a human-readable `targetAreaLabel` ("Legs" / "Chest & Back") from
+  the active key `Set`, so the route-driven "missed leg day" suggestion is now just the initial value
+  of `routeTargetPattern`, cleared on the user's first explicit chip tap exactly as the old
+  single-select build cleared it. **Real curation bug fixed the same session:** picking "Legs" for a
+  muscle-growth/strength session recommended Jump Rope, purely because Jump Rope's `primary_muscles`
+  include `calves` (a real leg muscle) — `forcePatterns` (the mechanism that guarantees a muscle-
+  targeted request never comes back empty) used to force EVERY movement pattern present in the
+  muscle-filtered pool, cardio and mobility included, regardless of whether the active purpose wanted
+  them. Now only real resistance patterns (`push`/`pull`/`squat`/`hinge`/`core`/`carry`) are always
+  forced; `cardio`/`mobility` are only forced when the active purpose's own `patternPriority` already
+  wants them (conditioning/athletic want cardio; recovery/mobility want mobility) — so a
+  muscle_growth-purpose Legs workout no longer pulls in Jump Rope, but a conditioning-purpose one
+  still can. Also fixed live in the `exercises` table: Jump Rope listed `shoulders` as a PRIMARY
+  muscle (a jump rope's shoulder/forearm involvement is a stabilizer role, not primary) — moved to
+  secondary, migration `fix_jump_rope_muscle_data.sql`. **Renamed generated titles** from the old
+  purpose-only mapping ("15-Minute Muscle Builder") to `{Target Area} {Purpose label}` ("15-Minute
+  Legs Strength", "20-Minute Chest & Back Muscle"), falling back to "Full Body" when no Target Area
+  is selected — `buildTitle` now takes the new `targetAreaLabel` context field. 2 new tests
+  (`quickWorkoutTargetArea.test.ts`) lock the cardio-leak fix both ways (excluded when the purpose
+  doesn't want it, included when it does).
 - **Availability / Travel** modals: set work/school/sleep/unavailable windows, and a temporary
   travel-equipment override.
 - **Scheduling mode:** a `scheduling_mode` profile pref (`auto` default / `manual`) decides whether

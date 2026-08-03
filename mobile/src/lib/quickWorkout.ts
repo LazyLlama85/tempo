@@ -57,7 +57,7 @@ export interface QuickExercise {
 export interface QuickWorkout {
   minutes: QuickMinutes
   purpose: QuickPurpose
-  title: string          // "15-Minute Strength Primer"
+  title: string          // "15-Minute Legs Strength" / "15-Minute Full Body Muscle"
   why: string            // why this was recommended right now
   contribution: string   // how it moves the long-term goal forward
   structure: 'straight_sets' | 'circuit'
@@ -71,6 +71,11 @@ export interface QuickContext {
   purpose?: QuickPurpose          // defaults from the user's goal
   targetPattern?: MovementPattern // e.g. a missed "leg day" → bias squat/hinge (route-driven)
   targetMuscles?: string[]        // e.g. "Arms" tapped in the Quick Workout screen (user-driven)
+  /** "Legs" / "Chest & Back" — the human-readable Target Area selection, for
+   *  the title only (buildTitle below). The screen computes this from
+   *  TARGET_AREA_OPTIONS' own labels, since targetMuscles alone (raw muscle
+   *  names) can't be reconstructed back into a clean label reliably. */
+  targetAreaLabel?: string | null
   daysSinceTrained?: number       // colours the "why" copy
   fromCalendarGap?: boolean       // "you have N free minutes" framing
   restrictions?: QuickRestrictions
@@ -189,6 +194,19 @@ const GOAL_NOUN: Record<Goal, string> = {
 const HIGH_IMPACT_NAMES = new Set([
   'Box Jump', 'Burpee', 'Power Clean', 'Sumo Deadlift', 'Pause Squat', 'Weighted Pull-Up',
 ])
+
+// Real resistance-training patterns — always fair game for a Target Area's
+// forced-pattern list (see generateQuickWorkout below), regardless of which
+// purpose is active. 'cardio' and 'mobility' are deliberately excluded here:
+// they should only get force-included when the CURRENT purpose's own scheme
+// already wants them (conditioning/athletic want cardio; recovery/mobility
+// want mobility) — otherwise a muscle that happens to overlap with a cardio
+// or stretch-pattern exercise (e.g. Jump Rope trains calves, a real leg
+// muscle) drags an off-purpose exercise into an otherwise strength-focused
+// session. Fixed 2026-08-02, founder-reported: picking "Legs" for a
+// muscle-growth/strength session recommended Jump Rope purely because its
+// primary_muscles include 'calves'.
+const RESISTANCE_PATTERNS: MovementPattern[] = ['push', 'pull', 'squat', 'hinge', 'core', 'carry']
 
 // ── Exercise model used internally ──────────────────────────────────────────
 
@@ -342,16 +360,14 @@ function selectExercises(
 
 // ── Copy generation ──────────────────────────────────────────────────────────
 
-function buildTitle(minutes: number, purpose: QuickPurpose): string {
-  const map: Record<QuickPurpose, string> = {
-    strength_maintenance: 'Strength Primer',
-    muscle_growth: 'Muscle Builder',
-    recovery: 'Recovery Flush',
-    mobility: 'Mobility Reset',
-    conditioning: 'Conditioning Burst',
-    athletic: 'Power Session',
-  }
-  return `${minutes}-Minute ${map[purpose]}`
+// Fixed 2026-08-02, founder-requested: "15-Minute Muscle Builder" read as a
+// generic, uninformative label once Target Area picking existed — a workout
+// actually targeting Legs deserves to say so. Format is body-part(s) +
+// training-style noun ("Legs Strength", "Chest & Back Muscle"), falling back
+// to "Full Body" when no Target Area is selected (Pick for me / Cardio-only).
+function buildTitle(minutes: number, purpose: QuickPurpose, areaLabel?: string | null): string {
+  const styleNoun = PURPOSE_META[purpose].label
+  return `${minutes}-Minute ${areaLabel || 'Full Body'} ${styleNoun}`
 }
 
 function buildFocusLabel(exs: QuickExercise[]): string {
@@ -563,12 +579,15 @@ export async function generateQuickWorkout(
     : pool
   const muscleTargetHit = !!targetMuscles && musclePool.length > 0
   const finalPool = musclePool.length ? musclePool : pool
-  // When the muscle filter actually landed exercises, guarantee every pattern
-  // present among THEM gets picked from, regardless of the purpose's own
-  // pattern list — a muscle-targeted request must never come back empty just
-  // because e.g. Mobility's priority doesn't include 'push'.
+  // When the muscle filter actually landed exercises, guarantee every REAL
+  // RESISTANCE pattern present among THEM gets picked from, regardless of the
+  // purpose's own pattern list — a muscle-targeted request must never come
+  // back empty just because e.g. Mobility's priority doesn't include 'push'.
+  // 'cardio'/'mobility' are only force-included when the ACTIVE purpose's own
+  // scheme already wants them — see RESISTANCE_PATTERNS' comment for why.
   const forcePatterns = muscleTargetHit
     ? [...new Set(musclePool.map(ex => ex.movement_pattern as MovementPattern))]
+        .filter(p => RESISTANCE_PATTERNS.includes(p) || scheme.patternPriority.includes(p))
     : undefined
 
   const seed = dayOfYear() + ctx.minutes
@@ -577,7 +596,7 @@ export async function generateQuickWorkout(
   return {
     minutes: ctx.minutes,
     purpose,
-    title: buildTitle(ctx.minutes, purpose),
+    title: buildTitle(ctx.minutes, purpose, ctx.targetAreaLabel),
     why: buildWhy(ctx, purpose),
     contribution: buildContribution(purpose, profile.goal),
     structure: scheme.structure,
