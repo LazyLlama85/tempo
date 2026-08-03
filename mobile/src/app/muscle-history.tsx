@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -24,14 +25,20 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useExerciseLibrary, muscleGroupOf } from '@/lib/exerciseSearch'
 import { bodyMuscleOf } from '@/lib/fitnessInsights'
+import { useProAccess } from '@/stores/entitlements'
+import { track } from '@/lib/analytics'
 import type { MuscleGroup } from '@/types'
 
-type RangeDays = 90 | 180 | 365 | 0 // 0 = all time
-const RANGE_OPTIONS: { days: RangeDays; label: string }[] = [
+type RangeDays = 90 | 120 | 180 | 365 | 0 // 0 = all time
+// 120 (≈4 months, lib/historyHorizon.ts's FREE_HISTORY_MONTHS) is the real free
+// ceiling — 6M/1Y/All are Pro-gated (`full_history`), shown as locked chips
+// that open the paywall instead of changing the range.
+const RANGE_OPTIONS: { days: RangeDays; label: string; pro?: boolean }[] = [
   { days: 90, label: '3M' },
-  { days: 180, label: '6M' },
-  { days: 365, label: '1Y' },
-  { days: 0, label: 'All' },
+  { days: 120, label: '4M' },
+  { days: 180, label: '6M', pro: true },
+  { days: 365, label: '1Y', pro: true },
+  { days: 0, label: 'All', pro: true },
 ]
 
 interface SetRow {
@@ -68,6 +75,7 @@ export default function MuscleHistoryScreen() {
   const router = useRouter()
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
+  const { locked } = useProAccess()
 
   const p = useLocalSearchParams<{ muscleGroup?: string; muscleSlug?: string; title?: string }>()
   const muscleGroup = (p.muscleGroup ?? null) as MuscleGroup | null
@@ -116,8 +124,13 @@ export default function MuscleHistoryScreen() {
       .then(({ data }) => { setRows(((data ?? []) as SetRow[]).reverse()); setLoading(false) })
   }, [userId, groupExerciseIds])
 
-  const rangeCutoff = range === 0 ? 0 : Date.now() - range * 86_400_000
-  const rangeRows = useMemo(() => rows.filter(r => range === 0 || new Date(r.completed_at).getTime() >= rangeCutoff), [rows, range, rangeCutoff])
+  // Defense in depth: even if `range` state somehow ends up beyond the free
+  // horizon while locked (e.g. a Pro downgrade with a stale selection), the
+  // actual data filter still clamps to 120 days — only the CHIP tap handler
+  // below is what normally prevents this.
+  const effectiveRange: RangeDays = locked && (range === 0 || range > 120) ? 120 : range
+  const rangeCutoff = effectiveRange === 0 ? 0 : Date.now() - effectiveRange * 86_400_000
+  const rangeRows = useMemo(() => rows.filter(r => effectiveRange === 0 || new Date(r.completed_at).getTime() >= rangeCutoff), [rows, effectiveRange, rangeCutoff])
   const weeklyPoints = useMemo(() => buildWeeklyBuckets(rangeRows), [rangeRows])
   const exerciseBreakdown = useMemo(() => {
     const counts = new Map<string, number>()
@@ -141,18 +154,30 @@ export default function MuscleHistoryScreen() {
         ) : (
           <>
             <View style={s.rangeRow}>
-              {RANGE_OPTIONS.map(o => (
-                <PressableScale
-                  key={o.label}
-                  style={[s.rangeChip, range === o.days && s.rangeChipOn]}
-                  scaleTo={0.94}
-                  onPress={() => setRange(o.days)}
-                  accessibilityState={{ selected: range === o.days }}
-                  accessibilityLabel={o.label === 'All' ? 'All time' : `Last ${o.label}`}
-                >
-                  <Text style={[s.rangeChipText, range === o.days && { color: C.onPrimary }]}>{o.label}</Text>
-                </PressableScale>
-              ))}
+              {RANGE_OPTIONS.map(o => {
+                const gated = !!o.pro && locked
+                const active = effectiveRange === o.days
+                return (
+                  <PressableScale
+                    key={o.label}
+                    style={[s.rangeChip, active && s.rangeChipOn]}
+                    scaleTo={0.94}
+                    onPress={() => {
+                      if (gated) {
+                        track('paywall_shown', { context: 'full_history' })
+                        router.push({ pathname: '/paywall', params: { context: 'full_history' } } as never)
+                        return
+                      }
+                      setRange(o.days)
+                    }}
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={gated ? `${o.label === 'All' ? 'All time' : `Last ${o.label}`}, requires Pro` : (o.label === 'All' ? 'All time' : `Last ${o.label}`)}
+                  >
+                    {gated && <Ionicons name="lock-closed" size={10} color={active ? C.onPrimary : C.outline} style={s.rangeChipLock} />}
+                    <Text style={[s.rangeChipText, active && { color: C.onPrimary }]}>{o.label}</Text>
+                  </PressableScale>
+                )
+              })}
             </View>
 
             <FadeInView style={s.card}>
@@ -203,9 +228,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   scroll: { padding: Spacing.containerPadding, gap: Spacing.lg, paddingBottom: 60 },
 
   rangeRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xs },
-  rangeChip: { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.surfaceContainerLow },
+  rangeChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.surfaceContainerLow },
   rangeChipOn: { backgroundColor: C.primary },
   rangeChipText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  rangeChipLock: { marginRight: 4 },
 
   card: { backgroundColor: C.surfaceContainerLow, borderRadius: Radius.card, padding: Spacing.lg, gap: Spacing.sm, ...Elevation.e1 },
   cardLabel: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.outline, letterSpacing: 0.6 },

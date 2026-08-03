@@ -20,6 +20,7 @@ export type ProFeatureId =
   | 'schedule_optimization'
   | 'long_horizon_planning'
   | 'pr_forecasting'
+  | 'full_history'
   | 'premium_personalization'
   | 'smart_notifications'
   | 'tempo_coach'
@@ -75,6 +76,17 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
     title: 'PR Forecast',
     benefit: 'A real projection from your own numbers — "at this rate, you’ll hit a 2-plate bench by October."',
     icon: 'trending-up',
+  },
+  // 2026-08-02, founder-requested: the read-BACKWARD counterpart to
+  // pr_forecasting's read-FORWARD gate. Free sees the last 4 months of
+  // training history (lib/historyHorizon.ts); Pro sees everything. Data is
+  // never deleted for a free user — this is a display clamp only, so buying
+  // Pro immediately reveals every session that was always there.
+  full_history: {
+    id: 'full_history',
+    title: 'Full History',
+    benefit: 'See every workout, lift, and muscle trend you’ve ever logged — no 4-month cutoff.',
+    icon: 'time',
   },
   // ⛔ NOT BUILT (verified 2026-07-22): there is no theme picker and no alternate app
   // icon anywhere in the app — this id has no call site. Registered for later. It must
@@ -183,6 +195,9 @@ export const PAYWALL_POINTS: PaywallPoint[] = [
   // (LAUNCH_SCORE_PLAN.md T2.1) — same rule as every bullet here, only advertise
   // what's actually live today.
   { icon: 'trending-up', title: 'PR Forecast', benefit: 'See exactly when you’ll hit your next lift milestone, projected from your own logged sets.' },
+  // 2026-08-02: added the moment the 4-month free horizon shipped (lib/historyHorizon.ts)
+  // across exercise-progress/muscle-history/workout-history — same rule, only what's live.
+  { icon: 'time', title: 'Full History', benefit: 'No 4-month cutoff — every workout, lift, and muscle trend you’ve ever logged, always.' },
   // 2026-07-22: "and premium themes" REMOVED from this bullet. `premium_personalization`
   // is a registered id with ZERO implementation — no theme picker, no alternate app
   // icons, nothing. Advertising it on the purchase screen is the exact App Store

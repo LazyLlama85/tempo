@@ -18,7 +18,20 @@ import { useAuthStore } from '@/stores/auth'
 import { FadeInView } from '@/components/motion'
 import { useWeightUnit, unitLabel, displayVolume } from '@/lib/units'
 import { workoutOrigin } from '@/lib/workoutOrigin'
+import { useProAccess } from '@/stores/entitlements'
+import { ProLockCard } from '@/components/ProGate'
+import { historyCutoffDate } from '@/lib/historyHorizon'
+import { toDateStr } from '@/lib/dates'
 import type { WorkoutSource } from '@/types'
+
+// Free tier's cap (lib/historyHorizon.ts) is comfortably under 90 sessions for
+// virtually anyone, so the existing row cap doubles as a harmless safety net
+// there. Pro's promise is "no cutoff" — raised well past what the free date
+// filter would ever reach, not literally unbounded (an unbounded query for a
+// years-deep power user would be a real perf/UX risk this screen doesn't need
+// to take on to deliver "full history" in practice).
+const FREE_ROW_LIMIT = 90
+const PRO_ROW_LIMIT = 500
 
 interface HistoryRow {
   id: string               // scheduled_workouts.id
@@ -42,22 +55,44 @@ export default function WorkoutHistoryScreen() {
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const unit = useWeightUnit()
+  const { locked } = useProAccess()
 
   const [rows, setRows] = useState<HistoryRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasHiddenHistory, setHasHiddenHistory] = useState(false)
 
   const load = useCallback(() => {
     if (!userId) return
     ;(async () => {
       try {
-        const { data: workouts } = await supabase
+        let q = supabase
           .from('scheduled_workouts')
           .select('id, focus, planned_date, actual_duration_min, planned_duration_min, source')
           .eq('user_id', userId)
           .eq('status', 'completed')
+        // Free tier's 4-month horizon (lib/historyHorizon.ts) — data is never
+        // deleted, this is a read-time filter only; Pro removes it entirely.
+        if (locked) q = q.gte('planned_date', toDateStr(historyCutoffDate()))
+        const { data: workouts } = await q
           .order('planned_date', { ascending: false })
-          .limit(90)
+          .limit(locked ? FREE_ROW_LIMIT : PRO_ROW_LIMIT)
         const ws = (workouts ?? []) as any[]
+
+        // Cheap existence check — only when locked, only a single row — so the
+        // upsell banner only shows when there's genuinely older history to sell.
+        if (locked) {
+          const { data: older } = await supabase
+            .from('scheduled_workouts')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('status', 'completed')
+            .lt('planned_date', toDateStr(historyCutoffDate()))
+            .limit(1)
+          setHasHiddenHistory(!!older?.length)
+        } else {
+          setHasHiddenHistory(false)
+        }
+
         if (!ws.length) { setRows([]); return }
 
         const { data: logs } = await supabase
@@ -104,7 +139,7 @@ export default function WorkoutHistoryScreen() {
         setLoading(false)
       }
     })()
-  }, [userId])
+  }, [userId, locked])
   useFocusEffect(load)
 
   return (
@@ -157,6 +192,9 @@ export default function WorkoutHistoryScreen() {
               </TouchableOpacity>
             </FadeInView>
           ))}
+          {/* Free tier's 4-month horizon (lib/historyHorizon.ts) — only shown
+              when there's genuinely older history being held back. */}
+          {hasHiddenHistory && <ProLockCard feature="full_history" />}
         </ScrollView>
       )}
     </SafeAreaView>

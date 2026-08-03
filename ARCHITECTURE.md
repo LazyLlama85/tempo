@@ -452,7 +452,26 @@ you moving."*
   — the same mapper `fineMuscleIntelligence()` already uses) before comparing. Also fixed the same
   session: the `set_logs` query capped at 4000 rows was ordered ascending *before* the cap, so a
   power user past the limit kept their oldest sets instead of their most recent — now orders
-  descending, caps, then reverses for the chronological bucketing logic. Opened
+  descending, caps, then reverses for the chronological bucketing logic.
+  **Free/Pro history horizon added 2026-08-02 (founder-requested):** free sees the last 4 months of
+  history, Pro sees all of it — a new `lib/historyHorizon.ts` (`FREE_HISTORY_MONTHS = 4`,
+  `historyCutoffDate`/`historyCutoffIso`) plus a new `full_history` gate in `proFeatures.ts`, extending
+  the existing "depth & horizon" model the same way `pr_forecasting` already does for one lift's
+  forward projection — this is the read-BACKWARD counterpart. Data is never deleted for a free user;
+  this is a read-time clamp only, so buying Pro immediately reveals everything that was always there.
+  Here specifically: the range chips gained a **4M** option as the real free ceiling, with 6M/1Y/All
+  now lock-icon chips that open the paywall instead of changing the range (a `locked`-aware
+  `effectiveRange` also clamps the underlying filter as a defense-in-depth backstop, independent of
+  the chip UI). The same gate is also applied in `exercise-progress.tsx` (the trend chart + PR-forecast
+  input, NOT the all-time "BEST EST. 1RM"/"HEAVIEST SET" tiles or the "last session" line — those are
+  current-state facts, not history browsing, so they stay unclamped by design) and `workout-history.tsx`
+  (a date filter + a raised row cap for Pro, since a flat 90-row cap for everyone would have quietly
+  undercut "unlimited" for an actually active power user). `progress.tsx`'s own dashboard charts were
+  deliberately NOT touched in this pass — they mix current-state stats with historical charts via the
+  shared `useProgressStats` hook in ways that need a careful, separate read before gating safely; a
+  named follow-up, not an oversight. Also caught and fixed the same session: the paywall's compare
+  table and `launch.html` both already claimed free users get "full history," predating this gate —
+  both corrected to the accurate 4-month/unlimited split. Opened
   from Body Intelligence's per-muscle and per-group detail cards ("See history"); `exercise-progress`
   itself gained a new entry point too — a "See training history" row in `ExerciseFormSheet` (the form
   guide sheet used by the Library, Plan runner, and session-detail), so a lift's history is reachable

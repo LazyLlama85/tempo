@@ -68,7 +68,12 @@ const C: Palette = Palettes.dark
 // calendar-fit one, where the honest Pro value is "Every week," not infinity.
 const COMPARE: { label: string; free: string | boolean; pro?: string }[] = [
   { label: 'Auto-scheduled workout plan', free: true },
-  { label: 'Unlimited logging & full history', free: true },
+  { label: 'Unlimited logging', free: true },
+  // 2026-08-02: split out of the old "Unlimited logging & full history" row —
+  // logging itself has no cap on either tier, but training history is now
+  // genuinely tiered (lib/historyHorizon.ts), so a single "free: true" row
+  // would have been an outright false claim the moment that gate shipped.
+  { label: 'Training history', free: '4 months', pro: 'Unlimited' },
   { label: 'Full 1,300+ exercise library', free: true },
   { label: 'Auto-fit around your calendar', free: 'This week', pro: 'Every week' },
   { label: 'Custom plans', free: '1' },

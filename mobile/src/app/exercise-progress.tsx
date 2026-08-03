@@ -19,8 +19,10 @@ import { useAuthStore } from '@/stores/auth'
 import { SvgLineChart } from '@/components/SvgLineChart'
 import { estimate1RM } from '@/lib/progression'
 import { useWeightUnit, unitLabel, displayWeight, formatWeight } from '@/lib/units'
-import { ProGate } from '@/components/ProGate'
+import { ProGate, ProLockCard } from '@/components/ProGate'
 import { computePRForecast } from '@/lib/prForecast'
+import { useProAccess } from '@/stores/entitlements'
+import { historyCutoffIso } from '@/lib/historyHorizon'
 
 interface SessionPoint {
   date: Date
@@ -39,6 +41,7 @@ export default function ExerciseProgressScreen() {
   const { session } = useAuthStore()
   const userId = session?.user.id ?? ''
   const unit = useWeightUnit()
+  const { locked } = useProAccess()
 
   const [loading, setLoading] = useState(true)
   const [exName, setExName] = useState(name ?? '')
@@ -88,17 +91,34 @@ export default function ExerciseProgressScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, exerciseId])
 
-  const shown = points.slice(-MAX_BARS)
+  // Free tier's 4-month history horizon (lib/historyHorizon.ts) applies to the
+  // TREND — the chart, the recent-change comparison, and the forecast — never
+  // to current-state facts. bestEver/bestWeightEver/latest below deliberately
+  // read from the FULL, unclamped `points`: your all-time best 1RM on a lift
+  // is who you are right now even if you hit it 8 months ago, and "last
+  // session" is the single most useful fact to keep visible regardless of how
+  // long ago it was, not something to hide behind a paywall.
+  const cutoff = useMemo(() => historyCutoffIso(), [])
+  const visiblePoints = useMemo(
+    () => (locked ? points.filter(p => p.date.toISOString() >= cutoff) : points),
+    [points, locked, cutoff],
+  )
+  const hasHiddenHistory = locked && points.length > visiblePoints.length
+
+  const shown = visiblePoints.slice(-MAX_BARS)
   const latest = points[points.length - 1]
   const bestEver = points.reduce((m, p) => Math.max(m, p.bestE1rm), 0)
   const bestWeightEver = points.reduce((m, p) => Math.max(m, p.bestWeight), 0)
 
   // Change vs ~30 days ago: compare the latest e1RM with the last session at
-  // least 30 days older (falls back to the first session).
+  // least 30 days older (falls back to the first session). Uses visiblePoints
+  // (not raw points) so a locked user's "vs a month ago" comparison never
+  // silently reaches past the free horizon for its baseline.
   const monthAgo = Date.now() - 30 * 86_400_000
-  const baseline = [...points].reverse().find(p => p.date.getTime() <= monthAgo) ?? points[0]
-  const delta30 = latest && baseline && latest !== baseline
-    ? Math.round(latest.bestE1rm - baseline.bestE1rm)
+  const latestVisible = visiblePoints[visiblePoints.length - 1]
+  const baseline = [...visiblePoints].reverse().find(p => p.date.getTime() <= monthAgo) ?? visiblePoints[0]
+  const delta30 = latestVisible && baseline && latestVisible !== baseline
+    ? Math.round(latestVisible.bestE1rm - baseline.bestE1rm)
     : null
 
   const fmtDay = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
@@ -110,8 +130,8 @@ export default function ExerciseProgressScreen() {
   // nothing. Returns null (renders nothing at all) when there isn't enough
   // signal for an honest projection — never a fabricated ETA.
   const forecast = useMemo(
-    () => computePRForecast(points.map((p) => ({ date: p.date, e1rm: p.bestE1rm }))),
-    [points],
+    () => computePRForecast(visiblePoints.map((p) => ({ date: p.date, e1rm: p.bestE1rm }))),
+    [visiblePoints],
   )
 
   return (
@@ -163,29 +183,38 @@ export default function ExerciseProgressScreen() {
                 </View>
               )}
 
-              {/* Per-session e1RM trend (last 12 sessions) */}
-              <View style={styles.chartCard}>
-                <View style={styles.chartHeaderRow}>
-                  <Text style={styles.chartLabel}>EST. 1RM PER SESSION · LAST {shown.length}</Text>
-                  <Text style={styles.barValue}>{displayWeight(shown[shown.length - 1].bestE1rm, unit)} {unitLabel(unit)}</Text>
+              {/* Per-session e1RM trend (last 12 sessions within the free horizon,
+                  if locked — see historyHorizon.ts). */}
+              {shown.length > 0 && (
+                <View style={styles.chartCard}>
+                  <View style={styles.chartHeaderRow}>
+                    <Text style={styles.chartLabel}>EST. 1RM PER SESSION · LAST {shown.length}</Text>
+                    <Text style={styles.barValue}>{displayWeight(shown[shown.length - 1].bestE1rm, unit)} {unitLabel(unit)}</Text>
+                  </View>
+                  {/* Shared line+area primitive (same as the Progress tab's weight
+                      trend) — reads better than bars for "is this going up" at a glance. */}
+                  <SvgLineChart
+                    points={shown.map((p) => ({ label: fmtDay(p.date), value: p.bestE1rm }))}
+                    height={128}
+                    color={C.primary}
+                  />
+                  <View style={styles.barsRow}>
+                    {shown.map((p, i) => (
+                      <View key={i} style={styles.barCol}>
+                        <Text style={[styles.barDate, i === shown.length - 1 && styles.barDateActive]} numberOfLines={1}>
+                          {shown.length <= 6 || i % 2 === (shown.length - 1) % 2 ? fmtDay(p.date) : ''}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                {/* Shared line+area primitive (same as the Progress tab's weight
-                    trend) — reads better than bars for "is this going up" at a glance. */}
-                <SvgLineChart
-                  points={shown.map((p) => ({ label: fmtDay(p.date), value: p.bestE1rm }))}
-                  height={128}
-                  color={C.primary}
-                />
-                <View style={styles.barsRow}>
-                  {shown.map((p, i) => (
-                    <View key={i} style={styles.barCol}>
-                      <Text style={[styles.barDate, i === shown.length - 1 && styles.barDateActive]} numberOfLines={1}>
-                        {shown.length <= 6 || i % 2 === (shown.length - 1) % 2 ? fmtDay(p.date) : ''}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
+              )}
+
+              {/* Free tier's 4-month horizon (lib/historyHorizon.ts) — only shown
+                  when there's actually older history being held back, so a
+                  free user with a short lifting history never sees a pointless
+                  upsell for data that doesn't exist yet. */}
+              {hasHiddenHistory && <ProLockCard feature="full_history" compact />}
 
               {/* Foresight (Pro) — the payable half of this screen. Only renders
                   at all when computePRForecast found an honest, real trend;
