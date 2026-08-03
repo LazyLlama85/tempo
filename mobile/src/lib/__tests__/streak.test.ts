@@ -1,6 +1,7 @@
 import { sessionStreak, longestSessionStreak, distinctDayStreak, type StreakRow } from '@/lib/streak'
 
-const row = (planned_date: string, status: string, source?: string): StreakRow => ({ planned_date, status, source })
+const row = (planned_date: string, status: string, source?: string, actual_duration_min?: number | null): StreakRow =>
+  ({ planned_date, status, source, actual_duration_min })
 
 describe('streak — consecutive completed sessions (not calendar days)', () => {
   it('rest days between sessions never break the streak', () => {
@@ -90,6 +91,32 @@ describe('streak — consecutive completed sessions (not calendar days)', () => 
 
   it('empty history is a zero streak', () => {
     expect(sessionStreak([], '2026-07-10')).toBe(0)
+  })
+
+  it('a completed session under 5 minutes does not advance the streak', () => {
+    const rows = [
+      row('2026-07-09', 'completed'),
+      row('2026-07-10', 'completed', undefined, 3), // backed out after 3 minutes
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(1) // only 07-09 counts
+  })
+
+  it('a too-short session is ignored, not treated as a break', () => {
+    const rows = [
+      row('2026-07-08', 'completed'),
+      row('2026-07-09', 'completed', undefined, 2), // too short — ignored, not a break
+      row('2026-07-10', 'completed'),
+    ]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(2) // 07-08 + 07-10, the short one just doesn't add
+  })
+
+  it('a completed session with no actual_duration_min recorded still counts (older rows / callers that omit it)', () => {
+    const rows = [row('2026-07-10', 'completed', undefined, null), row('2026-07-09', 'completed')]
+    expect(sessionStreak(rows, '2026-07-10')).toBe(2)
+  })
+
+  it('exactly 5 minutes meets the bar', () => {
+    expect(sessionStreak([row('2026-07-10', 'completed', undefined, 5)], '2026-07-10')).toBe(1)
   })
 
   it('distinctDayStreak counts each trained day once, even with two sessions that day', () => {

@@ -49,6 +49,7 @@ import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
 import { useFocusModeEnabled } from '@/lib/focusModePref'
 import { useSessionActiveStore } from '@/stores/sessionActive'
 import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
+import { MIN_STREAK_MINUTES } from '@/lib/streak'
 import { describeSaveError } from '@/lib/saveErrors'
 import { queuePendingSetLog, clearPendingSetLog } from '@/lib/pendingSetLogs'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
@@ -576,6 +577,10 @@ export default function WorkoutsScreen() {
   const [pauseSheet, setPauseSheet] = useState(false)
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [finishEarlyConfirm, setFinishEarlyConfirm] = useState<{ remaining: number; done: number; total: number } | null>(null)
+  // A session under MIN_STREAK_MINUTES doesn't advance the streak (lib/streak.ts)
+  // — surfaced here, before finishing, so the choice to keep going vs. bank a
+  // short session is the user's, made with full information.
+  const [tooShortConfirm, setTooShortConfirm] = useState(false)
   const [removeSetConfirm, setRemoveSetConfirm] = useState<{ exId: string; idx: number; wasDone: boolean } | null>(null)
   // A logged set can be re-opened for edit (wrong number typed in, fix it
   // after the fact) instead of the old delete-and-redo-only path. Only one
@@ -1410,10 +1415,12 @@ export default function WorkoutsScreen() {
 
   // Persist the current exercise ORDER to the scheduled row so a reorder survives
   // a pause/restart. Never touches the split template (that's a session-level tweak).
-  const persistOrder = (orderedIds: string[]) => {
+  // Returns the write's promise so a caller where losing the race actually matters
+  // (doSkipExercise below) can await it; a plain reorder still fires-and-forgets.
+  const persistOrder = async (orderedIds: string[]): Promise<void> => {
     if (!workout) return
     setWorkout({ ...workout, exercise_ids: orderedIds })
-    supabase.from('scheduled_workouts').update({ exercise_ids: orderedIds }).eq('id', workout.id).then(() => {}, () => {})
+    await supabase.from('scheduled_workouts').update({ exercise_ids: orderedIds }).eq('id', workout.id).then(() => {}, () => {})
   }
 
   const animateReorder = () => {
@@ -1462,7 +1469,14 @@ export default function WorkoutsScreen() {
     setExercises(remaining)
     setExpandedId(cur => (cur === ex.id ? (remaining[0]?.id ?? null) : cur))
     setSets(prev => { const { [ex.id]: _, ...rest } = prev; return rest })
-    persistOrder(remaining.map(e => e.id))
+    // Awaited — unlike a plain reorder, losing this race matters: pausing right
+    // after a skip re-runs loadWorkout on resume, which rebuilds `exercises`
+    // straight from this same exercise_ids column. If the write hadn't landed
+    // yet, resume silently re-materializes the "skipped" exercise with its full,
+    // never-completable set count — the estimated time remaining looks wrong and
+    // Complete Workout can never reach 100% again, since the user believes it's
+    // gone. Fixed 2026-08-02.
+    await persistOrder(remaining.map(e => e.id))
     if (workoutLogId) {
       await supabase.from('set_logs').delete().eq('workout_log_id', workoutLogId).eq('exercise_id', ex.id).then(() => {}, () => {})
     }
@@ -1635,6 +1649,26 @@ export default function WorkoutsScreen() {
       )
       return
     }
+    // Founder-requested 2026-08-02: a session under MIN_STREAK_MINUTES doesn't
+    // advance the streak (lib/streak.ts) — warn here, before finishing, rather
+    // than let the user discover it after the fact.
+    if (elapsed < MIN_STREAK_MINUTES * 60) {
+      setTooShortConfirm(true)
+      return
+    }
+    if (total > 0 && done < total) {
+      setFinishEarlyConfirm({ remaining: total - done, done, total })
+      return
+    }
+    finishWorkout().catch(() => setCompleting(false))
+  }
+
+  // "Finish anyway" from the too-short warning still needs the same
+  // not-all-sets-logged check handleCompleteWorkout would have done next.
+  const finishAfterTooShortConfirm = () => {
+    const all = Object.values(sets)
+    const total = all.reduce((n, arr) => n + arr.length, 0)
+    const done = all.reduce((n, arr) => n + arr.filter(s => s.done).length, 0)
     if (total > 0 && done < total) {
       setFinishEarlyConfirm({ remaining: total - done, done, total })
       return
@@ -2688,9 +2722,21 @@ export default function WorkoutsScreen() {
       {restSecondsLeft !== null && (
         <PopIn style={[styles.restPill, { bottom: insets.bottom + 84 }]}>
           <View style={styles.restPillRow}>
-            <Ionicons name="timer-outline" size={18} color="#fff" />
-            <Text style={styles.restPillText}>Rest · {formatElapsed(restSecondsLeft)}</Text>
-            <TouchableOpacity onPress={stopRest}>
+            {/* Tapping the timer itself reopens Focus Mode for the exercise
+                that's resting — explicit request, so it opens regardless of
+                the "Workout Focus Mode" device preference (that preference
+                only gates the AUTOMATIC open after logging a set). "Skip"
+                keeps its own separate tap target and behavior. */}
+            <TouchableOpacity
+              style={styles.restPillMain}
+              onPress={() => setFocusOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open Focus Mode"
+            >
+              <Ionicons name="timer-outline" size={18} color="#fff" />
+              <Text style={styles.restPillText}>Rest · {formatElapsed(restSecondsLeft)}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={stopRest} hitSlop={8}>
               <Text style={styles.restPillSkip}>Skip</Text>
             </TouchableOpacity>
           </View>
@@ -2852,11 +2898,20 @@ export default function WorkoutsScreen() {
       <OptionSheet
         visible={addChoiceEx !== null}
         title={addChoiceEx ? `Add ${addChoiceEx.name}` : ''}
-        subtitle="Just for today, or part of this workout from now on?"
-        options={[
-          { key: 'today', label: 'Add for this session only', sub: 'One-off — tomorrow the workout is unchanged', icon: 'today-outline' },
-          { key: 'permanent', label: 'Add to workout permanently', sub: 'Becomes part of this workout going forward', icon: 'bookmark-outline' },
-        ]}
+        // A Quick Workout is a one-off, ad-hoc session with no recurring template
+        // to persist into (source: 'quick', user_plan_id: null) — "permanently"
+        // has no meaning for something that only ever happens once, so offering
+        // it read as a confusing choice for a workout that isn't "saved" in that
+        // sense. Plan/split workouts DO recur, so they keep both choices.
+        subtitle={workout?.source === 'quick' ? 'Adding it to this one-off session.' : 'Just for today, or part of this workout from now on?'}
+        options={
+          workout?.source === 'quick'
+            ? [{ key: 'today', label: 'Add exercise', sub: 'Added to this session', icon: 'today-outline' }]
+            : [
+                { key: 'today', label: 'Add for this session only', sub: 'One-off — tomorrow the workout is unchanged', icon: 'today-outline' },
+                { key: 'permanent', label: 'Add to workout permanently', sub: 'Becomes part of this workout going forward', icon: 'bookmark-outline' },
+              ]
+        }
         onSelect={(key) => {
           const ex = addChoiceEx
           setAddChoiceEx(null)
@@ -2896,6 +2951,18 @@ export default function WorkoutsScreen() {
         options={[{ key: 'complete', label: 'Complete workout', icon: 'checkmark-circle-outline' }]}
         onSelect={() => { setFinishEarlyConfirm(null); finishWorkout().catch(() => setCompleting(false)) }}
         onClose={() => setFinishEarlyConfirm(null)}
+      />
+
+      <OptionSheet
+        visible={tooShortConfirm}
+        title="Finish already?"
+        subtitle={`This session is under ${MIN_STREAK_MINUTES} minutes — it'll still save what you logged, but it won't count toward your streak.`}
+        options={[
+          { key: 'keep_going', label: 'Keep going', icon: 'play-outline' },
+          { key: 'finish', label: 'Finish anyway', icon: 'checkmark-circle-outline' },
+        ]}
+        onSelect={(key) => { setTooShortConfirm(false); if (key === 'finish') finishAfterTooShortConfirm() }}
+        onClose={() => setTooShortConfirm(false)}
       />
 
       <OptionSheet
@@ -3293,6 +3360,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     elevation: 8,
   },
   restPillRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  restPillMain: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   restPillText: {
     fontFamily: C.fontNumeric,
     fontSize: 15,

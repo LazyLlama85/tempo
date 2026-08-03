@@ -48,7 +48,7 @@ export async function buildWrappedCards(client: SupabaseClient, userId: string):
 
     const [{ data: profile }, { data: workouts }, { data: logs }, { data: plan }] = await Promise.all([
       client.from('user_profiles').select('goal, days_per_week').eq('user_id', userId).maybeSingle(),
-      client.from('scheduled_workouts').select('planned_date, status').eq('user_id', userId),
+      client.from('scheduled_workouts').select('planned_date, status, actual_duration_min').eq('user_id', userId),
       client.from('workout_logs').select('id, started_at, completed_at').eq('user_id', userId),
       client.from('user_plans').select('start_date, end_date, current_week, status').eq('user_id', userId).eq('status', 'active').maybeSingle(),
     ])
@@ -70,7 +70,7 @@ export async function buildWrappedCards(client: SupabaseClient, userId: string):
     const cards: WrappedCard[] = []
 
     // ── Weekly recap ──────────────────────────────────────────────────────────
-    const wk = (workouts ?? []) as { planned_date: string; status: string }[]
+    const wk = (workouts ?? []) as { planned_date: string; status: string; actual_duration_min: number | null }[]
     const completedThisWeek = wk.filter(w => w.status === 'completed' && w.planned_date >= weekStartStr).length
     const decidedThisWeek = wk.filter(w => (w.status === 'completed' || w.status === 'missed') && w.planned_date >= weekStartStr).length
     const adherencePct = decidedThisWeek ? Math.round((completedThisWeek / decidedThisWeek) * 100) : (completedThisWeek ? 100 : 0)

@@ -6,7 +6,7 @@ import { toDateStr } from '@/lib/dates'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type WorkoutRow = { planned_date: string; status: string; source: string | null }
+type WorkoutRow = { planned_date: string; status: string; source: string | null; actual_duration_min: number | null }
 
 type EnrichedSetLog = {
   workout_log_id: string
@@ -47,7 +47,7 @@ export function useProgressStats(userId: string, period: ChartPeriod = 'M') {
     queryFn: async () => {
       const { data } = await supabase
         .from('scheduled_workouts')
-        .select('planned_date, status, source')
+        .select('planned_date, status, source, actual_duration_min')
         .eq('user_id', userId)
       return (data ?? []) as WorkoutRow[]
     },

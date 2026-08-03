@@ -257,7 +257,7 @@ export async function fetchCoachContext(
     ),
     safe<StreakRow[]>(
       client.from('scheduled_workouts')
-        .select('planned_date, status, source')
+        .select('planned_date, status, source, actual_duration_min')
         .eq('user_id', userId)
         .gte('planned_date', windowStart)
         .lte('planned_date', today) as never,

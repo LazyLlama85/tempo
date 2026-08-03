@@ -25,6 +25,25 @@ export interface StreakRow {
   status: string
   /** Where the workout came from. Opportunistic `quick` sessions never break the streak. */
   source?: string | null
+  /** Actual session length in minutes, when the caller selected it. A completed
+   *  session shorter than MIN_STREAK_MINUTES doesn't advance the streak — long
+   *  enough to open the app and tap Complete isn't training (2026-08-02,
+   *  founder-requested). It's IGNORED, not treated as a break, matching how an
+   *  opportunistic quick workout that didn't happen is also just ignored — a
+   *  short session still means the user showed up. Absent/null (a caller that
+   *  doesn't select it, or a historical row from before this existed) is
+   *  treated as meeting the bar, so nothing already counted retroactively
+   *  stops counting. */
+  actual_duration_min?: number | null
+}
+
+export const MIN_STREAK_MINUTES = 5
+
+// A completed session counts toward the streak only if it met the minimum
+// length — see actual_duration_min's own doc above for why and the fallback.
+function countsForStreak(r: StreakRow): boolean {
+  if (r.status !== 'completed') return false
+  return r.actual_duration_min == null || r.actual_duration_min >= MIN_STREAK_MINUTES
 }
 
 // A missed/skipped session breaks the streak only if it was a committed session
@@ -54,7 +73,7 @@ function summarizeDays(rows: StreakRow[], todayStr: string): Map<string, { compl
   }
   for (const r of rows) {
     if (r.planned_date > todayStr) continue
-    if (r.status === 'completed') bump(r.planned_date).completed++
+    if (countsForStreak(r)) bump(r.planned_date).completed++
     else if (isCommittedMiss(r)) bump(r.planned_date).broken = true
   }
   return byDay

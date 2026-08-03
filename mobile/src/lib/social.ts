@@ -260,7 +260,7 @@ export async function syncSocialOnOpen(client: SupabaseClient, userId: string, d
     const since = addDays(today, -120)
     const { data } = await client
       .from('scheduled_workouts')
-      .select('planned_date, status')
+      .select('planned_date, status, actual_duration_min')
       .eq('user_id', userId)
       .gte('planned_date', since)
     // A friend-feed milestone ("reached a 30-day streak") is an active claim
