@@ -47,3 +47,39 @@ describe('searchLibrary — colloquial muscle-name aliases', () => {
     expect(results.map(r => r.id)).not.toContain('1')
   })
 })
+
+describe('searchLibrary — per-exercise synonyms (old/common names people actually search)', () => {
+  const library: Exercise[] = [
+    ex({ id: 'negative-crunch', name: 'Negative Crunch', movement_pattern: 'core', primary_muscles: ['abs'] }),
+    ex({ id: 'decline-crunch', name: 'Decline Crunch', movement_pattern: 'core', primary_muscles: ['abs'] }),
+    ex({ id: 'decline-situp', name: 'Decline Sit-Up', movement_pattern: 'core', primary_muscles: ['abs'] }),
+    ex({ id: 'reverse-pec-deck', name: 'Reverse Pec Deck Fly', movement_pattern: 'pull', primary_muscles: ['shoulders'] }),
+    ex({ id: 'reverse-pec-deck-parallel', name: 'Reverse Pec Deck Fly (Parallel Grip)', movement_pattern: 'pull', primary_muscles: ['shoulders'] }),
+    ex({ id: 'pec-deck', name: 'Pec Deck Fly', movement_pattern: 'push', primary_muscles: ['chest'] }),
+  ]
+
+  it('"decline crunch" surfaces Negative Crunch alongside the real Decline Crunch — the synonym never hijacks the exact match', () => {
+    const results = searchLibrary(library, 'decline crunch').map(r => r.id)
+    expect(results).toContain('negative-crunch')
+    expect(results).toContain('decline-crunch')
+  })
+
+  it('"decline sit ups" (plural, two words) finds both Negative Crunch and Decline Sit-Up', () => {
+    const results = searchLibrary(library, 'decline sit ups').map(r => r.id)
+    expect(results).toContain('negative-crunch')
+    expect(results).toContain('decline-situp')
+  })
+
+  it('"rear delt fly" finds Reverse Pec Deck Fly (both variants), not the unrelated Pec Deck Fly', () => {
+    const results = searchLibrary(library, 'rear delt fly').map(r => r.id)
+    expect(results).toContain('reverse-pec-deck')
+    expect(results).toContain('reverse-pec-deck-parallel')
+    expect(results).not.toContain('pec-deck')
+  })
+
+  it('"reverse fly" (the other common name) also finds it', () => {
+    const results = searchLibrary(library, 'reverse fly').map(r => r.id)
+    expect(results).toContain('reverse-pec-deck')
+    expect(results).toContain('reverse-pec-deck-parallel')
+  })
+})

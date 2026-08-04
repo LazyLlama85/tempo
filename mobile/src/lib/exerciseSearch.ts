@@ -122,6 +122,11 @@ const ALIASES: Record<string, string> = {
   'situp': 'sit up',
   'situps': 'sit up',
   'stepup': 'step up',
+  // Plural "___ ups" as two separate words (push ups, pull ups, sit ups, chin
+  // ups, step ups) never matched the singular "up" token in an exercise's own
+  // name — only the squished one-word forms above (pushups, situps, ...) were
+  // covered. Token-level "ups"->"up" fixes the spaced form generally.
+  'ups': 'up',
   'tricep': 'triceps',
   'bicep': 'biceps',
   'pec dec': 'pec deck',
@@ -156,6 +161,23 @@ function expandAliases(normalized: string): string {
     .join(' ')
 }
 
+// Per-exercise synonyms: alternate/common names for a SPECIFIC exercise, as
+// opposed to ALIASES above (which rewrites a query token globally, for every
+// exercise — wrong here, since e.g. "decline crunch" also has to keep finding
+// the real "Decline Crunch" exercise, not just get redirected to this one).
+// Keyed by the exercise's exact current `name`. Old/common names stay
+// searchable even if the canonical name is ever changed to the more familiar
+// one people actually say out loud.
+const EXERCISE_SYNONYMS: Record<string, string> = {
+  // People call this "decline crunch" / "decline sit up(s)" far more often
+  // than "negative crunch" — it's the same lowered-torso motion.
+  'Negative Crunch': 'decline crunch decline sit up',
+  // "Pec deck" run in reverse, for rear delts — almost nobody says "pec deck,"
+  // they say "rear delt fly" (or "reverse fly").
+  'Reverse Pec Deck Fly': 'rear delt fly reverse fly',
+  'Reverse Pec Deck Fly (Parallel Grip)': 'rear delt fly reverse fly',
+}
+
 // ── Search index ──────────────────────────────────────────────────────────────
 
 interface IndexedExercise {
@@ -164,6 +186,7 @@ interface IndexedExercise {
   nameTokens: string[]
   muscles: string         // normalized primary + secondary muscles
   meta: string            // pattern + muscle group + equipment + level (+ CUSTOM)
+  synonyms: string        // normalized EXERCISE_SYNONYMS text, if any
 }
 
 const EQUIP_WORDS: Record<string, string> = {
@@ -185,7 +208,10 @@ function indexExercise(ex: Exercise): IndexedExercise {
     ex.experience_level,
     ex.is_custom ? 'custom my' : '',
   ].join(' ')
-  return { ex, nameNorm, nameTokens: nameNorm.split(' '), muscles, meta: normalize(meta) }
+  return {
+    ex, nameNorm, nameTokens: nameNorm.split(' '), muscles, meta: normalize(meta),
+    synonyms: EXERCISE_SYNONYMS[ex.name] ? normalize(EXERCISE_SYNONYMS[ex.name]) : '',
+  }
 }
 
 // Module-level index cache keyed by the exact array identity React Query hands
@@ -214,6 +240,16 @@ function scoreToken(item: IndexedExercise, token: string): number {
   }
   if (best) return best
   if (token.length >= 4 && item.nameNorm.includes(token)) return 220
+  // Synonym hits (EXERCISE_SYNONYMS) — a real alternate name for this specific
+  // exercise, not just a coincidental substring. Scored below an actual name
+  // match but above muscle/meta hits, so "rear delt fly" reliably surfaces
+  // Reverse Pec Deck Fly without letting synonym text override a genuine
+  // same-named exercise.
+  if (item.synonyms) {
+    for (const w of item.synonyms.split(' ')) {
+      if (w === token || (token.length >= 3 && w.startsWith(token))) return 300
+    }
+  }
   // Muscle hits.
   if (item.muscles.split(' ').some(w => w === token || w.startsWith(token))) return 120
   // Pattern / group / equipment / level hits.
