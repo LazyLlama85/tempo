@@ -5,7 +5,7 @@
 // progress — aggregate charts answer "how much", this answers "when and what".
 
 import { useCallback, useState } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { FlatList, View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { PulseLoader, ScreenHeader, DismissButton } from '@/components/brand'
 import { EmptyState } from '@/components/EmptyState'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -157,9 +157,17 @@ export default function WorkoutHistoryScreen() {
           <EmptyState kind="barbell" title="No history yet" body="Your training log builds itself from here — every completed session, newest first." />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          {rows.map((r, i) => (
-            <FadeInView key={r.id} delay={Math.min(i * 30, 240)}>
+        // FlatList (C7) — this list grows monotonically with usage (every
+        // completed session, up to the Pro row cap), unlike a bounded page of
+        // content; a ScrollView.map mounted every row up front regardless of
+        // what's on screen.
+        <FlatList
+          data={rows}
+          keyExtractor={(r) => r.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+          renderItem={({ item: r, index: i }) => (
+            <FadeInView delay={Math.min(i * 30, 240)}>
               <TouchableOpacity
                 style={styles.row}
                 onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: r.id } } as any)}
@@ -191,11 +199,11 @@ export default function WorkoutHistoryScreen() {
                 <Ionicons name="chevron-forward" size={16} color={C.outline} />
               </TouchableOpacity>
             </FadeInView>
-          ))}
-          {/* Free tier's 4-month horizon (lib/historyHorizon.ts) — only shown
-              when there's genuinely older history being held back. */}
-          {hasHiddenHistory && <ProLockCard feature="full_history" />}
-        </ScrollView>
+          )}
+          // Free tier's 4-month horizon (lib/historyHorizon.ts) — only shown
+          // when there's genuinely older history being held back.
+          ListFooterComponent={hasHiddenHistory ? <ProLockCard feature="full_history" /> : null}
+        />
       )}
     </SafeAreaView>
   )
