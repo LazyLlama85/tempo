@@ -2096,6 +2096,8 @@ export default function WorkoutsScreen() {
                   lifecycle.current.lastLoadAt = 0
                   router.push(`/edit-session?workoutId=${workout.id}`)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Edit workout"
               >
                 <Ionicons name="create-outline" size={14} color={C.primary} />
                 <Text style={styles.hubEditText}>Edit workout</Text>
@@ -2131,6 +2133,8 @@ export default function WorkoutsScreen() {
             <PressableScale
               style={styles.hubStartBtn}
               onPress={() => (workoutLogId ? setSessionActive(true) : beginSession(workout.id))}
+              accessibilityRole="button"
+              accessibilityLabel={workoutLogId ? 'Resume session' : 'Start session'}
             >
               <Ionicons name={workoutLogId ? 'play' : 'barbell'} size={18} color={C.onPrimary} />
               <Text style={styles.hubStartText}>{workoutLogId ? 'Resume session' : 'Start session'}</Text>
@@ -2182,6 +2186,8 @@ export default function WorkoutsScreen() {
                       style={styles.dayCardEditBtn}
                       scaleTo={0.96}
                       onPress={() => router.push(`/edit-session?workoutId=${w.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${w.focus}`}
                     >
                       <Ionicons name="create-outline" size={14} color={C.primary} />
                       <Text style={styles.dayCardEditText}>Edit</Text>
@@ -2281,13 +2287,13 @@ export default function WorkoutsScreen() {
               of the hub entirely; My Workouts already does that job). */}
           <Text style={styles.libraryLabel}>LIBRARY & TOOLS</Text>
           <View style={styles.libraryCard} ref={planLibraryTarget}>
-            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library')}>
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library')} accessibilityRole="button" accessibilityLabel="Exercise Library">
               <Ionicons name="book-outline" size={18} color={C.textSecondary} />
               <Text style={styles.libraryRowText}>Exercise Library</Text>
               <Ionicons name="chevron-forward" size={16} color={C.outline} />
             </TouchableOpacity>
             <View style={styles.libraryDivider} />
-            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/my-workouts')}>
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/my-workouts')} accessibilityRole="button" accessibilityLabel="Manage Workouts">
               <Ionicons name="barbell-outline" size={18} color={C.textSecondary} />
               <Text style={styles.libraryRowText}>Manage Workouts</Text>
               <Ionicons name="chevron-forward" size={16} color={C.outline} />
@@ -2723,7 +2729,7 @@ export default function WorkoutsScreen() {
 
         {/* Add an exercise mid-session — machine taken, extra energy, whatever.
             The "today only vs permanently" choice is explicit (see sheet below). */}
-        <PressableScale style={styles.addExerciseBtn} onPress={() => setAddExOpen(true)} scaleTo={0.97}>
+        <PressableScale style={styles.addExerciseBtn} onPress={() => setAddExOpen(true)} scaleTo={0.97} accessibilityRole="button" accessibilityLabel="Add Exercise">
           <Ionicons name="add" size={18} color={C.primary} />
           <Text style={styles.addExerciseText}>Add Exercise</Text>
         </PressableScale>
