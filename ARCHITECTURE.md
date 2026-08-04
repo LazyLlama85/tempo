@@ -1329,6 +1329,15 @@ you moving."*
   once (a refresh-token exchange can't retroactively broaden granted scopes); (2) until Google finishes
   verifying the scope, users may hit an "unverified app" consent screen. `describeReadError`'s
   scope-diagnostic path still handles the pre-reconnect insufficient-scope case gracefully.
+  **2026-08-04:** confirmed live in prod that caveat (1) bites literally every user — 0 of 3 connected
+  Google tokens carry the new scope, since nobody had reconnected since 2026-07-18. `calendar-picker.tsx`
+  no longer just displays that as a dead-end message: it now detects the scope-insufficient reason
+  specifically and renders a "Reconnect Google Calendar" button that calls
+  `CalendarAuthService.connectGoogleCalendar()` (the same one `calendar-setup.tsx` uses — forces
+  `prompt=consent` so Google re-grants the full current scope list) and retries `fetchCalendarList()`
+  automatically on success. Still needs one real on-device tap to prove the grant actually round-trips;
+  if that surfaces Google's "unverified app" screen, verification in Cloud Console is the remaining
+  founder-only blocker.
 - **workout-complete**: streak/consistency spike, difficulty check-in (feeds adaptation), Wrapped
   share cards.
 

@@ -1,14 +1,20 @@
 // Tempo — Choose Calendars (modal, B1.5 multi-calendar).
 //
 // Lets a user pick which Google calendars (beyond primary) Tempo also reads
-// busy-time from. Dormant until the calendar.calendarlist.readonly OAuth scope
-// is granted (services/googleCalendar/config.ts) — fetchCalendarList() will
-// honestly fail with an insufficient-scope error until then, and this screen
-// shows that as a plain "not available yet" state rather than faking success.
+// busy-time from. The calendar.calendarlist.readonly OAuth scope
+// (services/googleCalendar/config.ts) was added 2026-07-18, but a Google
+// refresh token's granted scopes are fixed at consent time — nothing server-side
+// can broaden an already-connected user's token. So fetchCalendarList() 403s
+// with an insufficient-scope error for EVERY user who connected Google before
+// that date, which in practice is everyone (verified against prod: 0 of 3
+// connected tokens carry the new scope as of 2026-08-04). Rather than dead-end
+// on that error, this screen offers a one-tap reconnect (connectGoogleCalendar()
+// forces prompt=consent, which re-grants the full current scope list) and
+// retries automatically on success.
 // Reached from Calendar Setup → Google card → "Choose calendars" (Pro-gated).
 
-import { useEffect, useState } from 'react'
-import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -22,12 +28,18 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { fetchCalendarList, getLastCalendarReadError, type GoogleCalendarListEntry } from '@/services/googleCalendar/CalendarApiService'
 import { GCAL_PRIMARY } from '@/services/googleCalendar/config'
+import { connectGoogleCalendar } from '@/services/googleCalendar/CalendarAuthService'
+import { friendlyConnectError } from '@/services/googleCalendar/connectErrors'
+
+function isScopeError(reason?: string): boolean {
+  return !!reason && /scope|insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)
+}
 
 function friendlyListError(reason?: string): string {
-  if (reason && /scope|insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) {
-    return `Multi-calendar isn’t turned on for your account yet — ${BRAND_NAME} currently only reads your primary Google Calendar. Check back in a future update.`
+  if (isScopeError(reason)) {
+    return `${BRAND_NAME} needs you to reconnect Google Calendar once to turn on multi-calendar — it only reads your primary calendar until then.`
   }
-  return 'Couldn’t load your calendars right now. Pull to retry, or check back later.'
+  return 'Couldn’t load your calendars right now.'
 }
 
 export default function CalendarPickerScreen() {
@@ -40,23 +52,51 @@ export default function CalendarPickerScreen() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsReconnect, setNeedsReconnect] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const [calendars, setCalendars] = useState<GoogleCalendarListEntry[]>([])
   const [selected, setSelected] = useState<Set<string>>(
     new Set(profile?.selected_google_calendar_ids ?? [])
   )
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    fetchCalendarList()
-      .then(list => { if (!cancelled) { setCalendars(list); setLoading(false) } })
-      .catch(() => {
-        if (cancelled) return
-        setError(friendlyListError(getLastCalendarReadError()?.reason))
-        setLoading(false)
+  // Guards every setState in load() below — shared by the mount-time fetch AND
+  // the reconnect retry, so neither can write state after the screen unmounts
+  // (e.g. the user backs out mid-OAuth-flow).
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
+
+  const load = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    return fetchCalendarList()
+      .then(list => {
+        if (!mountedRef.current) return
+        setCalendars(list); setError(null); setNeedsReconnect(false)
       })
-    return () => { cancelled = true }
+      .catch(() => {
+        if (!mountedRef.current) return
+        const reason = getLastCalendarReadError()?.reason
+        setError(friendlyListError(reason))
+        setNeedsReconnect(isScopeError(reason))
+      })
+      .finally(() => { if (mountedRef.current) setLoading(false) })
   }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleReconnect = async () => {
+    if (reconnecting) return
+    setReconnecting(true)
+    const r = await connectGoogleCalendar()
+    if (!mountedRef.current) return
+    if (r.ok) {
+      await load()
+    } else {
+      Alert.alert('Couldn’t reconnect', friendlyConnectError(r.error))
+    }
+    if (mountedRef.current) setReconnecting(false)
+  }
 
   const toggle = (id: string) => {
     if (id === GCAL_PRIMARY) return // primary is always included
@@ -111,7 +151,20 @@ export default function CalendarPickerScreen() {
         ) : error ? (
           <View style={styles.errorCard}>
             <Ionicons name="information-circle-outline" size={20} color={C.textSecondary} />
-            <Text style={styles.errorText}>{error}</Text>
+            <View style={{ flex: 1, gap: Spacing.sm }}>
+              <Text style={styles.errorText}>{error}</Text>
+              <PressableScale
+                style={styles.retryBtn}
+                onPress={needsReconnect ? handleReconnect : load}
+                disabled={reconnecting}
+              >
+                {reconnecting ? (
+                  <ActivityIndicator color={C.onPrimary} size="small" />
+                ) : (
+                  <Text style={styles.retryBtnText}>{needsReconnect ? 'Reconnect Google Calendar' : 'Try again'}</Text>
+                )}
+              </PressableScale>
+            </View>
           </View>
         ) : (
           <View style={styles.card}>
@@ -173,7 +226,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start',
     backgroundColor: C.surfaceContainerLow, borderRadius: Radius.lg, padding: Spacing.md,
   },
-  errorText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 19 },
+  errorText: { fontFamily: 'Inter_400Regular', fontSize: 13.5, color: C.textSecondary, lineHeight: 19 },
+  retryBtn: {
+    alignSelf: 'flex-start', backgroundColor: C.primary, borderRadius: Radius.full,
+    paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md,
+  },
+  retryBtnText: { fontFamily: 'Inter_700Bold', fontSize: 13.5, color: C.onPrimary },
   footer: { padding: Spacing.containerPadding, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.outlineVariant },
   saveBtn: { backgroundColor: C.primary, borderRadius: Radius.full, paddingVertical: Spacing.sm + 2, alignItems: 'center' },
   saveBtnText: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.onPrimary },

@@ -65,7 +65,8 @@ produce real PostHog data on-device yet).
 `LAUNCH_SCORE_PLAN.md` queue is empty except T1.2. Pricing is live and correct on both stores
 ($4.99/mo, $34.99/yr, `founding-price-2026` yearly intro at a flat $24.99 first year) as of
 2026-07-27 — B2.3 is closed. Google Calendar is approved for production (B0.2 closed) and multi-
-calendar (B1.5) is built end-to-end and dormant pending one founder reconnect. The next real
+calendar (B1.5) is code-complete, including a self-serve reconnect button added 2026-08-04, and
+dormant pending one founder reconnect on a real device. The next real
 Claude-buildable work, in order of value, is: (1) whatever the on-device pass surfaces as broken,
 (2) the **Open backlog** below (`MASTER_FIX_PLAN.md`'s remaining C5–C10 craft batches, W2–W6 wedge
 amplifiers once M4 unblocks them, and the four still-open 2026-07-19-addendum runner items).
@@ -97,7 +98,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 | — | IA cleanup: Train → Plan (segmented hub → calendar + split + library) | 🔍 | UX, Focus | `(tabs)/plan.tsx` | Built same batch as B1.2; Plan-specific flows not separately device-confirmed |
 | B1.3 | "Reschedule my whole week" — engine + UI | ✅ | Subscription Value, Retention | `lib/weekReschedule.ts`, `reschedule.ts`, `(tabs)/index.tsx`/`plan.tsx` | Confirmed via web test; Pro-gated (B2.1). Coach's C4 action layer (`rescheduleWholeWeek`) now also calls this same engine |
 | B1.4 | "Lacking time? 15-min swap" on Home | ✅ *(pre-existing)* | Retention (busy persona) | `lib/quickSuggestion.ts` → Quick Workout | Already covered free-gap/missed/restart triggers |
-| B1.5 | Multi-calendar: read/select beyond `primary` | 🔍 **code + OAuth scope live, needs device test** | Differentiation, Trust; Pro gate | `calendar-picker.tsx`, `services/googleCalendar/config.ts` | Full stack built 2026-07-17; OAuth scope (`calendar.calendarlist.readonly`) enabled 2026-07-18 (OTA, no rebuild). **Founder's turn:** reconnect Google once (existing tokens can't self-broaden scope), then test the picker end-to-end; if Google shows an "unverified app" screen, finish scope verification in the console |
+| B1.5 | Multi-calendar: read/select beyond `primary` | 🔍 **code complete, needs one real device test** | Differentiation, Trust; Pro gate | `calendar-picker.tsx`, `services/googleCalendar/config.ts` | Full stack built 2026-07-17; OAuth scope (`calendar.calendarlist.readonly`) enabled 2026-07-18 (OTA, no rebuild). Verified live 2026-08-04: 0 of 3 connected tokens in prod carried the new scope (a token's granted scopes are fixed at consent time — nothing server-side can add one retroactively), so `fetchCalendarList()` 403'd for every real user. **Fixed same day:** the picker now detects that exact scope-insufficient error and offers a one-tap "Reconnect Google Calendar" button (calls `connectGoogleCalendar()`, which forces `prompt=consent` to re-grant the current scope list) instead of dead-ending on static copy. **Founder's turn, unchanged:** tap it once on a real device to prove the grant actually works; if Google shows an "unverified app" interstitial instead of a normal consent screen, that means scope verification in Cloud Console isn't actually finished and needs completing there |
 
 ### M2 — It Sells Itself
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
@@ -218,9 +219,11 @@ them).
    `npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`. Without both, Coach is 503 in production.
 3. **B0.3 — activation definition sign-off.** Read `ACTIVATION_DEFINITION.md`, decide the one open
    question (should activation gain a time window), sign off.
-4. **B1.5 — reconnect Google Calendar once** (existing OAuth tokens can't self-broaden scope) and
-   test the multi-calendar picker end-to-end; resolve an "unverified app" screen in Google Cloud
-   Console if it appears.
+4. **B1.5 — reconnect Google Calendar once, on a real device.** The app-side gap (no self-serve
+   reconnect path) is fixed 2026-08-04 — Calendar Setup → Choose Calendars now offers a "Reconnect
+   Google Calendar" button right on the scope error instead of a dead end. What's left is genuinely
+   founder-only: tap it, and if Google shows an "unverified app" screen instead of the normal
+   consent flow, finish scope verification in Google Cloud Console.
 5. **RevenueCat entitlement ID verification (F9a).** Confirm the RevenueCat dashboard's entitlement
    identifier exactly matches `eas.json`'s `EXPO_PUBLIC_PRO_ENTITLEMENT="Tempo: Fitness Planner Pro"`
    — a mismatch means every paying user silently resolves to not-Pro. A loud Sentry breadcrumb now
@@ -257,6 +260,19 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-04 — Rebrand (Tempo → Fitaround) + B1.5 multi-calendar reconnect fix.** Renamed the
+  product after finding a real trademark collision (SoftBank-backed tempo.fit holds registered marks
+  covering fitness scheduling software) — new `mobile/src/constants/brand.ts` is now the single
+  source of truth for the display name across ~60 app files and the marketing site; bundle id/EAS
+  slug/deep-link scheme deliberately left unchanged (founder's call, see `ARCHITECTURE.md`'s rebrand
+  note). Separately, investigated why B1.5 (multi-calendar) still didn't work despite being
+  "code-complete since 2026-07-17": confirmed live in prod that 0 of 3 connected Google tokens carry
+  the `calendar.calendarlist.readonly` scope added 2026-07-18 — a token's granted scopes are fixed at
+  consent time, so every already-connected user's `fetchCalendarList()` call 403s until they
+  reconnect, and the picker had no way to prompt that. Fixed: `calendar-picker.tsx` now detects the
+  scope-insufficient error specifically and offers a one-tap "Reconnect Google Calendar" button that
+  calls the existing `connectGoogleCalendar()` (forces `prompt=consent`) and retries automatically on
+  success. `tsc` + full jest suite (385 tests) clean after both changes.
 - **2026-08-02 (session 2) — Quick Workout curation + runner bug pass, founder-reported.** Separate
   from the Mac-audit fix pass earlier the same day (below). **Quick Workout engine (`quickWorkout.ts`,
   `quick-workout.tsx`):** Target Area chips are now genuinely multi-select (was single-select only,
