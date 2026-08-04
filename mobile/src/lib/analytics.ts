@@ -50,6 +50,12 @@ function webCustomStorage(): MinimalStorage | undefined {
  */
 export type EventProperties = {
   app_open: undefined
+  // Fired on every route change (see _layout.tsx's usePathname effect) — the
+  // one centralized screen-tracking hook PostHog's own Expo Router guidance
+  // recommends, rather than a manual track() call sprinkled per screen (which
+  // is how Home and Progress ended up with zero visibility into the funnel —
+  // every OTHER screen's events happen to be action events, not views. C9).
+  screen_view: { screen: string }
   user_signup: { method: AuthMethod }
   login: { method: AuthMethod }
   onboarding_complete: {

@@ -160,6 +160,21 @@ export async function fetchIsPro(): Promise<boolean> {
   }
 }
 
+/**
+ * Current Pro + trial status together — lets a caller (the app-open effect,
+ * see _layout.tsx's trial_started/trial_converted split) seed its "was this a
+ * trial" baseline without a second round trip. Fails closed, same as fetchIsPro.
+ */
+export async function fetchProAndTrialState(): Promise<{ isPro: boolean; isTrial: boolean }> {
+  if (!configured || !Purchases) return { isPro: false, isTrial: false }
+  try {
+    const info = await Purchases.getCustomerInfo()
+    return { isPro: infoIsPro(info), isTrial: infoHasActiveTrial(info) }
+  } catch {
+    return { isPro: false, isTrial: false }
+  }
+}
+
 /** Subscribe to live entitlement changes (purchases, renewals, expirations). */
 export function addProUpdateListener(cb: (isPro: boolean, info: CustomerInfo) => void): () => void {
   if (!configured || !Purchases) return () => {}

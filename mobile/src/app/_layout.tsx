@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { AppState, Text, TextInput } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { Stack, router } from 'expo-router'
+import { Stack, router, usePathname } from 'expo-router'
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router'
 import * as Notifications from 'expo-notifications'
 import { StatusBar } from 'expo-status-bar'
@@ -19,7 +19,7 @@ import { TempoErrorBoundary } from '@/components/TempoErrorBoundary'
 import { supabase } from '@/lib/supabase'
 import {
   configurePurchases, identifyPurchases, resetPurchasesUser,
-  fetchIsPro, addProUpdateListener, infoHasActiveTrial,
+  fetchProAndTrialState, addProUpdateListener, infoHasActiveTrial,
 } from '@/lib/purchases'
 import { fetchProState } from '@/lib/proConfig'
 import { useEntitlementStore, loadStoredDevProOverride } from '@/stores/entitlements'
@@ -129,9 +129,9 @@ function RootLayoutInner() {
       if (sessionUserId) await identifyPurchases(sessionUserId)
       else await resetPurchasesUser()
 
-      const [proState, isPro] = await Promise.all([
+      const [proState, { isPro, isTrial: initialIsTrial }] = await Promise.all([
         fetchProState(supabase, sessionUserId ?? ''),
-        fetchIsPro(),
+        fetchProAndTrialState(),
       ])
       if (cancelled) return
       store.setProEnabled(proState.proEnabled)
@@ -141,11 +141,22 @@ function RootLayoutInner() {
       store.setReady(true)
 
       // Purchases / renewals / expirations arrive here while the app is open.
+      // wasTrial tracks the entitlement's OWN period type across updates (distinct
+      // from wasPro/nowPro) so a real trial->paid conversion — which stays Pro=true
+      // the whole time, so it never crosses the nowPro && !wasPro edge below — is
+      // still caught. Before this, `nowPro && !wasPro` alone couldn't tell a fresh
+      // trial start apart from a direct, no-trial purchase (the custom paywall's own
+      // purchase_completed already covers that path) and fired 'trial_converted' for
+      // BOTH, while the actual trial-ending-in-a-charge moment fired nothing at all.
+      let wasTrial = initialIsTrial
       unsubscribe = addProUpdateListener((nowPro, info) => {
         const wasPro = useEntitlementStore.getState().isPro
+        const nowTrial = infoHasActiveTrial(info)
         useEntitlementStore.getState().setIsPro(nowPro)
-        if (nowPro && !wasPro) track(infoHasActiveTrial(info) ? 'trial_started' : 'trial_converted')
+        if (nowPro && !wasPro && nowTrial) track('trial_started')
+        else if (nowPro && wasPro && wasTrial && !nowTrial) track('trial_converted')
         else if (!nowPro && wasPro) track('subscription_cancelled')
+        wasTrial = nowTrial
       })
     })().catch(() => {})
     return () => { cancelled = true; unsubscribe() }
@@ -219,6 +230,14 @@ function RootLayoutInner() {
     loadStoredDevProOverride()
     return () => clearTimeout(t)
   }, [])
+
+  // Basic screen-view tracking (C9) — the one centralized hook, not a manual
+  // track() call per screen (which is how Home/Progress ended up with zero
+  // view-level events at all: every one of their existing track() calls is an
+  // action, not a view). Fires on every route change; the initial mount's
+  // pathname is covered too since the effect runs immediately on first render.
+  const pathname = usePathname()
+  useEffect(() => { track('screen_view', { screen: pathname }) }, [pathname])
 
   // React Native has no "window focus" — tell React Query when the app comes
   // back to the foreground so stale queries refetch on return.

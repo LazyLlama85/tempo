@@ -1035,6 +1035,10 @@ export default function WorkoutsScreen() {
     setSaveWarned.current = false
     setWorkoutLogId(logRow.id)
     setSessionActive(true)
+    // session_start previously only fired from quick-workout.tsx — a planned
+    // session (the far more common path) never tracked its own start at all,
+    // so the funnel undercounted every non-Quick-Workout session (C9).
+    track('session_start', { type: 'planned', duration_min: workout?.planned_duration_min ?? undefined })
     } finally {
       beginningSessionRef.current = false
     }
