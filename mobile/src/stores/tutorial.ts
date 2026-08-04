@@ -6,7 +6,7 @@
 
 import { create } from 'zustand'
 import {
-  T, TOUR_STEPS, readTutorialData, writeTutorialData, emptyTutorialData,
+  T, TOUR_STEPS, readTutorialData, writeTutorialData, emptyTutorialData, resumeStepIndex,
   type TutorialData, type TutorialId,
 } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
@@ -123,10 +123,9 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     setTargetRect: (id, rect) => set(s => ({ targets: { ...s.targets, [id]: rect } })),
 
     startTour: (id) => {
-      set({ activeTour: id, stepIndex: 0 })
       const { data } = get()
+      set({ activeTour: id, stepIndex: resumeStepIndex(TOUR_STEPS[id], data.completedSteps) })
       track('tutorial_started', { tutorial: id })
-      void data
     },
     nextStep: () => {
       const { activeTour, stepIndex } = get()

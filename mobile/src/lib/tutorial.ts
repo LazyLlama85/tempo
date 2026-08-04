@@ -101,6 +101,20 @@ export const TOUR_STEPS: Record<TutorialId, TutorialStep[]> = {
   [T.conceptsTour]: CONCEPTS_TOUR_STEPS,
 }
 
+// Where a (re)start of `steps` should resume, given which step ids are already
+// completed. Every auto-start call site (Home/Plan `useFocusEffect`s) only gates
+// on "is the LAST step done" — a tour interrupted after step 1 of 4
+// (backgrounded, a tab switch, a force-quit mid-tour) still reads as
+// armed+incomplete on the next visit. Resuming past whatever's already
+// individually marked done (via completeStep in nextStep) is what stops the
+// whole tour replaying from its first card every time — the root cause of "the
+// tutorial reappears randomly" (T3.4). Returns 0 if nothing's done yet (or the
+// tour has no steps), same as before this existed.
+export function resumeStepIndex(steps: TutorialStep[], completedSteps: Record<string, true>): number {
+  const i = steps.findIndex(s => !completedSteps[s.id])
+  return i === -1 ? 0 : i
+}
+
 // ── Persisted state ────────────────────────────────────────────────────────────
 
 export interface TutorialData {
