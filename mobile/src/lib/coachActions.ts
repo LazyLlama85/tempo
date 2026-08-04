@@ -257,6 +257,7 @@ export async function executeCoachAction(
           label: toDate,
           fromCalendar: false,
           reason: 'Moved from Coach',
+          tightRecovery: false,
         })
 
         // Best-effort, exactly as the Home-tab move does — a calendar hiccup

@@ -6,7 +6,7 @@
 // corrupted 48h recovery scoring and day-suggestion logic — a "pull day
 // yesterday" false-positive could block a push day it shouldn't have.
 
-import { musclesToRegions } from '@/lib/trainingLoad'
+import { musclesToRegions, scoreDay, type DayLoad } from '@/lib/trainingLoad'
 
 describe('musclesToRegions — exact match, not substring (F6b)', () => {
   it('lateral_deltoids is push only, never pull', () => {
@@ -43,5 +43,30 @@ describe('musclesToRegions — exact match, not substring (F6b)', () => {
 
   it('an unknown muscle name falls back to "other" rather than throwing', () => {
     expect(musclesToRegions(['some_future_muscle'])).toEqual(new Set(['other']))
+  })
+})
+
+describe('scoreDay — honest recovery framing, not a false "more recovery" claim (reschedule-suggestion fix)', () => {
+  const pull = new Set<'pull'>(['pull']) as any
+
+  it('a day only 1 day from another pull session is flagged tightRecovery, with honest copy', () => {
+    const loads: DayLoad[] = [{ date: '2026-08-10', regions: pull }]
+    // Candidate is 2026-08-11 -- 1 day after the existing pull session.
+    const { reason, tightRecovery } = scoreDay(new Date('2026-08-11T00:00:00'), pull, loads)
+    expect(tightRecovery).toBe(true)
+    expect(reason.toLowerCase()).not.toContain('more recovery')
+  })
+
+  it('a day 2 days from another pull session is NOT tightRecovery, and gets the "more recovery" framing', () => {
+    const loads: DayLoad[] = [{ date: '2026-08-10', regions: pull }]
+    // Candidate is 2026-08-12 -- 2 days after.
+    const { reason, tightRecovery } = scoreDay(new Date('2026-08-12T00:00:00'), pull, loads)
+    expect(tightRecovery).toBe(false)
+    expect(reason.toLowerCase()).toContain('more recovery')
+  })
+
+  it('a day with no nearby same-region session is not tightRecovery', () => {
+    const { tightRecovery } = scoreDay(new Date('2026-08-20T00:00:00'), pull, [])
+    expect(tightRecovery).toBe(false)
   })
 })

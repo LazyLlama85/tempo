@@ -381,6 +381,27 @@ export default function ScheduleScreen() {
     enabled: !!userId,
   })
 
+  // A structured schedule (a Tempo plan or the user's own split) already has a
+  // recurring pattern to protect — blindly pushing "reschedule this" can land
+  // the missed session right next to another one hitting the same muscles
+  // (e.g. a missed Pull day in a Push/Pull/Legs/Push/Pull/Legs/Rest week has
+  // few genuinely open, well-spaced days). suggestNextSlot is already
+  // recovery-aware and reports when even its BEST pick is a tight fit
+  // (tightRecovery) — preview it so the banner can be honest about it instead
+  // of always saying "no worries." One-off sources (quick/custom) have no
+  // recurring pattern to protect, so this only runs for plan/split.
+  const missedIsStructured = missed.length > 0 && (missed[0].source === 'plan' || missed[0].source === 'split')
+  const { data: reschedulePreview } = useQuery({
+    queryKey: ['reschedule_preview', userId, missed[0]?.id],
+    queryFn: () => suggestNextSlot(supabase, userId, missed[0].planned_duration_min, missed[0].id),
+    enabled: !!userId && missedIsStructured,
+    staleTime: 5 * 60 * 1000,
+  })
+  // No decent day exists yet (or none at all) — true while missedIsStructured
+  // and the preview hasn't resolved yet too, so the banner defaults to the
+  // honest/soft copy rather than flashing the confident one first.
+  const missedRescheduleTight = missedIsStructured && (!reschedulePreview || reschedulePreview.tightRecovery)
+
   const { data: checkin } = useQuery({
     queryKey: ['recovery_today', userId],
     queryFn: () => getTodayCheckin(userId),
@@ -1458,7 +1479,11 @@ export default function ScheduleScreen() {
             <Text style={styles.missedTitle}>
               Missed {missed[0].focus}{missed.length > 1 ? ` +${missed.length - 1} more` : ''}
             </Text>
-            <Text style={styles.missedSub}>No worries — let's find a new slot.</Text>
+            <Text style={styles.missedSub}>
+              {missedRescheduleTight
+                ? `Your next ${missed[0].focus} day is coming up soon — no need to squeeze this in.`
+                : "No worries — let's find a new slot."}
+            </Text>
           </View>
           <PressableScale
             style={[styles.missedBtn, rescheduling && { opacity: 0.6 }]}
@@ -1466,7 +1491,7 @@ export default function ScheduleScreen() {
             disabled={rescheduling}
             scaleTo={0.92}
           >
-            <Text style={styles.missedBtnText}>Reschedule</Text>
+            <Text style={styles.missedBtnText}>{missedRescheduleTight ? 'Reschedule anyway' : 'Reschedule'}</Text>
           </PressableScale>
         </View>
       ) : null,

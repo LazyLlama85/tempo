@@ -26,6 +26,11 @@ export interface SlotSuggestion {
   label: string        // "Tomorrow at 7:00 AM"
   fromCalendar: boolean
   reason?: string      // why this day — recovery/balance ("More recovery for legs")
+  // Even the best available day still stacks the same muscle region only 1 day
+  // out — every open day in the horizon had a conflict, this is the least-bad
+  // pick, not a genuinely good one. Callers (the Home missed-workout banner)
+  // use this to decide whether to actively push a reschedule.
+  tightRecovery: boolean
 }
 
 // Movement pattern → coarse recovery region (complements the muscle-name mapping).
@@ -176,14 +181,14 @@ export async function suggestNextSlot(
 
   // Rank candidate days by recovery score (then soonest), instead of just taking the
   // first open day. This is the heart of "smart" rescheduling.
-  const candidates: { day: Date; score: number; reason: string }[] = []
+  const candidates: { day: Date; score: number; reason: string; tightRecovery: boolean }[] = []
   for (let off = 1; off <= horizon; off++) {
     const day = new Date(today); day.setDate(today.getDate() + off)
     const ds = toDateStr(day)
     if (takenDays.has(ds)) continue
     if (allowDays.size && !allowDays.has(isoWeekday(day))) continue
-    const { score, reason } = scoreDay(day, movingRegions, loads)
-    candidates.push({ day, score, reason })
+    const { score, reason, tightRecovery } = scoreDay(day, movingRegions, loads)
+    candidates.push({ day, score, reason, tightRecovery })
   }
   candidates.sort((a, b) => a.score - b.score || a.day.getTime() - b.day.getTime())
 
@@ -202,7 +207,7 @@ export async function suggestNextSlot(
     if (!slot) continue
     const start = new Date(slot.startTime)
     const day = new Date(start); day.setHours(0, 0, 0, 0)
-    return { date: toDateStr(start), start_time: fmtTime(start), label: labelFor(day, start), fromCalendar, reason: c.reason }
+    return { date: toDateStr(start), start_time: fmtTime(start), label: labelFor(day, start), fromCalendar, reason: c.reason, tightRecovery: c.tightRecovery }
   }
   return null
 }

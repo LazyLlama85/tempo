@@ -54,6 +54,7 @@ export interface DayLoad {
 export interface DayScore {
   score: number                // lower is better
   reason: string               // human explanation for the chosen day
+  tightRecovery: boolean       // true when even the best pick still stacks the same region only 1 day out
 }
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
@@ -99,8 +100,16 @@ export function scoreDay(candidate: Date, workoutRegions: Set<Region>, loads: Da
   const offset = Math.max(0, dayDiff(cd, dateStr(startOfDay(new Date()))))
   score += offset
 
+  // A dist===1 conflict is the WORST case this function can land on (only one
+  // day of recovery from the same region) — it only ever gets returned as the
+  // winning candidate when every open day in the horizon has some conflict, so
+  // this is the least-bad pick, not a good one. The old copy here claimed the
+  // opposite ("gives more recovery"), which is backwards — that framing
+  // actually fits the dist===2 case (a real, if modest, buffer).
   let reason: string
   if (recoveryConflict && recoveryConflict.dist === 1) {
+    reason = `Earliest open day — still close to your last ${REGION_LABEL[recoveryConflict.region]} session`
+  } else if (recoveryConflict && recoveryConflict.dist === 2) {
     reason = `Gives your ${REGION_LABEL[recoveryConflict.region]} muscles more recovery`
   } else if (adjacentTrainingDays >= 2) {
     reason = 'Breaks up a long training stretch'
@@ -111,7 +120,7 @@ export function scoreDay(candidate: Date, workoutRegions: Set<Region>, loads: Da
     reason = 'Keeps your week balanced'
   }
 
-  return { score, reason }
+  return { score, reason, tightRecovery: recoveryConflict?.dist === 1 }
 }
 
 // Number of training days in an unbroken run ending yesterday — the signal for
