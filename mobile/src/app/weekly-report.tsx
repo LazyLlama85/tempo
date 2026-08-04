@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Redirect } from 'expo-router'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
@@ -113,8 +114,8 @@ export default function WeeklyReportScreen() {
               <Text style={styles.cardValue}>{impact.thisWeek} this week</Text>
               <Text style={styles.cardSub}>
                 {impact.scheduledByTempo > impact.thisWeek
-                  ? `Tempo has fit ${impact.scheduledByTempo} workouts into your week so far — the what and the when, handled, so you just show up.`
-                  : 'Tempo picked the exercises and slotted the time around your real schedule — you just showed up.'}
+                  ? `${BRAND_NAME} has fit ${impact.scheduledByTempo} workouts into your week so far — the what and the when, handled, so you just show up.`
+                  : `${BRAND_NAME} picked the exercises and slotted the time around your real schedule — you just showed up.`}
               </Text>
             </View>
           )}

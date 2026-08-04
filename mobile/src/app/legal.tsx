@@ -13,11 +13,12 @@ import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME, BRAND_SUPPORT_EMAIL } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
 
 const UPDATED = 'June 2026'
-const SUPPORT_EMAIL = 'fittempo.app@gmail.com'
+const SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const styles = useThemedStyles(makeStyles)
@@ -74,11 +75,11 @@ export default function LegalScreen() {
         <Text style={styles.updated}>Last updated {UPDATED}</Text>
 
         <Section title="What we collect">
-          <P>Tempo stores only what it needs to plan and track your training:</P>
+          <P>{BRAND_NAME} stores only what it needs to plan and track your training:</P>
           <Bullet>Account: your email and sign-in identity (via Apple, Google, or guest).</Bullet>
           <Bullet>Profile: goal, experience, equipment, availability, and the preferences you set.</Bullet>
           <Bullet>Training data: your plans, scheduled workouts, logged sets, reps, weights, RPE, and recovery check-ins.</Bullet>
-          <Bullet>Calendar: if you grant access, Tempo reads your busy times to schedule workouts around them. Event details are used on your device to find free time and are not sold or shared.</Bullet>
+          <Bullet>Calendar: if you grant access, {BRAND_NAME} reads your busy times to schedule workouts around them. Event details are used on your device to find free time and are not sold or shared.</Bullet>
         </Section>
 
         <Section title="How we use it">
@@ -86,7 +87,7 @@ export default function LegalScreen() {
         </Section>
 
         <Section title="Calendar access">
-          <P>Calendar permission is optional and used solely to find open time for workouts. You can revoke it anytime in your device settings, and Tempo keeps working without it. If you connect Google Calendar, your access is stored securely server-side and removed when you disconnect or delete your account.</P>
+          <P>Calendar permission is optional and used solely to find open time for workouts. You can revoke it anytime in your device settings, and {BRAND_NAME} keeps working without it. If you connect Google Calendar, your access is stored securely server-side and removed when you disconnect or delete your account.</P>
         </Section>
 
         <Section title="Storage & security">
@@ -109,11 +110,11 @@ export default function LegalScreen() {
         </View>
 
         <Section title="Acceptance">
-          <P>By using Tempo you agree to these terms. If you don’t agree, please don’t use the app.</P>
+          <P>By using {BRAND_NAME} you agree to these terms. If you don’t agree, please don’t use the app.</P>
         </Section>
 
         <Section title="Not medical advice">
-          <P>Tempo provides general fitness guidance for informational purposes only. It is not medical advice. Exercise carries inherent risks — consult a qualified professional before starting any program, and stop if you feel pain or discomfort. You train at your own risk.</P>
+          <P>{BRAND_NAME} provides general fitness guidance for informational purposes only. It is not medical advice. Exercise carries inherent risks — consult a qualified professional before starting any program, and stop if you feel pain or discomfort. You train at your own risk.</P>
         </Section>
 
         <Section title="Your responsibilities">
@@ -123,7 +124,7 @@ export default function LegalScreen() {
         </Section>
 
         <Section title="Availability & changes">
-          <P>We work to keep Tempo reliable but provide it “as is,” without warranties, and may update or change features over time. We may update these terms; continued use means you accept the changes.</P>
+          <P>We work to keep {BRAND_NAME} reliable but provide it “as is,” without warranties, and may update or change features over time. We may update these terms; continued use means you accept the changes.</P>
         </Section>
 
         <Section title="Contact">

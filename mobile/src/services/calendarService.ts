@@ -1,5 +1,13 @@
 import * as Calendar from 'expo-calendar/legacy'
 import { Platform } from 'react-native'
+import { CALENDAR_EVENT_PREFIX, LEGACY_CALENDAR_EVENT_PREFIXES } from '@/constants/brand'
+
+// Matches CALENDAR_EVENT_PREFIX and every LEGACY_CALENDAR_EVENT_PREFIXES entry,
+// so events created under a prior name are still recognized as the app's own.
+const APP_EVENT_TITLE_PATTERN = new RegExp(
+  `^(${[CALENDAR_EVENT_PREFIX, ...LEGACY_CALENDAR_EVENT_PREFIXES].join('|')})\\s*[·•:\\-]`,
+  'i',
+)
 
 export interface WorkoutEventInput {
   id: string
@@ -48,10 +56,10 @@ export async function createDeviceEvent(
   const endDate = new Date(startDate.getTime() + workout.planned_duration_min * 60 * 1000)
 
   return Calendar.createEventAsync(calendarId, {
-    title: `Tempo: ${workout.focus}`,
+    title: `${CALENDAR_EVENT_PREFIX}: ${workout.focus}`,
     startDate,
     endDate,
-    notes: `${workout.planned_duration_min} min workout · Tracked in Tempo`,
+    notes: `${workout.planned_duration_min} min workout · Tracked in ${CALENDAR_EVENT_PREFIX}`,
     alarms: [{ relativeOffset: -15 }],
   })
 }
@@ -127,8 +135,8 @@ export async function findFreeWindows(
 export interface DayEvent { id: string; title: string; start: Date; end: Date }
 
 // Timed events on a given day, WITH titles, for display on the home timeline.
-// Tempo's own synced workouts (titled "Tempo …") are filtered out — those are
-// rendered from scheduled_workouts, so we don't want them showing twice.
+// The app's own synced workouts (titled e.g. "Fitaround …") are filtered out —
+// those are rendered from scheduled_workouts, so we don't want them showing twice.
 // Returns [] without calendar permission.
 export async function getDayEvents(date: Date): Promise<DayEvent[]> {
   const status = await getCalendarPermissionStatus()
@@ -143,7 +151,7 @@ export async function getDayEvents(date: Date): Promise<DayEvent[]> {
 
   const events = await Calendar.getEventsAsync(ids, dayStart, dayEnd)
   return events
-    .filter(e => !e.allDay && !(e.title ?? '').startsWith('Tempo'))
+    .filter(e => !e.allDay && !isAppEventTitle(e.title))
     .map(e => ({
       id: e.id,
       title: e.title || 'Busy',
@@ -155,7 +163,7 @@ export async function getDayEvents(date: Date): Promise<DayEvent[]> {
 
 // Timed events across a date range [start 00:00 … end 23:59], WITH titles, for
 // the unified home feed (a whole week in one query). Same filtering as
-// getDayEvents — all-day blocks and Tempo's own synced workouts are excluded.
+// getDayEvents — all-day blocks and the app's own synced workouts are excluded.
 // Returns [] without calendar permission.
 export async function getRangeEvents(start: Date, end: Date): Promise<DayEvent[]> {
   const status = await getCalendarPermissionStatus()
@@ -170,7 +178,7 @@ export async function getRangeEvents(start: Date, end: Date): Promise<DayEvent[]
 
   const events = await Calendar.getEventsAsync(ids, rangeStart, rangeEnd)
   return events
-    .filter(e => !e.allDay && !(e.title ?? '').startsWith('Tempo'))
+    .filter(e => !e.allDay && !isAppEventTitle(e.title))
     .map(e => ({
       id: e.id,
       title: e.title || 'Busy',
@@ -190,15 +198,16 @@ export async function deleteDeviceEvent(eventId: string): Promise<void> {
   }
 }
 
-// A calendar event Tempo created. Device events are titled "Tempo: <focus>" and
-// Google events "Tempo · <focus>" — both start with "Tempo" + a separator. Matching
-// on that lets "remove all Tempo events" sweep up orphans (events we lost the DB
-// pointer to after a reinstall / manual DB edit), not just ones we still track.
-export function isTempoEventTitle(title: string | null | undefined): boolean {
-  return /^tempo\s*[·•:\-]/i.test((title ?? '').trim())
+// A calendar event the app created. Device events are titled "<Brand>: <focus>"
+// and Google events "<Brand> · <focus>" — both start with the brand name (current
+// or legacy, see APP_EVENT_TITLE_PATTERN) + a separator. Matching on that lets
+// "remove all my events" sweep up orphans (events we lost the DB pointer to after
+// a reinstall / manual DB edit), not just ones we still track.
+export function isAppEventTitle(title: string | null | undefined): boolean {
+  return APP_EVENT_TITLE_PATTERN.test((title ?? '').trim())
 }
 
-// Delete EVERY Tempo-titled event on the device calendar within [start, end],
+// Delete EVERY app-titled event on the device calendar within [start, end],
 // regardless of whether the app still has a DB pointer to it. Returns how many were
 // removed. Best-effort per event; no-op without calendar permission.
 export async function deleteTempoDeviceEvents(start: Date, end: Date): Promise<number> {
@@ -212,7 +221,7 @@ export async function deleteTempoDeviceEvents(start: Date, end: Date): Promise<n
   const events = await Calendar.getEventsAsync(ids, start, end)
   let removed = 0
   for (const e of events) {
-    if (!isTempoEventTitle(e.title)) continue
+    if (!isAppEventTitle(e.title)) continue
     try { await Calendar.deleteEventAsync(e.id); removed++ } catch { /* already gone */ }
   }
   return removed

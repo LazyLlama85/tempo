@@ -82,5 +82,5 @@ app.get('/api/health', (_, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Tempo waitlist running → http://localhost:${PORT}`);
+  console.log(`Fitaround waitlist running → http://localhost:${PORT}`);
 });

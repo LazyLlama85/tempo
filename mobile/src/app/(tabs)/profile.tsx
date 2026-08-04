@@ -6,6 +6,7 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, HeaderActions, PulseLoader } from '@/components/brand'
 import { ScreenTransition } from '@/components/motion'
@@ -755,7 +756,7 @@ export default function ProfileScreen() {
               </>
             ) : (
               <Text style={styles.emptyHint}>
-                Log your weight to start tracking trends. Tempo smooths daily noise and shows your real
+                Log your weight to start tracking trends. {BRAND_NAME} smooths daily noise and shows your real
                 weekly rate — the feedback loop that tells you if your plan is working.
               </Text>
             )}
@@ -791,7 +792,7 @@ export default function ProfileScreen() {
         {/* ── Right Now (temporary / personal adjustments) ──────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Right Now</Text>
-          <Text style={styles.sectionSubtitle}>Temporary adjustments Tempo applies to your upcoming workouts.</Text>
+          <Text style={styles.sectionSubtitle}>Temporary adjustments {BRAND_NAME} applies to your upcoming workouts.</Text>
           <View style={styles.card}>
             <ProGate feature="travel_mode" compact>
               <SettingRow
@@ -850,7 +851,7 @@ export default function ProfileScreen() {
       <TempoSheet visible={bodyModal} onClose={() => setBodyModal(false)} scroll>
           <View style={[styles.modalSheet, sheetPad]}>
             <Text style={styles.modalTitle}>Log Measurement</Text>
-            <Text style={styles.modalHint}>Weigh in regularly — even a few times a week is enough for Tempo to read your real trend. Body fat and waist are optional.</Text>
+            <Text style={styles.modalHint}>Weigh in regularly — even a few times a week is enough for {BRAND_NAME} to read your real trend. Body fat and waist are optional.</Text>
 
             <Text style={styles.modalLabel}>WEIGHT ({unitLabel(unit).toUpperCase()})</Text>
             <TextInput
@@ -915,7 +916,7 @@ export default function ProfileScreen() {
       <TempoSheet visible={injuryModal} onClose={() => setInjuryModal(false)} snapPoints={['85%']} scroll>
           <View style={[styles.modalSheet, sheetPad]}>
             <Text style={styles.modalTitle}>Injuries & Limitations</Text>
-            <Text style={styles.modalHint}>Tell Tempo what to work around. We'll steer your Quick Workouts away from the muscles and movements that aggravate these areas.</Text>
+            <Text style={styles.modalHint}>Tell {BRAND_NAME} what to work around. We'll steer your Quick Workouts away from the muscles and movements that aggravate these areas.</Text>
 
             <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
               {INJURY_OPTIONS.map((o) => {
@@ -1114,7 +1115,7 @@ export default function ProfileScreen() {
         title="Change Plan"
         subtitle="This will replace your current plan."
         options={[
-          { key: 'regenerate', label: 'Get a new Tempo Plan', sub: 'Answer a few questions, Tempo builds it', icon: 'refresh-outline' },
+          { key: 'regenerate', label: `Get a new ${BRAND_NAME} Plan`, sub: `Answer a few questions, ${BRAND_NAME} builds it`, icon: 'refresh-outline' },
           // Routes straight to split-editor rather than back through onboarding's
           // build-mode fork (that card is new-user-only by design — re-answering
           // goal/experience/equipment to switch build mode would be a detour for

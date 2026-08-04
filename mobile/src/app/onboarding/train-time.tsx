@@ -11,6 +11,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -152,7 +153,7 @@ export default function OnboardingTrainTimeScreen() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 6 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>When do you want to train?</Text>
-        <Text style={styles.subtitle}>Tempo aims for this window consistently, and never schedules a day you rule out.</Text>
+        <Text style={styles.subtitle}>{BRAND_NAME} aims for this window consistently, and never schedules a day you rule out.</Text>
 
         <Text style={styles.sectionLabel}>PREFERRED TIME TO TRAIN</Text>
         <View style={styles.segmented}>
@@ -191,7 +192,7 @@ export default function OnboardingTrainTimeScreen() {
           })}
         </View>
         <Text style={styles.hint}>
-          A standing commitment, or any day you simply rest — Tempo never schedules a
+          A standing commitment, or any day you simply rest — {BRAND_NAME} never schedules a
           workout here. Add specific times later in Settings.
         </Text>
       </ScrollView>

@@ -9,6 +9,7 @@ import { forwardRef } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { wrappedFmt, type WrappedCard as CardModel } from '@/lib/wrapped'
 
 const INK = '#070809'
@@ -168,7 +169,7 @@ export const WrappedCard = forwardRef<View, Props>(function WrappedCard({ card }
           <View style={styles.brandDot}>
             <Ionicons name="flash" size={12} color="#fff" />
           </View>
-          <Text style={styles.brand}>Tempo</Text>
+          <Text style={styles.brand}>{BRAND_NAME}</Text>
         </View>
       </View>
     </View>

@@ -13,6 +13,7 @@ import { useTutorialTarget, useTutorialScrollContainer } from '@/components/Tuto
 import { useTutorialStore } from '@/stores/tutorial'
 import { T, HOME_TOUR_STEPS, CONCEPTS_TOUR_STEPS, TARGET } from '@/lib/tutorial'
 import { Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale, FadeInView, ScreenTransition } from '@/components/motion'
 import { ScreenHeader, HeaderActions } from '@/components/brand'
@@ -1024,7 +1025,7 @@ export default function ScheduleScreen() {
       // Lead with the recovery reasoning so the move feels coached, not random.
       const why = slot.reason
         ? `${slot.reason}.`
-        : (slot.fromCalendar ? 'Tempo found this free window in your calendar.' : '')
+        : (slot.fromCalendar ? `${BRAND_NAME} found this free window in your calendar.` : '')
       setRescheduleConfirm({ workout, slot, message: `Move "${workout.focus}" to ${slot.label}?${why ? `\n\n${why}` : ''}` })
     } catch {
       Alert.alert('Could not reschedule', 'We had trouble finding a new slot. Please try again.')
@@ -1091,7 +1092,7 @@ export default function ScheduleScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.eventTitle, ignored && styles.eventTitleIgnored]} numberOfLines={1}>{e.title}</Text>
             <Text style={styles.eventTime}>
-              {ignored ? 'Ignored · Tempo may schedule here' : `${time12(e.start)} – ${time12(e.end)}`}
+              {ignored ? `Ignored · ${BRAND_NAME} may schedule here` : `${time12(e.start)} – ${time12(e.end)}`}
             </Text>
           </View>
           <TouchableOpacity
@@ -1494,7 +1495,7 @@ export default function ScheduleScreen() {
               <Text style={styles.missedSub}>
                 <Text onPress={() => handleMoveConflict(c)} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Move it myself</Text>
                 {'  ·  '}
-                <Text onPress={() => { track('paywall_shown', { context: 'conflict' }); router.push({ pathname: '/paywall', params: { context: 'conflict' } } as never) }} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Let Tempo handle this →</Text>
+                <Text onPress={() => { track('paywall_shown', { context: 'conflict' }); router.push({ pathname: '/paywall', params: { context: 'conflict' } } as never) }} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Let {BRAND_NAME} handle this →</Text>
               </Text>
             </View>
             <TouchableOpacity onPress={() => handleDismissConflict(c.workoutId)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
@@ -1716,7 +1717,7 @@ export default function ScheduleScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.missedTitle}>Connect your calendar</Text>
-            <Text style={styles.missedSub}>Let Tempo schedule workouts around your real events.</Text>
+            <Text style={styles.missedSub}>Let {BRAND_NAME} schedule workouts around your real events.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.outline} />
         </PressableScale>
@@ -1768,7 +1769,7 @@ export default function ScheduleScreen() {
       case 'quick':
         return { body: quickSuggestion?.sub ?? '' }
       case 'connectCalendar':
-        return { body: 'Let Tempo schedule workouts around your real events.', screen: '/calendar-setup' }
+        return { body: `Let ${BRAND_NAME} schedule workouts around your real events.`, screen: '/calendar-setup' }
       default:
         return { body: '' }
     }
@@ -1985,7 +1986,7 @@ export default function ScheduleScreen() {
               <EmptyState
                 kind="calendar"
                 title="Nothing on your plan yet"
-                body="Add a workout, or update your plan from Profile — Tempo schedules it around your real life."
+                body={`Add a workout, or update your plan from Profile — ${BRAND_NAME} schedules it around your real life.`}
                 actionLabel="Add a workout"
                 onAction={() => setAddWorkoutOpen(true)}
               />
@@ -1999,7 +2000,7 @@ export default function ScheduleScreen() {
               <Text style={styles.headline}>{heroHeadline}</Text>
               {schedulingImpact != null && schedulingImpact.scheduledByTempo > 0 && (
                 <Text style={styles.proofLine}>
-                  Tempo has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
+                  {BRAND_NAME} has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
                 </Text>
               )}
 
@@ -2083,7 +2084,7 @@ export default function ScheduleScreen() {
               <Text style={styles.headline}>{heroHeadline}</Text>
               {schedulingImpact != null && schedulingImpact.scheduledByTempo > 0 && (
                 <Text style={styles.proofLine}>
-                  Tempo has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
+                  {BRAND_NAME} has scheduled {schedulingImpact.scheduledByTempo} workout{schedulingImpact.scheduledByTempo === 1 ? '' : 's'} around your real life.
                 </Text>
               )}
 
@@ -2290,7 +2291,7 @@ export default function ScheduleScreen() {
       <OptionSheet
         visible={swapConfirmWorkout !== null}
         title="Swap to a quick workout?"
-        subtitle={`"${swapConfirmWorkout?.focus ?? ''}" will be marked skipped, and Tempo will build you a real 15-minute session instead.`}
+        subtitle={`"${swapConfirmWorkout?.focus ?? ''}" will be marked skipped, and ${BRAND_NAME} will build you a real 15-minute session instead.`}
         options={[{ key: 'swap', label: 'Swap it', icon: 'flash-outline' }]}
         onSelect={confirmSwapToQuick}
         onClose={() => setSwapConfirmWorkout(null)}
@@ -2308,7 +2309,7 @@ export default function ScheduleScreen() {
       <OptionSheet
         visible={reviewPlanConfirm}
         title="Review Plan"
-        subtitle="This will replace your current plan or split with a new Tempo-generated one."
+        subtitle={`This will replace your current plan or split with a new ${BRAND_NAME}-generated one.`}
         options={[{ key: 'continue', label: 'Continue', icon: 'sparkles-outline' }]}
         onSelect={() => { setReviewPlanConfirm(false); router.push('/onboarding/goal') }}
         onClose={() => setReviewPlanConfirm(false)}

@@ -1,4 +1,4 @@
-# Tempo Project
+# Fitaround Project (formerly Tempo — renamed 2026-08-04; see ARCHITECTURE.md's rebrand note)
 
 ## ⚠️ No Regressions — Do Not Break Existing Functionality
 This is a recurring, high-priority failure mode: asked to fix/move/restyle one thing, something

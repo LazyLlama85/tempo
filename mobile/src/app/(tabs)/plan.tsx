@@ -19,6 +19,7 @@ import { readinessFromHistory, intensityFromReadiness } from '@/lib/fitnessInsig
 import { useProGate } from '@/stores/entitlements'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { Avatar } from '@/components/Avatar'
 import { ScreenHeader, HeaderActions, DismissButton, PulseLoader } from '@/components/brand'
@@ -507,7 +508,7 @@ export default function WorkoutsScreen() {
       } else {
         Alert.alert(
           'Week rescheduled',
-          `Tempo moved ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} to a better time and re-synced your calendar.`,
+          `${BRAND_NAME} moved ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} to a better time and re-synced your calendar.`,
         )
       }
     } catch (err) {
@@ -2225,7 +2226,7 @@ export default function WorkoutsScreen() {
             <PopIn style={styles.switchedBanner}>
               <Ionicons name="checkmark-circle" size={18} color={C.success} />
               <Text style={styles.switchedBannerText}>
-                Switched to your new {activeSplit?.kind === 'auto' ? 'Tempo-generated' : ''} plan
+                Switched to your new {activeSplit?.kind === 'auto' ? `${BRAND_NAME}-generated` : ''} plan
               </Text>
             </PopIn>
           )}
@@ -2241,7 +2242,7 @@ export default function WorkoutsScreen() {
                     <Text style={styles.splitName}>{activeSplit.name}</Text>
                     <Text style={styles.splitMeta}>
                       {daysPerWeek(activeSplit)} day{daysPerWeek(activeSplit) === 1 ? '' : 's'}/week
-                      {activeSplit.kind === 'auto' ? ' · Tempo' : ' · Yours'}
+                      {activeSplit.kind === 'auto' ? ` · ${BRAND_NAME}` : ' · Yours'}
                     </Text>
                   </View>
                   <PressableScale style={styles.splitEditBtn} scaleTo={0.95} onPress={() => router.push('/my-splits' as any)}>
@@ -2301,7 +2302,7 @@ export default function WorkoutsScreen() {
         <OptionSheet
           visible={weekRescheduleConfirm}
           title="Reschedule your week"
-          subtitle="Tempo will re-lay every upcoming workout onto its best day and time this week — recovery-aware and around your calendar. Nothing gets dropped, and your calendar stays in sync."
+          subtitle={`${BRAND_NAME} will re-lay every upcoming workout onto its best day and time this week — recovery-aware and around your calendar. Nothing gets dropped, and your calendar stays in sync.`}
           options={[{ key: 'reschedule', label: 'Reschedule my week', icon: 'repeat-outline' }]}
           onSelect={confirmWeekReschedule}
           onClose={() => setWeekRescheduleConfirm(false)}
@@ -3066,7 +3067,7 @@ export default function WorkoutsScreen() {
       <OptionSheet
         visible={removeExerciseConfirm !== null}
         title="Remove this exercise for good?"
-        subtitle={removeExerciseConfirm ? `${removeExerciseConfirm.name} will come out of today's session, and Tempo will never program it for you again — in this plan, a split, or a Quick Workout. You can't undo this from here.` : ''}
+        subtitle={removeExerciseConfirm ? `${removeExerciseConfirm.name} will come out of today's session, and ${BRAND_NAME} will never program it for you again — in this plan, a split, or a Quick Workout. You can't undo this from here.` : ''}
         options={[{ key: 'remove', label: 'Remove permanently', icon: 'trash-outline', destructive: true }]}
         onSelect={() => { const ex = removeExerciseConfirm; setRemoveExerciseConfirm(null); if (ex) void doRemoveExercisePermanently(ex) }}
         onClose={() => setRemoveExerciseConfirm(null)}

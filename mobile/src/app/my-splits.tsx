@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -58,7 +59,7 @@ export default function MySplitsScreen() {
     if (result === 'activated_pending') {
       // The split IS active but this week's sessions couldn't be written (likely
       // offline) — "try again" would be a lie; the next online app open lays them down.
-      Alert.alert('Activated', `“${s.name}” is now your schedule. Tempo couldn’t reach the server to build this week’s sessions — they’ll appear next time you open the app online.`)
+      Alert.alert('Activated', `“${s.name}” is now your schedule. ${BRAND_NAME} couldn’t reach the server to build this week’s sessions — they’ll appear next time you open the app online.`)
       return
     }
     Alert.alert('Activated', isAutoSplit(s)
@@ -94,7 +95,7 @@ export default function MySplitsScreen() {
     const share = await createSplitShare(supabase, userId, profile?.display_name ?? null, s)
     if (!share) { Alert.alert('Couldn’t create link', 'Check your connection and try again.'); return }
     Share.share({
-      message: `Try my "${s.name}" program on Tempo: ${shareUrl(share.code)}\n\nOr paste this code in Tempo → Friends: ${share.code}`,
+      message: `Try my "${s.name}" program on ${BRAND_NAME}: ${shareUrl(share.code)}\n\nOr paste this code in ${BRAND_NAME} → Friends: ${share.code}`,
     }).catch(() => {})
   }
 
@@ -188,7 +189,7 @@ export default function MySplitsScreen() {
         title={sheetSplit?.name ?? ''}
         subtitle={sheetSplit?.is_active
           ? (sheetSplit && isAutoSplit(sheetSplit)
-            ? 'Your active auto-generated program. Tempo keeps it progressing week to week.'
+            ? `Your active auto-generated program. ${BRAND_NAME} keeps it progressing week to week.`
             : 'This is your active schedule.')
           : undefined}
         options={sheetSplit ? sheetOptions(sheetSplit) : []}

@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -77,7 +78,7 @@ export default function FriendProfileScreen() {
     }
   }
 
-  const name = overview?.display_name ?? 'Tempo user'
+  const name = overview?.display_name ?? `${BRAND_NAME} user`
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -98,7 +99,7 @@ export default function FriendProfileScreen() {
             <Text style={styles.name}>{name}</Text>
             {!!overview.username && <Text style={styles.handle}>@{overview.username}</Text>}
             {!!memberSince(overview.member_since) && (
-              <Text style={styles.memberSince}>Training with Tempo since {memberSince(overview.member_since)}</Text>
+              <Text style={styles.memberSince}>Training with {BRAND_NAME} since {memberSince(overview.member_since)}</Text>
             )}
           </FadeInView>
 

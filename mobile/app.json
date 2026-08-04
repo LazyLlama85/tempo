@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Tempo",
+    "name": "Fitaround",
     "slug": "tempo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,12 +21,12 @@
       "associatedDomains": ["applinks:fittempo.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCalendarsUsageDescription": "Tempo uses your calendar to schedule workouts around your life.",
-        "NSCalendarsFullAccessUsageDescription": "Tempo reads your calendar to schedule workouts around your life, and — only when you turn it on — adds your sessions to it.",
-        "NSCalendarsWriteOnlyAccessUsageDescription": "Tempo adds your scheduled workouts to your calendar when you turn that on.",
-        "NSRemindersUsageDescription": "Tempo sends reminders before your scheduled workouts.",
-        "NSUserNotificationsUsageDescription": "Tempo sends reminders before your scheduled workouts.",
-        "NSPhotoLibraryUsageDescription": "Tempo lets you attach progress photos to your measurements. Photos stay private to your account."
+        "NSCalendarsUsageDescription": "Fitaround uses your calendar to schedule workouts around your life.",
+        "NSCalendarsFullAccessUsageDescription": "Fitaround reads your calendar to schedule workouts around your life, and — only when you turn it on — adds your sessions to it.",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "Fitaround adds your scheduled workouts to your calendar when you turn that on.",
+        "NSRemindersUsageDescription": "Fitaround sends reminders before your scheduled workouts.",
+        "NSUserNotificationsUsageDescription": "Fitaround sends reminders before your scheduled workouts.",
+        "NSPhotoLibraryUsageDescription": "Fitaround lets you attach progress photos to your measurements. Photos stay private to your account."
       }
     },
     "android": {
@@ -59,8 +59,8 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Tempo needs calendar access to schedule your workouts.",
-          "remindersPermission": "Tempo needs reminder access to send workout alerts."
+          "calendarPermission": "Fitaround needs calendar access to schedule your workouts.",
+          "remindersPermission": "Fitaround needs reminder access to send workout alerts."
         }
       ],
       [
@@ -86,8 +86,8 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Tempo does not read any Health data.",
-          "NSHealthUpdateUsageDescription": "Tempo adds your completed workouts to Apple Health when you turn this on in Settings.",
+          "NSHealthShareUsageDescription": "Fitaround does not read any Health data.",
+          "NSHealthUpdateUsageDescription": "Fitaround adds your completed workouts to Apple Health when you turn this on in Settings.",
           "background": false
         }
       ]

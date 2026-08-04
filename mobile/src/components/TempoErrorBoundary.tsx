@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { captureException } from '@/lib/crashReporting'
 
@@ -45,7 +46,7 @@ function ErrorFallback({ onReset }: FallbackProps) {
         </View>
         <Text style={styles.title}>Something went wrong</Text>
         <Text style={styles.body}>
-          Tempo hit a snag and couldn't show this screen. Your workouts and progress are safe —
+          {BRAND_NAME} hit a snag and couldn't show this screen. Your workouts and progress are safe —
           try again, or head back to Home.
         </Text>
         <View style={styles.actions}>

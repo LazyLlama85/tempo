@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
@@ -81,7 +82,7 @@ export default function CalendarSetupScreen() {
       syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'google' })
         .then(invalidateCalendarData)
         .catch(() => {})
-      Alert.alert('Google Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')
+      Alert.alert('Google Calendar connected', `${BRAND_NAME} will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.`)
     } else {
       Alert.alert('Couldn’t connect', friendlyConnectError(r.error))
     }
@@ -101,7 +102,7 @@ export default function CalendarSetupScreen() {
       syncUpcomingWorkouts(supabase, userId, { ...(profile as any), preferred_calendar: 'device' })
         .then(invalidateCalendarData)
         .catch(() => {})
-      Alert.alert('Device Calendar connected', 'Tempo will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.')
+      Alert.alert('Device Calendar connected', `${BRAND_NAME} will schedule around it. Turn on “Add workouts to calendar” in Settings to also add your workouts to it.`)
     } else {
       Alert.alert('Permission needed', 'Allow calendar access in Settings to use your device calendar.', [
         { text: 'Cancel', style: 'cancel' },
@@ -111,7 +112,7 @@ export default function CalendarSetupScreen() {
   }
 
   const handleDisconnectGoogle = () => {
-    Alert.alert('Disconnect Google Calendar?', 'Tempo will stop reading it and adding your workouts to it. Events already added stay in Google.', [
+    Alert.alert('Disconnect Google Calendar?', `${BRAND_NAME} will stop reading it and adding your workouts to it. Events already added stay in Google.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Disconnect', style: 'destructive',
@@ -135,14 +136,14 @@ export default function CalendarSetupScreen() {
           }
           setBusy(null)
           invalidateCalendarData()
-          Alert.alert('Google Calendar disconnected', 'Tempo will no longer read your Google Calendar or add workouts to it.')
+          Alert.alert('Google Calendar disconnected', `${BRAND_NAME} will no longer read your Google Calendar or add workouts to it.`)
         },
       },
     ])
   }
 
   const handleStopDevice = () => {
-    Alert.alert('Stop using Device Calendar?', 'Tempo will stop adding workouts to it. To fully revoke access, turn it off for Tempo in system Settings.', [
+    Alert.alert('Stop using Device Calendar?', `${BRAND_NAME} will stop adding workouts to it. To fully revoke access, turn it off for ${BRAND_NAME} in system Settings.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Stop using it', style: 'destructive',
@@ -162,7 +163,7 @@ export default function CalendarSetupScreen() {
           purgeSyncedWorkouts(supabase, userId).then(invalidateCalendarData).catch(() => {})
           setBusy(null)
           invalidateCalendarData()
-          Alert.alert('Stopped', 'Tempo will no longer add workouts to your device calendar.', [
+          Alert.alert('Stopped', `${BRAND_NAME} will no longer add workouts to your device calendar.`, [
             { text: 'Done', style: 'cancel' },
             { text: 'Open Settings', onPress: () => Linking.openSettings() },
           ])
@@ -184,7 +185,7 @@ export default function CalendarSetupScreen() {
           could exceed the screen with no way to reach the hint text below. */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.subtitle}>
-          Pick the calendar you actually use. Tempo reads it to schedule around your real life, and
+          Pick the calendar you actually use. {BRAND_NAME} reads it to schedule around your real life, and
           (when you turn it on in Settings) can add your workouts to it too.
         </Text>
 

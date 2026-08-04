@@ -15,6 +15,7 @@ import {
 import { isGoogleCalendarConnected } from './googleCalendar/CalendarAuthService'
 import { autoScheduleWorkout, deleteCalendarEvent, fetchUserEvents } from './googleCalendar/CalendarApiService'
 import { GCAL_PRIMARY } from './googleCalendar/config'
+import { CALENDAR_EVENT_PREFIX } from '@/constants/brand'
 
 export interface SyncWorkout {
   id: string
@@ -77,7 +78,7 @@ export async function addWorkoutToCalendar(
     let eventId: string | null
     if (target === 'google') {
       const ev = await autoScheduleWorkout(
-        `Tempo · ${workout.focus}`, localStart(workout), workout.planned_duration_min,
+        `${CALENDAR_EVENT_PREFIX} · ${workout.focus}`, localStart(workout), workout.planned_duration_min,
       )
       eventId = ev.id
     } else {

@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -73,7 +74,7 @@ export default function OnboardingWorkSchoolScreen() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 5 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>Work or school hours?</Text>
-        <Text style={styles.subtitle}>Tempo schedules around this window instead of on top of it.</Text>
+        <Text style={styles.subtitle}>{BRAND_NAME} schedules around this window instead of on top of it.</Text>
 
         <View style={styles.card}>
           <View style={styles.switchRow}>

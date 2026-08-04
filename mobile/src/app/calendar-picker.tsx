@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale } from '@/components/motion'
 import { supabase } from '@/lib/supabase'
@@ -24,7 +25,7 @@ import { GCAL_PRIMARY } from '@/services/googleCalendar/config'
 
 function friendlyListError(reason?: string): string {
   if (reason && /scope|insufficient|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) {
-    return 'Multi-calendar isn’t turned on for your account yet — Tempo currently only reads your primary Google Calendar. Check back in a future update.'
+    return `Multi-calendar isn’t turned on for your account yet — ${BRAND_NAME} currently only reads your primary Google Calendar. Check back in a future update.`
   }
   return 'Couldn’t load your calendars right now. Pull to retry, or check back later.'
 }
@@ -101,7 +102,7 @@ export default function CalendarPickerScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.subtitle}>
-          Tempo reads these calendars to avoid double-booking you. Your primary calendar is always
+          {BRAND_NAME} reads these calendars to avoid double-booking you. Your primary calendar is always
           included.
         </Text>
 

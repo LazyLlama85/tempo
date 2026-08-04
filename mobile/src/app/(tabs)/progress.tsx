@@ -5,6 +5,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'expo-router'
@@ -302,7 +303,7 @@ export default function ProgressScreen() {
 
             <View style={styles.teaserRow}>
               <Ionicons name="sparkles-outline" size={16} color={C.outline} />
-              <Text style={styles.teaserText}>More unlocks as you train — PRs, muscle balance, Tempo Score.</Text>
+              <Text style={styles.teaserText}>More unlocks as you train — PRs, muscle balance, {BRAND_NAME} Score.</Text>
             </View>
           </>
         ) : (
@@ -411,7 +412,7 @@ export default function ProgressScreen() {
             )}
 
             {/* ── Coaching (new): behavioural insights ── */}
-            <SectionLabel title="Coaching" hint="What Tempo notices about you." />
+            <SectionLabel title="Coaching" hint={`What ${BRAND_NAME} notices about you.`} />
             {/* Body Intelligence — shown inline now, not behind a tap (2026-07-17).
                 Hidden pre-activation (B3.2): it's a Fitbod-echo depth feature, not
                 something a day-1 user needs to be shown before the core loop lands. */}

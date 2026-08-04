@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { fetchTemplates } from '@/lib/workoutBuilder'
 import { WORKOUT_PRESETS } from '@/lib/starterTemplates'
@@ -100,7 +101,7 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
             <View style={styles.quickIconWrap}><Ionicons name="flash" size={19} color={C.primary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.quickRowTitle}>Quick Workout</Text>
-              <Text style={styles.quickRowSub}>Pick your time — Tempo builds a session that fits right now</Text>
+              <Text style={styles.quickRowSub}>Pick your time — {BRAND_NAME} builds a session that fits right now</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.primary} />
           </TouchableOpacity>

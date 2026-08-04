@@ -15,6 +15,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { Animated, Easing, Image, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing } from '@/constants/theme'
+import { BRAND_NAME_LOWER } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useReducedMotion, useScreenFocused } from '@/components/motion'
 
@@ -64,7 +65,7 @@ export function TempoWordmark({ size = 24, pulse = true, mark = true }: Wordmark
         style={{ fontFamily: C.fontDisplay, fontSize: size, color: C.text, letterSpacing: -0.8, lineHeight: size * 1.15 }}
         maxFontSizeMultiplier={1.2}
       >
-        tempo
+        {BRAND_NAME_LOWER}
       </Text>
       <Animated.View
         style={{

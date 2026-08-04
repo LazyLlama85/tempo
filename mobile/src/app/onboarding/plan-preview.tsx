@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark, TempoPulse } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
@@ -69,7 +70,7 @@ function askForReminders(): Promise<boolean> {
 
     Alert.alert(
       'Get a nudge before each workout?',
-      'Tempo reminds you 30 minutes before each scheduled session — on busy days that heads-up is most of the battle.',
+      `${BRAND_NAME} reminds you 30 minutes before each scheduled session — on busy days that heads-up is most of the battle.`,
       [
         { text: 'Not now', style: 'cancel', onPress: () => answer(false) },
         { text: 'Remind me', onPress: () => answer(true) },
@@ -548,8 +549,8 @@ export default function PlanPreviewScreen() {
             <Text style={styles.title}>{calState === 'connected' ? 'Already on your calendar.' : 'Your first week, planned.'}</Text>
             <Text style={styles.subtitle}>
               {calState === 'connected'
-                ? 'Tempo placed every session below — the what and the when, decided for you.'
-                : 'Tempo schedules every session around your real life — sleep, work, and (when you connect one) your actual calendar.'}
+                ? `${BRAND_NAME} placed every session below — the what and the when, decided for you.`
+                : `${BRAND_NAME} schedules every session around your real life — sleep, work, and (when you connect one) your actual calendar.`}
             </Text>
           </FadeInView>
           <View style={styles.revealList}>
@@ -585,7 +586,7 @@ export default function PlanPreviewScreen() {
                 <View style={styles.calIcon}><Ionicons name="calendar-outline" size={18} color={C.primary} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.calCardTitle}>See it with your real calendar</Text>
-                  <Text style={styles.calCardSub}>Tempo reads busy times only — event details never leave your phone.</Text>
+                  <Text style={styles.calCardSub}>{BRAND_NAME} reads busy times only — event details never leave your phone.</Text>
                 </View>
               </View>
               {calError && <Text style={styles.calError}>{calError}</Text>}
@@ -619,7 +620,7 @@ export default function PlanPreviewScreen() {
           </Text>
           <Text style={styles.subtitle}>
             {isCustomBuild
-              ? "No generated plan — you're building your own. Tempo still schedules whatever you create around your real day."
+              ? `No generated plan — you're building your own. ${BRAND_NAME} still schedules whatever you create around your real day.`
               : isReplan ? 'This replaces your current plan — history and PRs stay.' : "Take a look, then we'll build it and set up your week."}
           </Text>
         </FadeInView>
@@ -660,7 +661,7 @@ export default function PlanPreviewScreen() {
           <Text style={styles.adaptNoteText}>
             {isCustomBuild
               ? "Next you'll add a name and photo, then land straight in the split builder to create your first workout."
-              : 'This is a starting point, not a contract. Tempo reshapes it around your real schedule — and when life gets busy, a Quick Workout keeps you moving.'}
+              : `This is a starting point, not a contract. ${BRAND_NAME} reshapes it around your real schedule — and when life gets busy, a Quick Workout keeps you moving.`}
           </Text>
         </FadeInView>
       </ScrollView>
@@ -670,7 +671,7 @@ export default function PlanPreviewScreen() {
       <View style={styles.footer}>
         {status === 'revealing' ? (
           <PressableScale style={styles.confirmBtn} onPress={enterApp} activeOpacity={0.85}>
-            <Text style={styles.confirmText}>Enter Tempo →</Text>
+            <Text style={styles.confirmText}>Enter {BRAND_NAME} →</Text>
           </PressableScale>
         ) : (
         <PressableScale

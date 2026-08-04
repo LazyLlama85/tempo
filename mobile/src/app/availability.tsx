@@ -12,6 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
+import { BRAND_NAME } from '@/constants/brand'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -192,7 +193,7 @@ export default function AvailabilityScreen() {
 
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
-          Tell Tempo about your day. Workouts are scheduled around your sleep, work, and
+          Tell {BRAND_NAME} about your day. Workouts are scheduled around your sleep, work, and
           classes — never on top of them.
         </Text>
 
@@ -203,7 +204,7 @@ export default function AvailabilityScreen() {
           <View style={styles.divider} />
           <TimeRow label="Bedtime" value={bed} field="bed" />
         </View>
-        <Text style={styles.hint}>Tempo never schedules a workout while you're asleep.</Text>
+        <Text style={styles.hint}>{BRAND_NAME} never schedules a workout while you're asleep.</Text>
 
         {/* Work */}
         <Text style={styles.sectionLabel}>WORK HOURS</Text>
@@ -263,7 +264,7 @@ export default function AvailabilityScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.hint}>Tempo aims for this window, then varies the exact time so your week isn't robotic.</Text>
+        <Text style={styles.hint}>{BRAND_NAME} aims for this window, then varies the exact time so your week isn't robotic.</Text>
 
         {/* Training days */}
         <Text style={styles.sectionLabel}>DAYS I CAN TRAIN</Text>
@@ -287,7 +288,7 @@ export default function AvailabilityScreen() {
         {/* Completely unavailable */}
         <Text style={styles.sectionLabel}>TIMES I'M COMPLETELY UNAVAILABLE</Text>
         <Text style={styles.hint}>
-          Days or times Tempo should never schedule a workout — for religious observance
+          Days or times {BRAND_NAME} should never schedule a workout — for religious observance
           (e.g. Shabbat), standing commitments, or any time you simply don't train.
         </Text>
 

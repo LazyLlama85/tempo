@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { TempoSheet } from '@/components/TempoSheet'
 import { PressableScale } from '@/components/motion'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useThemedStyles, useTheme, type Palette } from '@/theme'
 import { linkGuestAccount, type LinkProvider, type LinkResult } from '@/lib/accountLinking'
 import { track } from '@/lib/analytics'
@@ -40,7 +41,7 @@ const ERROR_COPY: Record<NonNullable<LinkResult['error']>, { title: string; mess
   },
   identity_taken: {
     title: 'That account is already in use',
-    message: 'This Apple or Google account is already linked to a different Tempo profile. Try the other sign-in option, or sign in with that account from the start screen (note: that starts fresh and won’t carry this guest history over).',
+    message: `This Apple or Google account is already linked to a different ${BRAND_NAME} profile. Try the other sign-in option, or sign in with that account from the start screen (note: that starts fresh and won’t carry this guest history over).`,
   },
   session_switched: { title: 'Couldn’t save safely', message: 'Sign-in switched accounts, so we stopped to protect your data. Please try again.' },
   exchange_failed: { title: 'Sign-in didn’t finish', message: 'Something went wrong completing sign-in. Please try again.' },

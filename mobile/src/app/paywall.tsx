@@ -36,6 +36,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
 import { Palettes, Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import type { Palette } from '@/theme'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale, FadeInView, PopIn } from '@/components/motion'
@@ -215,7 +216,7 @@ export default function PaywallScreen() {
     track('restore_completed', { restored })
     if (restored) {
       setIsPro(true)
-      Alert.alert('Tempo Pro restored', 'Your subscription is active again.', [
+      Alert.alert(`${BRAND_NAME} Pro restored`, 'Your subscription is active again.', [
         { text: 'Great', onPress: () => router.back() },
       ])
     } else {
@@ -227,7 +228,7 @@ export default function PaywallScreen() {
     ? 'Start Free Trial'
     : hasPaidIntro && selectedIntro
       ? `Get Pro — ${selectedIntro.priceString} for the Year`
-      : 'Unlock Tempo Pro'
+      : `Unlock ${BRAND_NAME} Pro`
 
   // One slide per shipped value prop. PAYWALL_POINTS decides WHAT may be
   // advertised (never add a slide outside it — see the file header); this only
@@ -240,7 +241,7 @@ export default function PaywallScreen() {
         ? {
             key: p.title,
             icon: p.icon,
-            title: `Tempo has already scheduled ${n} workout${n === 1 ? '' : 's'} around your real life.`,
+            title: `${BRAND_NAME} has already scheduled ${n} workout${n === 1 ? '' : 's'} around your real life.`,
             body: 'Keep it doing that automatically — every week ahead, not just this one.',
           }
         : { key: p.title, icon: p.icon, title: p.title, body: p.benefit }
@@ -286,7 +287,7 @@ export default function PaywallScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScreenHeader
-        title="Tempo Pro"
+        title={`${BRAND_NAME} Pro`}
         size="sm"
         leading={<DismissButton kind="x" onPress={close} label="Close" />}
       />
@@ -296,7 +297,7 @@ export default function PaywallScreen() {
         <FadeInView style={styles.brandRow} delay={20}>
           <View style={styles.heroGlow} pointerEvents="none" />
           <TempoPulse size={22} />
-          <Text style={styles.brandWord}>TEMPO</Text>
+          <Text style={styles.brandWord}>{BRAND_NAME.toUpperCase()}</Text>
           <View style={styles.brandPro}><Text style={styles.brandProText}>PRO</Text></View>
         </FadeInView>
 
@@ -312,7 +313,7 @@ export default function PaywallScreen() {
               onMomentumScrollEnd={onCarouselScrollEnd}
               scrollEventThrottle={16}
               accessibilityRole="adjustable"
-              accessibilityLabel="Tempo Pro features"
+              accessibilityLabel={`${BRAND_NAME} Pro features`}
             >
               {slides.map((s) => (
                 <View key={s.key} style={[styles.slide, { width: pageW }]}>

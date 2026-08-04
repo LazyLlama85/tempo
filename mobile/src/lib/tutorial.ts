@@ -8,6 +8,8 @@
 // never see it. A `version` lets steps be retired without wiping real progress; an
 // app update never resets tutorials (localStorage survives upgrades).
 
+import { BRAND_NAME } from '@/constants/brand'
+
 export const TUTORIAL_STORE_VERSION = 1
 
 // Tutorial ids.
@@ -41,8 +43,8 @@ export interface TutorialStep {
 // Home itself IS today's timeline (the IA redesign, 2026-07-16): there's no
 // separate calendar strip left on Home to spotlight on its own.
 export const HOME_TOUR_STEPS: TutorialStep[] = [
-  { id: 'home_today', target: 'home.today', title: 'Your day, in real time', body: 'Tempo slots your training into your real calendar — and moves it when life moves.', placement: 'bottom' },
-  { id: 'home_go', target: 'tab.go', title: 'Only a few minutes?', body: 'Tap GO and Tempo builds a focused workout that fits the time you have.', placement: 'top' },
+  { id: 'home_today', target: 'home.today', title: 'Your day, in real time', body: `${BRAND_NAME} slots your training into your real calendar — and moves it when life moves.`, placement: 'bottom' },
+  { id: 'home_go', target: 'tab.go', title: 'Only a few minutes?', body: `Tap GO and ${BRAND_NAME} builds a focused workout that fits the time you have.`, placement: 'top' },
   { id: 'home_progress', target: 'tab.progress', title: 'Your progress story', body: 'Every session you finish becomes your history, PRs, and strength trends.', placement: 'top' },
   { id: 'home_profile', target: 'tab.profile', title: 'Make it yours', body: 'Change goals, equipment, and availability anytime — your plan adapts.', placement: 'top' },
 ]
@@ -52,7 +54,7 @@ export const HOME_TOUR_STEPS: TutorialStep[] = [
 // library doors. One concept per step, same tone/length as the Home tour.
 export const PLAN_TOUR_STEPS: TutorialStep[] = [
   { id: 'plan_calendar', target: 'plan.calendar', title: 'Your whole week, at a glance', body: 'Switch between Week and Month, tap any day, or reschedule your whole week around a busy stretch.', placement: 'bottom' },
-  { id: 'plan_split', target: 'plan.split', title: 'Your training pattern', body: 'This is the split Tempo — or you — built. Edit it anytime; every upcoming day updates to match.', placement: 'bottom' },
+  { id: 'plan_split', target: 'plan.split', title: 'Your training pattern', body: `This is the split ${BRAND_NAME} — or you — built. Edit it anytime; every upcoming day updates to match.`, placement: 'bottom' },
   { id: 'plan_library', target: 'plan.library', title: 'Everything else lives here', body: 'Browse the exercise library or manage your saved workouts, without cluttering the hub above.', placement: 'top' },
 ]
 
@@ -68,11 +70,11 @@ export const PLAN_TOUR_STEPS: TutorialStep[] = [
 export const CONCEPTS_TOUR_STEPS: TutorialStep[] = [
   { id: 'concept_workout', screen: '/(tabs)', target: 'home.today', title: 'A workout', body: 'One training session — a list of exercises with sets, reps, and weight. You do one workout per training day.', placement: 'bottom' },
   { id: 'concept_add', screen: '/(tabs)', target: 'home.add_fab', title: 'Adding & editing workouts', body: 'Tap the + to build a workout from the Exercise Library. Tap any scheduled workout to move it, edit it, or mark it done.', placement: 'top' },
-  { id: 'concept_calendar', screen: '/(tabs)', target: 'home.today', title: 'Your calendar', body: 'Shows what’s scheduled each day — a missed workout just gets marked MISSED, no shame, reschedule it anytime. Connect your real calendar in Settings so Tempo can plan around your actual free time.', placement: 'bottom' },
-  { id: 'concept_split', screen: '/(tabs)/plan', target: 'plan.split', title: 'A split', body: 'Your recurring weekly pattern — which workout you do on which day (Push / Pull / Legs / Rest). Tempo can build one for you, or you can create your own in My Splits.', placement: 'bottom' },
-  { id: 'concept_generate', screen: '/(tabs)/plan', target: 'plan.split', title: '“Tempo generates” = the exercises', body: 'Generating picks what to actually do — exercises, sets, reps, and how hard — based on your goal, experience, and recent performance.', placement: 'bottom' },
-  { id: 'concept_schedule', screen: '/(tabs)/plan', target: 'plan.calendar', title: '“Tempo schedules” = the day & time', body: 'Scheduling places it on your calendar around your real life. Generating and scheduling are separate — build your own workout and still let Tempo schedule it, or vice versa.', placement: 'bottom' },
-  { id: 'concept_equipment', screen: '/(tabs)/profile', target: 'profile.training', title: 'Equipment & goals', body: 'Change your goal, experience, equipment, or days per week anytime from Profile — Tempo re-tunes every future workout automatically.', placement: 'bottom' },
+  { id: 'concept_calendar', screen: '/(tabs)', target: 'home.today', title: 'Your calendar', body: `Shows what’s scheduled each day — a missed workout just gets marked MISSED, no shame, reschedule it anytime. Connect your real calendar in Settings so ${BRAND_NAME} can plan around your actual free time.`, placement: 'bottom' },
+  { id: 'concept_split', screen: '/(tabs)/plan', target: 'plan.split', title: 'A split', body: `Your recurring weekly pattern — which workout you do on which day (Push / Pull / Legs / Rest). ${BRAND_NAME} can build one for you, or you can create your own in My Splits.`, placement: 'bottom' },
+  { id: 'concept_generate', screen: '/(tabs)/plan', target: 'plan.split', title: `“${BRAND_NAME} generates” = the exercises`, body: 'Generating picks what to actually do — exercises, sets, reps, and how hard — based on your goal, experience, and recent performance.', placement: 'bottom' },
+  { id: 'concept_schedule', screen: '/(tabs)/plan', target: 'plan.calendar', title: `“${BRAND_NAME} schedules” = the day & time`, body: `Scheduling places it on your calendar around your real life. Generating and scheduling are separate — build your own workout and still let ${BRAND_NAME} schedule it, or vice versa.`, placement: 'bottom' },
+  { id: 'concept_equipment', screen: '/(tabs)/profile', target: 'profile.training', title: 'Equipment & goals', body: `Change your goal, experience, equipment, or days per week anytime from Profile — ${BRAND_NAME} re-tunes every future workout automatically.`, placement: 'bottom' },
 ]
 
 // Target ids screens register via useTutorialTarget, referenced by steps above.

@@ -26,6 +26,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView, useReducedMotion } from '@/components/motion'
@@ -201,7 +202,7 @@ export default function WhyTempoScreen() {
         <FadeInView style={{ gap: Spacing.md }}>
           <Text style={styles.stepLabel}>STEP 2 OF {TOTAL_STEPS}</Text>
           <Text style={styles.title}>Most apps just log workouts.</Text>
-          <Text style={styles.subtitle}>Tempo schedules them — around your real week, and moves them when life does.</Text>
+          <Text style={styles.subtitle}>{BRAND_NAME} schedules them — around your real week, and moves them when life does.</Text>
 
           {/* Tempo Coach pointing at the schedule — additive alongside the
               existing hand-built ScheduleAnimation, not a replacement. */}
@@ -217,7 +218,7 @@ export default function WhyTempoScreen() {
               <View style={styles.calIcon}><Ionicons name="calendar-outline" size={18} color={C.primary} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.calCardTitle}>See it with your real calendar</Text>
-                <Text style={styles.calCardSub}>Tempo reads busy times only — event details never leave your phone.</Text>
+                <Text style={styles.calCardSub}>{BRAND_NAME} reads busy times only — event details never leave your phone.</Text>
               </View>
             </View>
             {error && <Text style={styles.calError}>{error}</Text>}

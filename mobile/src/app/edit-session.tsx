@@ -15,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -233,7 +234,7 @@ export default function EditSessionScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.exName} numberOfLines={1}>{it.exercise.name}</Text>
                   <Text style={styles.exMeta} numberOfLines={1}>
-                    {it.pinned ? `${it.sets} sets × ${it.reps} reps` : 'Sets & reps set by Tempo — tap +/- to pin your own'}
+                    {it.pinned ? `${it.sets} sets × ${it.reps} reps` : `Sets & reps set by ${BRAND_NAME} — tap +/- to pin your own`}
                   </Text>
                 </View>
                 <View style={styles.exActions}>
@@ -274,7 +275,7 @@ export default function EditSessionScreen() {
             {splitId
               ? "Changes here apply to today's session only — they never rewrite your split template."
               : 'Changes apply to this scheduled session.'}{' '}
-            Exercises you don't pin keep Tempo's adaptive targets, so progression and deloads still work.
+            Exercises you don't pin keep {BRAND_NAME}'s adaptive targets, so progression and deloads still work.
           </Text>
         </ScrollView>
       )}

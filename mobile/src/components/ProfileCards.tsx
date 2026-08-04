@@ -8,6 +8,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { FadeInView } from '@/components/motion'
 
@@ -46,7 +47,7 @@ export function InsightsGrid({ tiles, delay = 0 }: { tiles: InsightTile[]; delay
   const s = useThemedStyles(makeStyles)
   return (
     <FadeInView style={s.insightsWrap} delay={delay}>
-      <Text style={s.sectionTitle}>Tempo Insights</Text>
+      <Text style={s.sectionTitle}>{BRAND_NAME} Insights</Text>
       <View style={s.tileGrid}>
         {tiles.map((t, i) => (
           <View key={i} style={s.tile}>

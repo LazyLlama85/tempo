@@ -16,6 +16,7 @@ import { effectiveEquipment } from '@/lib/travelMode'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
+import { BRAND_NAME } from '@/constants/brand'
 import { toDateStr } from '@/lib/dates'
 import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
 import { SETUP_SEC } from '@/lib/durationEstimate'
@@ -385,12 +386,12 @@ function buildWhy(ctx: QuickContext, purpose: QuickPurpose): string {
     return `Built around ${targetPattern} so the work you missed doesn't slip — condensed to fit your ${minutes} minutes.`
   }
   if (fromCalendarGap) {
-    return `Tempo spotted a ${minutes}-minute gap in your day. This session is sized to fit it exactly — in and done before your next event.`
+    return `${BRAND_NAME} spotted a ${minutes}-minute gap in your day. This session is sized to fit it exactly — in and done before your next event.`
   }
   if (daysSinceTrained && daysSinceTrained >= 3) {
     return `It's been ${daysSinceTrained} days. A short, easy ${minutes}-minute restart beats waiting for the "perfect" session — momentum first.`
   }
-  return `You've got ${minutes} minutes. Tempo picked the highest-impact movements that fit, so none of it is wasted.`
+  return `You've got ${minutes} minutes. ${BRAND_NAME} picked the highest-impact movements that fit, so none of it is wasted.`
 }
 
 function buildContribution(purpose: QuickPurpose, goal: Goal): string {

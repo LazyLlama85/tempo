@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale, FadeInView } from '@/components/motion'
@@ -207,7 +208,7 @@ export default function BasicsScreen() {
               <View style={styles.hintRow}>
                 <Ionicons name="trending-up" size={16} color={C.primary} />
                 <Text style={styles.hintText}>
-                  Start where you are — Tempo automatically levels you up as you get stronger.
+                  Start where you are — {BRAND_NAME} automatically levels you up as you get stronger.
                 </Text>
               </View>
             </>
@@ -250,8 +251,8 @@ export default function BasicsScreen() {
               <Text style={styles.subtitle}>Both are free — pick whichever fits how you like to work out. You can switch anytime.</Text>
               <View style={styles.options}>
                 {([
-                  { id: 'guided' as const, label: 'Guide me', description: 'Tempo builds your plan and keeps adapting it as you progress.', icon: 'sparkles-outline' },
-                  { id: 'custom' as const, label: "I'll build my own", description: 'Start from a ready-made split (Push/Pull/Legs, Upper/Lower…) or build one from scratch — Tempo still schedules it around your life.', icon: 'construct-outline' },
+                  { id: 'guided' as const, label: 'Guide me', description: `${BRAND_NAME} builds your plan and keeps adapting it as you progress.`, icon: 'sparkles-outline' },
+                  { id: 'custom' as const, label: "I'll build my own", description: `Start from a ready-made split (Push/Pull/Legs, Upper/Lower…) or build one from scratch — ${BRAND_NAME} still schedules it around your life.`, icon: 'construct-outline' },
                 ]).map((opt) => {
                   const isSelected = buildMode === opt.id
                   return (

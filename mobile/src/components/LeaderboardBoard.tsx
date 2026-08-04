@@ -8,6 +8,7 @@ import { FriendAvatar } from '@/components/FriendAvatar'
 import * as haptics from '@/lib/haptics'
 import { sortLeaderboard, type LeaderboardV2Row, type LeaderboardMetric } from '@/lib/social'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useThemedStyles } from '@/theme'
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
 const TABS: [LeaderboardMetric, string][] = [
   ['weekly', 'This Week'],
   ['streak', 'Streak'],
-  ['tempo', 'Tempo Score'],
+  ['tempo', `${BRAND_NAME} Score`],
 ]
 
 export function LeaderboardBoard({ rows, currentUserId, onOpenProfile, limit = 12 }: Props) {
@@ -90,7 +91,7 @@ export function LeaderboardBoard({ rows, currentUserId, onOpenProfile, limit = 1
       </View>
       {tab === 'tempo' && (
         <Text style={styles.hint}>
-          Tempo Score rewards consistency over strength — finishing what you plan, hitting your weekly goal, and keeping a streak. A steady beginner can outscore a flaky pro.
+          {BRAND_NAME} Score rewards consistency over strength — finishing what you plan, hitting your weekly goal, and keeping a streak. A steady beginner can outscore a flaky pro.
         </Text>
       )}
     </>

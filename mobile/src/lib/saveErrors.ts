@@ -6,6 +6,7 @@
 // the first one. Used by the plan flow and other critical saves.
 
 import { supabase } from '@/lib/supabase'
+import { BRAND_NAME } from '@/constants/brand'
 
 export type SaveErrorKind = 'offline' | 'auth' | 'server'
 
@@ -52,7 +53,7 @@ export function describeSaveError(err: unknown, what = 'save your changes'): Sav
     return {
       kind: 'offline',
       title: 'No connection',
-      message: `Tempo couldn’t reach the server to ${what}. Check your internet connection and try again — nothing was lost.`,
+      message: `${BRAND_NAME} couldn’t reach the server to ${what}. Check your internet connection and try again — nothing was lost.`,
     }
   }
   if (isAuthError(err)) {
@@ -63,7 +64,7 @@ export function describeSaveError(err: unknown, what = 'save your changes'): Sav
     return {
       kind: 'auth',
       title: 'Session needs a refresh',
-      message: 'Your login session had expired. Tempo is refreshing it now — tap Try Again and it should go through.',
+      message: `Your login session had expired. ${BRAND_NAME} is refreshing it now — tap Try Again and it should go through.`,
     }
   }
   const raw = messageOf(err)

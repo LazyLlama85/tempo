@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -75,7 +76,7 @@ export default function MyWorkoutsScreen() {
     const share = await createWorkoutShare(supabase, userId, profile?.display_name ?? null, t)
     if (!share) { Alert.alert('Couldn’t create link', 'Check your connection and try again.'); return }
     Share.share({
-      message: `Try my "${t.name}" workout on Tempo: ${shareUrl(share.code)}\n\nOr paste this code in Tempo → Friends: ${share.code}`,
+      message: `Try my "${t.name}" workout on ${BRAND_NAME}: ${shareUrl(share.code)}\n\nOr paste this code in ${BRAND_NAME} → Friends: ${share.code}`,
     }).catch(() => {})
   }
   const confirmDeleteTemplate = (t: WorkoutTemplate) =>

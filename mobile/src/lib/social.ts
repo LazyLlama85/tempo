@@ -11,6 +11,7 @@ import type { Goal, Split, SplitDay, WorkoutExerciseConfig, WorkoutTemplate } fr
 import { sessionStreak, longestSessionStreak, distinctDayStreak, type StreakRow } from './streak'
 import { computeTempoScore } from './tempoScore'
 import { BADGE_BY_KEY, badgeStatsFromSessions, computeEarnedBadges } from './badges'
+import { BRAND_DOMAIN } from '@/constants/brand'
 import { todayStr, addDays, toDateStr } from './dates'
 
 export type PrivacyLevel = 'public' | 'friends' | 'private'
@@ -471,12 +472,13 @@ function makeShareCode(): string {
   return out
 }
 
-// fittempo.app is the real domain (see repo-root CNAME + web/) — this used to
-// point at tempo.app, a domain Tempo doesn't own, so every share message sent
-// from My Workouts/My Splits linked nowhere. web/share.html (§26 L27) is what
-// actually resolves this path now, with a public (logged-out) preview.
+// BRAND_DOMAIN is the real, currently-live domain (see repo-root CNAME + web/)
+// — this used to point at tempo.app, a domain the product never owned, so
+// every share message sent from My Workouts/My Splits linked nowhere.
+// web/share.html (§26 L27) is what actually resolves this path now, with a
+// public (logged-out) preview.
 export function shareUrl(code: string): string {
-  return `https://fittempo.app/w/${code}`
+  return `https://${BRAND_DOMAIN}/w/${code}`
 }
 
 // Snapshot names + distinct equipment for a set of exercise ids, so previews

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Redirect } from 'expo-router'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
@@ -29,8 +30,8 @@ const PHASE_COPY: Record<Phase, { title: string; what: string }> = {
 }
 
 const MODE_NOTE: Partial<Record<AdaptationMode, string>> = {
-  recovery: 'Tempo shifted you into a recovery block after spotting missed sessions or repeated "too hard" feedback. Volume is reduced and rebuilt gradually.',
-  deload:   'Tempo inserted a deload now because your recent training signalled you needed a reset. Normal progression resumes after this.',
+  recovery: `${BRAND_NAME} shifted you into a recovery block after spotting missed sessions or repeated "too hard" feedback. Volume is reduced and rebuilt gradually.`,
+  deload:   `${BRAND_NAME} inserted a deload now because your recent training signalled you needed a reset. Normal progression resumes after this.`,
 }
 
 interface UpcomingRow { planned_date: string; progression: WeekProgression | null; focus: string }
@@ -89,7 +90,7 @@ export default function PlanExplainerScreen() {
         <View style={styles.center}><PulseLoader caption="Loading your plan…" /></View>
       ) : !current ? (
         <View style={styles.center}>
-          <EmptyState kind="calendar" title="No plan week yet" body="Generate a plan from onboarding and Tempo will explain exactly why each week is built the way it is." />
+          <EmptyState kind="calendar" title="No plan week yet" body={`Generate a plan from onboarding and ${BRAND_NAME} will explain exactly why each week is built the way it is.`} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -127,7 +128,7 @@ export default function PlanExplainerScreen() {
                 ? 'This is your deload — keep it light. Normal progression resumes next week.'
                 : nextDeload
                   ? `Your next deload starts ${fmtDate(nextDeload)}. Push until then.`
-                  : 'Keep progressing — Tempo schedules a deload automatically when you need one.'}
+                  : `Keep progressing — ${BRAND_NAME} schedules a deload automatically when you need one.`}
             </Text>
           </View>
         </ScrollView>

@@ -6,6 +6,7 @@
 // 225 bench". Returns null when there isn't enough signal, so the card just hides.
 
 import type { Goal, Experience } from '@/types'
+import { BRAND_NAME } from '@/constants/brand'
 
 export interface GoalProjection {
   headline: string         // the big line, e.g. "12 weeks to lose 10 lbs"
@@ -47,7 +48,7 @@ export function projectGoal(args: {
       const weeks = Math.max(1, Math.ceil(10 / Math.abs(weightPerWeek)))
       return { headline: `${weeks} weeks to lose 10 lbs`, sub: `At your current pace of ${fmtRate(weightPerWeek)}`, pct: null, icon: 'trending-down-outline', hasEta: true }
     }
-    return { headline: 'Log your weight to see your ETA', sub: 'Tempo projects your fat-loss timeline from your trend.', pct: null, icon: 'scale-outline', hasEta: false }
+    return { headline: 'Log your weight to see your ETA', sub: `${BRAND_NAME} projects your fat-loss timeline from your trend.`, pct: null, icon: 'scale-outline', hasEta: false }
   }
 
   // ── Muscle gain: weeks to add 5 lbs of bodyweight at the current rate ────────

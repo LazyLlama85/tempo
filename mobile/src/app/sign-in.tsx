@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { describeSaveError } from '@/lib/saveErrors'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, useThemeMode, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { TempoLottie } from '@/components/TempoLottie'
@@ -128,7 +129,7 @@ export default function SignInScreen() {
           <Image
             source={require('@/assets/images/tempo-logo.png')}
             style={styles.logoImage}
-            accessibilityLabel="Tempo logo"
+            accessibilityLabel={`${BRAND_NAME} logo`}
           />
         </View>
 
@@ -202,7 +203,7 @@ export default function SignInScreen() {
 
         {/* Legal */}
         <Text style={styles.legal}>
-          By continuing, you agree to Tempo's{' '}
+          By continuing, you agree to {BRAND_NAME}'s{' '}
           <Text style={styles.legalLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'terms' } } as never)}>Terms of Service</Text>
           {' '}and{' '}
           <Text style={styles.legalLink} onPress={() => router.push({ pathname: '/legal', params: { section: 'privacy' } } as never)}>Privacy Policy</Text>

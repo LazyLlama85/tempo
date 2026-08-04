@@ -18,6 +18,7 @@
 // honestly instead of inventing claims when there isn't enough data yet.
 
 import { sessionStreak, longestSessionStreak, type StreakRow } from './streak'
+import { BRAND_NAME } from '@/constants/brand'
 import { tempoScoreInputFromSessions, clampGoal } from './tempoScore'
 import { consecutiveTrainingDays } from './trainingLoad'
 import { toDateStr as ymd, addDays } from './dates'
@@ -209,7 +210,7 @@ export function optimalWindow(logTimes: string[]): OptimalWindow {
     return {
       hasData: false,
       windowLabel: '',
-      reason: 'Complete a few more workouts and Tempo will learn your best training window.',
+      reason: `Complete a few more workouts and ${BRAND_NAME} will learn your best training window.`,
       weekdayInsight: null,
     }
   }
@@ -793,7 +794,7 @@ export function journeyTimeline(sessions: StreakRow[], todayStr: string): Journe
   const events: JourneyEvent[] = []
   const fmt = (d: string) => parseYmd(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
 
-  events.push({ date: completed[0].planned_date, title: 'Started your Tempo journey', detail: `First workout on ${fmt(completed[0].planned_date)}.`, icon: 'flag' })
+  events.push({ date: completed[0].planned_date, title: `Started your ${BRAND_NAME} journey`, detail: `First workout on ${fmt(completed[0].planned_date)}.`, icon: 'flag' })
 
   for (const milestone of [10, 25, 50, 100, 200]) {
     if (completed.length >= milestone) {

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, useThemeMode, type ThemeMode } from '@/theme'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { ScreenTransition } from '@/components/motion'
@@ -188,7 +189,7 @@ export default function SettingsScreen() {
       setPushEnabled(false)
       Alert.alert(
         'Notifications are off in Settings',
-        'Tempo needs permission from iOS to send reminders. Turn notifications on for Tempo in system Settings, then flip this switch again.',
+        `${BRAND_NAME} needs permission from iOS to send reminders. Turn notifications on for ${BRAND_NAME} in system Settings, then flip this switch again.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
@@ -342,7 +343,7 @@ export default function SettingsScreen() {
       if (removed < total) {
         Alert.alert(
           'Some events may remain',
-          'Auto-sync is off, but Tempo couldn’t confirm every synced event was removed from your calendar. Use "Delete Tempo events from calendar" below to clean up manually.',
+          `Auto-sync is off, but ${BRAND_NAME} couldn’t confirm every synced event was removed from your calendar. Use "Delete ${BRAND_NAME} events from calendar" below to clean up manually.`,
         )
       }
     }
@@ -354,7 +355,7 @@ export default function SettingsScreen() {
   const handleRemoveAllTempoEvents = () => {
     if (!userId || removingEvents) return
     if (!calendarConnected) {
-      Alert.alert('No calendar connected', 'Connect a calendar first — then Tempo can remove its events from it.')
+      Alert.alert('No calendar connected', `Connect a calendar first — then ${BRAND_NAME} can remove its events from it.`)
       return
     }
     setRemoveEventsSheet(true)
@@ -374,8 +375,8 @@ export default function SettingsScreen() {
     Alert.alert(
       'Done',
       count > 0
-        ? `Removed ${count} Tempo event${count === 1 ? '' : 's'} from your calendar.`
-        : 'No Tempo events were found on your calendar.',
+        ? `Removed ${count} ${BRAND_NAME} event${count === 1 ? '' : 's'} from your calendar.`
+        : `No ${BRAND_NAME} events were found on your calendar.`,
     )
   }
 
@@ -414,7 +415,7 @@ export default function SettingsScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>AUTOMATIC SCHEDULING</Text>
                 <Text style={styles.settingValue}>
-                  {autoScheduleTimes ? 'Tempo places workouts around your day' : "You schedule workouts yourself"}
+                  {autoScheduleTimes ? `${BRAND_NAME} places workouts around your day` : "You schedule workouts yourself"}
                 </Text>
               </View>
               <Switch
@@ -448,8 +449,8 @@ export default function SettingsScreen() {
                 <View style={styles.divider} />
                 <SettingRow
                   icon="trash-outline"
-                  label="REMOVE ALL TEMPO EVENTS"
-                  value={removingEvents ? 'Removing…' : 'Delete Tempo events from calendar'}
+                  label={`REMOVE ALL ${BRAND_NAME.toUpperCase()} EVENTS`}
+                  value={removingEvents ? 'Removing…' : `Delete ${BRAND_NAME} events from calendar`}
                   onPress={handleRemoveAllTempoEvents}
                 />
               </>
@@ -680,7 +681,7 @@ export default function SettingsScreen() {
                   <View style={styles.settingInfo}>
                     <Text style={styles.settingLabel}>SYNC TO APPLE HEALTH</Text>
                     <Text style={styles.settingValue}>
-                      {healthSyncEnabled ? 'Completed workouts appear in Health' : 'Off — workouts stay in Tempo only'}
+                      {healthSyncEnabled ? 'Completed workouts appear in Health' : `Off — workouts stay in ${BRAND_NAME} only`}
                     </Text>
                   </View>
                   <Switch
@@ -730,9 +731,9 @@ export default function SettingsScreen() {
             source={require('@/assets/images/tempo-logo.png')}
             style={styles.brandFooterLogo}
             contentFit="contain"
-            accessibilityLabel="Tempo"
+            accessibilityLabel={BRAND_NAME}
           />
-          <Text style={styles.brandFooterVersion}>Tempo · Version {Constants.expoConfig?.version ?? '1.0.0'}</Text>
+          <Text style={styles.brandFooterVersion}>{BRAND_NAME} · Version {Constants.expoConfig?.version ?? '1.0.0'}</Text>
         </View>
       </ScrollView>
 
@@ -767,8 +768,8 @@ export default function SettingsScreen() {
       />
       <OptionSheet
         visible={removeEventsSheet}
-        title="Remove all Tempo events?"
-        subtitle="This deletes every Tempo workout event from your connected calendar(s). Your Tempo plan itself is untouched — only the calendar copies are removed."
+        title={`Remove all ${BRAND_NAME} events?`}
+        subtitle={`This deletes every ${BRAND_NAME} workout event from your connected calendar(s). Your ${BRAND_NAME} plan itself is untouched — only the calendar copies are removed.`}
         options={[{ key: 'remove', label: 'Remove all', icon: 'trash-outline', destructive: true }]}
         onSelect={() => { setRemoveEventsSheet(false); void doRemoveAllTempoEvents() }}
         onClose={() => setRemoveEventsSheet(false)}

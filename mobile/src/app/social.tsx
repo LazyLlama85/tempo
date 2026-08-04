@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -142,7 +143,7 @@ export default function SocialScreen() {
     if (!identity?.friend_code) return
     haptics.tapLight()
     Share.share({
-      message: `Add me on Tempo! My friend code is ${identity.friend_code}${identity.username ? ` (@${identity.username})` : ''} — paste it in Friends → search.`,
+      message: `Add me on ${BRAND_NAME}! My friend code is ${identity.friend_code}${identity.username ? ` (@${identity.username})` : ''} — paste it in Friends → search.`,
     }).catch(() => {})
   }
   const copyMyCode = async () => {
@@ -266,7 +267,7 @@ export default function SocialScreen() {
     <TouchableOpacity key={p.user_id} style={styles.personRow} activeOpacity={onPress ? 0.7 : 1} onPress={onPress} disabled={!onPress}>
       <FriendAvatar avatarUrl={p.avatar_url} size={40} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.personName} numberOfLines={1}>{p.display_name ?? 'Tempo user'}</Text>
+        <Text style={styles.personName} numberOfLines={1}>{p.display_name ?? `${BRAND_NAME} user`}</Text>
         {!!p.username && <Text style={styles.personHandle} numberOfLines={1}>@{p.username}</Text>}
       </View>
       {right}

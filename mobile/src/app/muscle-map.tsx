@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { ScreenHeader, DismissButton, PulseLoader } from '@/components/brand'
 import { FadeInView, PressableScale } from '@/components/motion'
@@ -120,7 +121,7 @@ export default function MuscleMapScreen() {
           <EmptyState
             kind="chart"
             title="Train to unlock your body map"
-            body="Log a few sessions and Tempo maps your training balance, recovery, and weak points across every muscle group."
+            body={`Log a few sessions and ${BRAND_NAME} maps your training balance, recovery, and weak points across every muscle group.`}
             actionLabel="Start a Quick Workout"
             onAction={() => router.push('/quick-workout')}
           />
@@ -243,7 +244,7 @@ export default function MuscleMapScreen() {
                   scaleTo={0.98}
                   onPress={openPaywall}
                   accessibilityRole="button"
-                  accessibilityLabel="Unlock your body map with Tempo Pro"
+                  accessibilityLabel={`Unlock your body map with ${BRAND_NAME} Pro`}
                 >
                   <View style={s.mapLockIcon}>
                     <Ionicons name="lock-closed" size={20} color={C.onPrimary} />
@@ -422,11 +423,11 @@ export default function MuscleMapScreen() {
                   </View>
                 ))
               ) : (
-                <Text style={s.muted}>Keep training — a few more sessions and Tempo will surface balance & recovery insights here.</Text>
+                <Text style={s.muted}>Keep training — a few more sessions and {BRAND_NAME} will surface balance & recovery insights here.</Text>
               )}
             </FadeInView>
 
-            <Text style={s.footNote}>Estimated from your logged sets across Tempo's six muscle groups.</Text>
+            <Text style={s.footNote}>Estimated from your logged sets across {BRAND_NAME}'s six muscle groups.</Text>
           </>
         )}
       </ScrollView>

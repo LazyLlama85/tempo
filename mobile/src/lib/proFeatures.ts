@@ -9,6 +9,7 @@
 
 import type { ComponentProps } from 'react'
 import type { Ionicons } from '@expo/vector-icons'
+import { BRAND_NAME } from '@/constants/brand'
 
 export type IoniconName = ComponentProps<typeof Ionicons>['name']
 
@@ -105,7 +106,7 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   },
   tempo_coach: {
     id: 'tempo_coach',
-    title: 'Tempo Coach',
+    title: `${BRAND_NAME} Coach`,
     benefit: 'A coach that reprograms on command and explains every decision.',
     icon: 'chatbubbles',
   },
@@ -130,7 +131,7 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   multi_calendar: {
     id: 'multi_calendar',
     title: 'Multi-Calendar',
-    benefit: 'Read busy time from every calendar you use, not just your primary one, so Tempo never double-books you.',
+    benefit: `Read busy time from every calendar you use, not just your primary one, so ${BRAND_NAME} never double-books you.`,
     icon: 'calendar',
   },
   plate_calculator: {
@@ -147,7 +148,7 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   rolling_schedule: {
     id: 'rolling_schedule',
     title: 'Rolling Auto-Schedule',
-    benefit: 'Tempo keeps fitting every future week around your calendar — not just this one.',
+    benefit: `${BRAND_NAME} keeps fitting every future week around your calendar — not just this one.`,
     icon: 'infinite',
   },
   // Free still DETECTS a conflict (a Home card: "your session now clashes with
@@ -157,7 +158,7 @@ export const PRO_FEATURES: Record<ProFeatureId, ProFeatureMeta> = {
   auto_reschedule: {
     id: 'auto_reschedule',
     title: 'Auto-Reschedule',
-    benefit: 'When a meeting lands on a workout, Tempo quietly moves it before you even notice.',
+    benefit: `When a meeting lands on a workout, ${BRAND_NAME} quietly moves it before you even notice.`,
     icon: 'shuffle',
   },
 }
@@ -186,8 +187,8 @@ export interface PaywallPoint {
 // but demoted to supporting cast. Every point here maps to something a Pro
 // user can use today; add to this list only as new gates actually ship.
 export const PAYWALL_POINTS: PaywallPoint[] = [
-  { icon: 'infinite', title: 'Your Week, Every Week', benefit: 'Tempo keeps auto-fitting your training around your calendar — not just this week, every week ahead.' },
-  { icon: 'shuffle', title: 'Never Lose a Session to a Meeting', benefit: 'A conflict lands on your calendar and Tempo quietly moves your workout before you even notice.' },
+  { icon: 'infinite', title: 'Your Week, Every Week', benefit: `${BRAND_NAME} keeps auto-fitting your training around your calendar — not just this week, every week ahead.` },
+  { icon: 'shuffle', title: 'Never Lose a Session to a Meeting', benefit: `A conflict lands on your calendar and ${BRAND_NAME} quietly moves your workout before you even notice.` },
   { icon: 'repeat', title: 'Reschedule My Week', benefit: 'One tap re-plans your whole upcoming week around a busy stretch — recovery-aware and calendar-aware.' },
   { icon: 'airplane', title: 'Travel Mode & Multi-Calendar', benefit: 'Rewrite workouts to match gear on the road, and read busy time from every calendar you use.' },
   { icon: 'body', title: 'Muscle Intelligence', benefit: 'An interactive body map of your balance, recovery, and weak points.' },

@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -263,7 +264,7 @@ export default function SplitEditorScreen() {
         // Active, but this week's sessions couldn't be written (likely offline) —
         // they self-materialize on the next online app open, so don't say "retry".
         setSaving(false)
-        Alert.alert(wasActive ? 'Saved' : 'Activated', 'Your split is your schedule. Tempo couldn’t reach the server to rebuild this week’s sessions — they’ll update next time you open the app online.', [
+        Alert.alert(wasActive ? 'Saved' : 'Activated', `Your split is your schedule. ${BRAND_NAME} couldn’t reach the server to rebuild this week’s sessions — they’ll update next time you open the app online.`, [
           { text: 'OK', onPress: () => router.back() },
         ])
         return

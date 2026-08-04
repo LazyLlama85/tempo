@@ -13,6 +13,14 @@
 import { getGoogleAccessToken, invalidateGoogleAccessToken } from './CalendarAuthService'
 import { eventsEndpoint, calendarListEndpoint, GCAL_PRIMARY, WORKOUT_EVENT_COLOR_ID } from './config'
 import { captureApiError } from '@/lib/crashReporting'
+import { CALENDAR_EVENT_PREFIX, LEGACY_CALENDAR_EVENT_PREFIXES } from '@/constants/brand'
+
+// Matches CALENDAR_EVENT_PREFIX and every LEGACY_CALENDAR_EVENT_PREFIXES entry,
+// so events created under a prior name are still recognized as the app's own.
+const APP_EVENT_TITLE_PATTERN = new RegExp(
+  `^(${[CALENDAR_EVENT_PREFIX, ...LEGACY_CALENDAR_EVENT_PREFIXES].join('|')})\\s*[·•:\\-]`,
+  'i',
+)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -234,7 +242,7 @@ export async function fetchUserEvents(start: Date, end: Date, calendarIds: strin
       !!e.start?.dateTime && !!e.end?.dateTime &&
       e.status !== 'cancelled' &&
       e.colorId !== WORKOUT_EVENT_COLOR_ID &&
-      !(e.summary ?? '').startsWith('Tempo'))
+      !APP_EVENT_TITLE_PATTERN.test((e.summary ?? '').trim()))
     .map(e => ({
       id: e.id,
       title: e.summary || 'Busy',
@@ -343,7 +351,7 @@ export async function autoScheduleWorkout(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       summary: title,
-      description: 'Scheduled automatically by Tempo around your calendar.',
+      description: `Scheduled automatically by ${CALENDAR_EVENT_PREFIX} around your calendar.`,
       colorId: WORKOUT_EVENT_COLOR_ID, // '11' = Tomato — stands out from other events
       start: { dateTime: start.toISOString() },
       end: { dateTime: end.toISOString() },
@@ -391,8 +399,8 @@ export async function deleteTempoGoogleEvents(start: Date, end: Date): Promise<n
 
     for (const e of (data.items ?? []) as GoogleEvent[]) {
       if (!e.id || e.status === 'cancelled') continue
-      const isTempo = e.colorId === WORKOUT_EVENT_COLOR_ID || /^tempo\s*[·•:\-]/i.test((e.summary ?? '').trim())
-      if (!isTempo) continue
+      const isOwnEvent = e.colorId === WORKOUT_EVENT_COLOR_ID || APP_EVENT_TITLE_PATTERN.test((e.summary ?? '').trim())
+      if (!isOwnEvent) continue
       try { await deleteCalendarEvent(e.id); removed++ } catch { /* best-effort */ }
     }
     pageToken = data.nextPageToken

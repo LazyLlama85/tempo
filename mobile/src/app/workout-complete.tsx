@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useProgressStats } from '@/hooks/useProgressStats'
@@ -286,7 +287,7 @@ export default function WorkoutCompleteScreen() {
   // Prefer the most motivating true statement we can make from this week's data.
   const lead = (() => {
     if (report && report.missed > 0 && report.workouts > 0) {
-      return `You trained ${report.workouts} day${report.workouts === 1 ? '' : 's'} this week despite missing ${report.missed} — Tempo adjusted your plan to keep you on track.`
+      return `You trained ${report.workouts} day${report.workouts === 1 ? '' : 's'} this week despite missing ${report.missed} — ${BRAND_NAME} adjusted your plan to keep you on track.`
     }
     if (report && report.volumeDeltaPct != null && report.volumeDeltaPct > 0) {
       return `${report.volumeDeltaPct}% more volume than last week. You're building real momentum.`
@@ -324,7 +325,7 @@ export default function WorkoutCompleteScreen() {
           <Ionicons name={isFirstSession ? 'sparkles' : 'checkmark'} size={44} color={C.onPrimary} />
         </PopIn>
         <FadeInView delay={120}><Text style={styles.title}>{isFirstSession ? 'First workout complete.' : 'Nice work.'}</Text></FadeInView>
-        <FadeInView delay={200}><Text style={styles.lead}>{isFirstSession ? 'You just started your Tempo journey — this is day one.' : lead}</Text></FadeInView>
+        <FadeInView delay={200}><Text style={styles.lead}>{isFirstSession ? `You just started your ${BRAND_NAME} journey — this is day one.` : lead}</Text></FadeInView>
 
         {/* First Tempo Session — an unlock moment on day one. Full treatment only
             when it's the highest-ranked eligible card this visit. */}
@@ -335,8 +336,8 @@ export default function WorkoutCompleteScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.firstTag}>ACHIEVEMENT UNLOCKED</Text>
-              <Text style={styles.firstTitle}>First Tempo Session</Text>
-              <Text style={styles.firstBody}>The hardest one is behind you. Tempo learns from this session to shape your next.</Text>
+              <Text style={styles.firstTitle}>{`First ${BRAND_NAME} Session`}</Text>
+              <Text style={styles.firstBody}>{`The hardest one is behind you. ${BRAND_NAME} learns from this session to shape your next.`}</Text>
             </View>
           </PopIn>
         )}
@@ -477,7 +478,7 @@ export default function WorkoutCompleteScreen() {
             <Ionicons name="bulb-outline" size={16} color={C.primary} style={{ marginTop: 1 }} />
             <Text style={styles.noteText}>
               Short sessions add up. Showing up on a busy day protects everything you've built —
-              that's the whole point of Tempo.
+              that's the whole point of {BRAND_NAME}.
             </Text>
           </View>
         )}

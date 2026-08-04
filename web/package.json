@@ -1,7 +1,7 @@
 {
-  "name": "tempo-waitlist",
+  "name": "fitaround-waitlist",
   "version": "1.0.0",
-  "description": "Tempo waitlist landing page",
+  "description": "Fitaround waitlist landing page",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

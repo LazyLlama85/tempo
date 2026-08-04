@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { TempoSheet } from '@/components/TempoSheet'
 import { PressableScale } from '@/components/motion'
 import { Spacing, Radius, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -73,7 +74,7 @@ export function ScheduleTogetherSheet({ visible, friendId, friendName, onClose, 
     <TempoSheet visible={visible} onClose={onClose} snapPoints={['82%']} scroll>
       <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
         <Text style={styles.title}>Work out with {friendName}</Text>
-        <Text style={styles.hint}>Tempo found times you're both free. Pick one to send an invite — accepting schedules it for both of you.</Text>
+        <Text style={styles.hint}>{BRAND_NAME} found times you're both free. Pick one to send an invite — accepting schedules it for both of you.</Text>
 
         <Text style={styles.label}>WORKOUT</Text>
         <View style={styles.focusChips}>

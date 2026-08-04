@@ -20,6 +20,7 @@ import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -155,7 +156,7 @@ export default function TravelModeScreen() {
           <Ionicons name="airplane" size={22} color={C.primary} />
         </View>
         <Text style={styles.intro}>
-          Away from your usual setup? Tell Tempo what you have with you and it'll rewrite
+          Away from your usual setup? Tell {BRAND_NAME} what you have with you and it'll rewrite
           your upcoming workouts to match — every session swaps in moves you can actually
           do with this gear (pick “No equipment” for floor-only work, or add a pull-up bar
           for pulls and dips). Your home plan is saved untouched and restored automatically

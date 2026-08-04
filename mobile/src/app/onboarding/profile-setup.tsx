@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -240,7 +241,7 @@ export default function ProfileSetupScreen() {
           </View>
         )}
         <Text style={styles.weightHint}>
-          Starts your weight trend and goal countdown — Tempo projects when you'll hit your goal. Drag
+          Starts your weight trend and goal countdown — {BRAND_NAME} projects when you'll hit your goal. Drag
           to set it, or leave it and skip for now.
         </Text>
 
@@ -303,7 +304,7 @@ export default function ProfileSetupScreen() {
           {saving ? (
             <ActivityIndicator color={C.onPrimary} />
           ) : (
-            <Text style={styles.continueBtnText}>{isCustomBuild ? 'Build My Split →' : 'Enter Tempo →'}</Text>
+            <Text style={styles.continueBtnText}>{isCustomBuild ? 'Build My Split →' : `Enter ${BRAND_NAME} →`}</Text>
           )}
         </PressableScale>
       </View>

@@ -15,6 +15,7 @@ import { OptionSheet } from '@/components/OptionSheet'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { Spacing, Radius, CardShadow, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -59,7 +60,7 @@ export default function GroupDetailScreen() {
     if (!group) return
     haptics.tapLight()
     Share.share({
-      message: `Join my Tempo group "${group.name}"! Group code: ${group.invite_code} — paste it in Friends → Groups → Join.`,
+      message: `Join my ${BRAND_NAME} group "${group.name}"! Group code: ${group.invite_code} — paste it in Friends → Groups → Join.`,
     }).catch(() => {})
   }
   const copyCode = async () => {

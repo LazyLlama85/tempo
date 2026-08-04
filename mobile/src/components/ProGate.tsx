@@ -13,6 +13,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { PressableScale } from '@/components/motion'
 import { useProAccess } from '@/stores/entitlements'
@@ -46,7 +47,7 @@ export function ProLockCard({ feature, compact }: { feature: ProFeatureId; compa
       onPress={open}
       scaleTo={0.98}
       accessibilityRole="button"
-      accessibilityLabel={`Unlock ${f.title} with Tempo Pro`}
+      accessibilityLabel={`Unlock ${f.title} with ${BRAND_NAME} Pro`}
     >
       <View style={styles.lockIcon}>
         <Ionicons name={f.icon} size={compact ? 18 : 22} color={C.primary} />

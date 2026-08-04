@@ -30,6 +30,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
 import { Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -394,7 +395,7 @@ export default function CoachScreen() {
             <TempoPulse size={34} />
             <Text style={styles.emptyTitle}>Ask your coach</Text>
             <Text style={styles.emptyBody}>
-              Tempo can see your plan, your week and how your training is actually going. Tell it
+              {BRAND_NAME} can see your plan, your week and how your training is actually going. Tell it
               what changed and it will work out what to do about it.
             </Text>
             <View style={styles.starters}>

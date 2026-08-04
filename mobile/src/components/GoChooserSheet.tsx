@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { TempoSheet } from '@/components/TempoSheet'
 import { PressableScale } from '@/components/motion'
 import { Spacing, Radius, Elevation, type Palette } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles } from '@/theme'
 
 function formatTime12(hhmmss: string): string {
@@ -91,7 +92,7 @@ export function GoChooserSheet({ visible, todayState, focus, time, onContinue, o
           <View style={{ flex: 1 }}>
             <Text style={s.cardTagGhost}>SHORT ON TIME?</Text>
             <Text style={s.cardTitleGhost}>Quick Workout instead</Text>
-            <Text style={s.cardSubGhost}>Pick your time — Tempo builds a session that fits.</Text>
+            <Text style={s.cardSubGhost}>Pick your time — {BRAND_NAME} builds a session that fits.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.primary} />
         </PressableScale>

@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, Spacing, Radius } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoSheet } from '@/components/TempoSheet'
 import { WrappedCard } from '@/components/WrappedCard'
@@ -81,7 +82,7 @@ export function ShareCardSheet({ visible, cards, onClose }: Props) {
       await native.Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         UTI: 'public.png',
-        dialogTitle: 'Share your Tempo card',
+        dialogTitle: `Share your ${BRAND_NAME} card`,
       })
     } catch {
       Alert.alert('Couldn’t share', 'Something went wrong creating your card. Please try again.')

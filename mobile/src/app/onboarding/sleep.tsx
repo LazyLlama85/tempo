@@ -10,6 +10,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Spacing, Radius, Elevation } from '@/constants/theme'
+import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoWordmark } from '@/components/brand'
 import { PressableScale } from '@/components/motion'
@@ -60,7 +61,7 @@ export default function OnboardingSleepScreen() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.stepLabel}>STEP 4 OF {TOTAL_STEPS}</Text>
         <Text style={styles.title}>When do you sleep?</Text>
-        <Text style={styles.subtitle}>Tempo never places a workout between bedtime and wake-up. You can change this later.</Text>
+        <Text style={styles.subtitle}>{BRAND_NAME} never places a workout between bedtime and wake-up. You can change this later.</Text>
 
         <View style={styles.card}>
           <TouchableOpacity style={styles.timeRow} onPress={() => setPicker('wake')} activeOpacity={0.7}>
