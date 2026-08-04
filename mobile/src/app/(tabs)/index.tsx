@@ -55,8 +55,9 @@ import { getSeenSocialCount, setSeenSocialCount } from '@/lib/feedSeen'
 import { logFeedItem, getFeedLog, getLastReadAt, isUnread } from '@/lib/feedLog'
 import { getReturningState } from '@/lib/returningUser'
 import { applyAdaptationMode } from '@/lib/adaptation'
-import { getTodayCheckin } from '@/lib/recovery'
+import { getTodayCheckin, readinessLabel } from '@/lib/recovery'
 import { RecoveryCheckIn } from '@/components/RecoveryCheckIn'
+import { HeroStatusRow } from '@/components/HeroStatusRow'
 import { fetchSocialNotifCount } from '@/lib/social'
 import { parseAvatar } from '@/lib/avatar'
 import { getActiveTravelMode, describeTravelEquipment, describeTravelUntil } from '@/lib/travelMode'
@@ -1941,26 +1942,21 @@ export default function ScheduleScreen() {
                   <Text style={styles.planEyebrow}>YOUR PLAN</Text>
                   {profile?.goal ? <Text style={styles.planGoal}>{GOAL_LABELS[profile.goal] ?? 'Training'}</Text> : null}
                 </View>
-                <View style={styles.planChips}>
-                  {blockPhase?.progression && (
+                {blockPhase?.progression && (
+                  <View style={styles.planChips}>
                     <View style={styles.planChip}>
                       <Ionicons name="podium-outline" size={13} color={C.primary} />
                       <Text style={styles.planChipText}>{blockPhase.progression.label} week</Text>
                     </View>
-                  )}
-                  {stats.streak > 0 && (
-                    <View style={styles.planChip}>
-                      <Ionicons name="flame" size={13} color={C.primary} />
-                      <Text style={styles.planChipText}>{stats.streak}-session streak</Text>
-                    </View>
-                  )}
-                  {/* Check-in stays reachable on a rest day too (Phase 8) — a
-                      rest day is exactly when recovery tracking matters most. */}
-                  <TouchableOpacity style={styles.planChip} onPress={() => setShowRecovery(true)} activeOpacity={0.8}>
-                    <Ionicons name="pulse" size={13} color={C.primary} />
-                    <Text style={styles.planChipText}>{checkin ? `Checked in · ${checkin.readiness}` : 'Daily check-in'}</Text>
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                )}
+                {/* Check-in stays reachable on a rest day too (Phase 8) — a
+                    rest day is exactly when recovery tracking matters most. */}
+                <HeroStatusRow
+                  streak={stats.streak}
+                  checkin={checkin ? { caption: readinessLabel(checkin.readiness), dotColor: readinessColor(checkin.readiness, C) } : null}
+                  onCheckinPress={() => setShowRecovery(true)}
+                />
                 <View style={styles.planNext}>
                   <Text style={styles.planNextLabel}>NEXT WORKOUT · {relativeDayLabel(nextWorkout.planned_date).toUpperCase()}</Text>
                   <Text style={styles.planNextTitle}>{nextWorkout.focus}</Text>
@@ -2032,26 +2028,12 @@ export default function ScheduleScreen() {
               {/* Today counted — the streak reads hot/active here, not muted.
                   Check-in stays reachable here too (Phase 8) — a finished day
                   is exactly when someone might want to log how it felt. */}
-              <View style={styles.heroMetaRow}>
-                {stats.streak > 0 && (
-                  <View style={styles.heroReadyChip}>
-                    <Ionicons name="flame" size={12} color={C.ember} />
-                    <Text style={[styles.heroReadyText, { color: C.ember }]}>{stats.streak}-session streak</Text>
-                  </View>
-                )}
-                <PressableScale style={styles.heroReadyChip} onPress={() => setShowRecovery(true)} scaleTo={0.95}>
-                  {checkin ? (
-                    <>
-                      <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(checkin.readiness, C) }]} />
-                      <Text style={styles.heroReadyText}>Checked in · {checkin.readiness}</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons name="pulse" size={12} color={C.primary} />
-                      <Text style={styles.heroReadyText}>Daily check-in</Text>
-                    </>
-                  )}
-                </PressableScale>
+              <View style={styles.heroStatusWrap}>
+                <HeroStatusRow
+                  streak={stats.streak}
+                  checkin={checkin ? { caption: readinessLabel(checkin.readiness), dotColor: readinessColor(checkin.readiness, C) } : null}
+                  onCheckinPress={() => setShowRecovery(true)}
+                />
               </View>
 
               <FadeInView style={styles.completeCard}>
@@ -2120,32 +2102,15 @@ export default function ScheduleScreen() {
                   muted here specifically because this branch only ever renders
                   BEFORE today's session is done — a founder ask: keep the number,
                   just make it look "paused, not broken" until it's earned. */}
-              <View style={styles.heroMetaRow}>
-                <PressableScale style={styles.heroReadyChip} onPress={() => router.push('/(tabs)/progress')} scaleTo={0.95}>
-                  <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(readiness.score, C) }]} />
-                  <Text style={styles.heroReadyText}>{readiness.score}% ready · {intensity.label.toLowerCase()}</Text>
-                </PressableScale>
-                {/* Recovery check-in relocated here (Phase 8, was the header
-                    ring) — still the exact same RecoveryCheckIn sheet. */}
-                <PressableScale style={styles.heroReadyChip} onPress={() => setShowRecovery(true)} scaleTo={0.95}>
-                  {checkin ? (
-                    <>
-                      <View style={[styles.heroReadyDot, { backgroundColor: readinessColor(checkin.readiness, C) }]} />
-                      <Text style={styles.heroReadyText}>Checked in · {checkin.readiness}</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons name="pulse" size={12} color={C.primary} />
-                      <Text style={styles.heroReadyText}>Daily check-in</Text>
-                    </>
-                  )}
-                </PressableScale>
-                {stats.streak > 0 && (
-                  <View style={[styles.heroReadyChip, styles.heroStreakChipMuted]}>
-                    <Ionicons name="flame" size={12} color={C.outline} />
-                    <Text style={[styles.heroReadyText, { color: C.outline }]}>{stats.streak}-session streak</Text>
-                  </View>
-                )}
+              <View style={styles.heroStatusWrap}>
+                <HeroStatusRow
+                  streak={stats.streak}
+                  streakMuted
+                  readiness={{ score: readiness.score, caption: intensity.label, dotColor: readinessColor(readiness.score, C) }}
+                  onReadinessPress={() => router.push('/(tabs)/progress')}
+                  checkin={checkin ? { caption: readinessLabel(checkin.readiness), dotColor: readinessColor(checkin.readiness, C) } : null}
+                  onCheckinPress={() => setShowRecovery(true)}
+                />
               </View>
 
               <TimelineRail>
@@ -2746,17 +2711,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   workoutTitleDone: { textDecorationLine: 'line-through', color: C.textSecondary },
 
   // ── Hero additions: readiness chip, tap-to-expand, "lacking time?" ──────────
-  heroMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: 2 },
-  heroReadyChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    backgroundColor: C.surfaceContainerLow, borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm, paddingVertical: 5,
-  },
-  // Muted, not hidden — the streak count itself never changes just because
-  // today isn't done yet; only the color says "not earned yet today".
-  heroStreakChipMuted: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.outlineVariant },
-  heroReadyDot: { width: 7, height: 7, borderRadius: Radius.full },
-  heroReadyText: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.textSecondary },
+  // HeroStatusRow's wrapper spacing — the component itself carries no margin.
+  heroStatusWrap: { marginTop: 2, marginBottom: Spacing.sm },
   heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   blockMeta: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.textSecondary },
   heroExpandWrap: {
