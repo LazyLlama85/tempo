@@ -53,7 +53,7 @@ export function useCreateLimit(): {
     if (!locked) return true
     if (count < FREE_LIMITS[key]) return true
     track('paywall_shown', { context: key })
-    router.push({ pathname: '/paywall', params: { context: key } } as never)
+    router.push({ pathname: '/paywall', params: { context: key } })
     return false
   }
 

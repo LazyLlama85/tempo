@@ -249,7 +249,7 @@ export default function SettingsScreen() {
   const tester = useEntitlementStore((s) => s.tester)
   const devProOverride = useEntitlementStore((s) => s.devProOverride)
   const setDevProOverride = useEntitlementStore((s) => s.setDevProOverride)
-  const openPaywall = () => { track('paywall_shown', { context: 'settings' }); router.push({ pathname: '/paywall', params: { context: 'settings' } } as never) }
+  const openPaywall = () => { track('paywall_shown', { context: 'settings' }); router.push({ pathname: '/paywall', params: { context: 'settings' } }) }
 
   // Replay the guided walkthrough: re-arm the Concepts tour (the definitions —
   // what a workout/split is, generate vs. schedule, etc. — taught across Home /
@@ -405,7 +405,7 @@ export default function SettingsScreen() {
               icon="calendar-outline"
               label="CALENDAR"
               value={calendarValue}
-              onPress={() => router.push('/calendar-setup' as any)}
+              onPress={() => router.push('/calendar-setup')}
             />
             <View style={styles.divider} />
             <View style={styles.settingRow}>
@@ -460,7 +460,7 @@ export default function SettingsScreen() {
               icon="pause-circle-outline"
               label="PAUSE MY PLAN"
               value={profile?.paused_until ? `Paused until ${describePauseUntil(profile.paused_until)}` : 'Going away? Pause without breaking your streak'}
-              onPress={() => router.push('/pause-mode' as any)}
+              onPress={() => router.push('/pause-mode')}
             />
           </View>
         </View>

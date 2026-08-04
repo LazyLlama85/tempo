@@ -322,7 +322,7 @@ export default function ProgressScreen() {
               completed={stats.thisWeek}
               goal={profile?.days_per_week ?? 3}
               consistencyPct={consistency_pct}
-              onOpen={() => router.push('/weekly-report' as any)}
+              onOpen={() => router.push('/weekly-report')}
               delay={70}
             />
             {/* Consistency ring — sweeps to its score every time you land here */}
@@ -417,7 +417,7 @@ export default function ProgressScreen() {
                 Hidden pre-activation (B3.2): it's a Fitbod-echo depth feature, not
                 something a day-1 user needs to be shown before the core loop lands. */}
             {activated && (
-              <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map' as any)}>
+              <PressableScale style={styles.bodyIntelCard} scaleTo={0.98} onPress={() => router.push('/muscle-map')}>
                 <View style={styles.bodyIntelHead}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.bodyIntelTitle}>Body Intelligence</Text>
@@ -436,7 +436,7 @@ export default function ProgressScreen() {
                   statusByGroup={bodyIntelStatusByGroup}
                   mode="status"
                   selected={null}
-                  onSelect={() => router.push('/muscle-map' as any)}
+                  onSelect={() => router.push('/muscle-map')}
                   locked={proLocked}
                   size={150}
                 />
@@ -451,7 +451,7 @@ export default function ProgressScreen() {
               <InsightsCard
                 patterns={[...insights.patterns, insights.muscle.insight].filter((x): x is string => !!x)}
                 optimal={insights.optimal}
-                onSchedule={() => router.push('/(tabs)' as any)}
+                onSchedule={() => router.push('/(tabs)')}
                 delay={90}
               />
             )}
@@ -549,7 +549,7 @@ export default function ProgressScreen() {
               <StrengthProgressCard
                 trends={insights.strength}
                 formatWeight={fmtW}
-                onOpen={(id, name) => router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as any)}
+                onOpen={(id, name) => router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } })}
                 delay={80}
               />
             )}
@@ -558,7 +558,7 @@ export default function ProgressScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Personal Records</Text>
-                <TouchableOpacity onPress={() => router.push('/pr-browser' as any)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => router.push('/pr-browser')} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.sectionAction}>Search all →</Text>
                 </TouchableOpacity>
               </View>
@@ -566,7 +566,7 @@ export default function ProgressScreen() {
                 <PressableScale
                   key={pr.name}
                   style={styles.recordRow}
-                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } } as any)}
+                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: pr.id, name: pr.name } })}
                   scaleTo={0.98}
                 >
                   <View style={[styles.recordIcon, { backgroundColor: C.goldSoft }]}>

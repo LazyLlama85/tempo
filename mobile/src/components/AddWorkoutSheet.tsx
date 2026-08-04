@@ -58,7 +58,7 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
     // Close the sheet first, then navigate on the next tick. Pushing a screen while
     // this RN Modal is still mounted can leave the target screen blank / not loading.
     onClose()
-    setTimeout(() => router.push({ pathname: '/workout-builder', params: { date, ...params } } as any), 80)
+    setTimeout(() => router.push({ pathname: '/workout-builder', params: { date, ...params } }), 80)
   }
   const goQuick = () => {
     onClose()
@@ -152,7 +152,7 @@ export function AddWorkoutSheet({ visible, userId, client, date, onClose }: Prop
             stays a single de-emphasized line rather than competing with it. */}
         <TouchableOpacity
           style={styles.splitHintRow}
-          onPress={() => { onClose(); setTimeout(() => router.push('/split-editor' as any), 80) }}
+          onPress={() => { onClose(); setTimeout(() => router.push('/split-editor'), 80) }}
           activeOpacity={0.7}
         >
           <Ionicons name="repeat-outline" size={14} color={C.textSecondary} />

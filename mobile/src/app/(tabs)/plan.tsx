@@ -1925,7 +1925,7 @@ export default function WorkoutsScreen() {
         <ScreenHeader
           right={
             <HeaderActions>
-              <TouchableOpacity onPress={() => router.push('/exercise-library' as any)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
+              <TouchableOpacity onPress={() => router.push('/exercise-library')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Exercise Library">
                 <Ionicons name="book-outline" size={22} color={C.text} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open your profile">
@@ -2094,7 +2094,7 @@ export default function WorkoutsScreen() {
                 onPress={() => {
                   // Force a fresh load when we come back — the edit may change everything.
                   lifecycle.current.lastLoadAt = 0
-                  router.push(`/edit-session?workoutId=${workout.id}` as any)
+                  router.push(`/edit-session?workoutId=${workout.id}`)
                 }}
               >
                 <Ionicons name="create-outline" size={14} color={C.primary} />
@@ -2181,7 +2181,7 @@ export default function WorkoutsScreen() {
                     <PressableScale
                       style={styles.dayCardEditBtn}
                       scaleTo={0.96}
-                      onPress={() => router.push(`/edit-session?workoutId=${w.id}` as any)}
+                      onPress={() => router.push(`/edit-session?workoutId=${w.id}`)}
                     >
                       <Ionicons name="create-outline" size={14} color={C.primary} />
                       <Text style={styles.dayCardEditText}>Edit</Text>
@@ -2249,7 +2249,7 @@ export default function WorkoutsScreen() {
                       {activeSplit.kind === 'auto' ? ` · ${BRAND_NAME}` : ' · Yours'}
                     </Text>
                   </View>
-                  <PressableScale style={styles.splitEditBtn} scaleTo={0.95} onPress={() => router.push('/my-splits' as any)}>
+                  <PressableScale style={styles.splitEditBtn} scaleTo={0.95} onPress={() => router.push('/my-splits')}>
                     <Text style={styles.splitEditText}>Edit Split</Text>
                   </PressableScale>
                 </View>
@@ -2270,7 +2270,7 @@ export default function WorkoutsScreen() {
                   title="No split yet"
                   body="A split is your weekly training pattern — Push/Pull/Legs, Upper/Lower, and more."
                   actionLabel="Create a split"
-                  onAction={() => router.push('/my-splits' as any)}
+                  onAction={() => router.push('/my-splits')}
                 />
               </>
             )}
@@ -2281,13 +2281,13 @@ export default function WorkoutsScreen() {
               of the hub entirely; My Workouts already does that job). */}
           <Text style={styles.libraryLabel}>LIBRARY & TOOLS</Text>
           <View style={styles.libraryCard} ref={planLibraryTarget}>
-            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library' as any)}>
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/exercise-library')}>
               <Ionicons name="book-outline" size={18} color={C.textSecondary} />
               <Text style={styles.libraryRowText}>Exercise Library</Text>
               <Ionicons name="chevron-forward" size={16} color={C.outline} />
             </TouchableOpacity>
             <View style={styles.libraryDivider} />
-            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/my-workouts' as any)}>
+            <TouchableOpacity style={styles.libraryRow} onPress={() => router.push('/my-workouts')}>
               <Ionicons name="barbell-outline" size={18} color={C.textSecondary} />
               <Text style={styles.libraryRowText}>Manage Workouts</Text>
               <Ionicons name="chevron-forward" size={16} color={C.outline} />

@@ -105,7 +105,7 @@ export default function MuscleMapScreen() {
 
   const openPaywall = () => {
     track('paywall_shown', { context: 'muscle_map' })
-    router.push({ pathname: '/paywall', params: { context: 'muscle_map' } } as never)
+    router.push({ pathname: '/paywall', params: { context: 'muscle_map' } })
   }
 
   const sel = selected ? byGroup[selected] : null
@@ -281,7 +281,7 @@ export default function MuscleMapScreen() {
                   <PressableScale
                     style={[s.actionBtn, s.actionBtnGhost]}
                     scaleTo={0.97}
-                    onPress={() => router.push({ pathname: '/muscle-history', params: { muscleSlug: fineSel.muscle, title: fineSel.label } } as never)}
+                    onPress={() => router.push({ pathname: '/muscle-history', params: { muscleSlug: fineSel.muscle, title: fineSel.label } })}
                   >
                     <Text style={[s.actionText, { color: C.primary }]}>See history</Text>
                   </PressableScale>
@@ -360,7 +360,7 @@ export default function MuscleMapScreen() {
                       <PressableScale
                         style={[s.actionBtn, s.actionBtnGhost]}
                         scaleTo={0.97}
-                        onPress={() => router.push({ pathname: '/muscle-history', params: { muscleGroup: sel.group, title: GROUP_LABEL[sel.group] ?? sel.group } } as never)}
+                        onPress={() => router.push({ pathname: '/muscle-history', params: { muscleGroup: sel.group, title: GROUP_LABEL[sel.group] ?? sel.group } })}
                       >
                         <Text style={[s.actionText, { color: C.primary }]}>See history</Text>
                       </PressableScale>

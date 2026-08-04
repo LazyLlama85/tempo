@@ -181,7 +181,7 @@ export default function SharedWorkoutScreen() {
               </PressableScale>
             )}
             {savedId && (
-              <PressableScale style={styles.openBtn} onPress={() => router.replace((isSplit ? '/my-splits' : '/my-workouts') as any)}>
+              <PressableScale style={styles.openBtn} onPress={() => router.replace((isSplit ? '/my-splits' : '/my-workouts'))}>
                 <Text style={styles.openBtnText}>{isSplit ? 'Open My Splits' : 'Open My Workouts'}</Text>
               </PressableScale>
             )}

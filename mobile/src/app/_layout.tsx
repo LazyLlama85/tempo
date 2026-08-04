@@ -260,8 +260,8 @@ function RootLayoutInner() {
         case 'quick-workout': router.push('/quick-workout'); break
         case 'plan': router.push('/(tabs)/plan'); break
         case 'home': router.push('/(tabs)'); break
-        case 'weekly-report': router.push('/weekly-report' as any); break
-        case 'social': router.push('/social' as any); break
+        case 'weekly-report': router.push('/weekly-report'); break
+        case 'social': router.push('/social'); break
         default:
           // Fixed 2026-08-02: an unrecognized/future data.screen value used to
           // silently no-op — but ONLY do this for a retention-push notification

@@ -91,7 +91,7 @@ export default function ProfileSetupScreen() {
     router.replace('/(tabs)')
     // Custom-build users go straight to their split editor (the whole point of that
     // path) — they hit Pro gates naturally later, so no onboarding paywall for them.
-    if (isCustomBuild) { router.push('/split-editor' as any); return }
+    if (isCustomBuild) { router.push('/split-editor'); return }
     // The value-moment paywall, right after onboarding — the highest-converting
     // placement (benchmark: onboarding paywalls with a trial lead the category). It's
     // a dismissible modal on top of Home, so it never traps the user. Dormant-safe:
@@ -101,7 +101,7 @@ export default function ProfileSetupScreen() {
     if (locked && shouldAutoShowPaywall()) {
       markPaywallAutoShown()
       track('paywall_shown', { context: 'onboarding' })
-      router.push({ pathname: '/paywall', params: { context: 'onboarding' } } as any)
+      router.push({ pathname: '/paywall', params: { context: 'onboarding' } })
     }
   }
   const enterApp = () => { track('profile_setup_skipped'); postOnboardingRoute() }

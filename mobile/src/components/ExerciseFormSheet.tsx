@@ -293,7 +293,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                     const id = exercise.id!
                     const name = exercise.name
                     onClose()
-                    router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } } as never)
+                    router.push({ pathname: '/exercise-progress', params: { exerciseId: id, name } })
                   }}
                   activeOpacity={0.8}
                   accessibilityRole="button"

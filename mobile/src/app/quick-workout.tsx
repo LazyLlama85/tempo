@@ -121,7 +121,7 @@ export default function QuickWorkoutScreen() {
 
   const openPaywall = () => {
     track('paywall_shown', { context: 'quick_equipment' })
-    router.push({ pathname: '/paywall', params: { context: 'quick_equipment' } } as never)
+    router.push({ pathname: '/paywall', params: { context: 'quick_equipment' } })
   }
 
   const regenerate = useCallback(async (

@@ -216,7 +216,7 @@ export default function WorkoutCompleteScreen() {
     const timer = setTimeout(() => {
       markPaywallAutoShown()
       track('paywall_shown', { context: 'first_workout' })
-      router.push({ pathname: '/paywall', params: { context: 'first_workout' } } as never)
+      router.push({ pathname: '/paywall', params: { context: 'first_workout' } })
     }, 2600) // let the confetti + first-session card land first
     return () => clearTimeout(timer)
   }, [isFirstSession, locked])
@@ -485,7 +485,7 @@ export default function WorkoutCompleteScreen() {
 
         {/* Muscle Intelligence teaser — a Pro upsell at a high-intent moment. */}
         {locked && activated && (
-          <PressableScale style={styles.muscleTeaser} scaleTo={0.98} onPress={() => { track('paywall_shown', { context: 'post_workout_muscle' }); router.push('/muscle-map' as any) }}>
+          <PressableScale style={styles.muscleTeaser} scaleTo={0.98} onPress={() => { track('paywall_shown', { context: 'post_workout_muscle' }); router.push('/muscle-map') }}>
             <View style={styles.muscleTeaserIcon}><Ionicons name="body" size={22} color={C.primary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.muscleTeaserTitle}>Unlock Muscle Intelligence</Text>

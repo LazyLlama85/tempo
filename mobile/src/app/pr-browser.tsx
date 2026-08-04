@@ -77,7 +77,7 @@ export default function PrBrowserScreen() {
               <TouchableOpacity
                 style={styles.row}
                 activeOpacity={0.7}
-                onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: item.id, name: item.name } } as any)}
+                onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: item.id, name: item.name } })}
               >
                 <View style={styles.rowIcon}><Ionicons name="trending-up" size={17} color={C.primary} /></View>
                 <View style={{ flex: 1 }}>

@@ -205,7 +205,7 @@ export default function SocialScreen() {
     const c = code.trim().toLowerCase().replace(/^.*\/w\//, '') // paste a link or a code
     if (!c) return
     setCode('')
-    router.push(`/shared-workout?code=${encodeURIComponent(c)}` as any)
+    router.push(`/shared-workout?code=${encodeURIComponent(c)}`)
   }
 
   const onCreateGroup = async () => {
@@ -214,7 +214,7 @@ export default function SocialScreen() {
     haptics.tapLight()
     setGroupName('')
     const g = await createGroup(supabase, name)
-    if (g) { track('group_created'); load(); router.push(`/group-detail?id=${g.id}` as any) }
+    if (g) { track('group_created'); load(); router.push(`/group-detail?id=${g.id}`) }
     else Alert.alert("Couldn't create group", 'Please try again.')
   }
   const onJoinGroup = async () => {
@@ -223,7 +223,7 @@ export default function SocialScreen() {
     haptics.tapLight()
     setGroupCode('')
     const gid = await joinGroup(supabase, c)
-    if (gid) { track('group_joined'); load(); router.push(`/group-detail?id=${gid}` as any) }
+    if (gid) { track('group_joined'); load(); router.push(`/group-detail?id=${gid}`) }
     else Alert.alert('Group not found', 'Double-check the code and try again.')
   }
 
@@ -374,7 +374,7 @@ export default function SocialScreen() {
               <LeaderboardBoard
                 rows={board}
                 currentUserId={userId}
-                onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}` as any)}
+                onOpenProfile={(id) => router.push(`/friend-profile?userId=${id}`)}
               />
               {board.length === 1 && (
                 <TouchableOpacity style={styles.inviteRow} onPress={() => setAddOpen(true)} activeOpacity={0.75}>
@@ -398,7 +398,7 @@ export default function SocialScreen() {
                         <TouchableOpacity
                           style={styles.feedMain}
                           activeOpacity={0.7}
-                          onPress={() => router.push(`/friend-profile?userId=${a.c.user_id}` as any)}
+                          onPress={() => router.push(`/friend-profile?userId=${a.c.user_id}`)}
                         >
                           <FriendAvatar avatarUrl={a.c.avatar_url} size={34} />
                           <Text style={styles.feedText} numberOfLines={2}>
@@ -436,7 +436,7 @@ export default function SocialScreen() {
                       <TouchableOpacity
                         style={styles.feedRow}
                         activeOpacity={0.7}
-                        onPress={() => router.push(`/friend-profile?userId=${a.e.user_id}` as any)}
+                        onPress={() => router.push(`/friend-profile?userId=${a.e.user_id}`)}
                       >
                         <View style={styles.feedMain}>
                           <FriendAvatar avatarUrl={a.e.avatar_url} size={34} />
@@ -464,7 +464,7 @@ export default function SocialScreen() {
                   <TouchableOpacity
                     style={styles.personRow}
                     activeOpacity={0.7}
-                    onPress={() => router.push(`/group-detail?id=${g.id}` as any)}
+                    onPress={() => router.push(`/group-detail?id=${g.id}`)}
                   >
                     <View style={styles.groupIcon}><Ionicons name="people-circle" size={24} color={C.primary} /></View>
                     <View style={{ flex: 1 }}>
@@ -507,7 +507,7 @@ export default function SocialScreen() {
                       </TouchableOpacity>
                       <Ionicons name="chevron-forward" size={16} color={C.outlineVariant} />
                     </View>,
-                    () => router.push(`/friend-profile?userId=${f.user_id}` as any),
+                    () => router.push(`/friend-profile?userId=${f.user_id}`),
                   )}
                 </FadeInView>
               ))}

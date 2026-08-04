@@ -119,7 +119,7 @@ export default function GroupDetailScreen() {
             <LeaderboardBoard
               rows={rows}
               currentUserId={userId}
-              onOpenProfile={(uid) => router.push(`/friend-profile?userId=${uid}` as any)}
+              onOpenProfile={(uid) => router.push(`/friend-profile?userId=${uid}`)}
             />
           ) : (
             <Text style={styles.empty}>No members yet — share the code to get your group going.</Text>

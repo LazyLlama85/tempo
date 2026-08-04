@@ -139,7 +139,7 @@ export function useProGate(): { locked: boolean; requirePro: (context?: string) 
     // throughout this codebase but not verified for require() call sites.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('../lib/analytics').track('paywall_shown', { context })
-    router.push({ pathname: '/paywall', params: { context } } as never)
+    router.push({ pathname: '/paywall', params: { context } })
     return false
   }
   return { locked, requirePro }

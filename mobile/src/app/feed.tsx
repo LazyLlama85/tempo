@@ -131,7 +131,7 @@ export default function FeedScreen() {
     // `screen` value (e.g. 'plan'), which needs the same mapping
     // _layout.tsx's push-tap listener uses.
     const dest = row.screen?.startsWith('/') ? row.screen : routeForScreen(row.screen)
-    router.push((dest ?? '/(tabs)') as any)
+    router.push((dest ?? '/(tabs)') as never)
   }
 
   return (
@@ -150,7 +150,7 @@ export default function FeedScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={C.primary} />}
         >
           {socialCount > 0 && (
-            <TouchableOpacity style={styles.row} onPress={() => router.push('/social' as any)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/social')} activeOpacity={0.7}>
               <View style={[styles.iconWrap, { backgroundColor: C.primarySoft }]}>
                 <Ionicons name="people" size={18} color={C.primary} />
               </View>

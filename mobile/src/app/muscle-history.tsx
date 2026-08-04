@@ -165,7 +165,7 @@ export default function MuscleHistoryScreen() {
                     onPress={() => {
                       if (gated) {
                         track('paywall_shown', { context: 'full_history' })
-                        router.push({ pathname: '/paywall', params: { context: 'full_history' } } as never)
+                        router.push({ pathname: '/paywall', params: { context: 'full_history' } })
                         return
                       }
                       setRange(o.days)
@@ -198,7 +198,7 @@ export default function MuscleHistoryScreen() {
                   key={row.id}
                   style={s.breakdownRow}
                   scaleTo={0.98}
-                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: row.id, name: row.name } } as never)}
+                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: row.id, name: row.name } })}
                   accessibilityRole="button"
                   accessibilityLabel={`See ${row.name} progress`}
                 >

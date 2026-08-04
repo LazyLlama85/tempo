@@ -39,7 +39,7 @@ export function ProLockCard({ feature, compact }: { feature: ProFeatureId; compa
   const f = proFeature(feature)
   const open = () => {
     track('paywall_shown', { context: feature })
-    router.push({ pathname: '/paywall', params: { context: feature } } as never)
+    router.push({ pathname: '/paywall', params: { context: feature } })
   }
   return (
     <PressableScale

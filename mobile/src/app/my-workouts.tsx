@@ -62,8 +62,8 @@ export default function MyWorkoutsScreen() {
     const t = sheetTemplate
     setSheetTemplate(null)
     if (!t) return
-    if (key === 'edit') router.push(`/workout-builder?templateId=${t.id}` as any)
-    else if (key === 'schedule') router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}` as any)
+    if (key === 'edit') router.push(`/workout-builder?templateId=${t.id}`)
+    else if (key === 'schedule') router.push(`/workout-builder?templateId=${t.id}&date=${todayStr()}`)
     else if (key === 'duplicate') { await duplicateTemplate(supabase, userId, t); load() }
     else if (key === 'share') shareTemplate(t)
     else if (key === 'delete') confirmDeleteTemplate(t)
@@ -121,14 +121,14 @@ export default function MyWorkoutsScreen() {
             <ErrorBanner message="Couldn't load your workouts. What's shown may be incomplete." onRetry={load} />
           )}
 
-          <PressableScale style={styles.bigBtn} onPress={() => router.push('/workout-builder' as any)}>
+          <PressableScale style={styles.bigBtn} onPress={() => router.push('/workout-builder')}>
             <Ionicons name="add" size={20} color={C.onPrimary} />
             <Text style={styles.bigBtnText}>Build a new workout</Text>
           </PressableScale>
 
           {/* Splits — the program layer */}
           <Text style={styles.sectionLabel}>MY SPLITS</Text>
-          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/my-splits' as any)} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navRow} onPress={() => router.push('/my-splits')} activeOpacity={0.7}>
             <View style={styles.rowIcon}><Ionicons name="repeat-outline" size={18} color={C.primary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowName}>My Splits</Text>

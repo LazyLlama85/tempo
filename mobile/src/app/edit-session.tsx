@@ -209,7 +209,7 @@ export default function EditSessionScreen() {
                 Editing today's {focus || 'workout'} only — your split is unchanged.{' '}
                 <Text
                   style={styles.scopeBannerLink}
-                  onPress={() => { router.back(); router.push({ pathname: '/split-editor', params: { splitId } } as never) }}
+                  onPress={() => { router.back(); router.push({ pathname: '/split-editor', params: { splitId } }) }}
                 >
                   Edit the whole split →
                 </Text>

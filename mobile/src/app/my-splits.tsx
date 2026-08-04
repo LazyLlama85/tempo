@@ -104,7 +104,7 @@ export default function MySplitsScreen() {
     setSheetSplit(null)
     if (!s) return
     if (key === 'activate') activate(s)
-    else if (key === 'edit') router.push(`/split-editor?splitId=${s.id}` as any)
+    else if (key === 'edit') router.push(`/split-editor?splitId=${s.id}`)
     else if (key === 'duplicate') { await duplicateSplit(supabase, userId, s); load() }
     else if (key === 'share') shareSplit(s)
     else if (key === 'delete') confirmDelete(s)
@@ -137,7 +137,7 @@ export default function MySplitsScreen() {
             A split is your weekly schedule. Your auto-generated program lives here too —
             switch between it and your own splits any time. Only one is active at a time.
           </Text>
-          <PressableScale style={styles.bigBtn} onPress={() => router.push('/split-editor' as any)}>
+          <PressableScale style={styles.bigBtn} onPress={() => router.push('/split-editor')}>
             <Ionicons name="add" size={20} color={C.onPrimary} />
             <Text style={styles.bigBtnText}>Create a new split</Text>
           </PressableScale>

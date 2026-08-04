@@ -1273,7 +1273,7 @@ export default function ScheduleScreen() {
                 {done && (
                   <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: w.id } } as any)}
+                    onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: w.id } })}
                   >
                     <Ionicons name="receipt-outline" size={14} color={C.textSecondary} />
                     <Text style={styles.actionText}>Details</Text>
@@ -1443,7 +1443,7 @@ export default function ScheduleScreen() {
           </PressableScale>
         </View>
       ),
-      chip: { icon: 'pause', label: 'Plan paused', tint: C.primary, onPress: () => router.push('/pause-mode' as any) },
+      chip: { icon: 'pause', label: 'Plan paused', tint: C.primary, onPress: () => router.push('/pause-mode') },
     },
     // 2 — Missed workout: a concrete recovery action about the user's own training.
     {
@@ -1495,7 +1495,7 @@ export default function ScheduleScreen() {
               <Text style={styles.missedSub}>
                 <Text onPress={() => handleMoveConflict(c)} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Move it myself</Text>
                 {'  ·  '}
-                <Text onPress={() => { track('paywall_shown', { context: 'conflict' }); router.push({ pathname: '/paywall', params: { context: 'conflict' } } as never) }} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Let {BRAND_NAME} handle this →</Text>
+                <Text onPress={() => { track('paywall_shown', { context: 'conflict' }); router.push({ pathname: '/paywall', params: { context: 'conflict' } }) }} style={{ color: C.primary, fontFamily: 'Inter_700Bold' }}>Let {BRAND_NAME} handle this →</Text>
               </Text>
             </View>
             <TouchableOpacity onPress={() => handleDismissConflict(c.workoutId)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
@@ -1514,7 +1514,7 @@ export default function ScheduleScreen() {
       id: 'reconnect',
       eligible: googleNeedsReconnect,
       primary: () => (
-        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup' as any)} scaleTo={0.98}>
+        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup')} scaleTo={0.98}>
           <View style={[styles.missedIcon, { backgroundColor: C.dangerSoft }]}>
             <Ionicons name="warning" size={18} color={C.error} />
           </View>
@@ -1525,7 +1525,7 @@ export default function ScheduleScreen() {
           <Ionicons name="chevron-forward" size={18} color={C.error} />
         </PressableScale>
       ),
-      chip: { icon: 'warning', label: 'Reconnect calendar', tint: C.error, onPress: () => router.push('/calendar-setup' as any) },
+      chip: { icon: 'warning', label: 'Reconnect calendar', tint: C.error, onPress: () => router.push('/calendar-setup') },
     },
     // 5 — Travel mode: an active adaptation affecting every upcoming session.
     {
@@ -1572,7 +1572,7 @@ export default function ScheduleScreen() {
       primary: () => blockPhase?.progression ? (
         <PressableScale
           style={[styles.phaseBanner, blockPhase.progression.isDeload && styles.phaseBannerDeload]}
-          onPress={() => router.push('/plan-explainer' as any)} /* typed-routes regen on next run */
+          onPress={() => router.push('/plan-explainer')} /* typed-routes regen on next run */
           scaleTo={0.98}
         >
           <View style={[styles.phaseIcon, blockPhase.progression.isDeload && { backgroundColor: C.successSoft }]}>
@@ -1596,7 +1596,7 @@ export default function ScheduleScreen() {
         icon: blockPhase?.progression?.isDeload ? 'leaf' : 'barbell',
         label: blockPhase?.progression ? `Week ${blockPhase.progression.weekIndex + 1} · ${blockPhase.progression.label}` : '',
         tint: blockPhase?.progression?.isDeload ? C.success : C.primary,
-        onPress: () => router.push('/plan-explainer' as any),
+        onPress: () => router.push('/plan-explainer'),
       },
     },
     // 8 — Goal ETA: a motivational countdown. Chip taps into the Progress tab.
@@ -1634,7 +1634,7 @@ export default function ScheduleScreen() {
       eligible: stats.thisWeek > 0 && (today.getDay() === 0 || today.getDay() === 1),
       chipOnly: true,
       primary: () => (
-        <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report' as any)} scaleTo={0.98}>
+        <PressableScale style={styles.reportRow} onPress={() => router.push('/weekly-report')} scaleTo={0.98}>
           <View style={styles.reportIcon}>
             <Ionicons name="stats-chart" size={18} color={C.onPrimary} />
           </View>
@@ -1645,7 +1645,7 @@ export default function ScheduleScreen() {
           <Ionicons name="arrow-forward" size={18} color={C.onPrimary} />
         </PressableScale>
       ),
-      chip: { icon: 'stats-chart', label: 'Weekly report', tint: C.primary, onPress: () => router.push('/weekly-report' as any) },
+      chip: { icon: 'stats-chart', label: 'Weekly report', tint: C.primary, onPress: () => router.push('/weekly-report') },
     },
     // 7b — Adaptation made visible (audit §12 #15): announces a RECENT mode
     // change. Suppressed whenever blockPhase's own chip already says
@@ -1659,7 +1659,7 @@ export default function ScheduleScreen() {
         && blockPhase?.mode !== 'recovery' && blockPhase?.mode !== 'deload',
       chipOnly: true,
       primary: () => recentAdaptation ? (
-        <PressableScale style={styles.reportRow} onPress={() => router.push('/plan-explainer' as any)} scaleTo={0.98}>
+        <PressableScale style={styles.reportRow} onPress={() => router.push('/plan-explainer')} scaleTo={0.98}>
           <View style={[styles.reportIcon, (recentAdaptation.action_taken === 'recovery' || recentAdaptation.action_taken === 'deload') ? { backgroundColor: C.success } : undefined]}>
             <Ionicons name="leaf" size={18} color={C.onPrimary} />
           </View>
@@ -1680,7 +1680,7 @@ export default function ScheduleScreen() {
         icon: 'leaf',
         label: recentAdaptation?.action_taken === 'recovery' ? 'Recovery week' : recentAdaptation?.action_taken === 'deload' ? 'Deload week' : 'Back to full intensity',
         tint: C.success,
-        onPress: () => router.push('/plan-explainer' as any),
+        onPress: () => router.push('/plan-explainer'),
       },
     },
     // 10 — Quick Workout: opportunistic wedge (only fires when today has no actionable
@@ -1711,7 +1711,7 @@ export default function ScheduleScreen() {
       id: 'connectCalendar',
       eligible: !!profile && !profile.preferred_calendar,
       primary: () => (
-        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup' as any)} scaleTo={0.98}>
+        <PressableScale style={styles.missedBanner} onPress={() => router.push('/calendar-setup')} scaleTo={0.98}>
           <View style={styles.missedIcon}>
             <Ionicons name="calendar-outline" size={18} color={C.primary} />
           </View>
@@ -1722,7 +1722,7 @@ export default function ScheduleScreen() {
           <Ionicons name="chevron-forward" size={18} color={C.outline} />
         </PressableScale>
       ),
-      chip: { icon: 'calendar-outline', label: 'Connect calendar', tint: C.primary, onPress: () => router.push('/calendar-setup' as any) },
+      chip: { icon: 'calendar-outline', label: 'Connect calendar', tint: C.primary, onPress: () => router.push('/calendar-setup') },
     },
   ]
 
@@ -1817,7 +1817,7 @@ export default function ScheduleScreen() {
           <HeaderActions>
             <TouchableOpacity
               style={styles.feedBtn}
-              onPress={() => router.push('/feed' as any)}
+              onPress={() => router.push('/feed')}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={feedCount > 0 ? `Feed — ${feedCount} new` : 'Feed'}
@@ -2066,7 +2066,7 @@ export default function ScheduleScreen() {
                   key={i.workout.id}
                   style={styles.completedRow}
                   activeOpacity={0.7}
-                  onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: i.workout.id } } as any)}
+                  onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: i.workout.id } })}
                 >
                   <Ionicons name="checkmark-circle" size={15} color={C.success} />
                   <Text style={styles.completedRowText} numberOfLines={1}>{i.workout.focus}</Text>

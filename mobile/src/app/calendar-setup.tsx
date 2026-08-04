@@ -223,7 +223,7 @@ export default function CalendarSetupScreen() {
             <>
               <View style={styles.divider} />
               <ProGate feature="multi_calendar" compact>
-                <TouchableOpacity style={styles.subRow} onPress={() => router.push('/calendar-picker' as never)}>
+                <TouchableOpacity style={styles.subRow} onPress={() => router.push('/calendar-picker')}>
                   <Text style={styles.subRowText}>Choose calendars</Text>
                   <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />
                 </TouchableOpacity>

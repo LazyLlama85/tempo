@@ -250,7 +250,7 @@ export default function SessionDetailScreen() {
                 {/* Exercise name → that lift's strength-trend chart */}
                 <TouchableOpacity
                   style={styles.exNameRow}
-                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: g.id, name: g.name } } as any)}
+                  onPress={() => router.push({ pathname: '/exercise-progress', params: { exerciseId: g.id, name: g.name } })}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.exName}>{g.name}</Text>

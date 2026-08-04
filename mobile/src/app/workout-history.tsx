@@ -170,7 +170,7 @@ export default function WorkoutHistoryScreen() {
             <FadeInView delay={Math.min(i * 30, 240)}>
               <TouchableOpacity
                 style={styles.row}
-                onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: r.id } } as any)}
+                onPress={() => router.push({ pathname: '/session-detail', params: { scheduledId: r.id } })}
                 activeOpacity={0.75}
               >
                 <View style={styles.rowIcon}>

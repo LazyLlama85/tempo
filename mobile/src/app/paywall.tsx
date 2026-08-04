@@ -519,7 +519,7 @@ export default function PaywallScreen() {
           <Text style={styles.footerDot}>·</Text>
           <Text
             style={styles.footerLink}
-            onPress={() => router.push({ pathname: '/legal', params: { section: 'terms' } } as never)}
+            onPress={() => router.push({ pathname: '/legal', params: { section: 'terms' } })}
             accessibilityRole="button"
             accessibilityLabel="Terms of Service"
           >
@@ -528,7 +528,7 @@ export default function PaywallScreen() {
           <Text style={styles.footerDot}>·</Text>
           <Text
             style={styles.footerLink}
-            onPress={() => router.push({ pathname: '/legal', params: { section: 'privacy' } } as never)}
+            onPress={() => router.push({ pathname: '/legal', params: { section: 'privacy' } })}
             accessibilityRole="button"
             accessibilityLabel="Privacy Policy"
           >

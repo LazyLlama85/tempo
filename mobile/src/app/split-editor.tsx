@@ -208,7 +208,7 @@ export default function SplitEditorScreen() {
     pendingDayRef.current = editing
     setEditing(null)
     setTemplateSheetOpen(false)
-    router.push('/workout-builder?forSplit=1' as any)
+    router.push('/workout-builder?forSplit=1')
   }
 
   const applyTemplateChoice = async (id: string) => {

@@ -561,7 +561,7 @@ export default function ProfileScreen() {
                 so nobody who's already earned a badge ever loses access to it. */}
             {(activated || newBadges > 0) && (
             <TouchableOpacity
-              onPress={() => router.push('/badges' as any)}
+              onPress={() => router.push('/badges')}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={newBadges > 0 ? `Badges — ${newBadges} new` : 'Badges'}
@@ -576,7 +576,7 @@ export default function ProfileScreen() {
             )}
             {(activated || socialNotifs > 0) && (
               <TouchableOpacity
-                onPress={() => router.push('/social' as any)}
+                onPress={() => router.push('/social')}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={socialNotifs > 0 ? `Friends — ${socialNotifs} new` : 'Friends'}
@@ -590,7 +590,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              onPress={() => router.push('/settings' as any)}
+              onPress={() => router.push('/settings')}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Settings"
@@ -706,7 +706,7 @@ export default function ProfileScreen() {
               <TouchableOpacity onPress={() => router.push('/(tabs)/progress')}>
                 <Text style={styles.sectionLink}>View trend</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/progress-photos' as any)}>
+              <TouchableOpacity onPress={() => router.push('/progress-photos')}>
                 <Text style={styles.sectionLink}>Photos</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={openBody}>
@@ -811,11 +811,11 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Training</Text>
           <View ref={trainingTarget} style={styles.card}>
-            <SettingRow icon="construct-outline" label="MY WORKOUTS" value="Build, save & schedule" onPress={() => router.push('/my-workouts' as any)} />
+            <SettingRow icon="construct-outline" label="MY WORKOUTS" value="Build, save & schedule" onPress={() => router.push('/my-workouts')} />
             <View style={styles.divider} />
-            <SettingRow icon="repeat-outline" label="MY SPLITS" value="Your weekly schedule" onPress={() => router.push('/my-splits' as any)} />
+            <SettingRow icon="repeat-outline" label="MY SPLITS" value="Your weekly schedule" onPress={() => router.push('/my-splits')} />
             <View style={styles.divider} />
-            <SettingRow icon="journal-outline" label="WORKOUT HISTORY" value="Every logged session" onPress={() => router.push('/workout-history' as any)} />
+            <SettingRow icon="journal-outline" label="WORKOUT HISTORY" value="Every logged session" onPress={() => router.push('/workout-history')} />
             <View style={styles.divider} />
             <SettingRow icon="trophy-outline" label="PRIMARY GOAL" value={profile?.goal ? GOAL_LABELS[profile.goal] : '—'} onPress={() => setGoalSheet(true)} />
             <View style={styles.divider} />
@@ -840,7 +840,7 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Social</Text>
             <View style={styles.card}>
-              <SettingRow icon="people-outline" label="FRIENDS" value="Find people, share workouts & privacy" onPress={() => router.push('/social' as any)} />
+              <SettingRow icon="people-outline" label="FRIENDS" value="Find people, share workouts & privacy" onPress={() => router.push('/social')} />
             </View>
           </View>
         )}
@@ -1126,7 +1126,7 @@ export default function ProfileScreen() {
         ]}
         onSelect={(key) => {
           setChangePlanSheet(false)
-          router.push((key === 'build_own' ? '/split-editor' : '/onboarding/goal') as any)
+          router.push((key === 'build_own' ? '/split-editor' : '/onboarding/goal'))
         }}
         onClose={() => setChangePlanSheet(false)}
       />

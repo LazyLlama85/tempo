@@ -96,7 +96,7 @@ export default function ExerciseLibraryScreen() {
   const addToWorkout = () => {
     const ids = picked.map((p) => p.id).join(',')
     setPicked([])
-    router.push({ pathname: '/workout-builder', params: { addExerciseIds: ids } } as any)
+    router.push({ pathname: '/workout-builder', params: { addExerciseIds: ids } })
   }
 
   return (
