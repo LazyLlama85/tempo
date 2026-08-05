@@ -32,7 +32,7 @@ Policy + Terms, App Store-compliant account deletion (Guideline 5.1.1(v)), marke
 | **Tempo Pro — App Store Connect subscriptions + Paid Apps Agreement** | ✅ **complete** — see §5 |
 | **Tempo Pro — `app_config.pro_enabled`** | ✅ **LIVE for everyone, flipped 2026-08-05** — real billing is active on any build already installed (Android especially, since Play is approved) |
 | **APNs key (iOS push) / FCM v1 service-account JSON (Android push)** | 👤 **unconfirmed** — verify via `eas credentials` |
-| **Google OAuth verification** (sensitive `calendar.events` scope) | 👤 **open, long pole** — §4.1 |
+| **Google OAuth verification** (sensitive `calendar.events` scope) | ✅ **done** (confirmed by founder 2026-08-05) |
 | **iOS App Store v1.0 listing** (screenshots, description) | 👤 **open** — needed for public App Store submission; the Arclo-rebrand build in progress is the one that will carry the Pro subscriptions through Apple's review, per §5 STATUS |
 | **Tempo Pro — Android (RevenueCat Play service-account credential)** | ✅ **complete** — see §5 (one cosmetic dashboard badge, not believed to be a real blocker — worth a final glance) |
 | `founding_offer` config row (paywall countdown banner) | 👤 optional — not yet set, needs an `ends_at` date |
@@ -807,8 +807,6 @@ Still open:
 - **HealthKit / Google Fit** weight import; Apple Watch.
 - **Automated test suite** — pure logic (`scoring`/`periodization`/`progression`/trends) is
   structured for unit tests; none exist yet.
-- **Google OAuth verification** (§4.1) — still open, long pole, start early.
-- **Tempo Pro on Android** (§5 Part D2.1) — blocked solely on the RevenueCat Play service-account credential.
 - **iOS App Store v1.0 public submission** — needs real screenshots + description (§3 has the copy).
 
 ### Key commands
