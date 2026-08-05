@@ -40,7 +40,7 @@ import {
   type MuscleStatus, type MuscleGroupIntel,
 } from '@/lib/fitnessInsights'
 import {
-  SectionLabel, TempoScoreHero, ReadinessCard, MomentumCard, PredictorCard,
+  SectionLabel, TempoScoreHero, MomentumCard, PredictorCard,
   ConsistencyHeatmap, InsightsCard, JourneyTimeline,
   FrequencyCard, MuscleBalanceCard, WeeklyReviewCard, StrengthProgressCard,
 } from '@/components/ProgressCards'
@@ -71,6 +71,13 @@ export default function ProgressScreen() {
   const [freqRange, setFreqRange] = useState<FreqRange>('3M')
   const { locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
+  // Consolidation (founder feedback 2026-08-04): the consistency percentage
+  // used to render 6 different ways on this one screen (momentum, predictor,
+  // heatmap, weekly review, a big ring, a completion-rate bar) — the heatmap +
+  // weekly review stay on the main scroll (richest visual + its own existing
+  // tap-through to /weekly-report), the rest collapse behind this toggle.
+  // Reuses the exact same existing cards, just not rendered by default.
+  const [showConsistencyDetail, setShowConsistencyDetail] = useState(false)
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
   // B1.1 — the wedge, quantified, on a primary tab (was previously only on
   // weekly-report.tsx and the paywall — both side screens).
@@ -310,12 +317,16 @@ export default function ProgressScreen() {
           <>
             {/* ── Fitness Intelligence (new) — sits on top of every existing card ── */}
             {insights && <TempoScoreHero breakdown={insights.score} delay={20} />}
-            {insights && <ReadinessCard readiness={insights.readiness} delay={80} />}
 
-            <SectionLabel title="Momentum" hint="Are you building the habit?" />
-            {insights && <MomentumCard momentum={insights.momentum} delay={40} />}
-            {insights && <PredictorCard predictor={insights.predictor} delay={90} />}
-
+            {/* Consistency (consolidated 2026-08-04 — founder feedback: this
+                used to render the same consistency_pct 6 different ways in a
+                row: momentum, predictor, heatmap, weekly review, a big ring,
+                and a completion-rate bar. The heatmap + weekly review are the
+                richest single read and already tap through to /weekly-report;
+                momentum/predictor/ring/completion-rate collapse behind the
+                toggle below instead of repeating on every scroll. Readiness
+                (was here too) is cut entirely, not relocated — Home's status
+                row already shows it, so it was pure duplication. */}
             <SectionLabel title="Consistency" hint="Showing up, week after week." />
             {insights && <ConsistencyHeatmap heatmap={insights.heatmap} streak={stats.streak} delay={40} />}
             <WeeklyReviewCard
@@ -325,24 +336,51 @@ export default function ProgressScreen() {
               onOpen={() => router.push('/weekly-report')}
               delay={70}
             />
-            {/* Consistency ring — sweeps to its score every time you land here */}
-            <FadeInView style={styles.ringCard} delay={40}>
-              <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
-              <View style={styles.ringWrap}>
-                <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
-                  <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                    <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
-                    <Text style={[styles.ringPercent, { fontSize: 20 }]} maxFontSizeMultiplier={1}>%</Text>
-                  </View>
-                  <Text style={styles.ringSubLabel} maxFontSizeMultiplier={1.2}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
-                </SvgProgressRing>
-              </View>
-              <Text style={styles.ringCaption}>
-                {consistency_pct > 0
-                  ? `${consistency_pct}% completion rate in the last 30 days.`
-                  : 'Complete your first workout to start tracking.'}
+
+            <PressableScale
+              style={styles.expandRow}
+              onPress={() => setShowConsistencyDetail((v) => !v)}
+              scaleTo={0.98}
+            >
+              <Text style={styles.expandRowText}>
+                {showConsistencyDetail ? 'Hide extra detail' : 'See momentum, prediction & full score'}
               </Text>
-            </FadeInView>
+              <Ionicons name={showConsistencyDetail ? 'chevron-up' : 'chevron-down'} size={16} color={C.primary} />
+            </PressableScale>
+
+            {showConsistencyDetail && (
+              <>
+                {insights && <MomentumCard momentum={insights.momentum} delay={40} />}
+                {insights && <PredictorCard predictor={insights.predictor} delay={90} />}
+                <FadeInView style={styles.ringCard} delay={40}>
+                  <Text style={styles.ringLabel}>CONSISTENCY SCORE</Text>
+                  <View style={styles.ringWrap}>
+                    <SvgProgressRing value={consistency_pct} size={140} stroke={14} gradientFrom={C.primary} gradientTo={C.success}>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                        <CountUp value={consistency_pct} delay={250} style={styles.ringPercent} />
+                        <Text style={[styles.ringPercent, { fontSize: 20 }]} maxFontSizeMultiplier={1}>%</Text>
+                      </View>
+                      <Text style={styles.ringSubLabel} maxFontSizeMultiplier={1.2}>{consistency_pct >= 80 ? 'TARGET MET' : 'KEEP GOING'}</Text>
+                    </SvgProgressRing>
+                  </View>
+                  <Text style={styles.ringCaption}>
+                    {consistency_pct > 0
+                      ? `${consistency_pct}% completion rate in the last 30 days.`
+                      : 'Complete your first workout to start tracking.'}
+                  </Text>
+                </FadeInView>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>COMPLETION RATE</Text>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statValue}>{consistency_pct}%</Text>
+                    <Text style={styles.statDelta}>{deltaStr}</Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${consistency_pct}%` as `${number}%` }]} />
+                  </View>
+                </View>
+              </>
+            )}
 
             {/* Streak card */}
             <FadeInView style={styles.streakCard} delay={120}>
@@ -382,18 +420,6 @@ export default function ProgressScreen() {
                 </Text>
               </View>
             )}
-
-            {/* Completion rate */}
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>COMPLETION RATE</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.statValue}>{consistency_pct}%</Text>
-                <Text style={styles.statDelta}>{deltaStr}</Text>
-              </View>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { width: `${consistency_pct}%` as `${number}%` }]} />
-              </View>
-            </View>
 
             {/* The wedge, made visible (B1.1): how much of your training Tempo
                 actually planned + scheduled for you, not just logged. Hidden when
@@ -660,6 +686,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs,
   },
   teaserText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.outline, lineHeight: 17 },
+  expandRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: Spacing.sm,
+  },
+  expandRowText: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
 
   unlockToast: {
     position: 'absolute', top: 96, left: Spacing.containerPadding, right: Spacing.containerPadding,

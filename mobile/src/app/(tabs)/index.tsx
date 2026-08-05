@@ -1468,9 +1468,14 @@ export default function ScheduleScreen() {
       chip: { icon: 'pause', label: 'Plan paused', tint: C.primary, onPress: () => router.push('/pause-mode') },
     },
     // 2 — Missed workout: a concrete recovery action about the user's own training.
+    // Only eligible when rescheduling it actually makes sense (a genuinely open,
+    // well-spaced day exists) — when the best slot is tight, there's no good
+    // action to push, and a missed-day callout with nothing useful behind it
+    // just reads as guilt with no utility. The next eligible banner in this
+    // array takes the slot instead (founder feedback: "let them move on").
     {
       id: 'missed',
-      eligible: missed.length > 0,
+      eligible: missed.length > 0 && !missedRescheduleTight,
       primary: () => missed.length > 0 ? (
         <View style={styles.missedBanner}>
           <View style={styles.missedIcon}>
@@ -1480,11 +1485,7 @@ export default function ScheduleScreen() {
             <Text style={styles.missedTitle}>
               Missed {missed[0].focus}{missed.length > 1 ? ` +${missed.length - 1} more` : ''}
             </Text>
-            <Text style={styles.missedSub}>
-              {missedRescheduleTight
-                ? `Your next ${missed[0].focus} day is coming up soon — no need to squeeze this in.`
-                : "No worries — let's find a new slot."}
-            </Text>
+            <Text style={styles.missedSub}>No worries — let's find a new slot.</Text>
           </View>
           <PressableScale
             style={[styles.missedBtn, rescheduling && { opacity: 0.6 }]}
@@ -1492,7 +1493,7 @@ export default function ScheduleScreen() {
             disabled={rescheduling}
             scaleTo={0.92}
           >
-            <Text style={styles.missedBtnText}>{missedRescheduleTight ? 'Reschedule anyway' : 'Reschedule'}</Text>
+            <Text style={styles.missedBtnText}>Reschedule</Text>
           </PressableScale>
         </View>
       ) : null,
