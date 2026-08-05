@@ -294,6 +294,15 @@ them).
   calls the existing `connectGoogleCalendar()` (forces `prompt=consent`) and retries automatically on
   success. `tsc` + full jest suite (385 tests) clean after both changes.
 
+- **2026-08-05 — Tempo Pro flipped LIVE (`app_config.pro_enabled: true`).** Founder asked "is Pro set
+  up for launch" — checked `LAUNCH.md`'s §5 audit (last verified 2026-07-22: RevenueCat iOS+Android,
+  App Store Connect subscriptions/pricing, Paid Apps Agreement all confirmed complete) against the
+  live DB directly rather than trusting the doc. Found no code work needed — the only thing between
+  "built" and "real" was the dormant flag itself. Confirmed with the founder before flipping (real
+  billing, and Android's already Play-approved so live users could purchase immediately) — flipped via
+  direct SQL update, no rebuild required. `tester_tools` stays `false` so the public never sees the
+  in-app Pro debug switch.
+
 - **2026-08-05 — Rebrand (Fitaround → Arclo), name still provisional.** Extensive naming research
   found every evocative real-word fitness name already in use by some live app or trademark; Arclo
   was the cleanest option that survived. Founder wants to start the App Store review process under

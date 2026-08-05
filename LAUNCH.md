@@ -30,10 +30,11 @@ Policy + Terms, App Store-compliant account deletion (Guideline 5.1.1(v)), marke
 | `eas submit` profile scaffold | ✅ in `eas.json` |
 | **Tempo Pro — RevenueCat + App Store Connect (iOS)** | ✅ **complete** — see §5 |
 | **Tempo Pro — App Store Connect subscriptions + Paid Apps Agreement** | ✅ **complete** — see §5 |
+| **Tempo Pro — `app_config.pro_enabled`** | ✅ **LIVE for everyone, flipped 2026-08-05** — real billing is active on any build already installed (Android especially, since Play is approved) |
 | **APNs key (iOS push) / FCM v1 service-account JSON (Android push)** | 👤 **unconfirmed** — verify via `eas credentials` |
 | **Google OAuth verification** (sensitive `calendar.events` scope) | 👤 **open, long pole** — §4.1 |
-| **iOS App Store v1.0 listing** (screenshots, description) | 👤 **open** — "Prepare for Submission", zero screenshots; blocks *public* submission only, not Pro sandbox testing |
-| **Tempo Pro — Android (RevenueCat Play service-account credential)** | 👤 **open, sole blocker** — §5 Part D2.1 |
+| **iOS App Store v1.0 listing** (screenshots, description) | 👤 **open** — needed for public App Store submission; the Arclo-rebrand build in progress is the one that will carry the Pro subscriptions through Apple's review, per §5 STATUS |
+| **Tempo Pro — Android (RevenueCat Play service-account credential)** | ✅ **complete** — see §5 (one cosmetic dashboard badge, not believed to be a real blocker — worth a final glance) |
 | `founding_offer` config row (paywall countdown banner) | 👤 optional — not yet set, needs an `ends_at` date |
 | Telemetry keys (`EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SENTRY_DSN`) | 👤 optional |
 | Store metadata (category, age rating, data-collection forms) | 👤 — copy in §3, compliance answers in §4 |
@@ -406,9 +407,11 @@ icon (1024 iOS / 512 Android) · phone screenshots · privacy-policy URL
 >   correct configuration (matches `paywall.tsx`'s existing "FOUNDING PRICE" badge logic exactly,
 >   which was built for precisely this case). The Monthly plan has no intro offer. Any earlier mention
 >   in this repo of a "7-day free trial" describes a superseded plan — see `MONETIZATION_PLAN.md`.
-> - **Supabase:** `app_config.pro_enabled` still globally `false` (dormant, as planned); the founder's
->   uid is in `test_user_ids`. `founding_offer` config row (for the paywall's countdown banner) not
->   yet set — optional, needs an `ends_at` date before it's added.
+> - **Supabase:** `app_config.pro_enabled` flipped to globally `true` on **2026-08-05** — Pro is now
+>   LIVE, not dormant. The founder's uid remains in `test_user_ids` (harmless now that `enabled` is
+>   already true for everyone) with `tester_tools: false`, so the public never sees the in-app Pro
+>   debug switch. `founding_offer` config row (for the paywall's countdown banner) still not set —
+>   optional, needs an `ends_at` date before it's added.
 > - **⛔ REMAINING (founder-only, blocks public purchases):** the app's iOS **App Store version 1.0 is
 >   still "Prepare for Submission"** with zero screenshots and empty description/promotional text —
 >   that blocks a *full public App Store submission*, but **not** subscription testing. Apple requires
