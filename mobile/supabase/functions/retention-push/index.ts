@@ -283,11 +283,18 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
 
     // 1. Missed workout — a plan session was due today and still isn't done; the
     //    daytime nudge. (The evening pass is rule 2's, so the two don't stack in
-    //    the same hour.)
+    //    the same hour.) Skipped when the user trained YESTERDAY — someone
+    //    actively consistent doesn't need an anxious daytime nudge just because
+    //    it's early and today's session isn't logged yet; the evening
+    //    "streak_at_risk" rule below is the real last-call safety net, and it
+    //    still fires regardless. Founder feedback: an actively-training user
+    //    getting "your session is waiting, keeps you on track" mid-afternoon
+    //    reads as nagging, not coaching.
+    const trainedYesterday = completed.has(addDays(today, -1))
     const missedToday = mine.find(
       (w) => w.planned_date === today && (w.status === 'missed' || w.status === 'scheduled'),
     )
-    if (missedToday && !completedToday && nowHourUtc < EVENING_HOUR) {
+    if (missedToday && !completedToday && !trainedYesterday && nowHourUtc < EVENING_HOUR) {
       add({
         type: 'missed_workout',
         title: 'Still time to train today',
