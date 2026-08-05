@@ -1,4 +1,4 @@
-// Fitaround — Home's daily status instrument (streak / readiness / check-in).
+// Arclo — Home's daily status instrument (streak / readiness / check-in).
 //
 // Replaces three near-duplicate ad-hoc rows of small `borderRadius: full` pills
 // (one per Home state: mid-day, day-complete, rest-day) with one reusable strip.

@@ -1,4 +1,4 @@
-# Tempo — Execution Status (the living ledger)
+# Arclo — Execution Status (the living ledger)
 
 > **READ THIS FIRST every session. UPDATE IT LAST every session.**
 > Plan + workflow + prompts: `EXECUTION.md`. Diagnosis + scores: `PRODUCT_AUDIT.html`.
@@ -293,6 +293,16 @@ them).
   scope-insufficient error specifically and offers a one-tap "Reconnect Google Calendar" button that
   calls the existing `connectGoogleCalendar()` (forces `prompt=consent`) and retries automatically on
   success. `tsc` + full jest suite (385 tests) clean after both changes.
+
+- **2026-08-05 — Rebrand (Fitaround → Arclo), name still provisional.** Extensive naming research
+  found every evocative real-word fitness name already in use by some live app or trademark; Arclo
+  was the cleanest option that survived. Founder wants to start the App Store review process under
+  this name without fully committing to it, so the same single-source-of-truth pattern was reused:
+  `brand.ts` constants + `app.json`'s display name and permission strings updated, bundle id/package
+  /scheme/associatedDomains left untouched (would orphan the already-approved Play listing and the
+  existing TestFlight app record). `LEGACY_CALENDAR_EVENT_PREFIXES` now also carries `'Fitaround'`.
+  `tsc` clean, full jest suite passing. Next: founder submits a fresh iOS build under "Arclo" and
+  updates the Play Store listing name separately.
 - **2026-08-02 (session 2) — Quick Workout curation + runner bug pass, founder-reported.** Separate
   from the Mac-audit fix pass earlier the same day (below). **Quick Workout engine (`quickWorkout.ts`,
   `quick-workout.tsx`):** Target Area chips are now genuinely multi-select (was single-select only,

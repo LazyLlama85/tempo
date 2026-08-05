@@ -1,20 +1,24 @@
-# Fitaround (formerly Tempo) — System Architecture & Feature Overview
+# Arclo (formerly Fitaround, formerly Tempo) — System Architecture & Feature Overview
 
-A detailed description of everything Fitaround is — frontend, backend, features, data, integrations.
+A detailed description of everything Arclo is — frontend, backend, features, data, integrations.
 
-> **Rebrand in progress (2026-08-04):** the product was renamed from "Tempo" to "Fitaround" —
-> "Tempo" collided with a SoftBank-backed competitor's registered trademarks (see
-> `tempo-name-collision-risk` in project memory). `mobile/src/constants/brand.ts` is now the single
-> source of truth for the display name; all in-app copy and the marketing site (`web/`) read from
-> or have been updated to it. **Left deliberately unchanged, by design:** the iOS bundle
-> id / Android package (`com.fittempo.app`), the EAS project slug (`tempo`), the deep-link
-> `scheme`/`associatedDomains` in `mobile/app.json`, and internal component/file names that happen
-> to contain the old word (`TempoTabBar`, `TempoWordmark`, `TempoPulse`, `TempoSheet`,
-> `TempoLottie`, `TempoErrorBoundary`, `tempoScore.ts`, the `TempoScore` leaderboard metric type,
-> the `db.tempo_score` column). Renaming those is a bigger, more deliberate native-rebuild step the
+> **Rebrand in progress, name still provisional (2026-08-05):** the product was renamed from
+> "Tempo" to "Fitaround" on 2026-08-04 ("Tempo" collided with a SoftBank-backed competitor's
+> registered trademarks — see `tempo-name-collision-risk` in project memory), then from
+> "Fitaround" to "Arclo" the next day. Arclo is being used to start the App Store review process
+> but is explicitly **not locked in** — expect it may change again, which is exactly why
+> `mobile/src/constants/brand.ts` exists as the single source of truth for the display name; all
+> in-app copy and the marketing site (`web/`) read from or have been updated to it. **Left
+> deliberately unchanged, by design:** the iOS bundle id / Android package (`com.fittempo.app`),
+> the EAS project slug (`tempo`), the deep-link `scheme`/`associatedDomains` in `mobile/app.json`
+> (still `fittempo.app`), and internal component/file names that happen to contain an old word
+> (`TempoTabBar`, `TempoWordmark`, `TempoPulse`, `TempoSheet`, `TempoLottie`,
+> `TempoErrorBoundary`, `tempoScore.ts`, the `TempoScore` leaderboard metric type, the
+> `db.tempo_score` column). Renaming those is a bigger, more deliberate native-rebuild step the
 > founder chose to defer — don't "fix" them as drive-by cleanup; they're not stale, they're
-> intentionally out of scope until that step happens. This document below still refers to those
-> real identifiers by their real (current) names.
+> intentionally out of scope until that step happens (and especially not worth doing while the
+> name itself is still provisional). This document below still refers to those real identifiers
+> by their real (current) names.
 
 > **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
 > inventory of everything still wrong in the code/logic/UI described below (absorbed from the
@@ -25,11 +29,11 @@ A detailed description of everything Fitaround is — frontend, backend, feature
 
 ---
 
-## 1. What Fitaround is
-A **fitness operating system that adapts to your real life**. Instead of a static program, Fitaround
+## 1. What Arclo is
+A **fitness operating system that adapts to your real life**. Instead of a static program, Arclo
 generates a periodized training plan, schedules it around your actual calendar, adapts week-to-week
 from your performance and recovery, and — the wedge feature — turns any spare 5–60 minutes into a
-purposeful **Quick Workout**. One shared promise: *"no matter how busy your day gets, Fitaround keeps
+purposeful **Quick Workout**. One shared promise: *"no matter how busy your day gets, Arclo keeps
 you moving."*
 
 - **Platforms:** iOS + Android (Expo/React Native), iOS bundle id `com.fittempo.app` / Android package `com.fittempo.app`, v1.0.0. A separate

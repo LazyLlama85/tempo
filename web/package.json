@@ -1,7 +1,7 @@
 {
-  "name": "fitaround-waitlist",
+  "name": "arclo-waitlist",
   "version": "1.0.0",
-  "description": "Fitaround waitlist landing page",
+  "description": "Arclo waitlist landing page",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

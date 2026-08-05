@@ -135,7 +135,7 @@ export async function findFreeWindows(
 export interface DayEvent { id: string; title: string; start: Date; end: Date }
 
 // Timed events on a given day, WITH titles, for display on the home timeline.
-// The app's own synced workouts (titled e.g. "Fitaround …") are filtered out —
+// The app's own synced workouts (titled e.g. "Arclo …") are filtered out —
 // those are rendered from scheduled_workouts, so we don't want them showing twice.
 // Returns [] without calendar permission.
 export async function getDayEvents(date: Date): Promise<DayEvent[]> {
