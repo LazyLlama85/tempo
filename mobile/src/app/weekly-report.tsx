@@ -1,9 +1,12 @@
 // Tempo — Weekly Progress Report screen.
 //
-// The Sunday "am I improving?" answer: workouts, volume vs last week, estimated
-// strength gains, weight trend, consistency — then a one-tap share. All numbers
-// come from computeWeeklyReport (lib/weeklyReport.ts); the share reuses the
-// existing Wrapped cards.
+// The "am I improving?" answer: workouts, volume vs the week before, estimated
+// strength gains, weight trend, consistency — then a one-tap share. Always the
+// last FULLY COMPLETED week (weekOffset=1 into computeWeeklyReport), never the
+// current in-progress one — opening this mid-week must show last week's real
+// recap, not this week's still-tiny numbers mislabeled as "your week". All
+// numbers come from computeWeeklyReport (lib/weeklyReport.ts); the share
+// reuses the existing Wrapped cards.
 
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
@@ -19,7 +22,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { computeWeeklyReport, reportHasContent, type WeeklyReport } from '@/lib/weeklyReport'
-import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingImpact'
+import { fetchSchedulingImpact, mondayStr, type SchedulingImpact } from '@/lib/schedulingImpact'
 import { buildWrappedCards, type WrappedCard } from '@/lib/wrapped'
 import { ShareCardSheet } from '@/components/ShareCardSheet'
 import { useWeightUnit, unitLabel, displayWeight, displayVolume, formatWeightDelta } from '@/lib/units'
@@ -47,30 +50,48 @@ export default function WeeklyReportScreen() {
     track('weekly_report_viewed')
     setLoading(true)
     setReportError(false)
-    computeWeeklyReport(supabase, userId)
+    // weekOffset=1: the last FULLY COMPLETED week, not whatever's happened so
+    // far in the current one — opening this on a Tuesday used to show a
+    // nearly-empty in-progress week and call it "your week".
+    computeWeeklyReport(supabase, userId, 1)
       .then((r) => { setReport(r); setLoading(false) })
       // A missing .catch here used to leave `loading` stuck true forever on
       // any failure — the screen showed "Building your report…" permanently.
       .catch(() => { setLoading(false); setReportError(true) })
     buildWrappedCards(supabase, userId).then(setCards).catch(() => setCards([]))
-    fetchSchedulingImpact(supabase, userId).then(setImpact).catch(() => {})
+    // Bound the "Tempo scheduled" stat to the same completed week the rest of
+    // this screen reports on (last Monday through this week's Monday), not
+    // the live current week — see fetchSchedulingImpact's own comment.
+    const thisWeekMonday = mondayStr()
+    const lastWeekMonday = mondayStr(new Date(Date.now() - 7 * 86_400_000))
+    fetchSchedulingImpact(supabase, userId, lastWeekMonday, thisWeekMonday).then(setImpact).catch(() => {})
   }, [userId, retryTick])
 
   if (!session) return <Redirect href="/sign-in" />
 
+  // Date range for the "make it clear it was last week" label — report.weekStart
+  // is last week's Monday (weekOffset=1), so +6 days is that week's Sunday.
+  const weekRangeLabel = (() => {
+    if (!report?.weekStart) return null
+    const start = new Date(`${report.weekStart}T00:00:00`)
+    const end = new Date(start); end.setDate(end.getDate() + 6)
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return `${fmt(start)} – ${fmt(end)}`
+  })()
+
   const volLine = report?.volumeDeltaPct == null
     ? 'First week of volume logged'
-    : `${report.volumeDeltaPct >= 0 ? '+' : ''}${report.volumeDeltaPct}% vs last week`
+    : `${report.volumeDeltaPct >= 0 ? '+' : ''}${report.volumeDeltaPct}% vs the week before`
   const wkLine = report
     ? report.prevWorkouts > 0
-      ? `${report.workouts >= report.prevWorkouts ? '+' : ''}${report.workouts - report.prevWorkouts} vs last week`
+      ? `${report.workouts >= report.prevWorkouts ? '+' : ''}${report.workouts - report.prevWorkouts} vs the week before`
       : 'Keep it rolling'
     : ''
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScreenHeader
-        title="Your Week"
+        title="Last Week"
         size="sm"
         leading={<DismissButton onPress={() => router.back()} label="Close" />}
       />
@@ -86,11 +107,12 @@ export default function WeeklyReportScreen() {
         </View>
       ) : !report || !reportHasContent(report) ? (
         <View style={styles.center}>
-          <EmptyState kind="chart" title="No report yet" body="Finish a workout this week and your report fills in — volume, PRs, and momentum vs. last week." />
+          <EmptyState kind="chart" title="Nothing logged last week" body={`No workouts finished between ${weekRangeLabel ?? 'last Monday and Sunday'} — this recap fills in as soon as you have a completed week to show.`} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.lead}>Here's your progress this week. The numbers don't lie — you're moving.</Text>
+          {weekRangeLabel && <Text style={styles.weekRange}>{weekRangeLabel}</Text>}
+          <Text style={styles.lead}>Here's how last week went. The numbers don't lie — you moved.</Text>
 
           {/* Workouts + consistency tiles */}
           <View style={styles.tileRow}>
@@ -106,15 +128,15 @@ export default function WeeklyReportScreen() {
             </View>
           </View>
 
-          {/* The wedge, made visible: how much of this week Tempo actually planned +
+          {/* The wedge, made visible: how much of last week Tempo actually planned +
               scheduled for you. Hidden when zero (honest empty state). */}
           {impact && impact.thisWeek > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardLabel}>PLANNED & SCHEDULED BY TEMPO</Text>
-              <Text style={styles.cardValue}>{impact.thisWeek} this week</Text>
+              <Text style={styles.cardValue}>{impact.thisWeek} last week</Text>
               <Text style={styles.cardSub}>
                 {impact.scheduledByTempo > impact.thisWeek
-                  ? `${BRAND_NAME} has fit ${impact.scheduledByTempo} workouts into your week so far — the what and the when, handled, so you just show up.`
+                  ? `${BRAND_NAME} has fit ${impact.scheduledByTempo} workouts into your training, all-time — the what and the when, handled, so you just show up.`
                   : `${BRAND_NAME} picked the exercises and slotted the time around your real schedule — you just showed up.`}
               </Text>
             </View>
@@ -134,7 +156,7 @@ export default function WeeklyReportScreen() {
               </View>
             </View>
             <Text style={styles.cardValue}>{displayVolume(report.volumeLbs, unit)} <Text style={styles.cardUnit}>{unitLabel(unit)}</Text></Text>
-            <Text style={styles.cardSub}>{report.minutes} min trained this week</Text>
+            <Text style={styles.cardSub}>{report.minutes} min trained last week</Text>
           </View>
 
           {/* Estimated strength */}
@@ -170,14 +192,14 @@ export default function WeeklyReportScreen() {
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>NEW PRs</Text>
               <Text style={styles.tileValue}>{report.newPRs}</Text>
-              <Text style={styles.tileSub}>this week</Text>
+              <Text style={styles.tileSub}>last week</Text>
             </View>
           </View>
 
           {cards.length > 0 && (
             <TouchableOpacity style={styles.shareBtn} onPress={() => setShareOpen(true)} activeOpacity={0.85}>
               <Ionicons name="share-outline" size={18} color={C.primary} />
-              <Text style={styles.shareBtnText}>Share my week</Text>
+              <Text style={styles.shareBtnText}>Share last week</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -193,7 +215,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.xl },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
   scroll: { paddingHorizontal: Spacing.containerPadding, paddingBottom: Spacing.xl, gap: Spacing.md },
-  lead: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, marginTop: Spacing.xs },
+  weekRange: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, letterSpacing: 0.4, marginTop: Spacing.xs },
+  lead: { fontFamily: 'Inter_400Regular', fontSize: 15, color: C.textSecondary, lineHeight: 22, marginTop: 2 },
 
   tileRow: { flexDirection: 'row', gap: Spacing.md },
   tile: { flex: 1, backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: C.outlineVariant, ...CardShadow, gap: 2 },

@@ -57,4 +57,26 @@ describe('summarizeSchedulingImpact', () => {
   it('keeps the Tempo-source list to generated + auto-placed kinds', () => {
     expect([...TEMPO_SCHEDULED_SOURCES].sort()).toEqual(['plan', 'quick', 'smart'])
   })
+
+  it('bounds "thisWeek" above too when weekEnd is given (Weekly Report\'s last-completed-week framing)', () => {
+    const LAST_WEEK_START = '2026-07-06'
+    const THIS_WEEK_START = '2026-07-13'
+    const r = summarizeSchedulingImpact([
+      { planned_date: '2026-06-29', status: 'completed', source: 'plan' }, // 2 weeks ago
+      { planned_date: '2026-07-08', status: 'completed', source: 'plan' }, // last week
+      { planned_date: '2026-07-12', status: 'completed', source: 'plan' }, // last week (Sun)
+      { planned_date: '2026-07-13', status: 'completed', source: 'plan' }, // this week — must be excluded
+      { planned_date: '2026-07-17', status: 'completed', source: 'plan' }, // this week — must be excluded
+    ], LAST_WEEK_START, THIS_WEEK_START)
+    expect(r.scheduledByTempo).toBe(5)
+    expect(r.thisWeek).toBe(2)
+  })
+
+  it('omitting weekEnd stays open-ended (the default/Progress-tab live-week behavior)', () => {
+    const r = summarizeSchedulingImpact([
+      { planned_date: '2026-07-14', status: 'completed', source: 'plan' },
+      { planned_date: '2026-12-31', status: 'completed', source: 'plan' },
+    ], WEEK)
+    expect(r.thisWeek).toBe(2)
+  })
 })

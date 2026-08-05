@@ -46,6 +46,13 @@ export function mondayStr(now: Date = new Date()): string {
 export function summarizeSchedulingImpact(
   rows: ImpactRow[],
   weekStart: string = mondayStr(),
+  // Exclusive upper bound. Omitted (the default/Progress-tab case, "this week"
+  // live) means open-ended — today is always before it would land anyway.
+  // The Weekly Report screen passes last week's Monday as weekStart AND this
+  // week's Monday as weekEnd, so "thisWeek" (confusingly still the field name
+  // for backward compat) means the report's own last-completed week, not
+  // bleeding into whatever's happened since.
+  weekEnd?: string,
 ): SchedulingImpact {
   const tempo = new Set<string>(TEMPO_SCHEDULED_SOURCES)
   let scheduledByTempo = 0
@@ -54,7 +61,7 @@ export function summarizeSchedulingImpact(
     if (r.status !== 'completed') continue
     if (!r.source || !tempo.has(r.source)) continue
     scheduledByTempo++
-    if (r.planned_date >= weekStart) thisWeek++
+    if (r.planned_date >= weekStart && (!weekEnd || r.planned_date < weekEnd)) thisWeek++
   }
   return { scheduledByTempo, thisWeek }
 }
@@ -64,6 +71,13 @@ export function summarizeSchedulingImpact(
 export async function fetchSchedulingImpact(
   client: SupabaseClient,
   userId: string,
+  // Override which Monday counts as "thisWeek", and optionally bound it above
+  // too — the Weekly Report screen passes last week's Monday as weekStart AND
+  // this week's Monday as weekEnd, so this stat reads "last week" consistently
+  // with the rest of that screen's now-completed-week-only framing. Both
+  // omitted everywhere else (Progress tab), where the live current week is correct.
+  weekStart?: string,
+  weekEnd?: string,
 ): Promise<SchedulingImpact> {
   try {
     const { data } = await client
@@ -71,7 +85,7 @@ export async function fetchSchedulingImpact(
       .select('planned_date, status, source')
       .eq('user_id', userId)
       .eq('status', 'completed')
-    return summarizeSchedulingImpact((data ?? []) as ImpactRow[])
+    return summarizeSchedulingImpact((data ?? []) as ImpactRow[], weekStart, weekEnd)
   } catch {
     return { scheduledByTempo: 0, thisWeek: 0 }
   }
