@@ -42,7 +42,8 @@ import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { PAYWALL_POINTS, type IoniconName } from '@/lib/proFeatures'
 import {
-  getProOffering, purchaseProPackage, restorePurchases, introOffer, type IntroOffer,
+  getProOffering, purchaseProPackage, restorePurchases, introOffer, checkIntroEligibility,
+  type IntroOffer, type IntroEligibilityStatus,
 } from '@/lib/purchases'
 import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
@@ -117,6 +118,7 @@ export default function PaywallScreen() {
   const userId = useAuthStore((s) => s.session?.user.id) ?? ''
 
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [eligibility, setEligibility] = useState<Record<string, IntroEligibilityStatus>>({})
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<PlanKey>('annual')
   const [busy, setBusy] = useState(false)
@@ -156,6 +158,13 @@ export default function PaywallScreen() {
       setOffering(o)
       // Default to annual when it exists (best value), else monthly.
       setSelected(o?.annual ? 'annual' : 'monthly')
+      // Gate intro/trial pricing on real eligibility before ever painting it —
+      // see checkIntroEligibility's doc comment. Held in the same loading gate
+      // as the offering fetch so the price never flashes $24.99 then $35.
+      const ids = [o?.annual, o?.monthly].filter((p): p is PurchasesPackage => !!p).map((p) => p.product.identifier)
+      const elig = await checkIntroEligibility(ids)
+      if (cancelled) return
+      setEligibility(elig)
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -166,8 +175,14 @@ export default function PaywallScreen() {
   const selectedPkg = selected === 'annual' ? annualPkg : monthlyPkg
   const hasPlans = !!(annualPkg || monthlyPkg)
 
-  const annualIntro = introOffer(annualPkg)
-  const selectedIntro = introOffer(selectedPkg)
+  // Only ever surface an intro/trial price for a package the user is actually
+  // eligible for — an existing `introPrice` describes the offer, not whether
+  // THIS purchase will honor it.
+  const introOfferIfEligible = (pkg: PurchasesPackage | null): IntroOffer | null =>
+    pkg && eligibility[pkg.product.identifier] !== 'ineligible' ? introOffer(pkg) : null
+
+  const annualIntro = introOfferIfEligible(annualPkg)
+  const selectedIntro = introOfferIfEligible(selectedPkg)
   const hasFreeTrial = !!selectedIntro?.isFree
   const hasPaidIntro = !!selectedIntro && !selectedIntro.isFree
 

@@ -280,6 +280,46 @@ export function introOffer(pkg: PurchasesPackage | null | undefined): IntroOffer
   }
 }
 
+// §pricing-mismatch (2026-08-05): a product's `introPrice` (above) describes the
+// OFFER'S terms — it does NOT mean THIS user still qualifies for it. On iOS, a
+// once-subscribed or already-trialed customer still gets `introPrice` back from
+// the store (that's how StoreKit reports the offer's existence), but the actual
+// purchase sheet then charges the real list price. Showing $24.99 on the paywall
+// and charging $35 at checkout is exactly that gap — the paywall must gate its
+// display on eligibility, not just on "does an intro offer exist."
+export type IntroEligibilityStatus = 'eligible' | 'ineligible'
+
+/**
+ * Whether the CURRENT user is actually eligible for each product's intro/trial
+ * price. iOS only — Android's Play Billing already filters ineligible offers
+ * out of ProductDetails before they reach the SDK, so every id resolves
+ * 'eligible' there and the store's own listing stays the source of truth.
+ * Unresolvable (RevenueCat's UNKNOWN status, or any error) fails to
+ * 'ineligible' — RevenueCat's own guidance: showing the non-intro price is the
+ * only choice that's never misleading.
+ */
+export async function checkIntroEligibility(
+  productIdentifiers: string[],
+): Promise<Record<string, IntroEligibilityStatus>> {
+  const result: Record<string, IntroEligibilityStatus> = {}
+  if (!productIdentifiers.length) return result
+  if (Platform.OS !== 'ios' || !configured || !Purchases) {
+    for (const id of productIdentifiers) result[id] = 'eligible'
+    return result
+  }
+  try {
+    const raw = await Purchases.checkTrialOrIntroductoryPriceEligibility(productIdentifiers)
+    const ELIGIBLE = Purchases.INTRO_ELIGIBILITY_STATUS?.INTRO_ELIGIBILITY_STATUS_ELIGIBLE
+    for (const id of productIdentifiers) {
+      result[id] = raw?.[id]?.status === ELIGIBLE ? 'eligible' : 'ineligible'
+    }
+  } catch (e) {
+    captureApiError('purchases.checkTrialOrIntroductoryPriceEligibility', e)
+    for (const id of productIdentifiers) result[id] = 'ineligible'
+  }
+  return result
+}
+
 // ── Paywall + Customer Center (react-native-purchases-ui) ───────────────────────
 
 /** Present the RevenueCat paywall for the current offering. Returns whether the user converted. */

@@ -1762,6 +1762,19 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   Plans render as **side-by-side cards** (`PlanCard`, `flex: 1` — a third package like lifetime needs
   no layout change) with the badge floating above the annual card; the radio a11y contract, dynamic
   pricing, intro-offer strike price, and savings % are unchanged from the row layout it replaced.
+  **Intro-price eligibility gate (2026-08-05):** a founder report — paywall showed the $24.99 founding
+  intro price, StoreKit's purchase sheet charged the $34.99 list price. Root cause: `product.introPrice`
+  (iOS) describes the OFFER's terms, not whether the current user still qualifies (already had a trial or
+  subscription = ineligible), and the paywall was displaying it unconditionally. Fixed via
+  `lib/purchases.checkIntroEligibility()` (wraps RevenueCat's `checkTrialOrIntroductoryPriceEligibility`,
+  iOS only — Android's Play Billing already filters ineligible offers before they reach the SDK, so it
+  always resolves 'eligible' there) called once alongside the offering fetch and held behind the same
+  `loading` gate so the price can't flash $24.99→$35. `annualIntro`/`selectedIntro` are now derived via
+  `introOfferIfEligible()`, which nulls out the intro entirely (falls back to list price/no-trial-timeline)
+  for an ineligible product — every downstream consumer (`ctaLabel`, `savingsPct`, `PlanCard`, the trial/
+  what-you-pay timeline) already branched on those two values, so no other render logic changed. An
+  UNKNOWN eligibility status (RevenueCat's own guidance) fails to 'ineligible', same as an error — showing
+  the honest list price is the only outcome that's never misleading.
   **Earlier redesign (§25):** value-prop hero (glow) → `PAYWALL_POINTS` feature cards → a
   **Free-vs-Pro comparison table** (kept honest to the real gating in `proFeatures.ts`) → a **"how
   your N-day free trial works" timeline** (2026-07-18 — Today unlock / Day N-2 reminder / Day N billing
