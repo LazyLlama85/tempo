@@ -779,6 +779,29 @@ you moving."*
   reflects that honestly rather than fabricating a trend that doesn't exist; a future iteration could
   track progression per movement-pattern/slot instead of exact exercise id to reduce how often that
   happens, not attempted here.)
+  **"Delay my whole week" (2026-08-04, new Pro feature, `lib/delayWeek.ts` + `lib/reschedule.ts`):**
+  the literal companion to "Reschedule my whole week" above — instead of re-optimizing each workout
+  onto its best day, this pushes every remaining `status:'scheduled'` workout in the CURRENT
+  Sunday-start calendar week later by a single fixed offset (1–6 days, picked from a dynamic
+  `OptionSheet`), preserving relative day spacing and each workout's original time. Deliberately
+  scoped to **only this week**: `computeMaxDelayDays`/`planDelayWeek` (pure, unit-tested in
+  `delayWeek.test.ts`) cap the offset so no shifted workout can land past the week's last day
+  (`lib/dates.ts`'s new `weekEndStr`) — which is also what guarantees it can never collide with the
+  `scheduled_workouts_one_plan_per_day` partial unique index (`fix_duplicate_scheduled_workouts.sql`),
+  since every 'scheduled' row inside `[today, weekEnd]` is included in the shift and none can be
+  pushed onto or past a day outside that range. No calendar-slot search is needed (times are kept
+  as-is, only the date moves), so unlike reschedule this never touches calendar-permission state.
+  Two entry points read fresh, live data rather than trusting a stale UI snapshot: `getDelayWeekInfo`
+  (read-only, builds the offset picker and reports "nothing to delay" / "already at the week's edge")
+  and `delayWholeWeek` (re-reads + re-clamps at commit time, so a race between opening the picker and
+  confirming — a workout completing, or filling the last open day — can only ever reduce the applied
+  offset, never spill it into next week). Same Pro gate as reschedule (`schedule_optimization` —
+  extended rather than a new `ProFeatureId`, since it's the same Smart Scheduling pillar), same
+  partial-failure handling as `rescheduleWholeWeek` (per-row update, a failed row is never counted as
+  "moved," `captureApiError` on partial failure, `adaptation_events` trigger `'delay_week'`). UI lives
+  next to the reschedule icon button in Plan's range row (`play-forward-outline`). Not wired into
+  Tempo Coach's action layer — out of scope for this batch, `reschedule_week` remains Coach's only
+  scheduling action.
   **Scheduling / split-recovery bug fixes (2026-07-16/17, direct founder reports):** (1) "Reschedule
   my whole week" (`lib/reschedule.ts`'s `rescheduleWholeWeek`) only ever re-slotted EXISTING
   `scheduled_workouts` rows — if a split day had been deleted/skipped first, it stayed missing after

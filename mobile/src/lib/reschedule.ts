@@ -14,9 +14,10 @@ import { getIgnoredEventKeys, filterIgnoredBusy } from '@/lib/ignoredEvents'
 import { musclesToRegions, scoreDay, type Region, type DayLoad } from '@/lib/trainingLoad'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { planWeekReschedule, RESCHEDULE_HORIZON_DAYS, type WeekWorkout } from '@/lib/weekReschedule'
+import { computeMaxDelayDays, planDelayWeek } from '@/lib/delayWeek'
 import { fetchActiveSplit, isAutoSplit } from '@/lib/splits'
 import { materializeSplit } from '@/lib/splitSchedule'
-import { toDateStr } from '@/lib/dates'
+import { toDateStr, weekEndStr } from '@/lib/dates'
 import { captureApiError } from '@/lib/crashReporting'
 import type { CalendarProvider, TimeOfDay } from '@/types'
 
@@ -475,4 +476,119 @@ export async function rescheduleWholeWeek(
   }
 
   return { moved, total: movable.length }
+}
+
+// ── "Delay my whole week" ────────────────────────────────────────────────────
+// The literal companion to "Reschedule my whole week" above: instead of
+// re-optimizing each workout onto its best day, this pushes every REMAINING
+// session in the CURRENT calendar week later by the same fixed number of
+// days (a sick day, a trip, an overloaded week) — same relative spacing,
+// same times, just later. Deliberately scoped to only this week: the pure
+// planner (`lib/delayWeek.ts`) caps the offset so a shift can never land
+// past the week's last day, which is what guarantees it never touches or
+// collides with next week's already-scheduled workouts. No calendar-slot
+// search needed — times are preserved as-is, only the date moves.
+
+export interface DelayWeekInfo {
+  /** How many workouts are eligible (status 'scheduled', today..this week's last day). */
+  total: number
+  /** Largest offset (days) safe to offer — 0 means nothing can be delayed this week. */
+  maxOffsetDays: number
+}
+
+interface DelayableRow {
+  id: string
+  focus: string
+  planned_date: string
+  planned_start_time: string
+  planned_duration_min: number
+  calendar_event_id: string | null
+  calendar_provider: CalendarProvider | null
+}
+
+async function fetchDelayableWeek(client: SupabaseClient, userId: string, today: string): Promise<DelayableRow[]> {
+  const { data } = await client
+    .from('scheduled_workouts')
+    .select('id, focus, planned_date, planned_start_time, planned_duration_min, calendar_event_id, calendar_provider')
+    .eq('user_id', userId)
+    .eq('status', 'scheduled')
+    .gte('planned_date', today)
+    .lte('planned_date', weekEndStr(today))
+    .order('planned_date')
+  return (data ?? []) as DelayableRow[]
+}
+
+// Read-only — the UI calls this to decide which offsets to offer (and whether
+// to offer the feature at all) before the user picks one.
+export async function getDelayWeekInfo(client: SupabaseClient, userId: string): Promise<DelayWeekInfo> {
+  const today = toDateStr(new Date())
+  const rows = await fetchDelayableWeek(client, userId, today)
+  return { total: rows.length, maxOffsetDays: computeMaxDelayDays(rows.map(r => r.planned_date), today) }
+}
+
+// Commits the shift. Re-reads fresh (never trusts the UI's snapshot, which
+// may be stale by the time the user confirms — a workout could've been
+// completed, skipped, or added in between) and re-derives + clamps the safe
+// offset itself, so a stale request can never spill into next week even if
+// the picker that produced it was built from outdated data.
+export async function delayWholeWeek(
+  client: SupabaseClient,
+  userId: string,
+  offsetDays: number,
+): Promise<{ moved: number; total: number; appliedOffset: number }> {
+  const today = toDateStr(new Date())
+  const rows = await fetchDelayableWeek(client, userId, today)
+  if (!rows.length) return { moved: 0, total: 0, appliedOffset: 0 }
+
+  const maxOffset = computeMaxDelayDays(rows.map(r => r.planned_date), today)
+  const appliedOffset = Math.max(0, Math.min(Math.floor(offsetDays), maxOffset))
+  if (appliedOffset <= 0) return { moved: 0, total: rows.length, appliedOffset: 0 }
+
+  const assignments = planDelayWeek(rows.map(r => ({ id: r.id, date: r.planned_date })), today, appliedOffset)
+  const rowById = new Map(rows.map(r => [r.id, r]))
+
+  let moved = 0
+  const failedIds: string[] = []
+  for (const a of assignments) {
+    if (!a.changed) continue
+    const r = rowById.get(a.id)
+    if (!r) continue
+    const { error } = await client
+      .from('scheduled_workouts')
+      .update({ planned_date: a.date })
+      .eq('id', a.id)
+      .eq('user_id', userId)
+    if (error) { failedIds.push(a.id); continue }
+    // Keep the synced calendar event + local reminder pointed at the new day.
+    await resyncMovedWorkout(client, userId, {
+      id: r.id,
+      focus: r.focus,
+      planned_date: a.date,
+      planned_start_time: r.planned_start_time,
+      planned_duration_min: r.planned_duration_min,
+      calendar_event_id: r.calendar_event_id,
+      calendar_provider: r.calendar_provider,
+    })
+    moved++
+  }
+  if (failedIds.length) {
+    captureApiError('delayWholeWeek', new Error('partial delay failure'), {
+      userId, failedCount: failedIds.length, totalCount: rows.length, failedIds,
+    })
+  }
+
+  if (moved > 0) {
+    try {
+      await client.from('adaptation_events').insert({
+        user_id: userId,
+        trigger: 'delay_week',
+        trigger_details: { offsetDays: appliedOffset, moved, total: rows.length },
+        action_taken: 'rescheduled',
+      })
+    } catch {
+      // Audit log is best-effort — never block the delay on it
+    }
+  }
+
+  return { moved, total: rows.length, appliedOffset }
 }

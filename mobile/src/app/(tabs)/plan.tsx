@@ -38,7 +38,7 @@ import { mondayStr } from '@/lib/schedulingImpact'
 import { getIntensityBias, refreshAdaptation, type IntensityBias } from '@/lib/adaptation'
 import type { WeekProgression } from '@/lib/periodization'
 import { getTodayReadiness } from '@/lib/recovery'
-import { rescheduleWholeWeek } from '@/lib/reschedule'
+import { rescheduleWholeWeek, delayWholeWeek, getDelayWeekInfo } from '@/lib/reschedule'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { ExercisePickerSheet } from '@/components/ExercisePickerSheet'
 import { FocusMode } from '@/components/FocusMode'
@@ -309,6 +309,9 @@ export default function WorkoutsScreen() {
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [weekRescheduleConfirm, setWeekRescheduleConfirm] = useState(false)
   const [weekRescheduling, setWeekRescheduling] = useState(false)
+  const [delayWeekOptions, setDelayWeekOptions] = useState<{ key: string; label: string; icon: string; offsetDays: number }[] | null>(null)
+  const [delayWeekLoading, setDelayWeekLoading] = useState(false)
+  const [weekDelaying, setWeekDelaying] = useState(false)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
   const { requirePro: requireProForSchedule } = useProGate()
   const { requirePro: requireProForPlates } = useProGate()
@@ -516,6 +519,81 @@ export default function WorkoutsScreen() {
       Alert.alert(info.title, info.message)
     } finally {
       setWeekRescheduling(false)
+    }
+  }
+
+  // "Delay my whole week" — the literal companion to reschedule above: push
+  // every remaining workout this week later by a fixed number of days (a sick
+  // day, a trip, an overloaded week), same spacing and times, no re-planning.
+  // Scoped to ONLY this week (lib/delayWeek.ts caps the offset), so the picker
+  // is built from a live read of how much room is actually left this week.
+  const handleWeekDelay = async () => {
+    if (delayWeekLoading || weekDelaying) return
+    if (!requireProForSchedule('schedule_optimization')) return
+    setDelayWeekLoading(true)
+    try {
+      const { total, maxOffsetDays } = await getDelayWeekInfo(supabase, userId)
+      if (total === 0) {
+        Alert.alert('Nothing to delay', 'Your week is already clear of upcoming workouts.')
+        return
+      }
+      if (maxOffsetDays <= 0) {
+        Alert.alert(
+          'Already at the end of the week',
+          'Your last workout this week is already on its final day — there\'s no room left to push it back without landing in next week. Try "Reschedule my week" instead.',
+        )
+        return
+      }
+      const offered = Math.min(maxOffsetDays, 6)
+      setDelayWeekOptions(Array.from({ length: offered }, (_, i) => {
+        const n = i + 1
+        return { key: String(n), label: `Delay by ${n} day${n === 1 ? '' : 's'}`, icon: 'play-forward-outline', offsetDays: n }
+      }))
+    } catch (err) {
+      const info = describeSaveError(err, 'check your week')
+      Alert.alert(info.title, info.message)
+    } finally {
+      setDelayWeekLoading(false)
+    }
+  }
+
+  const confirmWeekDelay = async (key: string) => {
+    const offsetDays = delayWeekOptions?.find(o => o.key === key)?.offsetDays
+    setDelayWeekOptions(null)
+    if (!offsetDays || weekDelaying) return
+    setWeekDelaying(true)
+    try {
+      const { moved, total, appliedOffset } = await delayWholeWeek(supabase, userId, offsetDays)
+      track('week_delay_used', { offsetDays: appliedOffset, moved, total })
+      queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['plan_cal_workouts'] })
+      queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
+      if (total === 0) {
+        Alert.alert('Nothing to delay', 'Your week is already clear of upcoming workouts.')
+      } else if (appliedOffset === 0) {
+        // computeMaxDelayDays re-checked at commit time and found no room left —
+        // a race since the picker opened (a workout landed on the week's last day).
+        Alert.alert(
+          'Couldn\'t delay by that much',
+          'Your week filled up (or finished) since you opened this — there isn\'t room left to push it back. Try again for an updated option.',
+        )
+      } else if (moved === 0) {
+        // appliedOffset > 0 but nothing actually moved — every row update failed
+        // (offline/RLS), distinct from the boundary case above.
+        Alert.alert('Couldn\'t delay your week', 'Something went wrong saving the change — check your connection and try again.')
+      } else {
+        const dayWord = appliedOffset === 1 ? 'day' : 'days'
+        const partial = appliedOffset !== offsetDays ? ` (the most that still fit inside this week)` : ''
+        Alert.alert(
+          'Week delayed',
+          `${BRAND_NAME} pushed ${moved} of ${total} upcoming workout${total === 1 ? '' : 's'} back ${appliedOffset} ${dayWord}${partial} and re-synced your calendar.`,
+        )
+      }
+    } catch (err) {
+      const info = describeSaveError(err, 'delay your week')
+      Alert.alert(info.title, info.message)
+    } finally {
+      setWeekDelaying(false)
     }
   }
 
@@ -2009,6 +2087,19 @@ export default function WorkoutsScreen() {
                 )}
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.weekRescheduleBtn, (delayWeekLoading || weekDelaying) && { opacity: 0.5 }]}
+                onPress={handleWeekDelay}
+                disabled={delayWeekLoading || weekDelaying}
+                accessibilityRole="button"
+                accessibilityLabel="Delay my whole week"
+              >
+                {(delayWeekLoading || weekDelaying) ? (
+                  <ActivityIndicator size="small" color={C.primary} />
+                ) : (
+                  <Ionicons name="play-forward-outline" size={18} color={C.primary} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
                 onPress={() => shiftRange(-1)}
                 hitSlop={8}
                 accessibilityRole="button"
@@ -2316,6 +2407,15 @@ export default function WorkoutsScreen() {
           options={[{ key: 'reschedule', label: 'Reschedule my week', icon: 'repeat-outline' }]}
           onSelect={confirmWeekReschedule}
           onClose={() => setWeekRescheduleConfirm(false)}
+        />
+
+        <OptionSheet
+          visible={!!delayWeekOptions}
+          title="Delay your week"
+          subtitle={`Push every upcoming workout this week back by the same number of days — same order, same times, just later. Stays inside this week; next week is never touched.`}
+          options={delayWeekOptions ?? []}
+          onSelect={confirmWeekDelay}
+          onClose={() => setDelayWeekOptions(null)}
         />
 
         {/* Why this workout — the reasoning behind the order + selection */}

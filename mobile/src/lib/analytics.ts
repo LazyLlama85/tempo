@@ -94,6 +94,11 @@ export type EventProperties = {
   // "Reschedule my whole week" — the payable magic (B1.3). Fired on every use so
   // B2.2 can trigger the paywall right at this moment once B2.1 gates it as Pro.
   week_reschedule_used: { moved: number; total: number }
+  // "Delay my whole week" — the literal push-back companion to reschedule
+  // above (offsetDays is the CLAMPED/applied value, which can be less than
+  // what the user picked if the week filled up between opening the picker
+  // and confirming it).
+  week_delay_used: { offsetDays: number; moved: number; total: number }
   workout_feedback_submitted: { feel: string }
   share_card_opened: undefined
   // Auto-progression graduated the user to a harder experience level.

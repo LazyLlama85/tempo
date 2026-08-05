@@ -260,6 +260,25 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-04 — "Delay my whole week" (new Pro feature, founder-requested).** Founder-requested
+  companion to "Reschedule my whole week" (B1.3): rather than re-optimizing each workout onto a new
+  best day, pushes every remaining `scheduled` workout in the CURRENT calendar week later by a single
+  fixed offset (1–6 days), same order/spacing/times, just later — for a sick day, a trip, or an
+  overloaded week. Explicit ask was "only delay the week" — clarified with the founder first (fixed
+  offset vs. resume-on-a-day vs. reusing the existing engine; fixed offset chosen) since it's easy to
+  confuse with the existing recovery-aware reschedule engine. Pure planner `lib/delayWeek.ts`
+  (`computeMaxDelayDays`/`planDelayWeek`, 11 unit tests) + DB/calendar wrapper (`delayWholeWeek`/
+  `getDelayWeekInfo` in `lib/reschedule.ts`), same pure/IO split as `weekReschedule.ts`/
+  `rescheduleWholeWeek`. New `lib/dates.ts` helper `weekEndStr` caps the offset so a shift can never
+  land past the week's last day — the mechanism that guarantees it can't collide with the DB's
+  `scheduled_workouts_one_plan_per_day` unique index or bleed into next week; the commit path
+  re-reads and re-clamps live rather than trusting the picker's snapshot (a race can only shrink the
+  applied offset, never overflow it). Reuses the `schedule_optimization` Pro gate (same Smart
+  Scheduling pillar) rather than a new `ProFeatureId`. UI: a second icon button next to Plan's
+  "Reschedule my whole week" button, dynamic `OptionSheet` offset picker. Not wired into Tempo Coach
+  (out of scope this session). `tsc` clean, 408/408 tests (11 new). `ARCHITECTURE.md` and
+  `PRODUCT_AUDIT.html` updated same session; not yet on-device tested.
+
 - **2026-08-04 — Rebrand (Tempo → Fitaround) + B1.5 multi-calendar reconnect fix.** Renamed the
   product after finding a real trademark collision (SoftBank-backed tempo.fit holds registered marks
   covering fitness scheduling software) — new `mobile/src/constants/brand.ts` is now the single

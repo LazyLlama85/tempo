@@ -43,6 +43,17 @@ export function daysBetween(a: string, b: string): number {
 }
 
 /**
+ * The last day ('YYYY-MM-DD', Saturday) of the Sunday-start calendar week
+ * containing dateStr — matches the Plan tab's own week strip (`startOfWeek`
+ * in `app/(tabs)/plan.tsx`, Sunday first per US calendars). Used to cap
+ * "delay whole week" so a shift can never spill a workout into next week.
+ */
+export function weekEndStr(dateStr: string): string {
+  const dow = new Date(`${dateStr}T00:00:00`).getDay() // 0=Sun … 6=Sat
+  return addDays(dateStr, 6 - dow)
+}
+
+/**
  * A 'YYYY-MM-DD' date at a given minute-of-day, as a real Date — DST-safe
  * because it goes through Date's own local-time constructor (setHours),
  * which resolves wall-clock time correctly across a spring-forward/fall-back
