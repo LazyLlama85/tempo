@@ -12,6 +12,12 @@
 //     bundleIdentifier/package/scheme/associatedDomains were deliberately
 //     NOT changed during this rename (see app.json) — only the display name
 //     and permission strings were.
+//   • app.json's `name` is now "Arclo: Fitness Planner", NOT just "Arclo" —
+//     the bare word is already taken by an unrelated app on the App Store, so
+//     the App Store/home-screen display name carries a descriptive suffix to
+//     get a distinct listing. This constant (BRAND_NAME) deliberately stays
+//     the short "Arclo" for all in-app copy/wordmark/calendar-prefix use —
+//     only the formal store-facing name needs the suffix.
 //   • web/*.html — the marketing site is plain static HTML (no templating),
 //     so its mentions of the name are a manual find-and-replace.
 // See ARCHITECTURE.md for the full list.

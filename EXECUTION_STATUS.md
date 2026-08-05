@@ -303,6 +303,15 @@ them).
   direct SQL update, no rebuild required. `tester_tools` stays `false` so the public never sees the
   in-app Pro debug switch.
 
+- **2026-08-05 (later) — App Store listing name → "Arclo: Fitness Planner".** The bare word "Arclo"
+  turned out to already be an existing (low-traction, unrelated-category) App Store app, so
+  submission was rejected. Rather than pick yet another word, kept "Arclo" — founder's preference —
+  and added a descriptive suffix to the **App Store/home-screen display name only**
+  (`app.json`'s `name`). Verified "Arclo: Fitness Planner" has zero App Store hits. In-app branding
+  (`brand.ts`'s `BRAND_NAME`, wordmark, calendar-event prefix, permission strings) deliberately
+  stays the bare "Arclo" — only the formal store listing needed the suffix. No rebuild required yet
+  since it's just changed in source; takes effect on the next native build.
+
 - **2026-08-05 — Rebrand (Fitaround → Arclo), name still provisional.** Extensive naming research
   found every evocative real-word fitness name already in use by some live app or trademark; Arclo
   was the cleanest option that survived. Founder wants to start the App Store review process under
