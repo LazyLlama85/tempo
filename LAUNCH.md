@@ -27,7 +27,7 @@ Policy + Terms, App Store-compliant account deletion (Guideline 5.1.1(v)), marke
 | Apple Developer Program | ✅ done — app exists in App Store Connect / TestFlight |
 | Google Play Console | ✅ done — app is live in Play **Closed testing** (`com.fittempo.app`) |
 | iOS export-compliance flag + photo-library permission string | ✅ in `app.json` |
-| `eas submit` profile scaffold | ✅ in `eas.json` |
+| `eas submit` profile scaffold | ⚠️ **Android only** — `eas.json`'s `submit.production` has no `ios` block (`appleId`/`ascAppId`/`appleTeamId`). `eas submit --platform ios` will prompt for these interactively if run as-is; fill them in first for a non-interactive run |
 | **Tempo Pro — RevenueCat + App Store Connect (iOS)** | ✅ **complete** — see §5 |
 | **Tempo Pro — App Store Connect subscriptions + Paid Apps Agreement** | ✅ **complete** — see §5 |
 | **Tempo Pro — `app_config.pro_enabled`** | ✅ **LIVE for everyone, flipped 2026-08-05** — real billing is active on any build already installed (Android especially, since Play is approved) |
@@ -36,7 +36,7 @@ Policy + Terms, App Store-compliant account deletion (Guideline 5.1.1(v)), marke
 | **iOS App Store v1.0 listing** (screenshots, description) | 👤 **open** — needed for public App Store submission; the Arclo-rebrand build in progress is the one that will carry the Pro subscriptions through Apple's review, per §5 STATUS |
 | **Tempo Pro — Android (RevenueCat Play service-account credential)** | ✅ **complete** — see §5 (one cosmetic dashboard badge, not believed to be a real blocker — worth a final glance) |
 | `founding_offer` config row (paywall countdown banner) | 👤 optional — not yet set, needs an `ends_at` date |
-| Telemetry keys (`EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SENTRY_DSN`) | 👤 optional |
+| Telemetry keys (`EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SENTRY_DSN`) | ✅ **already set** in both `preview` and `production` env blocks (this row was previously mislabeled as open — verified 2026-08-05) |
 | Store metadata (category, age rating, data-collection forms) | 👤 — copy in §3, compliance answers in §4 |
 
 **Note on the two "Android service account" credentials** — don't conflate them: the FCM v1
