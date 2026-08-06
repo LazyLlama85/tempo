@@ -71,6 +71,18 @@ Claude-buildable work, in order of value, is: (1) whatever the on-device pass su
 (2) the **Open backlog** below (`MASTER_FIX_PLAN.md`'s remaining C5–C10 craft batches, W2–W6 wedge
 amplifiers once M4 unblocks them, and the four still-open 2026-07-19-addendum runner items).
 
+**2026-08-06 — the app is now actually submitted to both stores for the first time.** A founder
+pricing-bug report (paywall showed $24.99, charged $34.99) led to fixing a real iOS eligibility gap,
+then discovering App Store Connect's v1.0 record had never been filled in for real production review
+— category, age rating, App Privacy answers, price tier, and both subscriptions were all still unset.
+All of it is now filled and submitted together (app version + both Pro subscriptions + subscription
+group), per Apple's requirement that the first subscription group ship with a new app version. Google
+Play's live store listing was also found still branded "Tempo" and corrected to Arclo, submitted for
+review. **Open from this session:** Play's Feature Graphic image still literally says "Tempo" — needs
+a real redesigned asset (founder/design call, not a text fix); RevenueCat entitlement ID still hasn't
+been independently verified against `eas.json`'s value (item 5 below); both store reviews are pending
+(Apple ~48h, Google typically within 7 days).
+
 **Last updated:** 2026-08-02 — the Mac's first-ever on-device (Simulator) pass ran, found real bugs,
 and every Tier-1 + Tier-2 finding from it is now fixed on Windows (see Session Log); T1.2 above
 still needs a real physical device before it's fully closed.
@@ -141,7 +153,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | `APP_STORE_LISTING.md`; App Store Connect *(founder)* | Copy drafted 2026-07-17, ready to paste. Founder still needs to take real screenshots and submit — see Founder-only checklist |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Submitted 2026-08-06** — full listing built and sent to Apple review (see Session Log); Play Store's stale "Tempo"-branded name/description also caught and corrected to Arclo, sent to Google review. Still 🔍 until conversion data exists on the live listing. |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running. `PRODUCT_AUDIT.html` Part II has the full route (short-form video, 8-week plan, ASO fields) |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies. Superset/circuit support and "love this exercise" boosting (the other half of `MASTER_FIX_PLAN.md`'s exercise-preferences item — the "never show again" half shipped, see Open backlog) still genuinely open here |
@@ -246,11 +258,16 @@ them).
    whole monthly RapidAPI quota first). Re-run next billing cycle and each month after:
    `$env:SUPABASE_SERVICE_ROLE_KEY="..."; node scripts/backfill-exercise-media.mjs` from `mobile/`
    (service_role key from Supabase dashboard → Project Settings → API — never commit it).
-9. **App Store listing submission.** `APP_STORE_LISTING.md` is drafted and ready to paste (name,
-   subtitle, keywords, promo text, description, 5-screenshot narrative) — someone still needs to take
-   the actual screenshots and submit in App Store Connect.
-10. **Paid Apps Agreement** (App Store Connect) — flagged open as of 2026-07-22, not confirmed
-    resolved since.
+9. ~~**App Store listing submission.**~~ **Done 2026-08-06** — see Session Log. This was the actual
+   first production App Store submission (not just a TestFlight round): category, content rights,
+   regulated-medical-device declaration, age rating questionnaire, full App Privacy data-collection
+   answers, price tier, and both Pro subscriptions were all still unset going in. All filled and the
+   app version + both subscriptions + the subscription group were submitted together (Apple requires
+   the first subscription group to ship with a new app version). Screenshots are the founder's own
+   real device captures (resized to spec, not fabricated). Now in Apple review (up to 48h).
+10. **Paid Apps Agreement** (App Store Connect) — flagged open as of 2026-07-22. Implicitly likely
+    resolved: both subscriptions submitted for review successfully 2026-08-06, which Apple blocks
+    without an active agreement — but not independently confirmed in the dashboard.
 11. **B6.2 — one acquisition channel running weekly.** `PRODUCT_AUDIT.html` Part II has the full
     proposed route (short-form video, 8-week start plan, ASO fields) — founder-only execution.
 12. **Native rebuild batch.** Apple Health export (write-only, opt-in, off by default) and Focus
@@ -261,6 +278,36 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-06 — iOS pricing-eligibility fix, then the actual first App Store + Play Store production
+  submissions.** Founder reported the paywall showing the $24.99 founding price but charging $34.99
+  at checkout. Root cause: `product.introPrice` (iOS) describes the store OFFER's terms, not whether
+  *this* user still qualifies — an already-subscribed/already-trialed Apple ID still gets `introPrice`
+  back, but StoreKit charges list price at purchase. Fixed with `lib/purchases.checkIntroEligibility()`
+  (wraps RevenueCat's `checkTrialOrIntroductoryPriceEligibility`, iOS-only) gating `paywall.tsx`'s
+  intro-price display; Android untouched (Play Billing already filters ineligible offers before the
+  SDK sees them). tsc clean, 410/410 tests. Built iOS #27 + Android build 11 from the fix, submitted
+  Android to Play's alpha track — then, going to finish the iOS submission, found App Store Connect's
+  v1.0 record was essentially blank: no screenshots, no description/keywords/support URL, no category,
+  no content rights, no age rating, no App Privacy answers, no price tier, sign-in-required checked
+  with no demo credentials. This was never actually submitted for real production review before.
+  Filled it from scratch: Description/Keywords/Promotional Text adapted from `LAUNCH.md` §3 to Arclo
+  branding; 6 of the founder's own real device screenshots (not fabricated) resized via `ffmpeg`
+  center-crop (1179×2556 → 1284×2778, ~5px trim, no distortion) to satisfy Apple's fixed screenshot
+  dimensions; Health & Fitness/Sports category; third-party-content rights (RapidAPI exercise media);
+  "No" on regulated medical device; a 7-step age-rating questionnaire answered honestly per the app's
+  real feature set (9+, driven by the Contests/leaderboard row); the full App Privacy data-collection
+  questionnaire (9 data types, all linked-to-identity, none tracking, Product Interaction/Crash/
+  Performance tied to PostHog/Sentry); Support URL (`fittempo.app`, flagged to the founder as a
+  waitlist page with no dedicated support section, not a fabricated fix); Copyright and App Review
+  contact info per the founder's explicit go-ahead; a guest-mode reviewer note verified against the
+  actual `sign-in.tsx` button text. Apple requires the first subscription group to submit together
+  with a new app version — both Pro subscriptions (already fully configured from an earlier session)
+  plus the app version were bundled into one Draft Submission and sent to Apple review together.
+  Separately found Google Play's **live** store listing still said "Tempo: Fitness Scheduling" — a
+  real, public rebrand miss, not a code issue — and replaced app name/short/full description with the
+  same Arclo-branded copy used for iOS, submitted to Google for review. Play's Feature Graphic has
+  "Tempo" baked into the image itself; flagged as needing a real redesigned asset, not touched.
+  `PRODUCT_AUDIT.html` and `ARCHITECTURE.md` updated same session per protocol.
 - **2026-08-04 — "Delay my whole week" (new Pro feature, founder-requested).** Founder-requested
   companion to "Reschedule my whole week" (B1.3): rather than re-optimizing each workout onto a new
   best day, pushes every remaining `scheduled` workout in the CURRENT calendar week later by a single

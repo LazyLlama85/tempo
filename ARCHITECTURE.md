@@ -2667,7 +2667,13 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   white rounded badge shown on the dark splash on both platforms. In-app brand assets:
   `tempo-logo.png` (white-tile badge), `tempo-mark.png` (transparent two-tone glyph), `tempo-glyph.png`
   (white silhouette for `tintColor`). `app.json` carries permission strings + export-compliance flag;
-  `eas.json` has build env + submit scaffold; launch steps in `LAUNCH.md`.
+  `eas.json` has build env + submit scaffold; launch steps in `LAUNCH.md`. **2026-08-06:**
+  `submit.production.ios.ascAppId` added (`6785075737`, the App Store Connect numeric app ID —
+  required for `eas submit -p ios --non-interactive` to resolve the app without an interactive
+  prompt); the actual first production submissions to both stores happened this session — see
+  `EXECUTION_STATUS.md`'s Session Log for the full App Store Connect / Play Console setup detail
+  (category, age rating, App Privacy answers, price tier, subscriptions, and the Play listing's
+  stale "Tempo" branding caught and corrected).
 - **Sign in with Apple:** `ios.usesAppleSignIn: true` in `app.json` (the entitlement native Apple
   auth needs — its absence was why it failed on real builds). Still requires the "Sign in with Apple"
   capability enabled on the Apple Developer App ID + the Apple provider configured in Supabase Auth.
