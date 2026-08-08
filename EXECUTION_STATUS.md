@@ -18,6 +18,12 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**Immediate: the iOS submission was rejected under 3.1.2 (subscriptions) — root cause found and
+fixed 2026-08-08 (stale "Tempo"-branded subscription Display Names in App Store Connect), both
+subscriptions back in Apple review.** Once they clear, the rejected app version itself still needs
+an explicit separate resubmission (see Session Log for full diagnosis). Check status before
+starting anything else.
+
 **T1.2, the on-device verification pass, RAN for the first time 2026-08-02 — on the Mac's iOS
 Simulator, not yet a physical device.** It found real, confirmed bugs (not just theoretical
 code-review findings): a live-repro'd cold-launch crash on a from-scratch native build, an
@@ -268,9 +274,8 @@ them).
    app version + both subscriptions + the subscription group were submitted together (Apple requires
    the first subscription group to ship with a new app version). Screenshots are the founder's own
    real device captures (resized to spec, not fabricated). Now in Apple review (up to 48h).
-10. **Paid Apps Agreement** (App Store Connect) — flagged open as of 2026-07-22. Implicitly likely
-    resolved: both subscriptions submitted for review successfully 2026-08-06, which Apple blocks
-    without an active agreement — but not independently confirmed in the dashboard.
+10. ~~**Paid Apps Agreement** (App Store Connect).~~ **Confirmed Active 2026-08-08** — founder checked
+    directly in the dashboard. Not the cause of the 3.1.2 rejection (see Session Log).
 11. **B6.2 — one acquisition channel running weekly.** `PRODUCT_AUDIT.html` Part II has the full
     proposed route (short-form video, 8-week start plan, ASO fields) — founder-only execution.
 12. **Native rebuild batch.** Apple Health export (write-only, opt-in, off by default) and Focus
@@ -280,6 +285,27 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-08 — Diagnosed and fixed the iOS 3.1.2 (Business: Payments – Subscriptions) rejection.**
+  Apple's rejection carried no reviewer note beyond the guideline code — ruled out several
+  hypotheses before finding the real one: (1) RevenueCat entitlement ID mismatch — checked the
+  dashboard directly, `Tempo: Fitness Planner Pro` matches `eas.json`'s `EXPO_PUBLIC_PRO_ENTITLEMENT`
+  exactly, not the cause; (2) the `$24.99`-vs-`$34.99` intro-pricing bug — confirmed via `eas
+  build:list` that iOS build #27 (the one actually submitted) already includes that fix's commit
+  (`0b067c9`), so it predates this rejection, not the cause; (3) a `Configuration.swift:533` Test
+  Store key crash in Sentry — real, but first/last seen a month ago on Build 15, non-recurring, not
+  the cause; (4) Paid Apps Agreement incomplete — founder confirmed Active directly in the dashboard,
+  not the cause. **Actual root cause**: the two subscription products' App Store Connect **Display
+  Names** were still "Tempo Pro Monthly" / "Tempo Pro Yearly" (confirmed via RevenueCat's product
+  catalog, which mirrors ASC metadata) — stale from before the Tempo→Arclo rebrand. StoreKit's
+  native purchase sheet shows this name directly and isn't overridable from app code, so a reviewer
+  would see "Arclo" everywhere in-app but "Tempo Pro Monthly" in the actual purchase confirmation —
+  a classic no-detail 3.1.2 trigger. Founder renamed both to "Pro Monthly" / "Pro Yearly" in ASC;
+  both back in Apple review as of this entry. The subscription group's Reference Name still shows
+  "Tempo Pro" and wouldn't update — confirmed that field is internal-only (never shown to customers
+  or reviewers), so it's not blocking. **Still open:** once the two subscriptions clear review, the
+  rejected app version itself needs a separate explicit resubmission — subscription-metadata review
+  clearing does not auto-resubmit the app version.
 
 - **2026-08-06 — iOS pricing-eligibility fix, then the actual first App Store + Play Store production
   submissions.** Founder reported the paywall showing the $24.99 founding price but charging $34.99
