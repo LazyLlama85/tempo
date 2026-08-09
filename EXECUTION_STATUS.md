@@ -18,11 +18,15 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**Immediate: the iOS submission was rejected under 3.1.2 (subscriptions) — root cause found and
-fixed 2026-08-08 (stale "Tempo"-branded subscription Display Names in App Store Connect), both
-subscriptions back in Apple review.** Once they clear, the rejected app version itself still needs
-an explicit separate resubmission (see Session Log for full diagnosis). Check status before
-starting anything else.
+**Immediate: iOS rejected a SECOND time, a different guideline — missing Terms of Use (EULA) link in
+the App Description metadata (2026-08-09).** The first rejection (3.1.2, stale "Tempo"-branded
+subscription Display Names) was diagnosed and fixed 2026-08-08, but correction: the subscriptions
+are **"Ready to Submit," not actually in Apple's review queue** — renaming their Display Name did
+not auto-resubmit them (earlier ledger entries saying "back in Apple review" were wrong, corrected
+here). This session's fix needs the founder to add the Terms of Use link in two ASC places (App
+Description text + the custom License Agreement/EULA field — Arclo uses its own custom Terms, not
+Apple's standard one), then everything (app version + both subscriptions) needs one real resubmit
+together. Check status before starting anything else.
 
 **2026-08-09: a founder-requested codebase-wide sweep for the "blank-until-revisit" async-gating bug
 class found two more real instances beyond the Android sign-in fix that prompted it — seven
@@ -167,7 +171,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected 2026-08-08 under 3.1.2, root cause fixed, both subscriptions back in Apple review as of 2026-08-09 (app version itself still needs a separate resubmit once they clear — see Current Focus/Session Log). Still 🔍 until conversion data exists on the live listing. |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected twice — 3.1.2 (2026-08-08, fixed) then a missing Terms of Use/EULA link in the App Description metadata (2026-08-09, needs founder action in ASC — see Current Focus). Subscriptions are "Ready to Submit," not in an active review queue. Still 🔍 until conversion data exists on the live listing. |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running. `PRODUCT_AUDIT.html` Part II has the full route (short-form video, 8-week plan, ASO fields) |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies. Superset/circuit support and "love this exercise" boosting (the other half of `MASTER_FIX_PLAN.md`'s exercise-preferences item — the "never show again" half shipped, see Open backlog) still genuinely open here |
@@ -293,6 +297,20 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-09 (later) — Second iOS rejection: missing Terms of Use (EULA) link in App Description
+  metadata; also correcting the prior entry's "back in Apple review" claim.** Founder confirmed the
+  two renamed subscriptions actually show "Ready to Submit" in ASC, not an active review state —
+  renaming a subscription's Display Name does not itself trigger resubmission for review, contrary to
+  what the 2026-08-08 entry below assumed. Separately, Apple's automated review flagged a different,
+  real guideline issue on the app version itself: no functional Terms of Use link in the App
+  Description metadata. Arclo uses its own custom Terms of Service (not Apple's standard EULA), so
+  per Apple's own bifurcated instructions this needs two founder actions in ASC: (1) add a Terms of
+  Use link to the App Description text, and (2) set the actual custom License Agreement/EULA field
+  (defaults to Apple's standard one until a custom one is entered) — I have no ASC access (logged-out
+  browser session, and entering Apple ID credentials is out of scope regardless), so this is
+  founder-only. Once done, everything (app version + both subscriptions) needs one real resubmit
+  together — Apple requires the first subscription submission to ship bundled with an app version.
 
 - **2026-08-09 — Fixed Android Google sign-in hang, then swept the whole app for the same bug class.**
   Founder reported: tap "Sign in with Google" on Android, complete the OAuth flow, screen does
