@@ -55,20 +55,25 @@ export default function PlanExplainerScreen() {
   useEffect(() => {
     if (!userId) return
     ;(async () => {
-      const today = new Date()
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-      const [{ data: plan }, { data: upcoming }] = await Promise.all([
-        supabase.from('user_plans').select('adaptation_mode').eq('user_id', userId).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('scheduled_workouts').select('planned_date, progression, focus')
-          .eq('user_id', userId).eq('source', 'plan').eq('status', 'scheduled')
-          .gte('planned_date', todayStr).order('planned_date', { ascending: true }),
-      ])
-      setMode((plan?.adaptation_mode ?? 'normal') as AdaptationMode)
-      const rows = (upcoming ?? []) as UpcomingRow[]
-      setCurrent(rows[0]?.progression ?? null)
-      const deload = rows.find(r => r.progression?.isDeload && !(rows[0]?.progression?.isDeload))
-      setNextDeload(deload?.planned_date ?? null)
-      setLoading(false)
+      try {
+        const today = new Date()
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        const [{ data: plan }, { data: upcoming }] = await Promise.all([
+          supabase.from('user_plans').select('adaptation_mode').eq('user_id', userId).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('scheduled_workouts').select('planned_date, progression, focus')
+            .eq('user_id', userId).eq('source', 'plan').eq('status', 'scheduled')
+            .gte('planned_date', todayStr).order('planned_date', { ascending: true }),
+        ])
+        setMode((plan?.adaptation_mode ?? 'normal') as AdaptationMode)
+        const rows = (upcoming ?? []) as UpcomingRow[]
+        setCurrent(rows[0]?.progression ?? null)
+        const deload = rows.find(r => r.progression?.isDeload && !(rows[0]?.progression?.isDeload))
+        setNextDeload(deload?.planned_date ?? null)
+      } finally {
+        // A hard network failure (not a query error — those resolve, they don't
+        // throw) used to leave `loading` stuck true forever with no way out.
+        setLoading(false)
+      }
     })()
   }, [userId])
 

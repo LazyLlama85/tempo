@@ -24,6 +24,14 @@ subscriptions back in Apple review.** Once they clear, the rejected app version 
 an explicit separate resubmission (see Session Log for full diagnosis). Check status before
 starting anything else.
 
+**2026-08-09: a founder-requested codebase-wide sweep for the "blank-until-revisit" async-gating bug
+class found two more real instances beyond the Android sign-in fix that prompted it — seven
+confirmed instances total in three weeks now, one of them (`(tabs)/plan.tsx`'s `loadWorkout()`) on
+the workout hub, the single most-used screen in the app.** All seven are fixed. This is no longer
+"recurring," it's a convention gap — worth a shared `useAsyncGate`-style hook or a lint rule the next
+time this class of bug surfaces, not another reactive one-off patch. See Session Log for the full
+list of files checked/fixed.
+
 **T1.2, the on-device verification pass, RAN for the first time 2026-08-02 — on the Mac's iOS
 Simulator, not yet a physical device.** It found real, confirmed bugs (not just theoretical
 code-review findings): a live-repro'd cold-launch crash on a from-scratch native build, an
@@ -285,6 +293,29 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-09 — Fixed Android Google sign-in hang, then swept the whole app for the same bug class.**
+  Founder reported: tap "Sign in with Google" on Android, complete the OAuth flow, screen does
+  nothing — force-quit and reopen and it's logged in. Root cause: `stores/auth.ts`'s
+  `onAuthStateChange` listener awaited `fetchProfile()` before ever setting `session` in the store,
+  with no timeout guard (unlike `initialize()`, fixed 2026-08-03) — a slow fetch right after an OAuth
+  token exchange (peak network contention) left `session` null indefinitely, so `sign-in.tsx`'s
+  redirect never fired even though the spinner had already cleared independently. Bounded the same
+  way as `initialize()`: a 5s timeout lets `session` apply with a best-effort cached profile, and the
+  real fetch result still applies once it lands. This is the fifth confirmed instance of this exact
+  pattern (an unbounded async call gating a screen, no timeout/catch) in three weeks — founder asked
+  for a full sweep. Checked every store initializer, both root-layout blank-render gates, and every
+  screen/sheet with a `loading`-style state (~30 files). Found two more real instances: `muscle-
+  history.tsx` (a Supabase fetch with zero `.catch()`) and `plan-explainer.tsx` (a `Promise.all` with
+  no enclosing `try`), both fixed. The most consequential: `(tabs)/plan.tsx`'s `loadWorkout()` — the
+  workout hub, the single most-used screen in the app, ~270 lines — had no enclosing try/catch at
+  all; fixed by extending its existing per-call wrapper (`runLoad`) rather than restructuring the
+  function. Everything else checked already had proper `try/finally`/`.catch()` coverage, confirmed
+  on inspection. Also confirmed (separately) Google OAuth consent-screen branding is correctly
+  "Arclo" with a clean home page and re-submitted Google's re-verification flow — pending their async
+  review. `tsc` clean, 410/410 tests throughout. Seven instances of the same bug class in three weeks
+  is a convention gap, not "recurring" — flagged in Current Focus for a shared hook/lint rule next
+  time, not another reactive patch.
 
 - **2026-08-08 — Diagnosed and fixed the iOS 3.1.2 (Business: Payments – Subscriptions) rejection.**
   Apple's rejection carried no reviewer note beyond the guideline code — ruled out several

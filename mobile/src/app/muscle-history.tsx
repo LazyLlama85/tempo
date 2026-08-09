@@ -115,13 +115,21 @@ export default function MuscleHistoryScreen() {
     // MOST RECENT sets (the ones a "trend" screen actually cares about), not
     // their oldest — then reverse back to chronological order for the weekly
     // bucketing / breakdown logic below, which assumes ascending input.
-    supabase.from('set_logs')
-      .select('exercise_id, completed_at')
-      .in('exercise_id', groupExerciseIds)
-      .not('is_warmup', 'is', true)
-      .order('completed_at', { ascending: false })
-      .limit(4000)
+    // Wrapped in Promise.resolve() so .catch() is available — the Postgrest
+    // builder's own .then() returns a bare thenable, not a real Promise.
+    Promise.resolve(
+      supabase.from('set_logs')
+        .select('exercise_id, completed_at')
+        .in('exercise_id', groupExerciseIds)
+        .not('is_warmup', 'is', true)
+        .order('completed_at', { ascending: false })
+        .limit(4000),
+    )
       .then(({ data }) => { setRows(((data ?? []) as SetRow[]).reverse()); setLoading(false) })
+      // A missing .catch here (same bug class fixed in weekly-report.tsx) used to leave
+      // `loading` stuck true forever on any failure — the screen showed "Reading your
+      // history…" permanently. Falls through to the empty state rather than hanging.
+      .catch(() => setLoading(false))
   }, [userId, groupExerciseIds])
 
   // Defense in depth: even if `range` state somehow ends up beyond the free

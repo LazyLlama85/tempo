@@ -3016,6 +3016,37 @@ fresh and succeeds normally. Fixed the same way as the fourth instance: a 5s tim
 `initialize()` already uses) apply even if `fetchProfile` hasn't returned, while the real fetch is
 still awaited afterward and applied when it lands rather than discarded.
 
+**Codebase-wide sweep (2026-08-09), founder-requested after the fifth instance.** Checked every
+Zustand store's init path, both root-layout blank-render gates, and every screen/sheet in
+`app/`/`components/` with a `loading`-style state (~30 files) for the same shape: an async chain
+gating a render with no guaranteed completion on the error path. Two more real instances found and
+fixed, same pattern each time — a missing `.catch()`/`finally` left `loading` true forever on a
+genuine failure (a hard network drop; Postgrest's `.single()` throws on 0 rows, unlike
+`.maybeSingle()`):
+- `muscle-history.tsx` — the `set_logs` fetch had no `.catch()` at all; wrapped in `Promise.resolve()`
+  (needed because the Postgrest builder's own `.then()` isn't a real `Promise` and doesn't expose
+  `.catch()` directly) and falls through to the empty state on failure.
+- `plan-explainer.tsx` — its `Promise.all([...])` had no enclosing `try`; wrapped, `finally` guarantees
+  `setLoading(false)`.
+- **`(tabs)/plan.tsx`'s `loadWorkout()` — the highest-impact of the three.** This is the single
+  most-used screen in the app (the workout hub, ~270 lines), and had no enclosing try/catch of its
+  own — only two early-return branches called `setLoading(false)` manually, not a catch-all. Rather
+  than restructure a 270-line function, extended its existing wrapper (`runLoad`, which already
+  exists specifically to guard every call site) with a `catch` that reports via `captureApiError` and
+  clears `loading` — covers both the explicit-workoutId and default hub-load paths in one place.
+
+Screens using TanStack Query (`useQuery`) were not in scope — react-query has its own retry/error
+state built in and isn't vulnerable to this class of bug. Everything else checked (paywall.tsx's two
+async calls, coach.tsx, feed.tsx, social.tsx, workout-history.tsx, session-detail.tsx, my-workouts.tsx,
+my-splits.tsx, friend-profile.tsx, exercise-progress.tsx, split-editor.tsx, workout-builder.tsx,
+shared-workout.tsx, progress-photos.tsx, calendar-picker.tsx, `AddWorkoutSheet`,
+`ScheduleTogetherSheet`, `SaveProgressSheet`, quick-workout.tsx) already had a `try/finally` or
+`.catch()`/`.finally()` wrapping the full async chain — confirmed safe on inspection, not just
+absence-of-evidence. **Six real instances of this pattern in three weeks, all fixed on discovery, is
+now a large enough sample to treat as a systemic risk in this codebase's async-gating convention**,
+not five (now six) unrelated bugs — worth a linting rule or a shared `useAsyncGate`-style hook next
+time this surfaces again, rather than another one-off sweep.
+
 ### Apple Health export (§26 L28) — one-way write, iOS only, opt-in (2026-07-22)
 New native dependency: `@kingstinct/react-native-healthkit` (a Nitro module, requires the peer dep
 `react-native-nitro-modules`) + its Expo config plugin in `app.json` (custom

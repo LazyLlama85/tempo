@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { TempoLottie } from '@/components/TempoLottie'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { supabase } from '@/lib/supabase'
+import { captureApiError } from '@/lib/crashReporting'
 import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
@@ -732,6 +733,17 @@ export default function WorkoutsScreen() {
       const res = await loadWorkout(explicitId)
       l.lastLoadAt = Date.now()
       return res
+    } catch (e) {
+      // loadWorkout has no enclosing try/catch of its own — a throw anywhere in
+      // its ~270 lines (a `.single()` with 0 rows, a network drop mid-chain)
+      // used to leave `loading` stuck true forever with no error shown, since
+      // its own setLoading(false) calls only sit on specific early-return
+      // branches, not a catch-all. Same bug class as the muscle-history.tsx /
+      // plan-explainer.tsx fixes (2026-08-09) — this is the highest-traffic
+      // screen it was found on.
+      captureApiError('plan.loadWorkout', e)
+      setLoading(false)
+      return { id: null, resumedLogId: null }
     } finally {
       l.inFlight = false
     }
