@@ -1592,9 +1592,17 @@ export default function ScheduleScreen() {
       chip: { icon: 'bed-outline', label: 'Rest day', tint: C.success, onPress: () => setShowRecovery(true) },
     },
     // 7 — Block phase: where the user sits in the mesocycle (overload / deload).
+    // Disabled 2026-08-09 (founder): "Week 4 · Deload"-style periodization jargon read
+    // as noise, not useful info — the ask was to just follow the split without a
+    // running commentary on which week type it is. The underlying auto-adjustment
+    // (lighter loads on a deload week) is untouched; only this persistent label is
+    // gone. `blockPhase` itself stays wired — item 7b below still reads
+    // `blockPhase?.mode` to suppress its own chip during a recovery/deload week, and
+    // plan.tsx's in-session banner (workout.progression.note) still explains an
+    // actual deload/peak week contextually, in-session, without the week-numbering.
     {
       id: 'block',
-      eligible: !!blockPhase?.progression,
+      eligible: false, // was !!blockPhase?.progression — see comment above
       chipOnly: true,
       primary: () => blockPhase?.progression ? (
         <PressableScale

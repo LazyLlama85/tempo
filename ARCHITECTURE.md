@@ -649,7 +649,15 @@ you moving."*
   used to be gated on `primaryContext` alone, so on any day with no banner-eligible item (no missed/
   reconnect/rest-advice), every `chipOnly` item (goal ETA, travel mode, block phase, weekly report)
   was silently hidden too, even though each was individually eligible; now shows whenever there's a
-  banner OR at least one chip. **Goal ETA fixed the same day** (founder: "it says goal ETA but there
+  banner OR at least one chip. **Block-phase item disabled (2026-08-09, founder):** the "Week 4 ·
+Deload"-style periodization label read as noise, not useful information — the ask was to just
+follow the split without a running commentary on which week type it is. `eligible: false` on the
+`id: 'block'` item in `contextItems` (`(tabs)/index.tsx`); the underlying auto-adjustment (lighter
+loads on a deload week, via `lib/periodization.ts`) is untouched, only this persistent label is
+gone. The reactive `id: 'adaptation'` item (recovery/deload started or ended, tied to a real
+behavior change from missed sessions) and the in-session runner banner
+(`workout.progression.note` on `plan.tsx`) were deliberately left alone — both explain an actual
+change when it happens rather than labeling every week regardless. **Goal ETA fixed the same day** (founder: "it says goal ETA but there
   isn't even an ETA… illogical"): `lib/goalProjection.ts`'s `GoalProjection` gained a `hasEta` field —
   false only for the "not enough signal yet" fallback (`"Log your weight to see your ETA"`, no real
   countdown in it), true for every genuine projection. The Home chip's eligibility now requires

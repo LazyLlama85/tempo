@@ -167,7 +167,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Submitted 2026-08-06** — full listing built and sent to Apple review (see Session Log); Play Store's stale "Tempo"-branded name/description also caught and corrected to Arclo, sent to Google review. Still 🔍 until conversion data exists on the live listing. |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected 2026-08-08 under 3.1.2, root cause fixed, both subscriptions back in Apple review as of 2026-08-09 (app version itself still needs a separate resubmit once they clear — see Current Focus/Session Log). Still 🔍 until conversion data exists on the live listing. |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running. `PRODUCT_AUDIT.html` Part II has the full route (short-form video, 8-week plan, ASO fields) |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies. Superset/circuit support and "love this exercise" boosting (the other half of `MASTER_FIX_PLAN.md`'s exercise-preferences item — the "never show again" half shipped, see Open backlog) still genuinely open here |
