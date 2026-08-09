@@ -72,27 +72,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ session })
         return
       }
-      const res = await fetchProfile(session.user.id)
+      // Narrowed alias — TS doesn't carry the `!session` narrowing above into the
+      // nested `finishSignIn` closure below.
+      const activeSession = session
+
+      // fetchProfile is a plain network call with no built-in timeout, and it used
+      // to gate `session` itself here — a slow/hanging fetch right at the moment of
+      // peak network contention (an OAuth token exchange, then immediately this)
+      // left the store's `session` null indefinitely, so sign-in.tsx's `if (session)
+      // redirect` never fired: the screen just sat there looking dead (spinner
+      // already cleared by sign-in.tsx's own `finally`) until a force-quit ran
+      // initialize()'s already-timeout-guarded path fresh on a clean process.
+      // Reported 2026-08-09 (Android, Google sign-in) — same bug class as N8's
+      // slow-open finding, different call site. Same fix as initialize(): bound the
+      // wait so `session` can't be held hostage, but don't abort the real fetch —
+      // apply it when it lands even if the timeout already moved on.
+      let settled = false
+      const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
+        finishSignIn(get().profile ?? readCachedProfile(activeSession.user.id), false)
+      }, 5000)
+
+      const res = await fetchProfile(activeSession.user.id)
+      clearTimeout(timeout)
+      if (settled) {
+        if (res.ok) { set({ profile: res.profile }); writeCachedProfile(activeSession.user.id, res.profile) }
+        return
+      }
+      settled = true
       // On a transient failure keep whatever profile we already had — nulling it
       // would flip the app back into onboarding mid-session.
-      const profile = res.ok ? res.profile : (get().profile ?? readCachedProfile(session.user.id))
-      set({ session, profile })
-      if (res.ok) writeCachedProfile(session.user.id, res.profile)
-      // Also run on fresh sign-in (getSession handles the returning-user case above)
-      if (event === 'SIGNED_IN') {
-        identifyUser(session.user.id)
-        setCrashUser(session.user.id)
-        // A brand-new account has no profile row yet — treat that as a signup.
-        // Only a CONFIRMED missing row counts: a failed fetch (res.ok false) says
-        // nothing about the account's age, and a returning user on a fresh install
-        // has no cached profile to fall back on — default those to 'login'.
-        track(res.ok && !res.profile ? 'user_signup' : 'login', {
-          method: methodFromSession(session),
-        })
-        registerPushToken(supabase, session.user.id).catch(() => {})
-        syncSocialOnOpen(supabase, session.user.id, profile?.days_per_week).catch(() => {})
-        // Missed-workout + adaptation: see the comment in the getSession() path
-        // above — both now run once, from Home's own app-open sweep.
+      finishSignIn(res.ok ? res.profile : (get().profile ?? readCachedProfile(activeSession.user.id)), res.ok)
+
+      function finishSignIn(profile: UserProfile | null, fetchOk: boolean) {
+        set({ session: activeSession, profile })
+        if (fetchOk) writeCachedProfile(activeSession.user.id, profile)
+        // Also run on fresh sign-in (getSession handles the returning-user case above)
+        if (event === 'SIGNED_IN') {
+          identifyUser(activeSession.user.id)
+          setCrashUser(activeSession.user.id)
+          // A brand-new account has no profile row yet — treat that as a signup.
+          // Only a CONFIRMED missing row counts: an unresolved/failed fetch says
+          // nothing about the account's age, and a returning user on a fresh install
+          // has no cached profile to fall back on — default those to 'login'.
+          track(fetchOk && !profile ? 'user_signup' : 'login', {
+            method: methodFromSession(activeSession),
+          })
+          registerPushToken(supabase, activeSession.user.id).catch(() => {})
+          syncSocialOnOpen(supabase, activeSession.user.id, profile?.days_per_week).catch(() => {})
+          // Missed-workout + adaptation: see the comment in the getSession() path
+          // above — both now run once, from Home's own app-open sweep.
+        }
       }
     })
   },

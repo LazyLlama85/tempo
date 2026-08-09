@@ -3002,6 +3002,20 @@ result hasn't landed, plus a `.catch` so an outright rejection can't wedge it ei
 resolution still applies normally (`set({ session, profile, loading: false })`), same as the font
 timeout pattern — this is a safety net, not a replacement for the real result.
 
+**Fifth instance found (2026-08-09), same file, the `onAuthStateChange` listener.** Reported as
+"sign in with Google on Android does nothing, but force-quitting and reopening shows logged in."
+This listener's `SIGNED_IN` branch `await`s `fetchProfile()` before ever calling `set({ session,
+... })` — unlike `initialize()` above, it had no timeout guard at all. Right after an OAuth
+token exchange is exactly the moment network contention peaks, so a slow `fetchProfile` left
+`session` null indefinitely; `sign-in.tsx`'s `if (session) return <Redirect href="/" />` never
+fired, and the spinner had already cleared (`sign-in.tsx`'s own `handleGoogleSignIn` `finally`
+runs once `exchangeCodeForSession` itself resolves, independent of this listener) — so the screen
+looked completely inert. A subsequent cold start hits `initialize()`'s own timeout-guarded path
+fresh and succeeds normally. Fixed the same way as the fourth instance: a 5s timeout now lets
+`session` (and a best-effort profile, from the in-memory store or the cached-profile fallback
+`initialize()` already uses) apply even if `fetchProfile` hasn't returned, while the real fetch is
+still awaited afterward and applied when it lands rather than discarded.
+
 ### Apple Health export (§26 L28) — one-way write, iOS only, opt-in (2026-07-22)
 New native dependency: `@kingstinct/react-native-healthkit` (a Nitro module, requires the peer dep
 `react-native-nitro-modules`) + its Expo config plugin in `app.json` (custom
