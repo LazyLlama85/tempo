@@ -18,15 +18,26 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**Immediate: iOS rejected a SECOND time, a different guideline — missing Terms of Use (EULA) link in
-the App Description metadata (2026-08-09).** The first rejection (3.1.2, stale "Tempo"-branded
-subscription Display Names) was diagnosed and fixed 2026-08-08, but correction: the subscriptions
-are **"Ready to Submit," not actually in Apple's review queue** — renaming their Display Name did
-not auto-resubmit them (earlier ledger entries saying "back in Apple review" were wrong, corrected
-here). This session's fix needs the founder to add the Terms of Use link in two ASC places (App
-Description text + the custom License Agreement/EULA field — Arclo uses its own custom Terms, not
-Apple's standard one), then everything (app version + both subscriptions) needs one real resubmit
-together. Check status before starting anything else.
+**Immediate: iOS's second rejection (missing Terms of Use/EULA link) is fixed and resubmitted
+(2026-08-09) — founder confirmed both ASC fields set and the app version + both subscriptions
+resubmitted together.** Check Apple's review status first when picking this back up.
+
+**Open, unresolved — session logout after "a while," reported 2026-08-09, founder about to be
+offline with no device to help debug further.** Symptom: signing in and closing the app works fine
+on a quick reopen, but after the app's been closed "a while" (exact window not pinned down), it
+requires signing in again. Checked and ruled out: (1) not a persistence-never-happens bug — those
+fail every time, not just after a delay; (2) `expo-sqlite/localStorage/install` correctly installs
+before `createClient()` in `lib/supabase.native.ts`, `persistSession: true` is set; (3) confirmed via
+`node_modules/@supabase/auth-js` source that `getSession()`'s `__loadSession()` DOES check
+`expires_at` and awaits `_callRefreshToken()` before returning if expired — not a naive stale-token
+return; (4) Supabase's own auth logs (last 24h) show **zero** refresh-token errors — when a refresh
+is attempted, it succeeds server-side, which argues against a refresh-token-rotation-race theory.
+Not caused by anything this session touched (nothing today changed sign-out, storage, or refresh
+logic). Best unverified hypothesis: something client-side isn't attempting the refresh it should in
+this scenario, rather than the server rejecting one — but this is a guess, not a diagnosis. Needs
+real reproduction (how long is "a while"? which sign-in method?) and device-level `_debug` auth logs
+to actually pin down — deliberately not blind-fixed given the founder can't verify or roll back while
+traveling.
 
 **2026-08-09: a founder-requested codebase-wide sweep for the "blank-until-revisit" async-gating bug
 class found two more real instances beyond the Android sign-in fix that prompted it — seven
@@ -171,7 +182,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected twice — 3.1.2 (2026-08-08, fixed) then a missing Terms of Use/EULA link in the App Description metadata (2026-08-09, needs founder action in ASC — see Current Focus). Subscriptions are "Ready to Submit," not in an active review queue. Still 🔍 until conversion data exists on the live listing. |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected twice — 3.1.2 (2026-08-08, fixed) then a missing Terms of Use/EULA link in the App Description metadata (2026-08-09, founder set both ASC fields and resubmitted app version + both subscriptions together). Awaiting Apple's review. Still 🔍 until conversion data exists on the live listing. |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running. `PRODUCT_AUDIT.html` Part II has the full route (short-form video, 8-week plan, ASO fields) |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies. Superset/circuit support and "love this exercise" boosting (the other half of `MASTER_FIX_PLAN.md`'s exercise-preferences item — the "never show again" half shipped, see Open backlog) still genuinely open here |
@@ -297,6 +308,29 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-10 — Fixed the Progress "Body Intelligence" preview showing different data + a sloppy
+  locked state, pushed everything from the last two sessions as an OTA update, then investigated
+  (unresolved) a "logs out after a while" report.** Two founder-reported bugs on the Progress muscle
+  map: (1) the small preview card never passed `statusBySlug` to `<MuscleMap>`, so it silently fell
+  back to coarse per-group shading while `/muscle-map` itself shades each muscle individually —
+  fixed by computing `statusBySlug` the same way the full screen does, off data already fetched;
+  (2) the locked (free-tier) preview relied only on `MuscleMap`'s internal blur — a hard-edged
+  rectangle over the figure — replaced with a compact rounded lock badge (same fix `/muscle-map`'s
+  own full-card lock treatment already made once for the big screen), deliberately without a colour
+  legend. Also removed Home's "Week N · Deload" periodization label per founder request (the
+  underlying auto-adjustment is untouched, just the label). **Then pushed all of this session's +
+  the prior session's fixes (Android sign-in hang, the plan.tsx/muscle-history/plan-explainer
+  stuck-loading fixes) live via `eas update`** — founder was about to lose internet for vacation, so
+  confirmed no native changes were needed (all JS-only) rather than a new binary. Hit a real
+  environment issue: `eas update`'s bundler OOM'd on this machine even at platform=android alone
+  (V8 heap crashes at ~70-190MB, unrelated to code) — worked around it with `expo export
+  --max-workers 1` run manually per-platform, then `eas update --skip-bundler --input-dir` to
+  publish the pre-built output. Both platforms published (Android group `eae5eb0b`, iOS group
+  `317f70c7`, branch `production`, runtime `1.0.0`). **Last, investigated a new report ("stays
+  signed in on a quick reopen, but logs out after the app's been closed a while") — unresolved, see
+  Current Focus.** Deliberately did not ship a blind fix given the founder had no way to verify or
+  roll back while about to go offline.
 
 - **2026-08-09 (later) — Second iOS rejection: missing Terms of Use (EULA) link in App Description
   metadata; also correcting the prior entry's "back in Apple review" claim.** Founder confirmed the
