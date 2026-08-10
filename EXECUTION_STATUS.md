@@ -22,6 +22,21 @@
 (2026-08-09) — founder confirmed both ASC fields set and the app version + both subscriptions
 resubmitted together.** Check Apple's review status first when picking this back up.
 
+**New, real, found during a 2026-08-10 Sentry sweep — `registerPushToken` can be RLS-blocked
+(Postgres 42501) when a device's Expo push token row is already owned by a DIFFERENT user.**
+`device_tokens`'s only policy (`Users can manage own device tokens`, `USING`/`WITH CHECK`: `auth.uid()
+= user_id`) legitimately blocks the upsert's implicit UPDATE path when the existing row (matched via
+`onConflict: 'token'`, `lib/pushTokens.ts`) belongs to someone else — e.g. two different accounts
+signed into the same physical device without a proper sign-out clearing the token in between (very
+plausible on a shared TestFlight test device; also a real scenario for a shared/resold phone).
+**Not urgent**: already caught by `registerPushToken`'s own try/catch, so it fails silently and
+non-fatally — the affected user just doesn't get retention pushes on that one device until the stale
+row is cleaned up. No app-visible symptom. Deliberately not fixed blind — the real fix is a security
+decision (does a new signed-in user get to silently reclaim a token row from a stale prior owner? a
+client-side RLS loosening is the wrong tool; likely needs a small service-role-backed reassignment
+path, e.g. in an edge function) that shouldn't be made without more thought. First seen on a
+`Build Type: test` device — 2 events, 1 user so far.
+
 **Open, unresolved — session logout after "a while," reported 2026-08-09, founder about to be
 offline with no device to help debug further.** Symptom: signing in and closing the app works fine
 on a quick reopen, but after the app's been closed "a while" (exact window not pinned down), it
@@ -327,10 +342,17 @@ them).
   (V8 heap crashes at ~70-190MB, unrelated to code) — worked around it with `expo export
   --max-workers 1` run manually per-platform, then `eas update --skip-bundler --input-dir` to
   publish the pre-built output. Both platforms published (Android group `eae5eb0b`, iOS group
-  `317f70c7`, branch `production`, runtime `1.0.0`). **Last, investigated a new report ("stays
+  `317f70c7`, branch `production`, runtime `1.0.0`). Investigated a new report ("stays
   signed in on a quick reopen, but logs out after the app's been closed a while") — unresolved, see
-  Current Focus.** Deliberately did not ship a blind fix given the founder had no way to verify or
-  roll back while about to go offline.
+  Current Focus. Deliberately did not ship a blind fix given the founder had no way to verify or
+  roll back while about to go offline. **Then, asked "anything else wrong right now," swept Sentry
+  (7d): confirmed both OTA updates actually landed (`eas update:list` shows both groups on
+  `production`, 13 hours old); found one new real bug (`registerPushToken` RLS-blocked when a
+  device's token row is already owned by a different user — see Current Focus, non-urgent, silently
+  caught); one Sentry-noise item (an intentional diagnostic log for "calendar returned only all-day
+  events" tagged at Error level when it's really informational — 47 events/2 users over 3 days, not
+  a functional bug, not touched); confirmed the two known Android push-credential/calendar-403 issues
+  already tracked elsewhere are unchanged, nothing new there.**
 
 - **2026-08-09 (later) — Second iOS rejection: missing Terms of Use (EULA) link in App Description
   metadata; also correcting the prior entry's "back in Apple review" claim.** Founder confirmed the
