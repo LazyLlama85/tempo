@@ -1182,7 +1182,17 @@ change when it happens rather than labeling every week regardless. **Goal ETA fi
   reusing `muscleIntelligence(muscleTimeline, …)` — the SAME `muscleTimeline` field, zero new
   queries) directly on the card instead of a button-only teaser; a "Full view" chevron still links to
   `/muscle-map` for the interactive experience (view toggle, heatmap/rank modes, tap-to-select
-  detail), which stays a dedicated screen rather than being fully duplicated inline.
+  detail), which stays a dedicated screen rather than being fully duplicated inline. **Bug fixed
+(2026-08-09, founder: "preview is different than what it actually is"):** this preview only ever
+passed `statusByGroup` to `<MuscleMap>`, never `statusBySlug` — `MuscleMap`'s own `fine` flag
+(`mode === 'status' && !!statusBySlug`) is what selects per-INDIVIDUAL-muscle shading vs. a single
+flat colour per coarse group, so the preview silently rendered the coarse fallback (one blended
+colour across all of "arms," say) while `/muscle-map` itself always passes `statusBySlug` and shows
+each muscle shaded individually (biceps vs. triceps, quads vs. hamstrings) — a visibly different
+figure for identical underlying data. Fixed by computing `bodyIntelStatusBySlug` the same way
+`/muscle-map` does (`fineMuscleIntelligence(muscleFineTimeline, ...)`, off the same
+`muscleFineTimeline` field `useProgressStats` already returns — zero new queries) and passing it
+through, so the preview and the full screen now render identically for the same data.
 - **Profile** (`(tabs)/profile.tsx`): identity + history surface — **trimmed to just that in the
   2026-07-16/17 Settings split** (below). The **level/XP hero** shows a **Pro badge** (gold, when
   `useProAccess().isPro`), a **streak chip**, and **member-since**, plus a new **header gear icon**

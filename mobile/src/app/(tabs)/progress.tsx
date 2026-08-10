@@ -36,7 +36,7 @@ import { computeTempoScore, tempoScoreInputFromSessions } from '@/lib/tempoScore
 import {
   computeMomentum, readinessFromHistory, consistencyPredictor, consistencyHeatmap,
   optimalWindow, successPatterns, journeyTimeline, muscleBalance,
-  frequencySeries, strengthTrends, muscleIntelligence, type FreqRange,
+  frequencySeries, strengthTrends, muscleIntelligence, fineMuscleIntelligence, type FreqRange,
   type MuscleStatus, type MuscleGroupIntel,
 } from '@/lib/fitnessInsights'
 import {
@@ -67,7 +67,7 @@ export default function ProgressScreen() {
   const userId = session?.user.id ?? ''
   const [period, setPeriod] = useState<ChartPeriod>('M')
   const unit = useWeightUnit()
-  const { stats, workouts, logTimes, muscleSets, strengthSets, muscleTimeline, isLoading, isError, refetch } = useProgressStats(userId, period)
+  const { stats, workouts, logTimes, muscleSets, strengthSets, muscleTimeline, muscleFineTimeline, isLoading, isError, refetch } = useProgressStats(userId, period)
   const [freqRange, setFreqRange] = useState<FreqRange>('3M')
   const { locked: proLocked } = useProGate()
   const [shareOpen, setShareOpen] = useState(false)
@@ -183,6 +183,17 @@ export default function ProgressScreen() {
     for (const g of intel.groups as MuscleGroupIntel[]) m[g.group as MuscleGroup] = g.status
     return m
   }, [muscleTimeline])
+  // /muscle-map shades each INDIVIDUAL muscle (statusBySlug), not a flat colour per
+  // coarse group — this preview used to omit statusBySlug entirely, so MuscleMap fell
+  // back to coarse per-group shading and looked like a different (blended, less
+  // detailed) map than the one a tap actually opens. Same fineMuscleIntelligence call
+  // /muscle-map itself uses, off the same muscleFineTimeline — zero new fetches.
+  const bodyIntelStatusBySlug = useMemo(() => {
+    const fineIntel = fineMuscleIntelligence(muscleFineTimeline, new Date())
+    const m: Partial<Record<string, MuscleStatus>> = {}
+    for (const fm of fineIntel.muscles) m[fm.muscle] = fm.status
+    return m
+  }, [muscleFineTimeline])
   const fmtW = (lbs: number) => `${displayWeight(lbs, unit)} ${unitLabel(unit)}`
 
   return (
@@ -460,6 +471,7 @@ export default function ProgressScreen() {
                 <MuscleMap
                   view="front"
                   statusByGroup={bodyIntelStatusByGroup}
+                  statusBySlug={bodyIntelStatusBySlug}
                   mode="status"
                   selected={null}
                   onSelect={() => router.push('/muscle-map')}
