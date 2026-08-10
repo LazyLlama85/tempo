@@ -467,17 +467,30 @@ export default function ProgressScreen() {
                 </View>
                 {/* `locked` swaps in MuscleMap's SAMPLE body under a blur — a merely
                     dimmed real map still showed every status colour, i.e. the exact
-                    insight Pro is sold on. */}
-                <MuscleMap
-                  view="front"
-                  statusByGroup={bodyIntelStatusByGroup}
-                  statusBySlug={bodyIntelStatusBySlug}
-                  mode="status"
-                  selected={null}
-                  onSelect={() => router.push('/muscle-map')}
-                  locked={proLocked}
-                  size={150}
-                />
+                    insight Pro is sold on. That inner blur/scrim is kept as defense in
+                    depth (no real data on screen even if it fails to render), but on
+                    its own it's just a hard-edged translucent rectangle sitting over
+                    the figure — reads as a sloppy square, not a locked panel. The
+                    rounded badge below it is the same fix `/muscle-map`'s own full-card
+                    lock treatment already made once; deliberately no colour legend on
+                    it — a locked teaser shouldn't teach a free user how to read one. */}
+                <View style={styles.bodyIntelMapWrap}>
+                  <MuscleMap
+                    view="front"
+                    statusByGroup={bodyIntelStatusByGroup}
+                    statusBySlug={bodyIntelStatusBySlug}
+                    mode="status"
+                    selected={null}
+                    onSelect={() => router.push('/muscle-map')}
+                    locked={proLocked}
+                    size={150}
+                  />
+                  {proLocked && (
+                    <View style={styles.bodyIntelLockBadge}>
+                      <Ionicons name="lock-closed" size={16} color={C.onPrimary} />
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.bodyIntelSub}>
                   {proLocked
                     ? 'Sample shown. Unlock Pro to see your own balance, recovery & weak points.'
@@ -668,6 +681,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   statCard: { backgroundColor: C.background, borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...CardShadow },
   bodyIntelCard: { alignItems: 'center', gap: Spacing.sm, backgroundColor: C.surfaceContainer, borderRadius: Radius.card, padding: Spacing.md, borderWidth: 1, borderColor: C.glassBorder, ...Elevation.e1 },
   bodyIntelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
+  bodyIntelMapWrap: { alignItems: 'center', justifyContent: 'center' },
+  // Centered over the figure, not the whole card — the title/chevron above and the
+  // "Sample shown..." caption below stay visible so the card still reads and still
+  // invites the tap-through, matching how /muscle-map's own lock panel keeps its
+  // copy legible rather than being a bare rectangle over the body.
+  bodyIntelLockBadge: {
+    position: 'absolute', width: 40, height: 40, borderRadius: Radius.full,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
+    ...Elevation.e2,
+  },
   bodyIntelViewMore: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   bodyIntelViewMoreText: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: C.outline },
   bodyIntelTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: C.text },

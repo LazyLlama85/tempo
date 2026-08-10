@@ -1192,7 +1192,16 @@ each muscle shaded individually (biceps vs. triceps, quads vs. hamstrings) — a
 figure for identical underlying data. Fixed by computing `bodyIntelStatusBySlug` the same way
 `/muscle-map` does (`fineMuscleIntelligence(muscleFineTimeline, ...)`, off the same
 `muscleFineTimeline` field `useProgressStats` already returns — zero new queries) and passing it
-through, so the preview and the full screen now render identically for the same data.
+through, so the preview and the full screen now render identically for the same data. **Locked-state
+polish, same session (founder: "looks sloppy, like a square over the body"):** the free-tier preview
+only ever relied on `MuscleMap`'s own internal blur/scrim (a hard-edged translucent rectangle sized
+to the figure, `size × size*2`) with nothing on top — exactly the "broken panel" look `/muscle-map`'s
+own full-card lock treatment already fixed once for the big screen (see that file's `mapLockScrim`
+comment). Rather than duplicate that screen's full title+body+CTA panel in a 150pt-wide card, added a
+single centered rounded lock badge over just the figure (`bodyIntelLockBadge`) — the inner blur/scrim
+stays as defense in depth, the card's own title row and "Sample shown..." caption stay legible and
+still invite the tap-through. Deliberately no colour legend added — a locked teaser shouldn't teach a
+free user how to read one they can't act on yet.
 - **Profile** (`(tabs)/profile.tsx`): identity + history surface — **trimmed to just that in the
   2026-07-16/17 Settings split** (below). The **level/XP hero** shows a **Pro badge** (gold, when
   `useProAccess().isPro`), a **streak chip**, and **member-since**, plus a new **header gear icon**
