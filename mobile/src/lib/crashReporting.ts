@@ -93,3 +93,26 @@ export function captureApiError(
     Sentry.captureException(error)
   })
 }
+
+/**
+ * Report an expected-but-worth-tracking condition — NOT a failure. Use this
+ * instead of `captureApiError` for "the request succeeded but the data shape
+ * was unusual" diagnostics; `captureApiError`/`captureException` always file at
+ * Sentry's Error level, which is wrong for something that isn't actually
+ * broken and just adds noise to the Error feed a real bug would otherwise cut
+ * through. Level defaults to 'info' since even 'warning' groups these with
+ * genuine problems in most Sentry views.
+ */
+export function captureDiagnostic(
+  source: string,
+  message: string,
+  context?: Record<string, unknown>,
+  level: 'info' | 'warning' = 'info',
+): void {
+  if (!initialized) return
+  Sentry.withScope((scope) => {
+    scope.setTag('diagnostic_source', source)
+    if (context) scope.setContext('diagnostic', context)
+    Sentry.captureMessage(message, level)
+  })
+}

@@ -22,20 +22,15 @@
 (2026-08-09) — founder confirmed both ASC fields set and the app version + both subscriptions
 resubmitted together.** Check Apple's review status first when picking this back up.
 
-**New, real, found during a 2026-08-10 Sentry sweep — `registerPushToken` can be RLS-blocked
-(Postgres 42501) when a device's Expo push token row is already owned by a DIFFERENT user.**
-`device_tokens`'s only policy (`Users can manage own device tokens`, `USING`/`WITH CHECK`: `auth.uid()
-= user_id`) legitimately blocks the upsert's implicit UPDATE path when the existing row (matched via
-`onConflict: 'token'`, `lib/pushTokens.ts`) belongs to someone else — e.g. two different accounts
-signed into the same physical device without a proper sign-out clearing the token in between (very
-plausible on a shared TestFlight test device; also a real scenario for a shared/resold phone).
-**Not urgent**: already caught by `registerPushToken`'s own try/catch, so it fails silently and
-non-fatally — the affected user just doesn't get retention pushes on that one device until the stale
-row is cleaned up. No app-visible symptom. Deliberately not fixed blind — the real fix is a security
-decision (does a new signed-in user get to silently reclaim a token row from a stale prior owner? a
-client-side RLS loosening is the wrong tool; likely needs a small service-role-backed reassignment
-path, e.g. in an edge function) that shouldn't be made without more thought. First seen on a
-`Build Type: test` device — 2 events, 1 user so far.
+~~**`registerPushToken` could be RLS-blocked (Postgres 42501) when a device's token row was already
+owned by a different user.**~~ **Fixed 2026-08-10** — `device_tokens`'s RLS split per-command
+(`fix_device_tokens_reassign_policy.sql`, applied live): UPDATE's `USING` relaxed to `true` (its
+`WITH CHECK` still requires `auth.uid() = user_id`), so a device's push token can now be reclaimed
+by a new signed-in user without ever letting anyone make a token point at someone else's account.
+See `ARCHITECTURE.md`'s `device_tokens` entry for the full reasoning. Also fixed the same session:
+the adjacent "calendar returned only all-day events" diagnostic was filing as a Sentry Error
+(`captureApiError`) for expected, non-broken behavior — added `captureDiagnostic` (info-level,
+`lib/crashReporting.ts`) and moved that one call site to it.
 
 **Open, unresolved — session logout after "a while," reported 2026-08-09, founder about to be
 offline with no device to help debug further.** Symptom: signing in and closing the app works fine

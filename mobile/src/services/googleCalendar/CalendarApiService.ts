@@ -12,7 +12,7 @@
 
 import { getGoogleAccessToken, invalidateGoogleAccessToken } from './CalendarAuthService'
 import { eventsEndpoint, calendarListEndpoint, GCAL_PRIMARY, WORKOUT_EVENT_COLOR_ID } from './config'
-import { captureApiError } from '@/lib/crashReporting'
+import { captureApiError, captureDiagnostic } from '@/lib/crashReporting'
 import { CALENDAR_EVENT_PREFIX, LEGACY_CALENDAR_EVENT_PREFIXES } from '@/constants/brand'
 
 // Matches CALENDAR_EVENT_PREFIX and every LEGACY_CALENDAR_EVENT_PREFIXES entry,
@@ -254,10 +254,13 @@ export async function fetchUserEvents(start: Date, end: Date, calendarIds: strin
   // Diagnostic for the "connected + 200 from Google, but the feed is empty" case:
   // Google returned events yet every one was filtered out of the timeline. The usual
   // cause is that the user's events are ALL-DAY (we only render timed events) — or
-  // they're all Tempo's own. Reported so this is visible in Sentry instead of silent.
+  // they're all Tempo's own. Nothing failed here — Google returned 200 and the filter
+  // did exactly what it's supposed to — so this reports at Sentry's info level
+  // (captureDiagnostic), not as an Error (captureApiError's always-Error level was
+  // drowning genuine bugs in expected, benign "all-day-only day" noise).
   if (items.length > 0 && kept.length === 0) {
     const allDay = items.filter(e => !!e.start?.date && !e.start?.dateTime).length
-    captureApiError('gcal_events_hidden', new Error(`all_filtered_raw_${items.length}_allDay_${allDay}`), {
+    captureDiagnostic('gcal_events_hidden', `all_filtered_raw_${items.length}_allDay_${allDay}`, {
       raw: items.length, allDay, timed: items.length - allDay,
       hint: 'Google returned events but none survived the timed-event / primary-calendar filter — likely all-day events or a secondary calendar.',
     })

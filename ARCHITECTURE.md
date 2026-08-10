@@ -1361,7 +1361,13 @@ free user how to read one they can't act on yet.
   (`fetchUserEvents`/`fetchUserBusySlots`) no longer swallow it blindly: they parse Google's error
   `reason`, attach a fix hint, and report it via `captureApiError('gcal_read', …)` to Sentry — so a
   silently-empty timeline is diagnosable instead of a mystery (`getCalendarEventsForRange` still
-  degrades to `[]` for the UI so the feed never blanks).
+  degrades to `[]` for the UI so the feed never blanks). The adjacent "Google returned events but
+  none survived the timed/primary filter" diagnostic (all-day-only days) reports via
+  **`captureDiagnostic`** instead (`lib/crashReporting.ts`, added 2026-08-10) — Sentry's info level,
+  not Error: nothing failed there (200 from Google, filter did its job), and filing it as an Error
+  was drowning genuine `gcal_read` bugs in expected noise (47 events/2 users in 3 days for one
+  family's all-day-heavy calendars). `captureApiError`/`captureException` stay Error-level for
+  actual failures; `captureDiagnostic` is for "worth seeing, not actually broken."
 - **Multi-calendar (B1.5, 2026-07-17), built dormant:** `user_profiles.selected_google_calendar_ids`
   (jsonb array, migration `add_selected_calendars.sql`, **applied**) holds Google calendar ids
   BEYOND primary that Tempo also reads busy-time/events from. `CalendarApiService.fetchCalendarList()`
@@ -2270,7 +2276,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   2026-07-19 (`drop_legacy_calendar_connections.sql`) after confirming zero code references and 0 live
   rows — dead weight plus a plaintext-secret liability, not just an unused column.
 - **body_measurements** — time-series weight / body-fat % / waist / progress-photo path.
-- **device_tokens** — Expo push tokens per device (`enabled` flag).
+- **device_tokens** — Expo push tokens per device (`enabled` flag). RLS split per-command
+  (`fix_device_tokens_reassign_policy.sql`, applied 2026-08-10): SELECT/INSERT/DELETE stay
+  strictly own-rows, but UPDATE's `USING` is `true` (its `WITH CHECK` still requires
+  `auth.uid() = user_id`) — a token can be *reclaimed* by a new user, but never made to point at
+  someone else. Fixes a real Postgres 42501 found in Sentry: `registerPushToken`
+  (`lib/pushTokens.ts`) upserts on `onConflict: 'token'`, and an Expo push token is scoped to a
+  (device, app install), not an account — the old strict-both-sides policy blocked the upsert's
+  implicit UPDATE outright whenever a second account signed into the same physical device without a
+  clean sign-out clearing the first account's row first (plausible on a shared/test device). Was
+  already caught by the function's own try/catch — no crash, just a silently-missing push
+  registration for that device until this fix.
 - **notification_log** — every retention push attempt (status/error/ticket) for debugging + analytics.
 - **coach_messages** *(`add_tempo_coach.sql`, applied 2026-07-22)* — the Tempo Coach thread. One
   table backs three things deliberately: the rendered history, the prompt's conversation window

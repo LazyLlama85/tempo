@@ -27,10 +27,25 @@ alter table public.device_tokens enable row level security;
 
 -- Users can register / refresh / remove their own device tokens. The backend
 -- sender uses the service-role key, which bypasses RLS to read every token.
-create policy "Users can manage own device tokens"
-  on public.device_tokens for all
-  using (auth.uid() = user_id)
+-- Split per-command (fix_device_tokens_reassign_policy.sql, applied 2026-08-10):
+-- UPDATE's USING is relaxed so a token can be reclaimed by a new user on the
+-- same physical device — see that migration's comment for why.
+create policy "Users can view own device tokens"
+  on public.device_tokens for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own device tokens"
+  on public.device_tokens for insert
   with check (auth.uid() = user_id);
+
+create policy "Users can reclaim a device token"
+  on public.device_tokens for update
+  using (true)
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own device tokens"
+  on public.device_tokens for delete
+  using (auth.uid() = user_id);
 
 
 -- ─────────────────────────────────────────────
