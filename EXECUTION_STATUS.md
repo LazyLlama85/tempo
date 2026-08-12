@@ -339,6 +339,21 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-12 (same session, continued again) — Founder asked to keep going on speed: added the 11
+  missing foreign-key indexes the same advisor sweep had already surfaced** (`add_missing_fk_indexes.sql`,
+  applied live) — standout was `user_plans.user_id`, which had NO index at all despite being filtered
+  directly by Home's `block_phase` query on every cold start. Verified via a fresh advisor re-run: all
+  11 `unindexed_foreign_keys` warnings gone (now show as `unused_index`, expected pre-launch with real
+  traffic still ramping up). Deliberately left the 10 `multiple_permissive_policies` warnings alone —
+  fixing those cleanly means splitting `groups`/`workout_templates`'s `ALL`-scoped owner policies into
+  separate INSERT/UPDATE/DELETE policies (Postgres RLS has no "every command except SELECT" shorthand),
+  more schema-editing surface for a genuinely minor win, not worth it this pass. Also explicitly did
+  NOT touch the two remaining client-side speed levers named earlier this session — `(tabs)/_layout.tsx`'s
+  `lazy: false` (all 4 tabs fetch on cold start) and the font-load gate — both real, but `lazy: false`
+  is the DELIBERATE fix for this exact codebase's own repeatedly-proven "blank until you revisit" bug
+  class (7+ confirmed instances tracked in this file across three weeks); touching it without a device
+  to verify against risks reintroducing the exact bug it was built to prevent. Flagged for the founder
+  to explicitly choose, not blindly attempted.
 - **2026-08-12 (same session, continued) — Fixed a real, live database performance issue found via a
   Supabase advisor sweep (not a founder report, a proactive check once MCP access came back):** 41 of
   ~46 RLS policies across ~20 tables called `auth.uid()` directly in USING/WITH CHECK, which Postgres

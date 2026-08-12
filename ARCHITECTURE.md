@@ -3397,6 +3397,19 @@ back to a full-body pick, same as before. Covered by 2 new tests
 exercises pulled from the wider library instead of leaking Core, and a well-stocked curated pool is
 left untouched (no widening) for a short session.
 
+**Missing foreign-key indexes added (`supabase/add_missing_fk_indexes.sql`), applied live, same sweep
+as the RLS fix below.** The advisor's 11 `unindexed_foreign_keys` findings, closed — standout was
+`user_plans.user_id`, which had NO index at all despite `(tabs)/index.tsx`'s `block_phase` query
+filtering on it directly on every cold start. Verified via a fresh advisor re-run: all 11 gone (now
+`unused_index`, expected — real traffic is still ramping up pre-launch). Deliberately NOT touched:
+`multiple_permissive_policies` (10 warnings, `groups`/`workout_templates` each have an `ALL`-scoped
+owner policy overlapping a `SELECT`-scoped member policy — fixing cleanly means splitting the `ALL`
+policy into separate INSERT/UPDATE/DELETE policies, since Postgres RLS has no "every command except
+SELECT" shorthand; more surface for a minor win, skipped this pass) and the two client-side speed
+levers named below this same session (`lazy: false`, the font-load gate) — both real, but touching
+`lazy: false` risks reintroducing this exact codebase's own repeatedly-proven "blank until you
+revisit" bug class, so it stays a founder decision, not a blind fix.
+
 **RLS performance: `auth.uid()` wrapped as `(select auth.uid())` across every policy that used it
 (`supabase/optimize_rls_auth_uid_initplan.sql`), applied live.** Found via Supabase's own advisor, not
 a founder report — 41 policies across ~20 tables (including the highest-row-count ones:
