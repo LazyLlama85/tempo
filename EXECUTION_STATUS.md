@@ -19,15 +19,24 @@
 ## ▶ CURRENT FOCUS *(the resume point)*
 
 **2026-08-12 — Founder reported (away from a PC for weeks, working via Claude Code on the web from
-phone): app slow to open, and Quick Workout always recommending Core regardless of Target Area
-picked, plus a jumpy duration slider.** Fixed all three this session — see Session Log + this file's
-ARCHITECTURE.md entry for the full root-cause writeups (curated-pool starvation for
-`quickWorkout.ts`'s Target Area filter, `Slider.tsx`'s snapped-not-continuous render, and a
-parallelized tail on Home's app-open sweep). `tsc` clean, 412/412 tests (2 new). **Not yet
-verified on-device** — founder has no device to test with right now; flag this the next time a build
-goes out. Push protocol is now the founder's ONLY path to updates for the next few weeks (no PC
-access) — this session and any future one on this branch should keep auto-committing/pushing per
-usual, since there's no one to hand off to.
+phone): app slow to open, Quick Workout always recommending Core, a jumpy duration slider, GIFs slow
+to load, and a cold-start bug — 15s blank, briefly asks to sign in, then bounces back to Home.** All
+fixed this session — see Session Log + `ARCHITECTURE.md` for full root-cause writeups. `tsc` clean,
+412/412 tests. **Shipped live via `eas update`** (branch `production`, runtime `1.0.0`) — first OTA
+update group `93fc9eaa` (Quick Workout + slider + sweep parallelization), second group covers the
+auth-bounce + GIF-caching fixes below; confirmed landed via `eas update:list`. **Still not confirmed
+by the founder actually using it** — they have no device access pattern beyond their own phone right
+now, so "shipped" here means "live on the production channel," not "seen working." Flag for a
+follow-up check next session. Push protocol is the founder's ONLY path to updates for the next few
+weeks (no PC access) — this session and any future one on this branch should keep
+auto-committing/pushing AND shipping OTA updates via `eas update` per usual, since there's no one to
+hand off to. **Note for future sessions on this branch:** an `EXPO_TOKEN` was supplied in-chat to
+authenticate `eas-cli` — if a fresh session needs to ship an update and isn't already authenticated,
+ask the founder for a token the same way (ideally via the environment's env-var settings instead of
+chat, to avoid it sitting in a transcript) rather than assuming one is still set. Also: this
+environment's network policy had to be widened from **Trusted** to **Full** to reach `api.expo.dev`
+at all (Trusted's allowlist doesn't include it) — if a future session hits the same
+`connect_rejected` proxy error against `api.expo.dev`, that's why, not a token problem.
 
 **Immediate: iOS's second rejection (missing Terms of Use/EULA link) is fixed and resubmitted
 (2026-08-09) — founder confirmed both ASC fields set and the app version + both subscriptions
@@ -330,9 +339,11 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
-- **2026-08-12 — Three founder-reported bugs, all fixed: slow app open, Quick Workout always
-  recommending Core, jumpy duration slider.** (1) Parallelized two safe, verified-disjoint tail pairs
-  in Home's app-open sweep (travel sync + calendar-conflict resolution; calendar auto-add + reminder
+- **2026-08-12 — Five founder-reported bugs fixed and, for the first time this trip, actually shipped
+  live via `eas update` (not just pushed to GitHub): slow app open, Quick Workout always recommending
+  Core, jumpy duration slider, slow-loading GIFs, and a cold-start "asks to sign in then bounces back
+  to Home" bug.** First batch (1) parallelized two safe, verified-disjoint tail pairs in Home's
+  app-open sweep (travel sync + calendar-conflict resolution; calendar auto-add + reminder
   reconciliation) — left the documented dedupe→missed→adaptation→extend chain untouched (real
   read-after-write dependencies, history of a plan-cliff bug when raced). Also diagnosed but didn't
   touch: `(tabs)/_layout.tsx`'s `lazy: false` (all 4 tabs fetch on entry) and the font-load gate in
@@ -343,9 +354,28 @@ them).
   filter — whenever the curated pool can't fill the requested length; never drops the Target Area
   filter just because the small staple set is thin. (3) `Slider.tsx`'s thumb rendered off the
   step-snapped `value` prop, so it hopped in 5-minute jumps instead of gliding; now tracks raw drag
-  position locally for rendering only, committed value still snaps exactly as before. `tsc` clean,
-  412/412 tests (2 new: `quickWorkoutPoolWidening.test.ts`). Not yet verified on a real device —
-  founder is away from a PC for weeks; flag on the next build.
+  position locally for rendering only, committed value still snaps exactly as before. Shipped as
+  OTA update group `93fc9eaa` on `production`, confirmed landed via `eas update:list`. **Second batch,
+  same session, founder reported more while testing:** (4) `ExerciseThumb`/`ExerciseFormSheet`'s GIF
+  `<Image>`s never set an expo-image `cachePolicy`, unlike `ExerciseMedia` — every re-visit to the
+  library/picker/builder/form-guide re-fetched the same GIFs from Supabase Storage instead of reading
+  the disk cache; now all three set `cachePolicy="memory-disk"`. Named explicitly what this does NOT
+  fix: the GIFs themselves are un-resized ExerciseDB originals with no compression, and re-encoding the
+  ~700 already-uploaded files is a real follow-up needing the backfill pipeline + image tooling,
+  deliberately not attempted blind. (5) `stores/auth.ts`'s cold-start safety net used a flat 5s timeout
+  before forcing `loading:false` — on a slow network, `getSession()`'s token-refresh round trip took
+  longer than that, so the timeout fired first with `session` still null (→ redirected to `/sign-in`),
+  then the real result landed and bounced back to Home. Fixed with `tempo.hadSession`, a new
+  localStorage flag (same mechanism as the existing profile cache, not a new one) set whenever a real
+  session resolves and cleared on sign-out: a device with no prior session keeps the original fast 5s
+  timeout (nothing to wait for, no regression against the original blank-screen-forever fix this net
+  exists for); a device that HAS signed in before gets 20s instead, long enough to avoid the
+  flash-then-bounce cycle rather than just delaying it. `tsc` clean, 412/412 tests throughout (2 new:
+  `quickWorkoutPoolWidening.test.ts`). Both batches shipped OTA to `production` (runtime `1.0.0`) —
+  first real update delivery of this trip, using an `EXPO_TOKEN` the founder supplied in-chat after
+  this environment's network policy (Trusted by default) had to be widened to Full to even reach
+  `api.expo.dev`. Still code-verified + confirmed-landed-on-the-channel only, not yet confirmed felt
+  right by the founder on their actual phone.
 - **2026-08-10 — Fixed the Progress "Body Intelligence" preview showing different data + a sloppy
   locked state, pushed everything from the last two sessions as an OTA update, then investigated
   (unresolved) a "logs out after a while" report.** Two founder-reported bugs on the Progress muscle

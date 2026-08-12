@@ -154,6 +154,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                       source={curated}
                       style={styles.gifImage}
                       contentFit="contain"
+                      cachePolicy="memory-disk"
                       onError={handleCuratedError}
                     />
                     {exercise.video_url && (
@@ -186,6 +187,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                       source={gifSource(gifId)}
                       style={styles.gifImage}
                       contentFit="contain"
+                      cachePolicy="memory-disk"
                     />
                     {exercise.video_url && (
                       <TouchableOpacity

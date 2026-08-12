@@ -30,11 +30,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // the same way the theme/entitlements/units stores used to (see the
     // blank-screen-on-first-launch fixes in _layout.tsx) and never settle,
     // wedging the app blank until force-quit gives it a fresh process. Force
-    // the gate open after 5s (matches the font-load timeout below) if the real
-    // result hasn't landed yet; a late resolution still applies normally.
+    // the gate open after the timeout below if the real result hasn't landed
+    // yet; a late resolution still applies normally.
+    //
+    // Fixed 2026-08-12, founder-reported: on a slow connection, getSession()'s
+    // token-refresh round trip can genuinely take longer than the old flat 5s —
+    // the timeout fired first with `session` still null, (tabs)/_layout.tsx
+    // redirected to /sign-in, and moments later the real result landed and
+    // bounced the user straight back to Home. A dead-simple "5s always" can't
+    // tell "nobody's signed in" apart from "someone IS signed in, the network
+    // is just slow" — but this device already knows which one it is: `hadSession`
+    // mirrors the profile cache below (same localStorage, no new mechanism) and
+    // is true only after a REAL session has resolved here at least once. A
+    // brand-new / genuinely signed-out device has nothing to wait for, so it
+    // keeps the fast 5s timeout unchanged; a device with a real session to
+    // recover gets a longer runway before the safety net gives up, which is
+    // what actually avoids the flash-to-sign-in-then-bounce-back cycle.
+    const timeoutMs = readHadSession() ? 20_000 : 5_000
     const timeout = setTimeout(() => {
       if (get().loading) set({ loading: false })
-    }, 5000)
+    }, timeoutMs)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const res = session ? await fetchProfile(session.user.id) : { ok: true, profile: null }
       // A fetch failure (offline cold start) falls back to the cached profile so an
@@ -42,6 +57,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const profile = res.ok ? res.profile : readCachedProfile(session?.user.id)
       clearTimeout(timeout)
       set({ session, profile, loading: false })
+      writeHadSession(!!session)
       if (res.ok && session) writeCachedProfile(session.user.id, res.profile)
       // Tie analytics + crash reports to the returning user.
       if (session) {
@@ -63,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
+        writeHadSession(false)
         set({ session: null, profile: null })
         return
       }
@@ -107,6 +124,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       function finishSignIn(profile: UserProfile | null, fetchOk: boolean) {
         set({ session: activeSession, profile })
+        writeHadSession(true)
         if (fetchOk) writeCachedProfile(activeSession.user.id, profile)
         // Also run on fresh sign-in (getSession handles the returning-user case above)
         if (event === 'SIGNED_IN') {
@@ -135,6 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const userId = get().session?.user.id
     if (userId) writeCachedProfile(userId, null)
     await supabase.auth.signOut()
+    writeHadSession(false)
     resetUser()
     setCrashUser(null)
     set({ session: null, profile: null })
@@ -197,4 +216,28 @@ function writeCachedProfile(userId: string, profile: UserProfile | null): void {
     if (profile) ls.setItem(profileCacheKey(userId), JSON.stringify(profile))
     else ls.removeItem(profileCacheKey(userId))
   } catch { /* cache is best-effort */ }
+}
+
+// Device-local, no-userId-needed signal: "has a real session resolved on this
+// device before?" Not tied to any one account (unlike the profile cache above)
+// since it's read BEFORE we know who, if anyone, is signed in — its only job is
+// telling initialize()'s cold-start timeout whether there's a session worth
+// waiting longer for, or nothing to wait for at all.
+const HAD_SESSION_KEY = 'tempo.hadSession'
+
+function readHadSession(): boolean {
+  try {
+    return (globalThis as { localStorage?: Storage }).localStorage?.getItem(HAD_SESSION_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeHadSession(had: boolean): void {
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (!ls) return
+    if (had) ls.setItem(HAD_SESSION_KEY, '1')
+    else ls.removeItem(HAD_SESSION_KEY)
+  } catch { /* best-effort */ }
 }

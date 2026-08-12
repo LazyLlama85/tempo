@@ -3397,6 +3397,33 @@ back to a full-body pick, same as before. Covered by 2 new tests
 exercises pulled from the wider library instead of leaking Core, and a well-stocked curated pool is
 left untouched (no widening) for a short session.
 
+**Cold-start "asks to sign in, then bounces back to Home" (`stores/auth.ts`), founder-reported live.** A slow
+network's token-refresh round trip (`getSession()`) can genuinely take longer than the cold-start safety
+net's flat 5s timeout — the timeout fired first with `session` still `null`, `(tabs)/_layout.tsx` redirected
+to `/sign-in`, and the real result landed moments later and bounced the user straight back to Home. A flat
+timeout can't distinguish "nobody's signed in" from "someone IS signed in, the network is just slow" — fixed
+with `tempo.hadSession` (new localStorage flag, same SQLite-backed storage the profile cache already uses,
+no new mechanism): set `true` whenever a real session resolves (cold start or a fresh sign-in), cleared on a
+genuine sign-out or a confirmed `null` session. `initialize()` reads it before starting: a device with no
+prior session keeps the original fast 5s timeout (nothing to wait for — unchanged behavior, no regression
+against the original blank-screen-forever fix this safety net exists for); a device that HAS signed in before
+gets a 20s runway instead, which is what actually prevents the flash-to-sign-in-then-bounce cycle rather than
+just delaying it.
+
+**GIF thumbnails re-fetching on every visit (`components/ExerciseThumb.tsx`, `ExerciseFormSheet.tsx`),
+founder-reported ("GIFs take so long to load").** Unlike `ExerciseMedia` (the Home/session-runner form-guide
+clip), `ExerciseThumb` (every list row in the exercise library/picker/builder) and both `<Image>`s in
+`ExerciseFormSheet` (the manual-builder search preview) never set an expo-image `cachePolicy` — so the
+decoded GIF was never persisted to disk, and re-opening the same screen re-fetched the same handful of
+exercises from Supabase Storage every time. All three now set `cachePolicy="memory-disk"`, matching
+`ExerciseMedia`'s existing policy. **Not the full fix**: the underlying GIFs themselves are un-resized
+ExerciseDB originals (`scripts/backfill-exercise-media.mjs` uploads them as-is, no compression/resizing) —
+a genuinely first-time fetch of a large GIF is still slow on a bad connection. Re-encoding/resizing the
+~700 already-uploaded files is a real follow-up (needs the RapidAPI-backed backfill pipeline + image
+tooling + confirming whether Supabase Storage image transforms are enabled on this project), deliberately
+not attempted blind this session — a wrong guess there risks silently breaking media (e.g. an unsupported
+animated-GIF transform flattening to a static frame) rather than just being slow.
+
 **Quick Workout duration slider — thumb no longer jumps (`components/Slider.tsx`).** The thumb's
 rendered position was driven entirely by the committed `value` prop, which `onChange` only ever
 updates to a `step`-snapped number (5-minute increments on a 5–60 range = 12 possible positions) — so
