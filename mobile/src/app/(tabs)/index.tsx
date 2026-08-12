@@ -720,13 +720,18 @@ export default function ScheduleScreen() {
       // If a custom split is active, roll its rolling horizon forward so upcoming
       // weeks are always populated. Best-effort; no-op when no split is active.
       try { await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null) } catch { /* ignore */ }
-      // Travel mode: adapt (or restore) every upcoming session to the equipment the
-      // user has right now. Runs after plan/split materialization so freshly-added
-      // rows get adapted too. Best-effort.
-      try { await syncTravelSchedule(supabase, userId) } catch { /* ignore */ }
-      // Quietly re-slot only the workouts a real calendar event now overlaps (same
-      // day). Best-effort — a calendar/network hiccup never blocks the feed.
-      try { await resolveCalendarConflicts(supabase, userId) } catch { /* leave times as-is */ }
+      // Travel mode (exercise_ids/exercise_config only) and calendar-conflict
+      // resolution (planned_date/planned_start_time only) touch disjoint columns
+      // on scheduled_workouts and each reads its own fresh snapshot before
+      // writing, so — unlike the dedupe→missed→adaptation→extend chain above,
+      // which has real read-after-write dependencies — these two are safe to run
+      // concurrently. Both still finish before anything below reads the schedule,
+      // preserving "runs after plan/split materialization" for travel and
+      // "reflects the final schedule" for whatever reads next. Best-effort.
+      await Promise.all([
+        syncTravelSchedule(supabase, userId).catch(() => {}),
+        resolveCalendarConflicts(supabase, userId).catch(() => {}),
+      ])
       // A partial 2-key invalidation here used to leave block_phase/next_workout/
       // goal_projection stale after a rollover or adaptation restamp — this sweep
       // can change any of them (including refreshAdaptation's restamp, which has
@@ -734,30 +739,34 @@ export default function ScheduleScreen() {
       // time it runs. Runs once per Home mount, so the extra cost is negligible.
       invalidateTrainingData(queryClient)
 
-      // Auto-add upcoming workouts to the user's calendar (when on + connected).
-      // Best-effort; refresh the event layer if anything new landed.
-      try {
-        const added = await syncUpcomingWorkouts(supabase, userId, profile)
-        if (added > 0) queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
-      } catch { /* never block the feed on a calendar hiccup */ }
-
-      // Reminder reconciliation: sessions materialized after onboarding (split
-      // horizon, plan rollover) and auto-moved times all get a correct 30-min
-      // reminder. Only when permission already exists — this path never prompts.
-      try {
-        if (await hasReminderPermission()) {
-          const horizon = toDateStr(addDays(new Date(), 14))
-          const { data: upcoming } = await supabase
-            .from('scheduled_workouts')
-            .select('id, focus, planned_date, planned_start_time, planned_duration_min, status')
-            .eq('user_id', userId)
-            .eq('status', 'scheduled')
-            .gte('planned_date', todayStr)
-            .lte('planned_date', horizon)
-          await cancelAllReminders()
-          await scheduleWorkoutReminders((upcoming ?? []) as ReminderWorkout[])
-        }
-      } catch { /* reminders are best-effort */ }
+      // Auto-add upcoming workouts to the user's calendar (calendar_event_id/
+      // provider only) and reminder reconciliation (local notifications only,
+      // keyed off focus/time/duration/status) touch entirely disjoint state —
+      // neither reads a field the other writes — so they run concurrently too.
+      // Both best-effort; a hiccup in either never blocks the feed.
+      await Promise.all([
+        (async () => {
+          const added = await syncUpcomingWorkouts(supabase, userId, profile)
+          if (added > 0) queryClient.invalidateQueries({ queryKey: ['range_events', userId] })
+        })().catch(() => {}),
+        (async () => {
+          // Reminder reconciliation: sessions materialized after onboarding (split
+          // horizon, plan rollover) and auto-moved times all get a correct 30-min
+          // reminder. Only when permission already exists — this path never prompts.
+          if (await hasReminderPermission()) {
+            const horizon = toDateStr(addDays(new Date(), 14))
+            const { data: upcoming } = await supabase
+              .from('scheduled_workouts')
+              .select('id, focus, planned_date, planned_start_time, planned_duration_min, status')
+              .eq('user_id', userId)
+              .eq('status', 'scheduled')
+              .gte('planned_date', todayStr)
+              .lte('planned_date', horizon)
+            await cancelAllReminders()
+            await scheduleWorkoutReminders((upcoming ?? []) as ReminderWorkout[])
+          }
+        })().catch(() => {}),
+      ])
     })()
   }, [userId])
 

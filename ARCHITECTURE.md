@@ -3354,6 +3354,58 @@ file rather than a rewrite. **`index.html` is untouched**; swap the filenames wh
   CSS, the privacy-panel/notify-form CSS/HTML/JS, and (fifth pass) the everything-else-list and
   comparison-table CSS/HTML were all removed as dead code, not left behind unused.
 
+### Startup speed + Quick Workout curation fixes (2026-08-11/12, founder-reported)
+
+**Home's app-open sweep, parallelized where safe.** The sweep (`(tabs)/index.tsx`'s single mount
+`useEffect`) runs ~13 steps on every sign-in; most have real, documented read-after-write
+dependencies (dedupe → missed → adaptation → extend → autoschedule, the exact chain behind the old
+F1/F5 plan-cliff bug) and stayed sequential on purpose — untouched here. Two tail pairs turned out to
+write disjoint columns with no dependency between them and now run via `Promise.all`, each still
+fully finished before anything downstream reads the schedule:
+- `syncTravelSchedule` (writes `exercise_ids`/`exercise_config`/`travel_restore` only) +
+  `resolveCalendarConflicts` (writes `planned_date`/`planned_start_time` only) — verified disjoint by
+  reading both implementations.
+- `syncUpcomingWorkouts` (calendar `calendar_event_id`/provider only, remote) + reminder
+  reconciliation (local notifications only, keyed off focus/time/duration/status) — neither reads a
+  field the other writes.
+Cuts several sequential network round-trips off every cold sign-in without touching the sensitive
+sequential core. `(tabs)/_layout.tsx`'s `lazy: false` (all 4 tabs mount + fetch together) and the
+font-load gate in `_layout.tsx` are the other two contributors to a slow first entry, both identified
+but left alone this pass — no safe, scoped fix for either without more founder input on the tradeoff
+(instant tab-switching vs. cold-start fetch count; app-wide font gate vs. a flash of system font).
+
+**Quick Workout: "always gives Core no matter what I select" (`lib/quickWorkout.ts`).** Root cause:
+the curated `is_core` staple pool (~60 hand-picked exercises, deliberately small per its own
+in-schema comment: "the plan/quick-workout engines only program from this pool") has **zero**
+genuinely no-apparatus "pull" exercise at all — every curated pull movement needs a bar, dumbbells,
+barbell, or cable. A no-equipment "Back" or "Arms" Target Area request filtered the curated pool down
+to empty, and the code silently fell through to the *unfiltered* pool (dropping the muscle target
+entirely) — which for a bodyweight-only candidate set skews heavily toward Plank/Dead Bug-type Core
+moves, since Core is the pattern with the most curated no-equipment options. Same starvation
+independently produced "not enough exercises for a long workout" for any thin target+equipment
+combo (e.g. a 1-exercise Arms session). Equipment matching itself (`lib/equipmentMatch.ts`'s
+`expandEquipment`/`canPerform`/`needsApparatus`) was already correct — bodyweight is always implicitly
+available and apparatus moves (pull-ups, dips, hangs) are already gated behind `pull_up_bar` — the bug
+was pool depth, not equipment logic. Fix: `generateQuickWorkout` now widens to the full ~1300-exercise
+imported library — muscle-filtered the exact same way — whenever the curated, muscle-filtered pool
+alone can't fill the requested length (`maxExercisesFor(minutes)`, extracted and shared with
+`selectExercises`). This only ever *adds* candidates, and only when a real Target Area is active, so a
+well-equipped user whose curated pool is already sufficient sees no behavior change (still prefers the
+higher-quality staples). Only if literally nothing anywhere matches the muscle target does it fall
+back to a full-body pick, same as before. Covered by 2 new tests
+(`__tests__/quickWorkoutPoolWidening.test.ts`): a no-equipment Back request now returns real back
+exercises pulled from the wider library instead of leaking Core, and a well-stocked curated pool is
+left untouched (no widening) for a short session.
+
+**Quick Workout duration slider — thumb no longer jumps (`components/Slider.tsx`).** The thumb's
+rendered position was driven entirely by the committed `value` prop, which `onChange` only ever
+updates to a `step`-snapped number (5-minute increments on a 5–60 range = 12 possible positions) — so
+dragging looked like the thumb hopping between stops instead of gliding with the finger. Fixed by
+tracking the raw, continuous finger position in local state (`dragRaw`) purely for rendering
+(thumb/fill/bubble left%) while a drag is active; the committed `value` (and therefore `onChange`/
+`onSlidingComplete`) still only ever changes in `step` increments, unchanged from before — this was a
+render-smoothness fix only, not a change to what gets selected.
+
 ---
 
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*

@@ -18,6 +18,17 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-12 — Founder reported (away from a PC for weeks, working via Claude Code on the web from
+phone): app slow to open, and Quick Workout always recommending Core regardless of Target Area
+picked, plus a jumpy duration slider.** Fixed all three this session — see Session Log + this file's
+ARCHITECTURE.md entry for the full root-cause writeups (curated-pool starvation for
+`quickWorkout.ts`'s Target Area filter, `Slider.tsx`'s snapped-not-continuous render, and a
+parallelized tail on Home's app-open sweep). `tsc` clean, 412/412 tests (2 new). **Not yet
+verified on-device** — founder has no device to test with right now; flag this the next time a build
+goes out. Push protocol is now the founder's ONLY path to updates for the next few weeks (no PC
+access) — this session and any future one on this branch should keep auto-committing/pushing per
+usual, since there's no one to hand off to.
+
 **Immediate: iOS's second rejection (missing Terms of Use/EULA link) is fixed and resubmitted
 (2026-08-09) — founder confirmed both ASC fields set and the app version + both subscriptions
 resubmitted together.** Check Apple's review status first when picking this back up.
@@ -319,6 +330,22 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-12 — Three founder-reported bugs, all fixed: slow app open, Quick Workout always
+  recommending Core, jumpy duration slider.** (1) Parallelized two safe, verified-disjoint tail pairs
+  in Home's app-open sweep (travel sync + calendar-conflict resolution; calendar auto-add + reminder
+  reconciliation) — left the documented dedupe→missed→adaptation→extend chain untouched (real
+  read-after-write dependencies, history of a plan-cliff bug when raced). Also diagnosed but didn't
+  touch: `(tabs)/_layout.tsx`'s `lazy: false` (all 4 tabs fetch on entry) and the font-load gate in
+  `_layout.tsx` — both real contributors, both need a founder tradeoff call, not a blind fix. (2) Root
+  cause of "always Core": `quickWorkout.ts`'s curated `is_core` pool (~60 exercises) has zero
+  no-apparatus "pull" exercise, so a no-equipment Back/Arms request emptied out and silently fell back
+  to the unfiltered (Core-skewed) pool. Now widens to the full ~1300-exercise library — same muscle
+  filter — whenever the curated pool can't fill the requested length; never drops the Target Area
+  filter just because the small staple set is thin. (3) `Slider.tsx`'s thumb rendered off the
+  step-snapped `value` prop, so it hopped in 5-minute jumps instead of gliding; now tracks raw drag
+  position locally for rendering only, committed value still snaps exactly as before. `tsc` clean,
+  412/412 tests (2 new: `quickWorkoutPoolWidening.test.ts`). Not yet verified on a real device —
+  founder is away from a PC for weeks; flag on the next build.
 - **2026-08-10 — Fixed the Progress "Body Intelligence" preview showing different data + a sloppy
   locked state, pushed everything from the last two sessions as an OTA update, then investigated
   (unresolved) a "logs out after a while" report.** Two founder-reported bugs on the Progress muscle

@@ -16,6 +16,16 @@
 // `onMoveShouldSetPanResponderCapture`) and refusing every termination request
 // (`onPanResponderTerminationRequest: () => false`) — once the thumb is grabbed,
 // nothing above it in the tree can take the gesture back.
+//
+// Bug fix (2026-08-11): the thumb used to visibly JUMP in `step`-sized leaps while
+// dragging instead of gliding under the finger. `respond()` always fed `onChange`
+// the SNAPPED value (correct — callers like Quick Workout's duration only want
+// discrete 5-minute values), but the thumb's rendered position was driven by that
+// same snapped `value` prop, so on a 5–60 range with step=5 the thumb only had 12
+// possible positions and hopped between them. Fixed by tracking the raw,
+// continuous finger position in local state (`dragRaw`) purely for rendering
+// (thumb/fill/bubble left%) while dragging; the committed `value` prop (and thus
+// `onChange`) still only changes in `step` increments, unchanged from before.
 
 import { useMemo, useRef, useState } from 'react'
 import { Animated, View, StyleSheet, PanResponder, type LayoutChangeEvent } from 'react-native'
@@ -40,19 +50,25 @@ export function Slider({ value, min, max, step = 1, onChange, onSlidingComplete,
   const styles = useThemedStyles(makeStyles)
   const [trackWidth, setTrackWidth] = useState(0)
   const [dragging, setDragging] = useState(false)
+  // The finger's raw (unsnapped) position while actively dragging — drives
+  // rendering only, so the thumb glides continuously instead of hopping between
+  // `step`-sized stops. Null when not dragging (render falls back to `value`).
+  const [dragRaw, setDragRaw] = useState<number | null>(null)
   const lastStepped = useRef(value)
   const thumbScale = useRef(new Animated.Value(1)).current
   const bubbleOpacity = useRef(new Animated.Value(0)).current
 
   const clamp = (v: number) => Math.min(max, Math.max(min, v))
   const snap = (v: number) => clamp(Math.round((v - min) / step) * step + min)
-  const pct = trackWidth > 0 ? (clamp(value) - min) / (max - min) : 0
+  const displayValue = dragging && dragRaw != null ? dragRaw : value
+  const pct = trackWidth > 0 ? (clamp(displayValue) - min) / (max - min) : 0
 
   const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width)
 
   const respond = (x: number) => {
     if (trackWidth <= 0) return
-    const raw = min + (x / trackWidth) * (max - min)
+    const raw = clamp(min + (x / trackWidth) * (max - min))
+    setDragRaw(raw)
     const next = snap(raw)
     if (next !== lastStepped.current) { lastStepped.current = next; haptics.tapLight() }
     onChange(next)
@@ -68,6 +84,7 @@ export function Slider({ value, min, max, step = 1, onChange, onSlidingComplete,
   }
   const release = () => {
     setDragging(false)
+    setDragRaw(null)
     Animated.parallel([
       Animated.spring(thumbScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }),
       Animated.timing(bubbleOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),

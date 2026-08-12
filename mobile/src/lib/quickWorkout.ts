@@ -275,6 +275,13 @@ interface BuiltSelection {
   estimatedSeconds: number
 }
 
+// How many unique exercises a session of this length can actually hold. Shared
+// between selectExercises (which spends the budget) and generateQuickWorkout
+// (which decides whether the curated candidate pool is even big enough to try).
+function maxExercisesFor(minutes: QuickMinutes): number {
+  return minutes <= 10 ? 4 : minutes <= 20 ? 5 : 8
+}
+
 function selectExercises(
   pool: ExerciseRow[],
   scheme: PurposeScheme,
@@ -293,7 +300,7 @@ function selectExercises(
   forcePatterns: MovementPattern[] | undefined,
 ): BuiltSelection {
   const budget = minutes * 60
-  const MAX = minutes <= 10 ? 4 : minutes <= 20 ? 5 : 8
+  const MAX = maxExercisesFor(minutes)
 
   // Short sessions get denser: fewer sets, shorter rest so the time is all work.
   //
@@ -539,10 +546,10 @@ export async function generateQuickWorkout(
 
   const restrictions = ctx.restrictions ?? injuriesToRestrictions(profile.injuries)
 
-  // Candidate exercises: the curated core pool (the full library is for search
-  // and manual building — a generated session sticks to staples), matched to
-  // equipment + experience, then drop anything that hits a restricted area,
-  // plus high-impact moves on low-impact purposes.
+  // Candidate exercises: the curated core pool is tried FIRST (the full library
+  // is mainly for search/manual building — a generated session prefers staples
+  // for quality), matched to equipment + experience, then drop anything that
+  // hits a restricted area, plus high-impact moves on low-impact purposes.
   const [{ data: allRaw }, excludedExerciseIds] = await Promise.all([
     client
       .from('exercises')
@@ -553,14 +560,13 @@ export async function generateQuickWorkout(
 
   const allRows = ((allRaw ?? []) as ExerciseRow[]).filter(ex => !excludedExerciseIds.has(ex.id))
   const coreRows = allRows.filter(e => e.is_core === true)
-  const all = coreRows.length ? coreRows : allRows
   const userExpIdx = EXPERIENCE_ORDER.indexOf(profile.experience)
   const validExp = new Set(EXPERIENCE_ORDER.slice(0, userExpIdx + 1))
   const equipment = expandEquipment(profile.equipment)
   const avoidMuscle = new Set(restrictions.avoidMuscles)
   const avoidPattern = new Set(restrictions.avoidPatterns)
 
-  const pool = all.filter(ex => {
+  const matchesConstraints = (ex: ExerciseRow) => {
     if (!validExp.has(ex.experience_level as Experience)) return false
     if (!canPerform(ex, equipment)) return false
     if (avoidPattern.has(ex.movement_pattern as MovementPattern)) return false
@@ -568,18 +574,41 @@ export async function generateQuickWorkout(
     if (muscles.some(m => avoidMuscle.has(m))) return false
     if (scheme.lowImpact && (ex.experience_level === 'advanced' || HIGH_IMPACT_NAMES.has(ex.name))) return false
     return true
-  })
+  }
+  const corePool = (coreRows.length ? coreRows : allRows).filter(matchesConstraints)
+  // Only computed from — and used against — the full 1300+ imported library, so
+  // a well-stocked curated hit (the common case) never pays this extra pass.
+  const fullPool = () => allRows.filter(matchesConstraints)
 
   // Target Area (Arms/Chest/Back/…): a hard filter to that muscle group, not
   // just a priority nudge — this is a direct "give me an X workout" request.
-  // Falls back to the unfiltered pool if the muscle group + current
-  // equipment/experience yields nothing, so a workout is never impossible.
   const targetMuscles = ctx.targetMuscles?.length ? new Set(ctx.targetMuscles) : null
-  const musclePool = targetMuscles
-    ? pool.filter(ex => ex.primary_muscles.some(m => targetMuscles.has(m)))
-    : pool
+  const filterByMuscle = (rows: ExerciseRow[]) =>
+    targetMuscles ? rows.filter(ex => ex.primary_muscles.some(m => targetMuscles.has(m))) : rows
+
+  const coreMusclePool = filterByMuscle(corePool)
+  // The 60-exercise curated set is deliberately small (is_core's own comment:
+  // "the plan/quick-workout engines only program from this pool") and is
+  // sometimes too thin for a specific muscle group + equipment combo — e.g. it
+  // has ZERO genuinely no-equipment "pull" exercise at all, so a no-equipment
+  // "Back" or "Arms" request used to come up empty against it and silently drop
+  // the muscle target entirely (falling through to an unfiltered full-body pick,
+  // which for no-equipment users skews heavily toward Core/Plank-type moves —
+  // the reported "it always gives me Core no matter what I pick" bug). Widen to
+  // the full imported library — muscle-filtered the SAME way — whenever the
+  // curated pool alone can't fill the requested session length. This only ever
+  // ADDS candidates, and only when a real target is active, so a well-equipped
+  // user hitting the curated set fully still gets the higher-quality staples only.
+  const wideMusclePool = targetMuscles && coreMusclePool.length < maxExercisesFor(ctx.minutes)
+    ? filterByMuscle(fullPool())
+    : coreMusclePool
+  const musclePool = wideMusclePool.length > coreMusclePool.length ? wideMusclePool : coreMusclePool
   const muscleTargetHit = !!targetMuscles && musclePool.length > 0
-  const finalPool = musclePool.length ? musclePool : pool
+  // Nothing anywhere (curated OR full library) matches this muscle target given
+  // the user's equipment/experience/restrictions — fall back to a full-body pick
+  // so a workout is always produced, preferring the wider library over just the
+  // 60 staples since it's strictly more likely to have something usable.
+  const finalPool = musclePool.length ? musclePool : (corePool.length ? corePool : fullPool())
   // When the muscle filter actually landed exercises, guarantee every REAL
   // RESISTANCE pattern present among THEM gets picked from, regardless of the
   // purpose's own pattern list — a muscle-targeted request must never come
