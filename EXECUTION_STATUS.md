@@ -339,6 +339,24 @@ them).
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
 
+- **2026-08-12 (same session, continued) — Fixed a real, live database performance issue found via a
+  Supabase advisor sweep (not a founder report, a proactive check once MCP access came back):** 41 of
+  ~46 RLS policies across ~20 tables called `auth.uid()` directly in USING/WITH CHECK, which Postgres
+  re-evaluates PER ROW instead of once per query — a real, compounding tax on exactly the
+  high-row-count tables (`scheduled_workouts`, `set_logs`, `workout_logs`, `user_plans`) this session's
+  earlier app-open-sweep work already identified as hot. Fixed via `ALTER POLICY` (not drop/recreate —
+  only touches the clause given, so a policy with no `WITH CHECK` before still has none now) wrapping
+  every `auth.uid()` call as `(select auth.uid())`, including occurrences nested inside `EXISTS`
+  subqueries and function arguments (`are_friends()`, `is_group_member()`). Same access-control result,
+  cheaper query plan — verified by re-running `get_advisors`: all 41 `auth_rls_initplan` warnings gone,
+  zero new warnings introduced. Migration: `optimize_rls_auth_uid_initplan.sql`, applied live. Founder
+  approved before running ("can you fix those") after being shown the finding and the (separate,
+  dashboard-only) leaked-password-protection toggle, which I flagged but can't fix myself — no Supabase
+  MCP tool reaches Auth config, only database objects. **Not fixed, left for a deliberate follow-up
+  ask**: 10 `multiple_permissive_policies` warnings (`groups` and `workout_templates` each have two
+  overlapping SELECT policies — real but smaller, and new information surfaced only by this session's
+  verification pass, not something already approved) and 11 `unindexed_foreign_keys` (INFO-level,
+  already tracked under Engineering Architecture's "schema.sql defines zero indexes" finding).
 - **2026-08-12 — Five founder-reported bugs fixed and, for the first time this trip, actually shipped
   live via `eas update` (not just pushed to GitHub): slow app open, Quick Workout always recommending
   Core, jumpy duration slider, slow-loading GIFs, and a cold-start "asks to sign in then bounces back

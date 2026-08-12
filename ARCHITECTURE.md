@@ -3397,6 +3397,21 @@ back to a full-body pick, same as before. Covered by 2 new tests
 exercises pulled from the wider library instead of leaking Core, and a well-stocked curated pool is
 left untouched (no widening) for a short session.
 
+**RLS performance: `auth.uid()` wrapped as `(select auth.uid())` across every policy that used it
+(`supabase/optimize_rls_auth_uid_initplan.sql`), applied live.** Found via Supabase's own advisor, not
+a founder report — 41 policies across ~20 tables (including the highest-row-count ones:
+`scheduled_workouts`, `set_logs`, `workout_logs`, `user_plans`) called `auth.uid()` bare inside
+USING/WITH CHECK, which Postgres can't prove is stable for a statement when written that way, so it
+re-evaluates the function PER ROW scanned instead of once per query. Wrapping the identical call as
+`(select auth.uid())` lets the planner cache it as an InitPlan — same access-control outcome, cheaper
+plan, no behavior change. Applied via `ALTER POLICY` (touches only the clause given, so a policy with
+no `WITH CHECK` before still has none — never widens what a policy checks), verified by re-running the
+advisor: all 41 `auth_rls_initplan` warnings gone, nothing new introduced. Two related, smaller findings
+from the same advisor sweep were deliberately left alone this pass (flagged, not fixed): 10
+`multiple_permissive_policies` warnings (`groups` and `workout_templates` each have two overlapping
+SELECT policies that could be consolidated) and 11 `unindexed_foreign_keys` (INFO-level, already
+tracked under this doc's Engineering Architecture note on `schema.sql` having zero indexes).
+
 **Cold-start "asks to sign in, then bounces back to Home" (`stores/auth.ts`), founder-reported live.** A slow
 network's token-refresh round trip (`getSession()`) can genuinely take longer than the cold-start safety
 net's flat 5s timeout — the timeout fired first with `session` still `null`, `(tabs)/_layout.tsx` redirected
