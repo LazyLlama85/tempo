@@ -18,6 +18,25 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-12 (same session, urgent) — Caused and then fixed a real regression on the founder's own
+device the same day: "doesn't load when I first get on, but killing it and reopening works."** Traced
+to my own earlier fix in this session — extending `stores/auth.ts`'s cold-start safety-net timeout
+from a flat 5s to 20s for any device that had signed in before (meant to fix a different, real report:
+a slow network flashing `/sign-in` then bouncing back to Home). That made the founder's OWN device
+(permanently in the "had signed in before" bucket after their first sign-in) show up to 20s of a
+completely blank, indicator-less screen on every cold start instead of 5 — which reads exactly like
+"broken," and force-quitting for a fresh process is exactly how that class of bug has always presented
+in this codebase. **Reverted the timeout to the original flat 5s** (removed the now-dead `hadSession`
+tracking mechanism entirely rather than leave it unused) **and added a real spinner** (`PulseLoader`)
+to both cold-start gate views (`(tabs)/_layout.tsx`, `onboarding/_layout.tsx`), which had ALWAYS been a
+bare, indicator-less rectangle even before today — so even the worst-case 5s wait now reads as
+"loading," not "frozen," addressing the root perception problem instead of just the timeout duration.
+`tsc` clean, 412/412 tests. **Shipped immediately as its own OTA update** rather than bundled with
+other work, given the founder is actively experiencing this. Lesson for future sessions: a
+timeout/wait-duration change on a codebase with this much documented history of "blank screen until
+force-quit" bugs needs the SAME scrutiny as touching `lazy: false` — it very nearly was, and wasn't,
+and that gap is exactly what broke here.
+
 **2026-08-12 — Founder reported (away from a PC for weeks, working via Claude Code on the web from
 phone): app slow to open, Quick Workout always recommending Core, a jumpy duration slider, GIFs slow
 to load, and a cold-start bug — 15s blank, briefly asks to sign in, then bounces back to Home.** All

@@ -4,12 +4,27 @@ import { View } from 'react-native'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/theme'
 import { TempoTabBar, type TabBarProps } from '@/components/TempoTabBar'
+import { PulseLoader } from '@/components/brand'
 
 export default function TabsLayout() {
   const { session, profile, loading } = useAuthStore()
   const C = useTheme()
 
-  if (loading) return <View style={{ flex: 1, backgroundColor: C.background }} />
+  // Fixed 2026-08-12, founder-reported ("doesn't load when I first get on, but
+  // killing it and reopening works"): this used to be a bare, indicator-less
+  // rectangle for up to the auth store's own cold-start safety-net timeout (see
+  // stores/auth.ts) — on a slow network that read as a frozen/broken app rather
+  // than one still loading, which is exactly what force-quitting "fixes" (a
+  // fresh process gets another chance at whatever raced). A real spinner can't
+  // shorten a genuinely slow or stuck network call, but it does mean the wait —
+  // however long — reads as "loading," never as "nothing is happening."
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center' }}>
+        <PulseLoader />
+      </View>
+    )
+  }
   if (!session) return <Redirect href="/sign-in" />
   if (!profile?.onboarding_complete) return <Redirect href="/onboarding/goal" />
   // A freshly-onboarded user used to be routed through a separate /welcome screen

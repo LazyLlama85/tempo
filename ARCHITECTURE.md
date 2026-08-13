@@ -3425,18 +3425,24 @@ from the same advisor sweep were deliberately left alone this pass (flagged, not
 SELECT policies that could be consolidated) and 11 `unindexed_foreign_keys` (INFO-level, already
 tracked under this doc's Engineering Architecture note on `schema.sql` having zero indexes).
 
-**Cold-start "asks to sign in, then bounces back to Home" (`stores/auth.ts`), founder-reported live.** A slow
-network's token-refresh round trip (`getSession()`) can genuinely take longer than the cold-start safety
-net's flat 5s timeout — the timeout fired first with `session` still `null`, `(tabs)/_layout.tsx` redirected
-to `/sign-in`, and the real result landed moments later and bounced the user straight back to Home. A flat
-timeout can't distinguish "nobody's signed in" from "someone IS signed in, the network is just slow" — fixed
-with `tempo.hadSession` (new localStorage flag, same SQLite-backed storage the profile cache already uses,
-no new mechanism): set `true` whenever a real session resolves (cold start or a fresh sign-in), cleared on a
-genuine sign-out or a confirmed `null` session. `initialize()` reads it before starting: a device with no
-prior session keeps the original fast 5s timeout (nothing to wait for — unchanged behavior, no regression
-against the original blank-screen-forever fix this safety net exists for); a device that HAS signed in before
-gets a 20s runway instead, which is what actually prevents the flash-to-sign-in-then-bounce cycle rather than
-just delaying it.
+**Cold-start "asks to sign in, then bounces back to Home" (`stores/auth.ts`), founder-reported live — fixed,
+then the fix itself caused a worse regression, then REVERTED same day.** Original report: a slow network's
+token-refresh round trip (`getSession()`) can genuinely take longer than the cold-start safety net's flat 5s
+timeout — the timeout fired first with `session` still `null`, `(tabs)/_layout.tsx` redirected to `/sign-in`,
+and the real result landed moments later and bounced the user straight back to Home. First fix: a
+`tempo.hadSession` localStorage flag extended the timeout to 20s for any device that had signed in before,
+leaving the fast 5s path unchanged for a genuinely fresh device. **That broke something worse, same day**: both
+cold-start gate views (`(tabs)/_layout.tsx`, `onboarding/_layout.tsx`) render a bare, indicator-less rectangle
+for as long as `loading` is true — so the founder's OWN device (permanently `hadSession=true` after their
+first sign-in) could now show up to 20s of seemingly frozen blank screen on every cold start instead of 5,
+reported the same day as "doesn't load when I first get on, but killing it and reopening works" — the exact
+symptom this safety net exists to prevent, made MORE likely by widening it. **Reverted**: the timeout is back
+to a flat 5s always (the `hadSession` mechanism removed entirely — dead code once nothing read it, not left
+"for later"). The original flash-then-bounce complaint is accepted as the lesser problem; recovering fast
+from a genuine wedge matters more. Addressed the flash-then-bounce case differently instead: both gate views
+now show a real `PulseLoader` spinner (they never had one, even before any of this) rather than a bare
+rectangle, so even the worst-case 5s wait reads as "loading," not "broken" — fixing the actual perception
+problem rather than trading timeout durations against each other.
 
 **GIF thumbnails re-fetching on every visit (`components/ExerciseThumb.tsx`, `ExerciseFormSheet.tsx`),
 founder-reported ("GIFs take so long to load").** Unlike `ExerciseMedia` (the Home/session-runner form-guide
