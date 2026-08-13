@@ -102,6 +102,14 @@ export default function QuickWorkoutScreen() {
   const [moreOpen, setMoreOpen] = useState(!!params.purpose)
   const profileRef = useRef<ProfileForQuick | null>(null)
   const restrictionsRef = useRef<QuickRestrictions | null>(null)
+  // Guards against overlapping regenerate() calls resolving out of order — e.g.
+  // dragging the duration slider back and forth fires a new regenerate() before
+  // an earlier one's Supabase round trip has returned. Without this, whichever
+  // call happened to resolve LAST won (not whichever was called last), so a
+  // stale result for a duration/target you'd already changed away from could
+  // silently overwrite the current one — reported as "picked 30 min, it worked,
+  // picked 20, it worked, picked 30 again and got a wrong (all-Core) workout."
+  const requestIdRef = useRef(0)
 
   // ── Equipment presets (Pro): build a session around a saved setup ("Home",
   // "Hotel gym"). Free users can use their default gear; a saved preset's
@@ -129,6 +137,7 @@ export default function QuickWorkoutScreen() {
     tp: MovementPattern | undefined, tm: string[] | undefined, al: string | null,
   ) => {
     if (!userId) return
+    const requestId = ++requestIdRef.current
     setGenerating(true)
     setEmpty(false)
     try {
@@ -158,15 +167,20 @@ export default function QuickWorkoutScreen() {
         { minutes: m, purpose: effectivePurpose, targetPattern: effectiveTarget, targetMuscles: tm, targetAreaLabel: al, daysSinceTrained, fromCalendarGap, restrictions },
         profile,
       )
+      // A newer regenerate() call started while this one was still in flight —
+      // its result (or the newer call's own, once IT resolves) is what the
+      // screen should show, not this now-stale one. Drop it silently.
+      if (requestId !== requestIdRef.current) return
       setWorkout(w)
       setEmpty(w.exercises.length === 0)
       if (w.exercises.length > 0) {
         track('quick_workout_generated', { minutes: m, purpose: effectivePurpose })
       }
     } catch {
+      if (requestId !== requestIdRef.current) return
       setEmpty(true)
     } finally {
-      setGenerating(false)
+      if (requestId === requestIdRef.current) setGenerating(false)
     }
   // daysSinceTrained / fromCalendarGap are stable per-mount params
   // eslint-disable-next-line react-hooks/exhaustive-deps

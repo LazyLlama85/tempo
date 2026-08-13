@@ -26,6 +26,19 @@
 // continuous finger position in local state (`dragRaw`) purely for rendering
 // (thumb/fill/bubble left%) while dragging; the committed `value` prop (and thus
 // `onChange`) still only changes in `step` increments, unchanged from before.
+//
+// Bug fix (2026-08-13, founder-reported): a long, fast drag from one end of the
+// track to the other could stop tracking the finger partway through instead of
+// following it the whole way. Root cause: every `onPanResponderMove` re-read
+// `e.nativeEvent.locationX`, which RN computes relative to the touched view —
+// a known-unreliable signal for a fast or wide drag (it's re-derived per event
+// rather than tracked continuously, and can desync from the actual finger
+// position, especially once the finger has moved well past where the gesture
+// started). Fixed by reading `locationX` only ONCE, at grab time, into a ref,
+// then using the gesture's own `dx` (cumulative delta from grant, which RN's
+// PanResponder tracks independently from raw page coordinates and does not
+// have the same desync failure mode) for every subsequent move — the standard,
+// robust pattern for a PanResponder-based drag.
 
 import { useMemo, useRef, useState } from 'react'
 import { Animated, View, StyleSheet, PanResponder, type LayoutChangeEvent } from 'react-native'
@@ -55,6 +68,10 @@ export function Slider({ value, min, max, step = 1, onChange, onSlidingComplete,
   // `step`-sized stops. Null when not dragging (render falls back to `value`).
   const [dragRaw, setDragRaw] = useState<number | null>(null)
   const lastStepped = useRef(value)
+  // Track-relative x position (px) where the current gesture started — the
+  // stable anchor `gestureState.dx` gets added to, so drag tracking survives
+  // the whole gesture instead of drifting off `locationX`'s per-event reads.
+  const grabXRef = useRef(0)
   const thumbScale = useRef(new Animated.Value(1)).current
   const bubbleOpacity = useRef(new Animated.Value(0)).current
 
@@ -75,6 +92,7 @@ export function Slider({ value, min, max, step = 1, onChange, onSlidingComplete,
   }
 
   const grab = (x: number) => {
+    grabXRef.current = x
     setDragging(true)
     Animated.parallel([
       Animated.spring(thumbScale, { toValue: 1.25, useNativeDriver: true, speed: 30, bounciness: 8 }),
@@ -105,7 +123,7 @@ export function Slider({ value, min, max, step = 1, onChange, onSlidingComplete,
     onPanResponderTerminationRequest: () => false,
     onShouldBlockNativeResponder: () => true,
     onPanResponderGrant: (e) => grab(e.nativeEvent.locationX),
-    onPanResponderMove: (e) => respond(e.nativeEvent.locationX),
+    onPanResponderMove: (_e, gestureState) => respond(grabXRef.current + gestureState.dx),
     onPanResponderRelease: release,
     onPanResponderTerminate: release,
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -18,6 +18,26 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-13 — Founder reported Quick Workout acting "weird": picking 30 min + Chest/Arms/Shoulders
+sometimes left Start unclickable, sometimes generated fine, and once generated an all-Core workout
+despite the Chest/Arms/Shoulders selection — plus the duration slider losing the finger partway
+through a long drag.** Both real, both fixed:
+- **Race condition in `quick-workout.tsx`'s `regenerate()`** — zero request sequencing. Tapping
+  multiple Target Area chips in a row (exactly what "chest arms shoulders" is — 3 separate taps) or
+  adjusting the slider fires a new `regenerate()` call before an earlier one's Supabase round trip
+  returns; whichever call happened to RESOLVE last won, not whichever was CALLED last. A stale result
+  for a duration/target you'd already changed away from could silently overwrite the current one —
+  explains all three symptoms as one root cause (empty/unclickable from one stale resolution, wrong
+  all-Core content from another). Fixed with a request-ID guard: each call captures the current
+  request counter, increments it, and only applies its result if it's still the latest when it
+  resolves — standard, minimal-diff pattern, doesn't touch the exercise-selection logic at all.
+- **`Slider.tsx` losing the finger on a long/fast drag** — every `onPanResponderMove` re-read
+  `e.nativeEvent.locationX`, a known-unreliable signal for a wide drag (RN re-derives it per event
+  rather than tracking it continuously). Fixed by reading `locationX` once at grab time into a ref,
+  then using the gesture's own `dx` (delta from grant, tracked independently and reliably by
+  PanResponder) for every subsequent move — the standard robust pattern.
+`tsc` clean, 412/412 tests. Shipping as its own OTA update.
+
 **2026-08-12 (same session, urgent) — Caused and then fixed a real regression on the founder's own
 device the same day: "doesn't load when I first get on, but killing it and reopening works."** Traced
 to my own earlier fix in this session — extending `stores/auth.ts`'s cold-start safety-net timeout

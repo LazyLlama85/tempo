@@ -1309,6 +1309,15 @@ free user how to read one they can't act on yet.
   is selected — `buildTitle` now takes the new `targetAreaLabel` context field. 2 new tests
   (`quickWorkoutTargetArea.test.ts`) lock the cardio-leak fix both ways (excluded when the purpose
   doesn't want it, included when it does).
+  **Race condition fixed (2026-08-13), founder-reported ("weird" behavior — Start sometimes
+  unclickable, sometimes generated an all-Core workout despite Chest/Arms/Shoulders selected):**
+  `regenerate()` had zero request sequencing — every duration change or Target Area chip tap (multi-
+  select means picking 3 areas is 3 separate taps, each its own `regenerate()` call) fired a new
+  Supabase round trip without waiting for or cancelling any earlier one still in flight. Whichever call
+  happened to RESOLVE last won the screen, regardless of which was CALLED last — a stale result for a
+  duration/target the user had already moved past could silently overwrite the current one. Fixed with
+  a request-ID ref: each call captures the counter, increments it, and only applies its `setWorkout`/
+  `setEmpty`/`setGenerating` calls if it's still the latest request when it resolves.
 - **Availability / Travel** modals: set work/school/sleep/unavailable windows, and a temporary
   travel-equipment override.
 - **Scheduling mode:** a `scheduling_mode` profile pref (`auto` default / `manual`) decides whether
@@ -3465,7 +3474,14 @@ dragging looked like the thumb hopping between stops instead of gliding with the
 tracking the raw, continuous finger position in local state (`dragRaw`) purely for rendering
 (thumb/fill/bubble left%) while a drag is active; the committed `value` (and therefore `onChange`/
 `onSlidingComplete`) still only ever changes in `step` increments, unchanged from before — this was a
-render-smoothness fix only, not a change to what gets selected.
+render-smoothness fix only, not a change to what gets selected. **Second bug fixed (2026-08-13),
+founder-reported ("can't scroll through the whole thing without it stopping"):** every
+`onPanResponderMove` re-read `e.nativeEvent.locationX`, a known-unreliable signal on a fast/wide
+drag (RN re-derives it per event rather than tracking it continuously, and it can desync from the
+actual finger position). Fixed by reading `locationX` only once, at grab time, into a ref, then using
+the gesture's own `dx` (cumulative delta from grant — tracked independently and reliably by
+PanResponder) for every subsequent move. Standard, minimal-diff pattern for a PanResponder-based drag;
+same capture-phase gesture claiming from the 07-19 fix is untouched.
 
 ---
 
