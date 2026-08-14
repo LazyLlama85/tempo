@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback, type ReactNode } from 'react'
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, ActivityIndicator } from 'react-native'
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert, Linking, AppState, ActivityIndicator, InteractionManager } from 'react-native'
 import { LoadingCard } from '@/components/LoadingCard'
 import { ErrorBanner } from '@/components/ErrorBanner'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -687,7 +687,27 @@ export default function ScheduleScreen() {
   // extend too, so any mode change settles before rollover reads week_offset.
   useEffect(() => {
     if (!userId) return
-    ;(async () => {
+    let cancelled = false
+    // Let the screen PAINT before the sweep starts competing for the network.
+    // This sweep is entirely background maintenance (marking missed sessions,
+    // rolling the plan forward, adapting to travel gear) — none of it is needed
+    // to render today's workout, which the queries above already fetch. Running
+    // it immediately on mount meant every one of its round trips raced the
+    // queries that actually fill the screen, on the slowest connection the app
+    // ever sees (a cold start). `InteractionManager` defers it until after the
+    // initial render/animation work has settled, so first paint wins the race.
+    const handle = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return
+      ;(async () => {
+      // Tracks whether ANY step actually wrote something. Previously the sweep
+      // called invalidateTrainingData() unconditionally at this point, which
+      // marked ~14 query roots stale and forced Home to refetch essentially all
+      // of its data a second time on EVERY app open — even on the overwhelmingly
+      // common launch where the sweep changed precisely nothing. Every step below
+      // reports a count (or, for adaptation, a `wrote` flag added for exactly this
+      // purpose), so the invalidation now happens only when the data on screen
+      // could genuinely be stale.
+      let changed = false
       // Replay any set logs that failed to save last session and were never
       // manually retried before the app closed — independent of everything
       // else in this sweep, so it runs first. Cold-open only, matching this
@@ -697,29 +717,37 @@ export default function ScheduleScreen() {
       // landed in the right place) — just clear the now-stale flag so the rest
       // of the sweep (and Home's banner) sees a normal, unpaused state.
       try {
-        if (await checkPauseExpiry(supabase, userId, profile?.paused_until)) await refreshProfile()
+        if (await checkPauseExpiry(supabase, userId, profile?.paused_until)) {
+          await refreshProfile()
+          changed = true
+        }
       } catch { /* best-effort */ }
-      await dedupeScheduledWorkouts(supabase, userId)
-      await checkMissedWorkouts(supabase, userId)
+      try { if (await dedupeScheduledWorkouts(supabase, userId)) changed = true } catch { /* ignore */ }
+      try { if (await checkMissedWorkouts(supabase, userId)) changed = true } catch { /* ignore */ }
       // Let real signals (missed sessions, repeated "too hard") feed the
       // mesocycle — enough misses shifts the coming weeks into recovery/deload.
-      try { await refreshAdaptation(supabase, userId) } catch { /* ignore */ }
+      try { if ((await refreshAdaptation(supabase, userId)).wrote) changed = true } catch { /* ignore */ }
       // The plan never just ends: when the active plan's runway is short, lay the
       // next mesocycle block onto the calendar, then place its times around the
       // user's real day. Best-effort; a no-op while weeks of plan remain.
       let planAdded = 0
       try { planAdded = await extendActivePlan(supabase, userId) } catch { /* ignore */ }
       if (planAdded > 0) {
+        changed = true
         try { await autoScheduleUpcoming(supabase, userId) } catch { /* keep template times */ }
       }
       // Keep the "My Splits" program mirror in sync with the active plan (backfills
       // it for users whose plan predates the split-mirror feature). Best-effort.
+      // Returns void, so it can't report a change — it only ever touches the
+      // `splits` mirror, never scheduled_workouts, so it can't stale the feed.
       if (profile?.goal) {
         try { await ensureAutoSplit(supabase, userId, profile.goal) } catch { /* ignore */ }
       }
       // If a custom split is active, roll its rolling horizon forward so upcoming
       // weeks are always populated. Best-effort; no-op when no split is active.
-      try { await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null) } catch { /* ignore */ }
+      try {
+        if (await refreshActiveSplit(supabase, userId, profile?.preferred_time_of_day ?? null)) changed = true
+      } catch { /* ignore */ }
       // Travel mode (exercise_ids/exercise_config only) and calendar-conflict
       // resolution (planned_date/planned_start_time only) touch disjoint columns
       // on scheduled_workouts and each reads its own fresh snapshot before
@@ -728,16 +756,17 @@ export default function ScheduleScreen() {
       // concurrently. Both still finish before anything below reads the schedule,
       // preserving "runs after plan/split materialization" for travel and
       // "reflects the final schedule" for whatever reads next. Best-effort.
-      await Promise.all([
-        syncTravelSchedule(supabase, userId).catch(() => {}),
-        resolveCalendarConflicts(supabase, userId).catch(() => {}),
+      const [travelChanged, conflictsChanged] = await Promise.all([
+        syncTravelSchedule(supabase, userId).catch(() => 0),
+        resolveCalendarConflicts(supabase, userId).catch(() => 0),
       ])
+      if (travelChanged || conflictsChanged) changed = true
       // A partial 2-key invalidation here used to leave block_phase/next_workout/
       // goal_projection stale after a rollover or adaptation restamp — this sweep
-      // can change any of them (including refreshAdaptation's restamp, which has
-      // no tracked count), so it invalidates the full training-data set every
-      // time it runs. Runs once per Home mount, so the extra cost is negligible.
-      invalidateTrainingData(queryClient)
+      // can change any of them, so when it HAS changed something it still
+      // invalidates the full training-data set. What's new is the `changed` guard:
+      // a launch where nothing moved no longer forces a second full fetch.
+      if (changed) invalidateTrainingData(queryClient)
 
       // Auto-add upcoming workouts to the user's calendar (calendar_event_id/
       // provider only) and reminder reconciliation (local notifications only,
@@ -767,7 +796,9 @@ export default function ScheduleScreen() {
           }
         })().catch(() => {}),
       ])
-    })()
+      })()
+    })
+    return () => { cancelled = true; handle.cancel() }
   }, [userId])
 
   // The full entry sweep above only runs once per sign-in (auth.ts deliberately

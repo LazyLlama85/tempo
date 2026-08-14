@@ -114,9 +114,24 @@ function remapConfig(
 // restores) every upcoming plan/split session to match the active travel equipment.
 // Returns how many workout rows changed (so callers can refresh the feed only when
 // something actually moved).
+// Same ids, same order? Used to detect a row that is ALREADY adapted exactly the
+// way this run would adapt it, so a repeat app-open writes nothing at all.
+function sameIds(a: readonly string[] | null | undefined, b: readonly string[]): boolean {
+  const x = a ?? []
+  if (x.length !== b.length) return false
+  for (let i = 0; i < x.length; i++) if (x[i] !== b[i]) return false
+  return true
+}
+
 export async function syncTravelSchedule(client: SupabaseClient, userId: string): Promise<number> {
   let changedRows = 0
   try {
+    // Travel status FIRST — it's one tiny row, and when travel is off (the common
+    // case) it lets the whole expensive path below be skipped. Previously the
+    // upcoming-workout list was always fetched before this check even when there
+    // was provably nothing to do.
+    const travel = await getActiveTravelMode(client, userId)
+
     const { data: rowsRaw } = await client
       .from('scheduled_workouts')
       .select('id, exercise_ids, exercise_config, travel_restore, status, planned_date, source')
@@ -127,23 +142,23 @@ export async function syncTravelSchedule(client: SupabaseClient, userId: string)
     const rows = (rowsRaw ?? []) as ScheduledRow[]
     if (!rows.length) return 0
 
-    const travel = await getActiveTravelMode(client, userId)
-
     // ── Travel OFF / expired → restore anything we adjusted ─────────────────────
     if (!travel) {
-      for (const r of rows) {
-        if (!r.travel_restore) continue
-        await client
+      const toRestore = rows.filter(r => r.travel_restore)
+      if (!toRestore.length) return 0
+      // Parallel, not one-at-a-time: these are independent single-row updates on
+      // disjoint ids, so awaiting each in sequence only added round trips.
+      await Promise.all(toRestore.map(r =>
+        client
           .from('scheduled_workouts')
           .update({
-            exercise_ids: r.travel_restore.exercise_ids,
-            exercise_config: r.travel_restore.exercise_config ?? null,
+            exercise_ids: r.travel_restore!.exercise_ids,
+            exercise_config: r.travel_restore!.exercise_config ?? null,
             travel_restore: null,
           })
-          .eq('id', r.id)
-        changedRows++
-      }
-      return changedRows
+          .eq('id', r.id),
+      ))
+      return toRestore.length
     }
 
     // ── Travel ON → adapt every upcoming session ────────────────────────────────
@@ -154,6 +169,10 @@ export async function syncTravelSchedule(client: SupabaseClient, userId: string)
       .is('user_id', null)
     const pool = (poolRaw ?? []) as PoolRow[]
     const exById = new Map(pool.map(p => [p.id, p]))
+
+    // Collect the writes, then fire them together — same reasoning as the restore
+    // path above.
+    const writes: PromiseLike<unknown>[] = []
 
     for (const r of rows) {
       // Always adapt from the ORIGINAL (stored) version so re-runs with changed
@@ -167,29 +186,39 @@ export async function syncTravelSchedule(client: SupabaseClient, userId: string)
       if (!changed) {
         // Original already fits the current gear — undo any prior adjustment.
         if (r.travel_restore) {
-          await client
+          writes.push(client
             .from('scheduled_workouts')
             .update({
               exercise_ids: base.exercise_ids,
               exercise_config: base.exercise_config ?? null,
               travel_restore: null,
             })
-            .eq('id', r.id)
+            .eq('id', r.id))
           changedRows++
         }
         continue
       }
 
-      await client
+      // Already adapted to exactly this set — writing it again would store the
+      // identical value. This is the whole reason app open was slow while travel
+      // mode was on: with no such check, EVERY upcoming session was rewritten on
+      // EVERY launch (~25 sequential round trips, several seconds of network,
+      // every time), even though nothing about the row actually changed. Now a
+      // steady-state open writes nothing.
+      if (r.travel_restore && sameIds(r.exercise_ids, newIds)) continue
+
+      writes.push(client
         .from('scheduled_workouts')
         .update({
           exercise_ids: newIds,
           exercise_config: remapConfig(base.exercise_config, base.exercise_ids, newIds),
           travel_restore: base,
         })
-        .eq('id', r.id)
+        .eq('id', r.id))
       changedRows++
     }
+
+    if (writes.length) await Promise.all(writes)
   } catch {
     // Best-effort — travel adaptation must never break app open.
   }

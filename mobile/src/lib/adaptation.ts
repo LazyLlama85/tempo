@@ -229,11 +229,19 @@ export async function applyAdaptationMode(
  * Evaluate signals and, if the mode should change, apply it. Best-effort entry
  * point to call after a workout / on app open. A user who manually chose
  * 'maintenance' is left alone (we don't auto-override an explicit choice).
+ *
+ * Returns both the resolved mode AND whether this call actually WROTE anything
+ * (a mode change, or a one-off restamp of legacy unstamped rows). The `wrote`
+ * flag exists because the app-open sweep used to have no way to tell "adaptation
+ * restamped the plan" from "adaptation looked and did nothing" — so it
+ * invalidated every training query on every launch just in case, making Home
+ * fetch all of its data twice on every single app open. Callers that don't care
+ * can keep ignoring the result entirely.
  */
 export async function refreshAdaptation(
   client: SupabaseClient,
   userId: string,
-): Promise<AdaptationMode | null> {
+): Promise<{ mode: AdaptationMode | null; wrote: boolean }> {
   try {
     const { data: plan } = await client
       .from('user_plans')
@@ -243,7 +251,7 @@ export async function refreshAdaptation(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (!plan) return null
+    if (!plan) return { mode: null, wrote: false }
     const current = (plan.adaptation_mode ?? 'normal') as AdaptationMode
 
     const next = current === 'maintenance'
@@ -252,7 +260,7 @@ export async function refreshAdaptation(
 
     if (next !== current) {
       await applyAdaptationMode(client, userId, next)
-      return next
+      return { mode: next, wrote: true }
     }
 
     // Mode unchanged — but older plans (generated before periodization) may still
@@ -265,9 +273,12 @@ export async function refreshAdaptation(
       .eq('status', 'scheduled')
       .gte('planned_date', toDateStr(new Date()))
       .is('progression', null)
-    if (unstamped && unstamped > 0) await applyAdaptationMode(client, userId, current)
-    return current
+    if (unstamped && unstamped > 0) {
+      await applyAdaptationMode(client, userId, current)
+      return { mode: current, wrote: true }
+    }
+    return { mode: current, wrote: false }
   } catch {
-    return null
+    return { mode: null, wrote: false }
   }
 }

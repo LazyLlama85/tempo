@@ -48,6 +48,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // flash-then-bounce case is now addressed differently instead: the gate
     // views got a real spinner rather than a bare rectangle, so even a worst-
     // case 5s wait reads as "loading," not "broken."
+    // ── Paint immediately from the session already on this device ──────────────
+    // The single biggest cause of "the app takes forever to open, shows sign-in
+    // for a second, then jumps to Home": `getSession()` REFRESHES an expired
+    // access token before it resolves — a network round trip, on the slowest
+    // connection the app ever sees (a cold start) — and the ENTIRE UI was gated
+    // behind it. Hence the sequence the founder reported: long loading screen
+    // (waiting on the refresh), a flash of /sign-in (the safety-net timeout below
+    // firing first, with `session` still null), then Home (the refresh finally
+    // landing). Supabase persists the session in the SQLite-backed localStorage,
+    // which reads SYNCHRONOUSLY — so we already know who is signed in, offline,
+    // before any network call. Seed the store from it and the app renders its
+    // real (persisted-React-Query) content right away; `getSession()` still runs
+    // below and overwrites this with the authoritative result, refreshing the
+    // token in the background where it belongs.
+    //
+    // Deliberately only taken when there's ALSO a cached profile marked
+    // onboarding_complete: the tabs gate routes on `profile.onboarding_complete`,
+    // so hydrating a session without a known-onboarded profile could bounce a
+    // real user into onboarding. Without both, this falls through to exactly the
+    // old behavior — no regression, just no speedup for that (rare) case.
+    const persisted = readPersistedSession()
+    const persistedProfile = persisted ? readCachedProfile(persisted.user.id) : null
+    if (persisted && persistedProfile?.onboarding_complete) {
+      set({ session: persisted, profile: persistedProfile, loading: false })
+    }
+
     const timeout = setTimeout(() => {
       if (get().loading) set({ loading: false })
     }, 5_000)
@@ -188,6 +214,32 @@ async function fetchProfile(userId: string): Promise<{ ok: boolean; profile: Use
     return { ok: true, profile: (data as UserProfile) ?? null }
   } catch {
     return { ok: false, profile: null }
+  }
+}
+
+// The session Supabase itself already persisted, read straight from local storage
+// with no network and no await. supabase-js stores it under `sb-<project-ref>-
+// auth-token` (see lib/supabase.native.ts, which passes `storage: localStorage`
+// — the synchronous SQLite-backed shim). Used only to render the app instantly
+// on a cold start; `getSession()` remains the authority and overwrites it.
+//
+// Returns null on anything unexpected (missing key, malformed JSON, a shape
+// without a user) so a storage-format change degrades to the old wait-for-network
+// behavior rather than booting the app with a bogus session.
+function readPersistedSession(): Session | null {
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage
+    if (!ls) return null
+    const ref = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').match(/^https?:\/\/([^.]+)\./)?.[1]
+    if (!ref) return null
+    const raw = ls.getItem(`sb-${ref}-auth-token`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { access_token?: unknown; user?: { id?: unknown } } | null
+    if (typeof parsed?.access_token !== 'string') return null
+    if (typeof parsed?.user?.id !== 'string') return null
+    return parsed as unknown as Session
+  } catch {
+    return null
   }
 }
 
