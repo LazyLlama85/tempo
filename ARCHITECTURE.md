@@ -3483,6 +3483,37 @@ the gesture's own `dx` (cumulative delta from grant — tracked independently an
 PanResponder) for every subsequent move. Standard, minimal-diff pattern for a PanResponder-based drag;
 same capture-phase gesture claiming from the 07-19 fix is untouched.
 
+**App-open performance: four measured bottlenecks fixed (2026-08-14).** Diagnosed from the live
+Supabase request log for the founder's account (~26s between the first request on open and Home's data
+actually loading), not from reading code:
+- **`lib/travelSchedule.ts` — the big one.** With travel mode on, every upcoming plan/split session was
+  rewritten on *every* app open: ~25 single-row PATCHes `await`ed sequentially (~140ms each), storing
+  values identical to what the row already held, because nothing checked whether a row was already
+  adapted. Added `sameIds()` no-op detection (a steady-state open now writes zero rows), batched the
+  remaining writes with `Promise.all` instead of awaiting each, and reordered so the cheap
+  `getActiveTravelMode` check runs *before* the upcoming-workout fetch — when not travelling and no row
+  carries a `travel_restore`, the whole path (including the ~1300-row exercise-pool download) is
+  skipped. Locked by `__tests__/travelScheduleNoop.test.ts`.
+- **`(tabs)/index.tsx` — unconditional invalidation.** The sweep called `invalidateTrainingData()` every
+  run, marking ~14 query roots stale and making Home refetch nearly everything a second time on every
+  open. Now each step reports whether it wrote and invalidation is guarded on that. This required
+  `lib/adaptation.ts`'s `refreshAdaptation()` to return `{ mode, wrote }` instead of a bare mode — its
+  restamp previously had "no tracked count", which was the stated reason the invalidation was
+  unconditional. Both other callers ignore the return value, so the shape change is safe.
+- **`(tabs)/index.tsx` — sweep timing.** The sweep started immediately on mount, racing the queries that
+  render the screen. Now deferred behind `InteractionManager.runAfterInteractions` (with a `cancelled`
+  guard + `handle.cancel()` on unmount). Nothing in the sweep is needed for first paint.
+- **`stores/auth.ts` — the sign-in flash, root-caused.** `getSession()` refreshes an expired access
+  token *before resolving*, and the entire UI was gated on it — so on a cold start the app waited on a
+  network round trip, the 5s safety-net timeout fired first with `session` still null, `(tabs)/_layout`
+  redirected to `/sign-in`, and the refresh landing bounced the user to Home. Since
+  `lib/supabase.native.ts` passes `storage: localStorage` (the **synchronous** SQLite-backed shim),
+  the persisted session at `sb-<project-ref>-auth-token` is readable with no network and no await —
+  `readPersistedSession()` seeds the store so the app renders instantly, while `getSession()` still runs
+  and remains the authority. Deliberately only applied when a cached `onboarding_complete` profile also
+  exists, since the tabs gate routes on that field; without both it falls through to exactly the old
+  behavior.
+
 **Two migrations found never-applied to production (2026-08-14), causing real 400/404s on every
 session — `add_notification_prefs.sql` and `add_recovery_checkins.sql`.** Founder-reported "none of the
 features load"; checked live Supabase edge logs filtered to the app's own traffic and found

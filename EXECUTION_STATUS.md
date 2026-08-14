@@ -18,6 +18,44 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-14 — Actually found the app-open slowness, after several sessions of fixing the wrong
+things.** Founder escalated: "the app genuinely cannot be used, super slow, some things don't load at
+all," still showing a long loading screen → a flash of /sign-in → Home. This time the diagnosis came
+from the **live Supabase request log for the founder's own account**, not from reading code and
+guessing: the log showed **~26 seconds** between the first request on app open (03:24:18) and Home's
+data queries finally running (03:24:43). Four confirmed causes, all fixed and shipped:
+1. **`syncTravelSchedule` rewrote every upcoming session on every single launch.** With travel mode
+   on, ~25 single-row PATCHes, `await`ed **one at a time** (~140ms each ≈ 3.5–4s of pure sequential
+   network), writing values byte-identical to what was already in the row — it had no "already
+   adapted correctly" check at all, so a steady-state open did the maximum possible work. Added the
+   no-op check (steady-state open now writes **nothing**), batched remaining writes via `Promise.all`,
+   and moved the cheap travel-status check ahead of the workout fetch so the whole path is skipped
+   when not travelling. 2 new tests lock both directions.
+2. **The sweep force-refetched all of Home on every open.** `invalidateTrainingData()` ran
+   unconditionally at the end, marking ~14 query roots stale → Home fetched essentially all its data
+   **twice** every launch, even when the sweep changed nothing. Every step now reports whether it
+   wrote (`refreshAdaptation` gained a `wrote` flag for exactly this — it previously had "no tracked
+   count," which is why the unconditional invalidation existed); invalidation only fires on a real
+   change.
+3. **The sweep raced the queries that paint the screen.** It ran immediately on mount, competing for
+   the network on the slowest connection the app ever sees. Deferred behind
+   `InteractionManager.runAfterInteractions` so first paint wins. Nothing in the sweep is needed to
+   render today's workout.
+4. **The entire UI was gated on a network token refresh — the real cause of the sign-in flash.**
+   `getSession()` refreshes an expired access token *before it resolves*; the whole app waited on that
+   round trip, and the 5s safety-net timeout fired mid-refresh with `session` still null → redirect to
+   /sign-in → bounce back to Home when the refresh landed. Supabase persists the session in the
+   **synchronous** SQLite-backed localStorage (`sb-<ref>-auth-token`), so the app now seeds from it and
+   renders immediately while the refresh happens in the background. Guarded to only apply when a cached
+   `onboarding_complete` profile is also present, so tab-gate routing can't regress.
+`tsc` clean, 414/414 tests (2 new). Shipped OTA (group `fcd25b5d`). **Awaiting founder confirmation —
+this is the first fix in this thread aimed at a measured bottleneck rather than a suspected one.**
+**Still deliberately untouched:** `(tabs)/_layout.tsx`'s `lazy: false` (all 4 tabs fetch on cold start,
+~31 queries at once). It remains the largest known remaining lever, and is also the documented fix for
+this codebase's own "blank until you revisit" bug class (7+ instances). Held back on purpose so this
+batch's effect can be attributed before taking that risk — revisit it if the founder reports the app
+is meaningfully faster but still not instant.
+
 **2026-08-14 — Found and fixed a real, confirmed-live cause of "none of the features load": two
 migrations existed in the repo but were NEVER actually applied to production.** Founder reported the
 familiar slow-open/sign-in-flash sequence, then "none of the features load" — that last part turned
