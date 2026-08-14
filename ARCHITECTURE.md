@@ -3483,6 +3483,25 @@ the gesture's own `dx` (cumulative delta from grant — tracked independently an
 PanResponder) for every subsequent move. Standard, minimal-diff pattern for a PanResponder-based drag;
 same capture-phase gesture claiming from the 07-19 fix is untouched.
 
+**Two migrations found never-applied to production (2026-08-14), causing real 400/404s on every
+session — `add_notification_prefs.sql` and `add_recovery_checkins.sql`.** Founder-reported "none of the
+features load"; checked live Supabase edge logs filtered to the app's own traffic and found
+`user_profiles?select=notification_prefs` returning 400 (column doesn't exist) and `recovery_checkins`
+returning 404 (table doesn't exist) on every app session. Both migrations existed correctly in the repo
+and simply had never been run against the live project — confirmed via `list_migrations` (neither
+appears in the applied list) and direct `information_schema` checks. Same failure class as the
+previously-caught PostHog-key/Sentry-token gaps: a file existing in the repo says nothing about
+whether it ever reached production. Applied both live (no code changes — the files were already
+correct), verified the column and table now exist. Side effect also fixed: the hourly `retention-push`
+cron function's own per-user profile query used the same non-existent `notification_prefs` column, so
+every rule-level notification opt-out has been silently ignored (defaults still applied, not a crash)
+since whenever this gap opened — now reads real per-user prefs. Pure database fix, no app update
+required. **Not done**: a full systematic audit of the other ~55 `.sql` files against what's actually
+live — filename-matching against `list_migrations`' recorded names produces false positives (e.g.
+`add_exercise_substitutions` doesn't literally appear in the applied list by that name, yet the table
+demonstrably exists), so a real audit needs per-file schema-existence verification, not name-diffing.
+Flagged as a real follow-up, not attempted rushed.
+
 ---
 
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*

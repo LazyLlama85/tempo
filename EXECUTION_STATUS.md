@@ -18,6 +18,35 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-14 — Found and fixed a real, confirmed-live cause of "none of the features load": two
+migrations existed in the repo but were NEVER actually applied to production.** Founder reported the
+familiar slow-open/sign-in-flash sequence, then "none of the features load" — that last part turned
+out to be concrete, not just a slow-network perception. Checked live traffic via Supabase logs filtered
+to the app's own user-agent and found real, recurring errors on the founder's own account: `GET
+.../user_profiles?select=notification_prefs` → **400** (column doesn't exist) and `GET
+.../recovery_checkins` → **404** (table doesn't exist). Cross-checked `list_migrations` against the
+repo's `.sql` files: `add_notification_prefs.sql` and `add_recovery_checkins.sql` both exist, are
+correct, and were simply never run against the live project — the exact same failure class as the
+PostHog-key-never-set and Sentry-auth-token-never-set gaps this ledger has already caught twice before.
+Same fix: ran both (idempotent `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`, no code
+changes needed — the files were already correct), verified both objects now exist. No app update
+needed — pure database, effective immediately on the next request. **Also found, while checking:** the
+same `notification_prefs`/`timezone` 400 has been silently failing inside the hourly `retention-push`
+cron job too — every per-user profile lookup in that function has been failing since whenever this gap
+opened, meaning per-rule notification opt-outs have been silently ignored (defaults still applied,
+degrading gracefully, not a crash) the whole time. Fixed by the same migration; no separate deploy
+needed since the function reads the column at query time. **Did not attempt a full audit of all ~57
+`.sql` files against applied migrations** — a filename-vs-migration-name diff produced false positives
+(e.g. `add_exercise_substitutions` isn't in the applied-migrations list by that name, but the table
+demonstrably exists — applied under different bookkeeping at some point), so a real audit needs
+schema-existence checks per file, not name-matching. Worth doing properly next session, not blindly
+rushed here.
+**Separately, founder asked directly for the app to load "almost immediate"** — the two remaining real
+levers (the eager 4-tab fetch on cold start, the font-load gate) are unchanged from the prior session's
+analysis: both real, both still deliberately not touched blind, pending the founder actually testing
+today's fix first now that a genuine bug (not just perceived slowness) has been removed from the
+picture.
+
 **2026-08-13 — Founder reported Quick Workout acting "weird": picking 30 min + Chest/Arms/Shoulders
 sometimes left Start unclickable, sometimes generated fine, and once generated an all-Core workout
 despite the Chest/Arms/Shoulders selection — plus the duration slider losing the finger partway
