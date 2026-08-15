@@ -18,6 +18,40 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-14 — THIRD App Store rejection (Guideline 2.1(a), "error message displayed when we completed
+onboarding", iPad Air M3 / iPadOS 26.6, build 1.0(27)). Root-caused from the reviewer's own request
+log: a ~1-minute Supabase API-gateway outage, not a code bug.** Found the reviewer's account directly
+(`4715e3ce-…`, Apple private-relay email, created 2026-08-14 09:14:56 UTC) — they have **no
+`user_profiles` row at all**, no plan, no workouts, i.e. the very first write of onboarding failed.
+The edge log for that window shows **every single request from their device returning 503**:
+`app_config`, `user_profiles` (×6 retries), `scheduled_workouts`, `rpc/claim_competitive_badges` —
+09:14:52 through 09:15:52, then silence. A 503 lands in `describeSaveError`'s `'server'` branch →
+"Something went wrong… Couldn't save your plan", which is precisely the message Apple photographed.
+**Ruled out as causes, with evidence, not assumption:**
+- *Not* the two migrations applied earlier that day — `list_migrations` timestamps them at
+  **06:22:35 / 06:22:49 UTC**, ~3 hours before the outage, with **324 successful requests** logged in
+  the 07:00 hour in between. A PostgREST schema reload takes seconds, not hours.
+- *Not* Postgres — `postgres_logs` across the outage window show the 09:00 cron job running normally
+  and routine checkpoints, **zero errors**, no connection exhaustion. The database was up; the API
+  gateway in front of it was not.
+- *Not* working from the GitHub repo / OTA updates instead of a PC. The 503s were server-side HTTP
+  responses; no client build can produce them.
+- *Not* recurring: the hourly breakdown over 24h shows **22 × 503 confined to the 09:00 hour and zero
+  in every other hour**, before and since. It recovered on its own.
+**The real, fixable defect it exposed:** the app had *no tolerance whatsoever* for a transient backend
+failure — a single 503 became a dead-end error alert and a half-created account. Fixed with a retrying
+`fetch` wired into both Supabase clients (`lib/fetchWithRetry.ts`), deliberately conservative:
+502/503 retried for any method (the gateway provably never reached the DB, so a retry can't
+duplicate); 504 + network-level failures retried for GET/HEAD only (ambiguous — the write may have
+landed and only the response been lost); 4xx and 500 never retried. 8 new tests pin both directions.
+`tsc` clean, 422/422 tests. Shipped OTA (group `60ca0029`).
+**⚠️ Founder action required — the OTA does NOT fix the rejection on its own.** App Review tests the
+**binary**, and while build 27 would pull this update at launch, the failure happened *during* the
+review session. Do not rely on that. **A new build (28) should be submitted** so the fix is baked in,
+and the reply to App Review should state plainly that the failure was a transient backend outage on
+our provider, that it's now retried automatically, and offer the reviewer a demo account. Consider
+also asking Apple to re-test, since the same build may now pass.
+
 **2026-08-14 — Actually found the app-open slowness, after several sessions of fixing the wrong
 things.** Founder escalated: "the app genuinely cannot be used, super slow, some things don't load at
 all," still showing a long loading screen → a flash of /sign-in → Home. This time the diagnosis came

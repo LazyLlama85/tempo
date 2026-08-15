@@ -3483,6 +3483,22 @@ the gesture's own `dx` (cumulative delta from grant — tracked independently an
 PanResponder) for every subsequent move. Standard, minimal-diff pattern for a PanResponder-based drag;
 same capture-phase gesture claiming from the 07-19 fix is untouched.
 
+**Transient-failure tolerance: `lib/fetchWithRetry.ts` (2026-08-14), wired into both Supabase clients.**
+Added after App Review rejected the app under Guideline 2.1(a) ("error message displayed when we
+completed onboarding"). Root cause, from the reviewer's own edge log: a ~1-minute Supabase **API
+gateway** outage — every request from their device returned 503, including onboarding's
+`POST /rest/v1/user_profiles`, leaving their account with no profile row. Postgres was healthy
+throughout (cron + checkpoints normal, zero errors), so this was the gateway, not the database, and it
+self-recovered. The app's defect was having zero tolerance for it: one 503 → `describeSaveError`'s
+`'server'` branch → a dead-end alert mid-onboarding. `fetchWithRetry` is passed as `global.fetch` to
+`createClient` in both `supabase.native.ts` and `supabase.ts`, with deliberately asymmetric rules
+because a retry that re-sends a landed write is worse than the error it fixes: **502/503** retried for
+any method (the gateway provably never reached Postgres, so the request had no effect); **504 and
+network-level throws** retried for **GET/HEAD only** (ambiguous — the write may have succeeded with
+only the response lost); **4xx and 500** never retried (a real answer, and a 500 may have partially
+executed). Up to 3 attempts, 400ms/1200ms backoff. Covered by `__tests__/fetchWithRetry.test.ts`,
+which pins the non-retry cases as hard as the retry ones.
+
 **App-open performance: four measured bottlenecks fixed (2026-08-14).** Diagnosed from the live
 Supabase request log for the founder's account (~26s between the first request on open and Home's data
 actually loading), not from reading code:
