@@ -77,7 +77,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const timeout = setTimeout(() => {
       if (get().loading) set({ loading: false })
     }, 5_000)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      // ── "Couldn't verify" is NOT "signed out" ────────────────────────────────
+      // getSession() returns `{ session: null, error }` when the access token had
+      // expired and the refresh call FAILED — offline, airplane mode, or just a
+      // slow/flaky connection (see auth-js `__loadSession`: on a refresh error it
+      // returns a null session together with the error). auth-js itself keeps the
+      // stored session in that case (it only erases it for non-retryable errors),
+      // precisely because the user is still signed in — it simply couldn't reach
+      // the server to prove it.
+      //
+      // Reading only `session` and ignoring `error` treated that as a sign-out,
+      // which is the single root cause behind the founder's whole cluster of
+      // reports: airplane mode dumping you on /sign-in; a brief flash of /sign-in
+      // on a normal slow open; and — worst — "everything looks like it's loading
+      // but never loads", because with `session` null every screen's queries are
+      // `enabled: !!userId` with an empty userId, so they sit pending forever and
+      // render skeletons that can never resolve. The access token expires on
+      // essentially every cold start, so this path was hit constantly.
+      //
+      // Keep what we have instead: the optimistically-hydrated session above (or
+      // an already-set one), so the app stays usable on cached data and refreshes
+      // itself the moment connectivity returns.
+      if (!session && error) {
+        clearTimeout(timeout)
+        set({ loading: false })
+        const kept = get().session
+        if (kept) {
+          identifyUser(kept.user.id)
+          setCrashUser(kept.user.id)
+        }
+        return
+      }
+
       const res = session ? await fetchProfile(session.user.id) : { ok: true, profile: null }
       // A fetch failure (offline cold start) falls back to the cached profile so an
       // onboarded user is never bounced back into onboarding by a network blip.
@@ -105,7 +137,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
-        set({ session: null, profile: null })
+        // Same trap as the getSession() branch above, via a different door:
+        // events other than a real sign-out can arrive carrying a null session
+        // when the client simply couldn't verify it (a failed refresh while
+        // offline still emits INITIAL_SESSION with null). Clearing on any null
+        // session therefore logged offline users out a second time, moments
+        // after the code above had carefully preserved them. Only an explicit
+        // SIGNED_OUT — which auth-js emits from `_removeSession`, and which it
+        // deliberately skips for retryable network errors — is a real sign-out.
+        if (event === 'SIGNED_OUT') set({ session: null, profile: null })
         return
       }
       // Token refreshes fire on every app foreground (AppState-driven autoRefresh) —
