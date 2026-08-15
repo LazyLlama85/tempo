@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL!,
@@ -10,5 +11,8 @@ export const supabase = createClient(
       persistSession: true,
       detectSessionInUrl: false,
     },
+    // Same transient-failure tolerance as the native client — see
+    // lib/fetchWithRetry.ts.
+    global: { fetch: fetchWithRetry },
   }
 )

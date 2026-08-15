@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto'
 import 'expo-sqlite/localStorage/install'
 import { AppState } from 'react-native'
 import { createClient } from '@supabase/supabase-js'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL!,
@@ -13,6 +14,13 @@ export const supabase = createClient(
       persistSession: true,
       detectSessionInUrl: false,
     },
+    // Survive a transient backend blip instead of turning it into a user-facing
+    // error. A ~1-minute Supabase gateway outage (503s on every endpoint, with
+    // Postgres itself healthy) is what got the app rejected by App Review under
+    // Guideline 2.1(a) — onboarding's save failed and showed "Something went
+    // wrong". See lib/fetchWithRetry.ts for exactly which failures are retried
+    // and why writes are handled more conservatively than reads.
+    global: { fetch: fetchWithRetry },
   }
 )
 
