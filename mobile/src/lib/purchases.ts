@@ -309,32 +309,62 @@ export function introOffer(pkg: PurchasesPackage | null | undefined): IntroOffer
 export type IntroEligibilityStatus = 'eligible' | 'ineligible'
 
 /**
+ * WHY a product's intro price is or isn't shown. The UI only ever shows the
+ * offer for 'eligible', but collapsing the other three into one 'ineligible'
+ * (as this used to) made a founder report — "the year deal doesn't show" —
+ * impossible to answer without a device: an Apple ID that already used the
+ * offer, an offer that no longer exists on the product, and a status the store
+ * couldn't determine are three completely different problems with three
+ * different fixes, and they looked identical. Reported to analytics so the
+ * reason is visible remotely.
+ *
+ *  • 'eligible'    — the intro price WILL be charged. The only case that shows.
+ *  • 'ineligible'  — this Apple ID already used this offer (expected for anyone
+ *                    who has subscribed or trialed before, including while testing).
+ *  • 'no_offer'    — the product has no intro offer configured at all right now
+ *                    (e.g. the founding offer ended or was removed in App Store Connect).
+ *  • 'unknown'     — the store couldn't determine it. Treated as not-eligible per
+ *                    RevenueCat's own guidance ("display the non-intro price").
+ *  • 'unavailable' — SDK not present/configured, or a non-iOS platform.
+ */
+export type IntroEligibilityReason = 'eligible' | 'ineligible' | 'no_offer' | 'unknown' | 'unavailable'
+
+/**
  * Whether the CURRENT user is actually eligible for each product's intro/trial
  * price. iOS only — Android's Play Billing already filters ineligible offers
- * out of ProductDetails before they reach the SDK, so every id resolves
- * 'eligible' there and the store's own listing stays the source of truth.
- * Unresolvable (RevenueCat's UNKNOWN status, or any error) fails to
- * 'ineligible' — RevenueCat's own guidance: showing the non-intro price is the
- * only choice that's never misleading.
+ * out of ProductDetails before they reach the SDK, so the store's own listing
+ * stays the source of truth there.
+ *
+ * Anything other than a confirmed ELIGIBLE fails closed: showing a discount the
+ * store won't actually honor is the exact bug this gating exists to prevent
+ * (2026-08-05 — the paywall advertised $24.99 while StoreKit charged $34.99).
  */
 export async function checkIntroEligibility(
   productIdentifiers: string[],
-): Promise<Record<string, IntroEligibilityStatus>> {
-  const result: Record<string, IntroEligibilityStatus> = {}
+): Promise<Record<string, IntroEligibilityReason>> {
+  const result: Record<string, IntroEligibilityReason> = {}
   if (!productIdentifiers.length) return result
   if (Platform.OS !== 'ios' || !configured || !Purchases) {
-    for (const id of productIdentifiers) result[id] = 'eligible'
+    // Android: Play Billing only surfaces offers the user can actually get, so
+    // an offer that reached us here is one the store will honor.
+    const fallback: IntroEligibilityReason = Platform.OS === 'android' ? 'eligible' : 'unavailable'
+    for (const id of productIdentifiers) result[id] = fallback
     return result
   }
   try {
     const raw = await Purchases.checkTrialOrIntroductoryPriceEligibility(productIdentifiers)
-    const ELIGIBLE = Purchases.INTRO_ELIGIBILITY_STATUS?.INTRO_ELIGIBILITY_STATUS_ELIGIBLE
+    const E = Purchases.INTRO_ELIGIBILITY_STATUS
     for (const id of productIdentifiers) {
-      result[id] = raw?.[id]?.status === ELIGIBLE ? 'eligible' : 'ineligible'
+      const status = raw?.[id]?.status
+      result[id] =
+        status === E?.INTRO_ELIGIBILITY_STATUS_ELIGIBLE ? 'eligible'
+        : status === E?.INTRO_ELIGIBILITY_STATUS_INELIGIBLE ? 'ineligible'
+        : status === E?.INTRO_ELIGIBILITY_STATUS_NO_INTRO_OFFER_EXISTS ? 'no_offer'
+        : 'unknown'
     }
   } catch (e) {
     captureApiError('purchases.checkTrialOrIntroductoryPriceEligibility', e)
-    for (const id of productIdentifiers) result[id] = 'ineligible'
+    for (const id of productIdentifiers) result[id] = 'unknown'
   }
   return result
 }

@@ -129,6 +129,11 @@ export type EventProperties = {
   // Derived client-side from RevenueCat entitlement transitions; RevenueCat
   // webhooks remain the source of truth for revenue reporting.
   paywall_shown: { context: string }
+  // Why the annual intro offer was or wasn't advertised on this paywall view.
+  // Added 2026-08-18 for a founder report ("the year deal doesn't show") that
+  // was otherwise undiagnosable without a physical device — see
+  // lib/purchases.ts's IntroEligibilityReason for what each value means.
+  paywall_intro_offer: { plan: string; reason: string; offer_exists: boolean }
   paywall_dismissed: { context: string }
   // Which value prop the user actually swiped to on the paywall carousel. This is
   // how we learn WHICH feature sells Pro (vs. which one we merely believe sells

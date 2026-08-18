@@ -43,7 +43,7 @@ import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { PAYWALL_POINTS, type IoniconName } from '@/lib/proFeatures'
 import {
   getProOffering, purchaseProPackage, restorePurchases, introOffer, checkIntroEligibility,
-  type IntroOffer, type IntroEligibilityStatus,
+  type IntroOffer, type IntroEligibilityReason,
 } from '@/lib/purchases'
 import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
@@ -118,7 +118,7 @@ export default function PaywallScreen() {
   const userId = useAuthStore((s) => s.session?.user.id) ?? ''
 
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
-  const [eligibility, setEligibility] = useState<Record<string, IntroEligibilityStatus>>({})
+  const [eligibility, setEligibility] = useState<Record<string, IntroEligibilityReason>>({})
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<PlanKey>('annual')
   const [busy, setBusy] = useState(false)
@@ -166,6 +166,20 @@ export default function PaywallScreen() {
       if (cancelled) return
       setEligibility(elig)
       setLoading(false)
+      // Report WHY the annual offer is (or isn't) being advertised. Founder-
+      // reported 2026-08-18 that "the year deal doesn't show" — without this,
+      // answering that needs a physical device, because "already used it",
+      // "the offer no longer exists", and "the store couldn't say" all look
+      // identical from the outside and have completely different fixes.
+      const annualId = o?.annual?.product.identifier
+      track('paywall_intro_offer', {
+        plan: 'annual',
+        reason: annualId ? (elig[annualId] ?? 'unknown') : 'no_package',
+        // Whether the product carries an intro offer at all, independent of who
+        // is asking — separates "offer removed in App Store Connect" from "this
+        // Apple ID is not eligible for it".
+        offer_exists: !!o?.annual?.product.introPrice,
+      })
     })()
     return () => { cancelled = true }
   }, [])
@@ -178,8 +192,14 @@ export default function PaywallScreen() {
   // Only ever surface an intro/trial price for a package the user is actually
   // eligible for — an existing `introPrice` describes the offer, not whether
   // THIS purchase will honor it.
+  //
+  // Fixed 2026-08-18: this tested `!== 'ineligible'`, which fails OPEN — any id
+  // missing from the map (the empty initial state, an id the store didn't return,
+  // an unresolved status) counted as eligible and advertised a discount the store
+  // may not honor. That is precisely the bug this gate exists to prevent, so it
+  // now requires a positively confirmed 'eligible'.
   const introOfferIfEligible = (pkg: PurchasesPackage | null): IntroOffer | null =>
-    pkg && eligibility[pkg.product.identifier] !== 'ineligible' ? introOffer(pkg) : null
+    pkg && eligibility[pkg.product.identifier] === 'eligible' ? introOffer(pkg) : null
 
   const annualIntro = introOfferIfEligible(annualPkg)
   const selectedIntro = introOfferIfEligible(selectedPkg)
