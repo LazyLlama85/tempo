@@ -525,17 +525,24 @@ export default function PaywallScreen() {
       </ScrollView>
 
       {/* Sticky CTA footer */}
+      {/* `loading` gates this too (2026-08-18, founder-reported: "for a second it
+          flashed Get Pro 25 which shouldn't happen, then it said unlock arclo
+          pro"). The plans block above was already behind the loading gate, but
+          this footer was not — so the moment the offering resolved it rendered a
+          price-bearing label while eligibility was still unknown, then corrected
+          itself a tick later. It was also tappable in that window, i.e. a purchase
+          could start before we knew which price the store would actually charge. */}
       <View style={styles.footer}>
         <PressableScale
-          style={[styles.cta, (!hasPlans || busy) && styles.ctaDisabled]}
+          style={[styles.cta, (!hasPlans || busy || loading) && styles.ctaDisabled]}
           onPress={onPurchase}
-          disabled={!hasPlans || busy}
+          disabled={!hasPlans || busy || loading}
           scaleTo={0.97}
           accessibilityRole="button"
-          accessibilityLabel={ctaLabel}
-          accessibilityState={{ disabled: !hasPlans || busy, busy }}
+          accessibilityLabel={loading ? 'Loading plans' : ctaLabel}
+          accessibilityState={{ disabled: !hasPlans || busy || loading, busy: busy || loading }}
         >
-          {busy ? (
+          {busy || loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.ctaText}>{ctaLabel}</Text>
