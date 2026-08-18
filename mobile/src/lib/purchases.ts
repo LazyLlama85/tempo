@@ -220,11 +220,21 @@ export interface PurchaseResult {
   ok: boolean        // the purchase call completed without error
   isPro: boolean     // the user now holds the Pro entitlement
   cancelled: boolean // the user dismissed the native purchase sheet
+  /**
+   * The store's own error identity when the purchase failed — RevenueCat's
+   * `code`/`underlyingErrorMessage` (added 2026-08-18). App Review rejection
+   * 2.1(b) came down to five sub-second purchase failures whose cause was
+   * invisible: the paywall only knew "error", and the real reason went to
+   * Sentry alone. Surfacing it lets the caller put it on the analytics event,
+   * so the next occurrence is diagnosable without a device.
+   */
+  code?: string
+  message?: string
 }
 
 /** Buy a package. Distinguishes a real failure from a user cancel so the UI stays quiet on cancel. */
 export async function purchaseProPackage(pkg: PurchasesPackage): Promise<PurchaseResult> {
-  if (!configured || !Purchases) return { ok: false, isPro: false, cancelled: false }
+  if (!configured || !Purchases) return { ok: false, isPro: false, cancelled: false, code: 'sdk_unavailable' }
   try {
     const { customerInfo } = await Purchases.purchasePackage(pkg)
     return { ok: true, isPro: infoIsPro(customerInfo), cancelled: false }
@@ -232,7 +242,16 @@ export async function purchaseProPackage(pkg: PurchasesPackage): Promise<Purchas
     // RevenueCat sets userCancelled on the error when the user backs out of the sheet.
     if ((e as { userCancelled?: boolean })?.userCancelled) return { ok: false, isPro: false, cancelled: true }
     captureApiError('purchases.purchasePackage', e)
-    return { ok: false, isPro: false, cancelled: false }
+    const err = e as { code?: unknown; message?: unknown; underlyingErrorMessage?: unknown }
+    return {
+      ok: false,
+      isPro: false,
+      cancelled: false,
+      code: err?.code != null ? String(err.code) : undefined,
+      // Prefer the StoreKit-level message when RevenueCat provides one — it's the
+      // half that actually names the cause (agreement/product/sandbox state).
+      message: String(err?.underlyingErrorMessage ?? err?.message ?? '').slice(0, 300) || undefined,
+    }
   }
 }
 

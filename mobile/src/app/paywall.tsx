@@ -219,7 +219,7 @@ export default function PaywallScreen() {
       router.back()
       return
     }
-    track('purchase_failed', { plan: selected, reason: 'error' })
+    track('purchase_failed', { plan: selected, reason: 'error', code: res.code, message: res.message })
     Alert.alert('Purchase didn’t complete', 'Something went wrong and you were not charged. Please try again.')
   }
 

@@ -137,7 +137,12 @@ export type EventProperties = {
   // The custom paywall's purchase funnel (RevenueCat webhooks remain the revenue truth).
   purchase_started: { plan: string; context: string }
   purchase_completed: { plan: string; context: string }
-  purchase_failed: { plan: string; reason: 'cancelled' | 'error' }
+  // `code`/`message` added 2026-08-18 after App Review rejection 2.1(b): five
+  // purchase attempts all failed in under a second, but `reason: 'error'` alone
+  // couldn't say WHY — the underlying RevenueCat error only went to Sentry, which
+  // isn't queryable alongside the funnel. Capturing the store's own error code
+  // here means the next failure is diagnosable from analytics directly.
+  purchase_failed: { plan: string; reason: 'cancelled' | 'error'; code?: string; message?: string }
   restore_completed: { restored: boolean }
   trial_started: undefined
   trial_converted: undefined
