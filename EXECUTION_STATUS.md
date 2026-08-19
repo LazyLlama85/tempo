@@ -18,6 +18,37 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-19 (later the same day) — THE ACTUAL CAUSE of the dead paywall, and it was self-inflicted:
+every OTA update was shipping an app with no RevenueCat, PostHog, Sentry, or RapidAPI key.**
+**`eas.json`'s `build.<profile>.env` is read by `eas build`. It is NOT read by `eas update`** — an
+update resolves env from the EAS *environment variable store* for `--environment <name>`, an entirely
+separate place, and this project's store holds **only the Supabase pair**. Proven, not theorised: grepped
+the exported Hermes bundle against `eas.json` — `EXPO_PUBLIC_SUPABASE_URL`/`_PUBLISHABLE_KEY` present;
+`EXPO_PUBLIC_REVENUECAT_KEY`, `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_SENTRY_DSN`,
+`EXPO_PUBLIC_RAPIDAPI_KEY`, `EXPO_PUBLIC_PRO_ENTITLEMENT` all **missing**. Consequences, in order of
+severity: RevenueCat never configures → `loadProPlans()` returns `sdk_unavailable` → **nothing is
+purchasable**, which is precisely the founder's screenshot; PostHog no-ops → **zero analytics**, so the
+failure reports nothing; Sentry off; and the ~641 uncached exercises lose their media source.
+**Supabase kept working, which is exactly why this went unnoticed** — the app looked fine with its whole
+monetization + telemetry layer gone. Every one of those modules is written to no-op safely without its
+key (correct for local dev, catastrophic here), so nothing complained anywhere.
+**Three earlier readings this session were wrong because of it**, and they're corrected in the record:
+`paywall_intro_offer` "never firing" was read as "the founder is still on the old bundle" — no, PostHog
+was disabled; same for the missing `paywall_shown` after the screenshot; and "GIFs take so long to
+load" had a contributing cause nobody had named.
+**Fixed mechanically, not by vigilance:** `mobile/scripts/publish-update.sh <branch> "<message>"` exports
+every `EXPO_PUBLIC_*` from the matching `eas.json` build profile into the process (so Metro inlines the
+same values a native build gets; an already-set var wins so deliberate overrides still work), hard-fails
+if any of the four load-bearing keys is empty, then runs `eas update`. **Never call `eas update`
+directly again.** Republished and verified by re-grepping the new bundle: all iOS keys present (the
+Android RevenueCat key is correctly absent from the iOS bundle and present in the Android one).
+Also fixed the dead-end UI the screenshot showed: the inline "Try again" button added earlier that day
+was pushed below the fold **by the sticky footer itself**, so the only visible control was the disabled
+"Unlock Arclo Pro". The footer button now *becomes* the retry whenever there are no plans.
+OTA groups `da592226` (keys restored) then `7942ef4c` (CTA retry). 438/438, tsc clean.
+**▶ NEXT:** force-close, reopen, open the paywall. Prices should load. If they don't, `paywall_plans_unavailable`
+now actually reaches PostHog and names the cause.
+
 **2026-08-19 — Monetization hardening: the paywall could no longer be a dead end.** Founder screenshot:
 "Subscriptions aren't available right now" with a greyed-out CTA. PostHog puts a **working** paywall on
 the same device 5 minutes earlier (`app_open` 17:36:04 → `paywall_shown` 17:36:08 → `purchase_started`
@@ -517,6 +548,11 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-19 (b)** — Found the real cause of the dead paywall: `eas update` does not read
+  `eas.json`'s build-profile env, so every OTA shipped without RevenueCat/PostHog/Sentry/RapidAPI keys.
+  Added `mobile/scripts/publish-update.sh` (inlines the profile env, refuses to publish without the
+  load-bearing keys), republished, and moved the paywall retry onto the always-visible sticky CTA.
 
 - **2026-08-19** — Monetization hardening. Paywall plan loading gained retry, dashboard fallbacks
   (`lib/proPlans.ts`), a Try-again affordance, foreground re-fetch, and a `paywall_plans_unavailable`
