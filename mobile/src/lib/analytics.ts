@@ -134,6 +134,13 @@ export type EventProperties = {
   // was otherwise undiagnosable without a physical device — see
   // lib/purchases.ts's IntroEligibilityReason for what each value means.
   paywall_intro_offer: { plan: string; reason: string; offer_exists: boolean }
+  // Why the paywall could show nothing to buy. Added 2026-08-19 after the
+  // paywall reported "Subscriptions aren't available right now" minutes after a
+  // purchase sheet had opened fine — the old code collapsed five distinct causes
+  // (SDK missing, network failure, no offering, no products from the store, no
+  // annual/monthly package) into a single null, making it undiagnosable without
+  // a device. See lib/purchases.PlansUnavailableReason for what each means.
+  paywall_plans_unavailable: { reason: string; offering_id?: string; package_count: number; retry: boolean }
   paywall_dismissed: { context: string }
   // Which value prop the user actually swiped to on the paywall carousel. This is
   // how we learn WHICH feature sells Pro (vs. which one we merely believe sells

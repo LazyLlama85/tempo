@@ -18,8 +18,11 @@
 // hardcoded here, so lifetime/yearly/monthly are configured entirely in the dashboard.
 
 import { Platform } from 'react-native'
-import type { CustomerInfo, PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
+import type {
+  CustomerInfo, PurchasesOffering, PurchasesOfferings, PurchasesPackage,
+} from 'react-native-purchases'
 import { captureApiError, captureException } from '@/lib/crashReporting'
+import { resolveProPlans, type PlansUnavailableReason } from '@/lib/proPlans'
 
 // The entitlement that unlocks Pro. Change via env to match your dashboard.
 export const PRO_ENTITLEMENT = process.env.EXPO_PUBLIC_PRO_ENTITLEMENT || 'pro'
@@ -189,14 +192,28 @@ export function addProUpdateListener(cb: (isPro: boolean, info: CustomerInfo) =>
   }
 }
 
-/** Restore prior purchases (App Store / Play). Returns whether the user is now Pro. */
-export async function restorePurchases(): Promise<boolean> {
-  if (!configured || !Purchases) return false
+export interface RestoreResult {
+  /** The user holds Pro after the restore. */
+  isPro: boolean
+  /**
+   * The restore itself could not run (SDK missing, or the store call threw).
+   * Distinct from a restore that ran and found nothing — collapsing the two
+   * (as the old boolean return did) made the paywall tell a user with a network
+   * problem "We couldn't find an active subscription on this Apple ID", which is
+   * a statement of fact the app had no basis for. Restore is something App
+   * Review explicitly exercises, so that wording mattered twice over.
+   */
+  failed: boolean
+}
+
+/** Restore prior purchases (App Store / Play). */
+export async function restorePurchases(): Promise<RestoreResult> {
+  if (!configured || !Purchases) return { isPro: false, failed: true }
   try {
-    return infoIsPro(await Purchases.restorePurchases())
+    return { isPro: infoIsPro(await Purchases.restorePurchases()), failed: false }
   } catch (e) {
     captureApiError('purchases.restore', e)
-    return false
+    return { isPro: false, failed: true }
   }
 }
 
@@ -206,14 +223,69 @@ export async function restorePurchases(): Promise<boolean> {
 // effect with zero app changes. Returns null when the SDK isn't present (dev/Expo Go)
 // or no offering is configured — the paywall degrades to a graceful unavailable state.
 export async function getProOffering(): Promise<PurchasesOffering | null> {
-  if (!configured || !Purchases) return null
-  try {
-    const offerings = await Purchases.getOfferings()
-    return offerings?.current ?? null
-  } catch (e) {
-    captureApiError('purchases.getOfferings', e)
-    return null
+  return (await loadProPlans()).offering
+}
+
+// ── Plan resolution (the paywall's actual entry point) ─────────────────────────
+// `getProOffering` above used to BE the paywall's loader: one `getOfferings()`
+// call, `offerings.current`, and `null` on any problem. Every distinct failure
+// therefore collapsed into the same dead-end screen ("Subscriptions aren't
+// available right now") with no retry and no way to tell — from outside the
+// device — which of several unrelated causes had fired. That is exactly what
+// happened on 2026-08-19: the paywall demonstrably had packages minutes
+// earlier, then reported none, and nothing in the app could say why.
+//
+// Two halves to the fix. The pure "which packages can we sell?" ladder lives in
+// lib/proPlans.ts (dashboard-misconfiguration fallbacks, unit-tested); the retry
+// lives here, because it's the part that needs the SDK. `lib/fetchWithRetry`
+// hardened every Supabase call against transient failure, but RevenueCat calls
+// its own network stack and was never covered — a single blip between the device
+// and RevenueCat's /offerings endpoint permanently disabled purchasing on that
+// screen, with no way back short of closing and reopening the paywall.
+
+export type { PlansUnavailableReason } from '@/lib/proPlans'
+
+export interface ProPlans {
+  offering: PurchasesOffering | null
+  annual: PurchasesPackage | null
+  monthly: PurchasesPackage | null
+  /** `null` when at least one plan resolved; otherwise why not. */
+  reason: PlansUnavailableReason | null
+  /** Diagnostics for the analytics event — never rendered. */
+  offeringId: string | null
+  packageCount: number
+}
+
+const OFFERINGS_ATTEMPTS = 3
+const OFFERINGS_BACKOFF_MS = [400, 1200]
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+/** `getOfferings()` with bounded retry. Returns null only if every attempt threw. */
+async function fetchOfferings(): Promise<PurchasesOfferings | null> {
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < OFFERINGS_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(OFFERINGS_BACKOFF_MS[attempt - 1] ?? 1200)
+    try {
+      return (await Purchases.getOfferings()) as PurchasesOfferings
+    } catch (e) {
+      lastError = e
+    }
   }
+  captureApiError('purchases.getOfferings', lastError)
+  return null
+}
+
+/**
+ * Resolve the annual + monthly Pro packages, with retry and the dashboard
+ * fallbacks in lib/proPlans. Never throws; the failure mode is a populated
+ * `reason` the paywall reports to analytics and recovers from with a retry.
+ */
+export async function loadProPlans(): Promise<ProPlans> {
+  if (!configured || !Purchases) {
+    return { offering: null, annual: null, monthly: null, reason: 'sdk_unavailable', offeringId: null, packageCount: 0 }
+  }
+  return resolveProPlans<PurchasesPackage, PurchasesOffering>(await fetchOfferings())
 }
 
 export interface PurchaseResult {

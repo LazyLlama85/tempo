@@ -26,15 +26,15 @@
 // The personalized scheduling-impact number is preserved as the FIRST slide's
 // headline rather than a separate hero, so it's still the first thing read.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity,
+  ScrollView, View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity, AppState,
   type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
+import type { PurchasesPackage } from 'react-native-purchases'
 import { Palettes, Spacing, Radius, Elevation } from '@/constants/theme'
 import { BRAND_NAME } from '@/constants/brand'
 import type { Palette } from '@/theme'
@@ -42,8 +42,8 @@ import { ScreenHeader, DismissButton, TempoPulse } from '@/components/brand'
 import { PressableScale, FadeInView, PopIn } from '@/components/motion'
 import { PAYWALL_POINTS, type IoniconName } from '@/lib/proFeatures'
 import {
-  getProOffering, purchaseProPackage, restorePurchases, introOffer, checkIntroEligibility,
-  type IntroOffer, type IntroEligibilityReason,
+  loadProPlans, purchaseProPackage, restorePurchases, introOffer, checkIntroEligibility,
+  type IntroOffer, type IntroEligibilityReason, type ProPlans, type PlansUnavailableReason,
 } from '@/lib/purchases'
 import { useEntitlementStore } from '@/stores/entitlements'
 import { track } from '@/lib/analytics'
@@ -53,6 +53,17 @@ import { fetchSchedulingImpact, type SchedulingImpact } from '@/lib/schedulingIm
 import { fetchFoundingOfferEndsAt } from '@/lib/proConfig'
 
 type PlanKey = 'annual' | 'monthly'
+
+// What to tell the user when no plan could be resolved. Only the reachability
+// case is actionable by them; every other cause is a store/dashboard problem on
+// our side, so the copy says "right now" rather than blaming their connection —
+// but the real reason still reaches us via the paywall_plans_unavailable event.
+function unavailableMessage(reason: PlansUnavailableReason | null): string {
+  if (reason === 'fetch_error') {
+    return 'We couldn’t reach the App Store. Check your connection and try again — if you already subscribed, tap Restore below.'
+  }
+  return 'Subscriptions aren’t available right now. Try again in a moment — if you already subscribed, tap Restore below.'
+}
 
 // Always dark, regardless of the app's own light/dark setting — the cheapest
 // reliable "this is the premium room" signal, and it never touches the global
@@ -117,7 +128,7 @@ export default function PaywallScreen() {
   const setIsPro = useEntitlementStore((s) => s.setIsPro)
   const userId = useAuthStore((s) => s.session?.user.id) ?? ''
 
-  const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [plans, setPlans] = useState<ProPlans | null>(null)
   const [eligibility, setEligibility] = useState<Record<string, IntroEligibilityReason>>({})
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<PlanKey>('annual')
@@ -150,42 +161,82 @@ export default function PaywallScreen() {
     fetchFoundingOfferEndsAt(supabase).then(setFoundingEndsAt).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const o = await getProOffering()
-      if (cancelled) return
-      setOffering(o)
-      // Default to annual when it exists (best value), else monthly.
-      setSelected(o?.annual ? 'annual' : 'monthly')
-      // Gate intro/trial pricing on real eligibility before ever painting it —
-      // see checkIntroEligibility's doc comment. Held in the same loading gate
-      // as the offering fetch so the price never flashes $24.99 then $35.
-      const ids = [o?.annual, o?.monthly].filter((p): p is PurchasesPackage => !!p).map((p) => p.product.identifier)
-      const elig = await checkIntroEligibility(ids)
-      if (cancelled) return
-      setEligibility(elig)
-      setLoading(false)
-      // Report WHY the annual offer is (or isn't) being advertised. Founder-
-      // reported 2026-08-18 that "the year deal doesn't show" — without this,
-      // answering that needs a physical device, because "already used it",
-      // "the offer no longer exists", and "the store couldn't say" all look
-      // identical from the outside and have completely different fixes.
-      const annualId = o?.annual?.product.identifier
-      track('paywall_intro_offer', {
-        plan: 'annual',
-        reason: annualId ? (elig[annualId] ?? 'unknown') : 'no_package',
-        // Whether the product carries an intro offer at all, independent of who
-        // is asking — separates "offer removed in App Store Connect" from "this
-        // Apple ID is not eligible for it".
-        offer_exists: !!o?.annual?.product.introPrice,
+  // Loading the plans is a named, repeatable operation rather than a one-shot
+  // effect body, because it now has to be re-runnable: from the "Try again"
+  // button in the unavailable state, and automatically when the app comes back
+  // to the foreground (the founder's most likely recovery — background the app,
+  // fix the connection or the store state, come back). Previously a single
+  // failed fetch left the screen permanently dead until it was closed and
+  // reopened, which is how a transient blip turned into "monetization is broken".
+  const cancelledRef = useRef(false)
+  useEffect(() => () => { cancelledRef.current = true }, [])
+
+  // Mirrors for the foreground listener below: it is registered once (so it
+  // isn't torn down and re-added on every render) and would otherwise close
+  // over the first render's state forever.
+  const plansRef = useRef<ProPlans | null>(null)
+  const busyRef = useRef(false)
+  useEffect(() => { plansRef.current = plans }, [plans])
+  useEffect(() => { busyRef.current = busy }, [busy])
+
+  const load = useCallback(async (isRetry: boolean) => {
+    setLoading(true)
+    const p = await loadProPlans()
+    if (cancelledRef.current) return
+    setPlans(p)
+    // Default to annual when it exists (best value), else monthly.
+    setSelected(p.annual ? 'annual' : 'monthly')
+    // Gate intro/trial pricing on real eligibility before ever painting it —
+    // see checkIntroEligibility's doc comment. Held in the same loading gate
+    // as the offering fetch so the price never flashes $24.99 then $35.
+    const ids = [p.annual, p.monthly].filter((x): x is PurchasesPackage => !!x).map((x) => x.product.identifier)
+    const elig = await checkIntroEligibility(ids)
+    if (cancelledRef.current) return
+    setEligibility(elig)
+    setLoading(false)
+
+    if (p.reason) {
+      // Nothing to buy. Say WHY, remotely — this is the event that makes the
+      // difference between "monetization is broken" and a one-line diagnosis.
+      track('paywall_plans_unavailable', {
+        reason: p.reason,
+        offering_id: p.offeringId ?? undefined,
+        package_count: p.packageCount,
+        retry: isRetry,
       })
-    })()
-    return () => { cancelled = true }
+      return
+    }
+    // Report WHY the annual offer is (or isn't) being advertised. Founder-
+    // reported 2026-08-18 that "the year deal doesn't show" — without this,
+    // answering that needs a physical device, because "already used it",
+    // "the offer no longer exists", and "the store couldn't say" all look
+    // identical from the outside and have completely different fixes.
+    const annualId = p.annual?.product.identifier
+    track('paywall_intro_offer', {
+      plan: 'annual',
+      reason: annualId ? (elig[annualId] ?? 'unknown') : 'no_package',
+      // Whether the product carries an intro offer at all, independent of who
+      // is asking — separates "offer removed in App Store Connect" from "this
+      // Apple ID is not eligible for it".
+      offer_exists: !!p.annual?.product.introPrice,
+    })
   }, [])
 
-  const annualPkg = offering?.annual ?? null
-  const monthlyPkg = offering?.monthly ?? null
+  useEffect(() => { void load(false) }, [load])
+
+  // Retry on foreground, but only while there is still nothing to buy — a
+  // resolved paywall must never re-fetch behind the user (it would reset the
+  // selected plan mid-decision, and a foreground event also fires when the
+  // native purchase sheet closes).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && plansRef.current?.reason && !busyRef.current) void load(true)
+    })
+    return () => sub.remove()
+  }, [load])
+
+  const annualPkg = plans?.annual ?? null
+  const monthlyPkg = plans?.monthly ?? null
   const selectedPkg = selected === 'annual' ? annualPkg : monthlyPkg
   const hasPlans = !!(annualPkg || monthlyPkg)
 
@@ -240,20 +291,35 @@ export default function PaywallScreen() {
       return
     }
     track('purchase_failed', { plan: selected, reason: 'error', code: res.code, message: res.message })
+    if (res.ok) {
+      // The store completed the transaction but the Pro entitlement isn't active
+      // on the returned customer info. Telling this user "you were not charged"
+      // would be false — and it's the one failure a Restore can actually fix
+      // (RevenueCat's receipt sync catching up), so point them at it.
+      Alert.alert(
+        'Almost there',
+        `Your purchase went through, but ${BRAND_NAME} Pro hasn’t unlocked yet. Tap Restore below — if it still doesn’t unlock, contact us and we’ll sort it out.`,
+      )
+      return
+    }
     Alert.alert('Purchase didn’t complete', 'Something went wrong and you were not charged. Please try again.')
   }
 
   const onRestore = async () => {
     if (busy) return
     setBusy(true)
-    const restored = await restorePurchases()
+    const res = await restorePurchases()
     setBusy(false)
-    track('restore_completed', { restored })
-    if (restored) {
+    track('restore_completed', { restored: res.isPro })
+    if (res.isPro) {
       setIsPro(true)
+      // A restore is also the recovery path when plans failed to load, so pull
+      // the screen back out of its unavailable state on the way out.
       Alert.alert(`${BRAND_NAME} Pro restored`, 'Your subscription is active again.', [
         { text: 'Great', onPress: () => router.back() },
       ])
+    } else if (res.failed) {
+      Alert.alert('Couldn’t check your purchases', 'We couldn’t reach the App Store. Check your connection and try again.')
     } else {
       Alert.alert('Nothing to restore', 'We couldn’t find an active subscription on this Apple ID.')
     }
@@ -395,10 +461,24 @@ export default function PaywallScreen() {
           </View>
         ) : !hasPlans ? (
           <View style={styles.loadingBox}>
-            <Ionicons name="cloud-offline-outline" size={22} color={C.textSecondary} />
-            <Text style={styles.loadingText}>
-              Subscriptions aren’t available right now. If you already subscribed, tap Restore below.
-            </Text>
+            <Ionicons
+              name={plans?.reason === 'fetch_error' ? 'cloud-offline-outline' : 'card-outline'}
+              size={22}
+              color={C.textSecondary}
+            />
+            <Text style={styles.loadingText}>{unavailableMessage(plans?.reason ?? null)}</Text>
+            {/* The whole point of the fix: this state is no longer a dead end.
+                Before, a single failed offerings fetch left the screen stuck
+                until it was closed and reopened. */}
+            <PressableScale
+              style={styles.retryBtn}
+              onPress={() => void load(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Try loading plans again"
+            >
+              <Ionicons name="refresh" size={15} color={C.text} />
+              <Text style={styles.retryText}>Try again</Text>
+            </PressableScale>
           </View>
         ) : (
           // Side-by-side cards: the two prices are compared against each other, so
@@ -885,6 +965,12 @@ const styles = StyleSheet.create({
   foundingBannerText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.gold },
 
   loadingBox: { alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.xs,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+    borderRadius: Radius.pill, borderWidth: 1, borderColor: C.outlineVariant,
+  },
+  retryText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: C.text },
   loadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },
 
   // marginTop leaves room for the badge that floats above the annual card.

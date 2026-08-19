@@ -3549,6 +3549,49 @@ live — filename-matching against `list_migrations`' recorded names produces fa
 demonstrably exists), so a real audit needs per-file schema-existence verification, not name-diffing.
 Flagged as a real follow-up, not attempted rushed.
 
+**Monetization: the paywall could no longer be a dead end (2026-08-19).** Founder report: the paywall
+showed "Subscriptions aren't available right now" with a greyed-out CTA — minutes after PostHog shows a
+purchase sheet opening fine on the same device (`purchase_started` at 17:36:12 on the annual package,
+so packages had demonstrably resolved). The app could not say why, because the old loader read exactly
+two fields (`offerings.current`, then `.annual` / `.monthly`) and turned everything else into a single
+`null`. Three separate defects, all now fixed:
+- **No retry.** `lib/fetchWithRetry.ts` hardened every *Supabase* call, but RevenueCat uses its own
+  network stack and was never covered — one blip on `getOfferings()` permanently disabled purchasing on
+  that screen. `lib/purchases.ts` now retries the offerings fetch up to 3 attempts (400ms/1200ms), the
+  same shape as the Supabase policy; the call is a pure read, so a retry has no write hazard.
+- **No fallbacks for two silent dashboard misconfigurations.** New pure module **`lib/proPlans.ts`**
+  (`resolveProPlans`) falls back from `offerings.current` to any offering in `offerings.all` that has
+  packages, and from the `.annual`/`.monthly` typed accessors — which are populated **only** for
+  packages using RevenueCat's predefined `$rc_annual` / `$rc_monthly` identifiers — to `packageType`,
+  then to the product's ISO-8601 `subscriptionPeriod`. Without that second ladder, an offering whose
+  packages use CUSTOM identifiers returns a fully-populated `availablePackages` with both accessors
+  null: products load and the paywall still shows nothing to buy. Split into its own module purely so
+  it is testable — `lib/purchases.ts` `require`s the native SDK at import, which the deterministic-core
+  Jest suite can't load. 10 tests in `__tests__/proPlans.test.ts`.
+- **No recovery and no diagnosis.** The unavailable state now carries a **Try again** button and
+  re-fetches automatically when the app returns to the foreground (guarded so a *resolved* paywall never
+  re-fetches behind the user — a foreground event also fires when the native purchase sheet closes).
+  Every failure reports a specific `PlansUnavailableReason` through the new `paywall_plans_unavailable`
+  analytics event: `sdk_unavailable` / `fetch_error` / `no_offering` / `no_packages` (the App Store
+  Connect signature — agreement not in effect, product not Ready to Submit, id mismatch) /
+  `no_subscriptions`. The five used to be indistinguishable from outside the device.
+
+Two adjacent correctness fixes in the same pass:
+- **`restorePurchases()` now returns `{ isPro, failed }`** instead of a bare boolean. A restore that
+  *couldn't run* (network failure) previously told the user "We couldn't find an active subscription on
+  this Apple ID" — a factual claim the app had no basis for, on the one flow App Review always exercises.
+- **A purchase that completes without unlocking** no longer says "you were not charged." `res.ok &&
+  !res.isPro` (store transaction succeeded, entitlement not active on the returned customer info) now
+  gets its own message pointing at Restore, which is the one thing that can actually fix it.
+
+**F9a (RevenueCat entitlement-identifier mismatch) is closed — disproven, not fixed.** The long-standing
+risk was that `EXPO_PUBLIC_PRO_ENTITLEMENT="Tempo: Fitness Planner Pro"` (eas.json) is a display name
+rather than the dashboard's entitlement *identifier*, in which case every purchase would succeed and
+nothing would ever unlock. It can't be: `purchase_completed` is tracked **only** when `res.isPro` is
+true, i.e. only when `info.entitlements.active["Tempo: Fitness Planner Pro"]` resolved — and that event
+fired on 2026-08-18T22:22:10Z. The configured string is the real identifier. `reportPossibleEntitlementMismatch`
+stays as the standing alarm.
+
 ---
 
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*
