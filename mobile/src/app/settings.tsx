@@ -476,7 +476,7 @@ export default function SettingsScreen() {
                     <Ionicons name="sparkles" size={18} color={C.primary} />
                   </View>
                   <View style={styles.settingInfo}>
-                    <Text style={styles.settingLabel}>TEMPO PRO</Text>
+                    <Text style={styles.settingLabel}>{BRAND_NAME.toUpperCase()} PRO</Text>
                     <Text style={styles.settingValue}>Unlock adaptive coaching & deep analytics</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={C.primary} />
@@ -487,7 +487,7 @@ export default function SettingsScreen() {
                     <Ionicons name="star" size={18} color={C.primary} />
                   </View>
                   <View style={styles.settingInfo}>
-                    <Text style={styles.settingLabel}>TEMPO PRO</Text>
+                    <Text style={styles.settingLabel}>{BRAND_NAME.toUpperCase()} PRO</Text>
                     <Text style={styles.settingValue}>Active — manage subscription</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={C.outlineVariant} />
@@ -510,7 +510,7 @@ export default function SettingsScreen() {
                   <Ionicons name="flask-outline" size={18} color={C.primary} />
                 </View>
                 <View style={styles.settingInfo}>
-                  <Text style={styles.settingLabel}>TEMPO PRO (TESTER)</Text>
+                  <Text style={styles.settingLabel}>{BRAND_NAME.toUpperCase()} PRO (TESTER)</Text>
                   <Text style={styles.settingValue}>
                     {isPro ? 'On — Pro features unlocked' : 'Off — paywalls & free limits show'}
                   </Text>
