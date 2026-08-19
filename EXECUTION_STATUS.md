@@ -18,6 +18,40 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-19 — Monetization hardening: the paywall could no longer be a dead end.** Founder screenshot:
+"Subscriptions aren't available right now" with a greyed-out CTA. PostHog puts a **working** paywall on
+the same device 5 minutes earlier (`app_open` 17:36:04 → `paywall_shown` 17:36:08 → `purchase_started`
+on the *annual package* 17:36:12 → `purchase_failed` reason `cancelled` 17:36:16), so packages had
+demonstrably resolved and then didn't. The app **could not say why**: the loader read `offerings.current`,
+then `.annual`/`.monthly`, and turned every other outcome into one `null` — one dead-end screen for
+five unrelated causes, with no retry. Fixed on all three axes:
+1. **Retry.** `lib/fetchWithRetry.ts` (the 2026-08-14 rejection fix) covers **Supabase only**; RevenueCat
+   uses its own network stack and was never covered, so a single blip on `getOfferings()` permanently
+   disabled purchasing on that screen. Now 3 attempts, 400ms/1200ms — a pure read, so no write hazard.
+2. **Dashboard fallbacks** (new pure `lib/proPlans.ts`, 10 tests): `current` → any offering in `all` with
+   packages; `.annual`/`.monthly` → `packageType` → the product's ISO-8601 `subscriptionPeriod`. The
+   accessors are populated **only** for RevenueCat's predefined `$rc_annual`/`$rc_monthly` identifiers, so
+   an offering built with CUSTOM identifiers returns a full `availablePackages` with both accessors null:
+   products load and nothing is purchasable, with no outward symptom.
+3. **Recovery + diagnosis.** A **Try again** button, an automatic re-fetch on app foreground (guarded so a
+   *resolved* paywall never re-fetches behind the user), and a new `paywall_plans_unavailable` event
+   carrying the specific reason: `sdk_unavailable` / `fetch_error` / `no_offering` / `no_packages` (the
+   App Store Connect signature) / `no_subscriptions`.
+Two adjacent correctness fixes: `restorePurchases()` now returns `{ isPro, failed }` — a restore that
+*couldn't run* used to tell the user "We couldn't find an active subscription on this Apple ID", a claim
+the app had no basis for, on the one flow App Review always exercises; and a purchase that completes
+without unlocking (`ok && !isPro`) no longer says "you were not charged" and points at Restore instead.
+`tsc` clean, **438/438** tests. Shipped OTA (group `6c5b08ef`).
+**F9a is CLOSED — disproven, not fixed.** The standing risk that `EXPO_PUBLIC_PRO_ENTITLEMENT=
+"Tempo: Fitness Planner Pro"` is a display name rather than the dashboard identifier (in which case every
+purchase would succeed and nothing would ever unlock) cannot be true: `purchase_completed` is tracked
+**only** when `res.isPro`, i.e. only when `entitlements.active["Tempo: Fitness Planner Pro"]` resolved —
+and it fired 2026-08-18T22:22:10Z. The configured string is the real identifier.
+**▶ NEXT (needs the founder, one minute):** open the paywall once on the new bundle. If plans load, this
+was the transient failure and it's now self-healing. If it still says unavailable, `paywall_plans_unavailable`
+now names the cause — `no_packages` points at App Store Connect (Paid Apps Agreement / product state),
+`fetch_error` at reachability, `no_offering`/`no_subscriptions` at the RevenueCat dashboard.
+
 **2026-08-14 — THIRD App Store rejection (Guideline 2.1(a), "error message displayed when we completed
 onboarding", iPad Air M3 / iPadOS 26.6, build 1.0(27)). Root-caused from the reviewer's own request
 log: a ~1-minute Supabase API-gateway outage, not a code bug.** Found the reviewer's account directly
@@ -442,10 +476,12 @@ them).
    Google Calendar" button right on the scope error instead of a dead end. What's left is genuinely
    founder-only: tap it, and if Google shows an "unverified app" screen instead of the normal
    consent flow, finish scope verification in Google Cloud Console.
-5. **RevenueCat entitlement ID verification (F9a).** Confirm the RevenueCat dashboard's entitlement
-   identifier exactly matches `eas.json`'s `EXPO_PUBLIC_PRO_ENTITLEMENT="Tempo: Fitness Planner Pro"`
-   — a mismatch means every paying user silently resolves to not-Pro. A loud Sentry breadcrumb now
-   fires on mismatch (F9a's code half is done); only the founder can check the actual dashboard value.
+5. ~~**RevenueCat entitlement ID verification (F9a).**~~ **CLOSED 2026-08-19 — disproven by evidence,
+   no founder action needed.** The worry was that `EXPO_PUBLIC_PRO_ENTITLEMENT="Tempo: Fitness Planner
+   Pro"` is a display name rather than the dashboard identifier, silently resolving every paying user
+   to not-Pro. It can't be: `purchase_completed` is tracked **only** when `res.isPro` is true, i.e.
+   only when `entitlements.active["Tempo: Fitness Planner Pro"]` resolved — and that event fired
+   2026-08-18T22:22:10Z. The configured string IS the real identifier. The Sentry alarm stays in place.
 6. **RapidAPI key rotation.** `EXPO_PUBLIC_RAPIDAPI_KEY` is still in `eas.json` (confirmed still
    load-bearing — 641/1,285 exercises remain uncached, F9b investigated and deliberately did NOT
    remove it) but the key has been in git history and should be rotated regardless.
@@ -481,6 +517,11 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-19** — Monetization hardening. Paywall plan loading gained retry, dashboard fallbacks
+  (`lib/proPlans.ts`), a Try-again affordance, foreground re-fetch, and a `paywall_plans_unavailable`
+  event naming which of five causes fired; restore and post-purchase failure messaging corrected.
+  F9a (entitlement-id mismatch) closed by evidence. 438/438, OTA group `6c5b08ef`.
 
 - **2026-08-12 (same session, continued again) — Founder asked to keep going on speed: added the 11
   missing foreign-key indexes the same advisor sweep had already surfaced** (`add_missing_fk_indexes.sql`,
