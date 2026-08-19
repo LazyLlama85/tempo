@@ -466,19 +466,10 @@ export default function PaywallScreen() {
               size={22}
               color={C.textSecondary}
             />
+            {/* The retry lives on the sticky footer button, not here — see the comment
+                there. An inline button in this block is invisible whenever the
+                message lands near the fold, which is exactly how it shipped. */}
             <Text style={styles.loadingText}>{unavailableMessage(plans?.reason ?? null)}</Text>
-            {/* The whole point of the fix: this state is no longer a dead end.
-                Before, a single failed offerings fetch left the screen stuck
-                until it was closed and reopened. */}
-            <PressableScale
-              style={styles.retryBtn}
-              onPress={() => void load(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Try loading plans again"
-            >
-              <Ionicons name="refresh" size={15} color={C.text} />
-              <Text style={styles.retryText}>Try again</Text>
-            </PressableScale>
           </View>
         ) : (
           // Side-by-side cards: the two prices are compared against each other, so
@@ -612,20 +603,31 @@ export default function PaywallScreen() {
           price-bearing label while eligibility was still unknown, then corrected
           itself a tick later. It was also tappable in that window, i.e. a purchase
           could start before we knew which price the store would actually charge. */}
+      {/* When there are no plans, this button RETRIES rather than sitting disabled.
+          Founder screenshot 2026-08-19: the unavailable state's own inline "Try
+          again" button had been pushed below the fold by this very footer, so the
+          only control visible on the screen was a dead greyed-out one — a dead end
+          that looks like a broken app. The sticky footer is the one thing here that
+          is always on screen, so the recovery action belongs in it. */}
       <View style={styles.footer}>
         <PressableScale
-          style={[styles.cta, (!hasPlans || busy || loading) && styles.ctaDisabled]}
-          onPress={onPurchase}
-          disabled={!hasPlans || busy || loading}
+          style={[styles.cta, (busy || loading) && styles.ctaDisabled]}
+          onPress={hasPlans ? onPurchase : () => void load(true)}
+          disabled={busy || loading}
           scaleTo={0.97}
           accessibilityRole="button"
-          accessibilityLabel={loading ? 'Loading plans' : ctaLabel}
-          accessibilityState={{ disabled: !hasPlans || busy || loading, busy: busy || loading }}
+          accessibilityLabel={loading ? 'Loading plans' : hasPlans ? ctaLabel : 'Try loading plans again'}
+          accessibilityState={{ disabled: busy || loading, busy: busy || loading }}
         >
           {busy || loading ? (
             <ActivityIndicator color="#fff" />
-          ) : (
+          ) : hasPlans ? (
             <Text style={styles.ctaText}>{ctaLabel}</Text>
+          ) : (
+            <View style={styles.ctaRetryRow}>
+              <Ionicons name="refresh" size={17} color="#fff" />
+              <Text style={styles.ctaText}>Try again</Text>
+            </View>
           )}
         </PressableScale>
 
@@ -965,12 +967,7 @@ const styles = StyleSheet.create({
   foundingBannerText: { fontFamily: 'Inter_700Bold', fontSize: 12.5, color: C.gold },
 
   loadingBox: { alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg },
-  retryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.xs,
-    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-    borderRadius: Radius.pill, borderWidth: 1, borderColor: C.outlineVariant,
-  },
-  retryText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: C.text },
+  ctaRetryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadingText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 19 },
 
   // marginTop leaves room for the badge that floats above the annual card.

@@ -3592,6 +3592,44 @@ true, i.e. only when `info.entitlements.active["Tempo: Fitness Planner Pro"]` re
 fired on 2026-08-18T22:22:10Z. The configured string is the real identifier. `reportPossibleEntitlementMismatch`
 stays as the standing alarm.
 
+**OTA updates were shipping an app with no RevenueCat, PostHog, Sentry, or RapidAPI key (2026-08-19) —
+`mobile/scripts/publish-update.sh`.** This is the actual cause of the "Subscriptions aren't available
+right now" paywall, and it was self-inflicted. **`eas.json`'s `build.<profile>.env` is read by
+`eas build`. It is NOT read by `eas update`** — an update resolves environment variables from the EAS
+*environment variable store* for `--environment <name>`, a completely separate place. This project's
+store holds only the Supabase pair, so every OTA published with a bare `eas update` produced a bundle
+that was verified (by grepping the exported Hermes bundle against `eas.json`) to contain:
+
+| Var | In OTA bundle | Consequence |
+|---|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` / `_PUBLISHABLE_KEY` | ✅ present | — (which is exactly why this went unnoticed) |
+| `EXPO_PUBLIC_REVENUECAT_KEY` | ❌ missing | `API_KEY` undefined → `configurePurchases()` no-ops → `loadProPlans()` returns `sdk_unavailable` → **nothing can be purchased** |
+| `EXPO_PUBLIC_POSTHOG_KEY` | ❌ missing | `initAnalytics()` no-ops → **zero analytics**, so the failure above is invisible |
+| `EXPO_PUBLIC_SENTRY_DSN` | ❌ missing | no crash reporting |
+| `EXPO_PUBLIC_RAPIDAPI_KEY` | ❌ missing | the ~641 uncached exercises have no media source |
+| `EXPO_PUBLIC_PRO_ENTITLEMENT` | ❌ missing | falls back to the code default `'pro'` — wrong for this dashboard |
+
+Every one of those modules is deliberately written to **no-op safely without its key** (see each file's
+header), which is correct for local dev and catastrophic here: the app looked fine while missing its
+entire monetization and telemetry layer. It also retro-explains three earlier readings that were
+wrong: `paywall_intro_offer` "never firing" was read as "the founder is still on the old bundle" when
+PostHog was simply disabled; the same for a missing `paywall_shown`; and the founder's "GIFs take so
+long to load" had a contributing cause nobody had named.
+
+Fixed mechanically rather than by vigilance — `scripts/publish-update.sh <branch> "<message>"` reads
+every `EXPO_PUBLIC_*` from `eas.json`'s matching build profile, exports it into the process so Metro
+inlines the same values a native build gets (an already-set variable wins, so a deliberate override
+still works), hard-fails if any of the four load-bearing keys is empty, and then runs `eas update`.
+**Always publish through it; never call `eas update` directly.** Verified after republishing by
+grepping the new bundle: all iOS keys present (the Android RevenueCat key is correctly absent from the
+iOS bundle and present in the Android one — Metro resolves the platform ternary per bundle).
+
+**Paywall retry moved onto the sticky CTA (same day).** The inline "Try again" button added earlier
+that day was, in the founder's screenshot, pushed below the fold by the sticky footer itself — so the
+only control on screen was the disabled "Unlock Arclo Pro", i.e. still a dead end. The footer button
+now *becomes* the retry (label, icon, and handler) whenever `hasPlans` is false, and is no longer
+disabled in that state; it is the one element on the screen guaranteed to be visible.
+
 ---
 
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*
