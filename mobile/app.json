@@ -91,7 +91,16 @@
       ],
       "expo-sharing",
       "@sentry/react-native/expo",
-      "expo-widgets"
+      "expo-widgets",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Arclo lets you attach progress photos to your measurements. Photos stay private to your account.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "./plugins/withProductionPrivacyHygiene"
     ],
     "experiments": {
       "typedRoutes": true,
