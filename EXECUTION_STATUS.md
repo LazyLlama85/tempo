@@ -18,6 +18,35 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-24 — FIFTH App Store rejection (Guideline 2.5.1, build 1.0(29), iPhone 17 Pro Max + iPad
+Air M3): HealthKit declared in the binary without the functionality being clearly identified in the
+UI. Resolved by removing HealthKit entirely — founder's call, taken after being shown both options.**
+**First, the good news buried in the rejection: 2.1(b) is gone.** Review got past in-app purchases
+entirely this round, which retires the IAP thread that consumed the last two submissions.
+**The finding:** the app really did use HealthKit — `lib/appleHealth.ts` wrote a completed session to
+Apple Health as an `HKWorkout` sample — but the entire user-facing surface was **one row in Settings**
+("SYNC TO APPLE HEALTH"), opt-in, default off, with no users. Apple's message offered two resolutions:
+argue the UI identifies it (reply + a physical-device screen recording), or remove HealthKit from the
+binary. Founder chose removal, which closes the guideline with certainty instead of spending a review
+round on whether one settings toggle counts as "clearly identified."
+**Removed in full:** the `@kingstinct/react-native-healthkit` config plugin, the dependency (lockfile
+included), `lib/appleHealth.ts`, the Settings row, and the `workout-complete.tsx` export call. Nothing
+else in the completion flow changed — that call was already fire-and-forget and no-opped unless opted
+in.
+**One thing worth keeping in the record for whenever Health support returns:** the config declared
+`NSHealthShareUsageDescription` — a **read** permission the app never requested (`requestAuthorization`
+only ever asked `toShare: ['HKWorkoutTypeIdentifier']`) — whose text read *"Arclo does not read any
+Health data."* A binary declaring read access while stating it does not read is exactly what this
+guideline exists to catch, and it is a plausible contributor to being flagged at all. A future rebuild
+needs a real surface (a Health section or an in-flow prompt, not one settings row) and only the usage
+descriptions for permissions actually requested.
+**Shipped:** OTA `91eb15b8` published FIRST, deliberately — `runtimeVersion` is `appVersion` (1.0.0),
+so a new binary downloads whatever sits at the head of the `production` branch; had the old update
+stayed there, build 30 would have pulled JS that still renders a Health toggle its binary can no longer
+honor. Then build **30** (`85adc087`) with auto-submit. 438/438 tests, tsc clean.
+**▶ NEXT (founder):** when build 30 lands in App Store Connect, select it, reply to the 2.5.1 message
+saying HealthKit has been removed from the binary, and submit.
+
 **2026-08-19 (later the same day) — THE ACTUAL CAUSE of the dead paywall, and it was self-inflicted:
 every OTA update was shipping an app with no RevenueCat, PostHog, Sentry, or RapidAPI key.**
 **`eas.json`'s `build.<profile>.env` is read by `eas build`. It is NOT read by `eas update`** — an
@@ -548,6 +577,10 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-24** — App Review 2.5.1 (HealthKit not clearly identified in the UI) on build 29. Removed
+  HealthKit entirely on the founder's call — plugin, dependency, module, Settings row, call site.
+  2.1(b) did not recur, so the IAP thread is closed. OTA `91eb15b8`, build 30 submitted.
 
 - **2026-08-19 (b)** — Found the real cause of the dead paywall: `eas update` does not read
   `eas.json`'s build-profile env, so every OTA shipped without RevenueCat/PostHog/Sentry/RapidAPI keys.

@@ -2172,21 +2172,8 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `user_profiles.notification_prefs` via `loadNotificationPrefs`/`setServerRuleEnabled`, read by
   the retention-push function; the device-local pre-workout reminder via
   `get/setPreWorkoutEnabled`; `DEFAULT_PREFS` all-on to preserve prior behavior),
-  **`appleHealth`** (§26 L28, new 2026-07-22: one-way HealthKit **export** only — never reads
-  anything back. iOS only. `@kingstinct/react-native-healthkit` (a Nitro module with its own Expo
-  config plugin, added to `app.json`) is loaded via a **guarded dynamic import**, never a static
-  one — a static import would throw at module-evaluation time on Android/web/Expo Go/any
-  pre-rebuild binary, the exact class of "blank screen on launch" bug fixed elsewhere this same
-  session. Opt-in, default off (`tempo.appleHealthSync` localStorage flag) — a Settings → "Sync to
-  Apple Health" toggle requests write authorization only when turned on; per Apple's own privacy
-  model for WRITE permissions, the OS never reports whether the user granted or denied, so a denied
-  user's exports just silently no-op like every other permission-gated integration here.
-  `exportWorkoutToAppleHealth(client, { logId, durationMin })` is called best-effort from
-  `workout-complete.tsx`'s existing completion effect: sums `set_logs` for the session into a
-  volume figure, estimates calories (~0.1 kcal/lb of volume, floored by a per-minute minimum), and
-  writes a `traditionalStrengthTraining` `HKWorkout` sample via `saveWorkoutSample`. Native — the
-  code ships but is completely inert until the next `eas build` includes the module; needs
-  on-device confirmation a completed session actually appears in the Health app),
+  **`appleHealth`** *(removed 2026-08-24 — App Review 2.5.1; see the section on it later in this
+  file for what it was and what a future rebuild would need)*,
   **`returningUser`** (§5.1: `getReturningState` derives a 3/7/30-day absence tier from the last
   completed session + the next scheduled one — drives Home's returning-user hero),
   **`purchases`** (§10 — the ONLY module touching react-native-purchases / -ui; guarded like
@@ -3099,16 +3086,25 @@ now a large enough sample to treat as a systemic risk in this codebase's async-g
 not five (now six) unrelated bugs — worth a linting rule or a shared `useAsyncGate`-style hook next
 time this surfaces again, rather than another one-off sweep.
 
-### Apple Health export (§26 L28) — one-way write, iOS only, opt-in (2026-07-22)
-New native dependency: `@kingstinct/react-native-healthkit` (a Nitro module, requires the peer dep
-`react-native-nitro-modules`) + its Expo config plugin in `app.json` (custom
-`NSHealthShareUsageDescription`/`NSHealthUpdateUsageDescription` strings, `background: false` — no
-background delivery needed for a write-only, on-completion export). `npx expo config --json`
-confirms the plugin resolves cleanly; `tsc` and the full Jest suite stay green with the package
-installed. See `lib/appleHealth.ts`'s entry above (§3.5) for the full design. This is native — the
-feature is code-complete but genuinely inert until the next `eas build`, at which point it still
-needs on-device confirmation (a completed session appearing in the Health app with correct
-duration) before it can be marked fully done rather than just built.
+### Apple Health export — REMOVED 2026-08-24 (App Review 2.5.1)
+Shipped 2026-07-22 as a one-way, write-only, opt-in HealthKit export (`lib/appleHealth.ts`,
+`@kingstinct/react-native-healthkit` + its config plugin, a Settings toggle, and a best-effort call
+from `workout-complete.tsx`). **Removed in full** after App Review rejected 1.0 (29) under Guideline
+2.5.1: "the app uses the HealthKit or CareKit APIs but does not clearly identify the HealthKit and
+CareKit functionality in the app's user interface." The functionality was real and the toggle was
+plainly labelled, but the whole surface was a single row in Settings — arguing its prominence would
+have cost a review round (plus a device screen recording the founder can't easily produce), against
+a feature that was default-off with no users. Apple's own message names removing HealthKit from the
+binary as a resolution, so that is what was done: plugin, dependency, module, Settings row, and call
+site all deleted.
+
+Worth recording for whenever this is rebuilt: the config also declared
+`NSHealthShareUsageDescription` — a **read** permission the app never requested (authorization only
+ever asked `toShare: ['HKWorkoutTypeIdentifier']`) — whose text read "Arclo does not read any Health
+data." A binary that declares read access while stating it does not read is exactly the kind of
+signal this guideline exists to catch. If Health support returns, it needs its own visible surface
+(a Health section or an in-flow prompt, not one settings row) and only the usage descriptions for
+permissions actually requested.
 
 ### "Replay app tour" now dismisses Settings first; why-tempo.tsx made scrollable (2026-07-21)
 Two small onboarding/tutorial polish fixes:
