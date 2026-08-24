@@ -18,11 +18,13 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:fittempo.app"],
+      "associatedDomains": [
+        "applinks:fittempo.app"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCalendarsUsageDescription": "Arclo uses your calendar to schedule workouts around your life.",
-        "NSCalendarsFullAccessUsageDescription": "Arclo reads your calendar to schedule workouts around your life, and — only when you turn it on — adds your sessions to it.",
+        "NSCalendarsFullAccessUsageDescription": "Arclo reads your calendar to schedule workouts around your life, and \u2014 only when you turn it on \u2014 adds your sessions to it.",
         "NSCalendarsWriteOnlyAccessUsageDescription": "Arclo adds your scheduled workouts to your calendar when you turn that on.",
         "NSRemindersUsageDescription": "Arclo sends reminders before your scheduled workouts.",
         "NSUserNotificationsUsageDescription": "Arclo sends reminders before your scheduled workouts.",
@@ -44,8 +46,17 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "fittempo.app", "pathPrefix": "/w" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "https",
+              "host": "fittempo.app",
+              "pathPrefix": "/w"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -82,15 +93,7 @@
       ],
       "expo-sharing",
       "@sentry/react-native/expo",
-      "expo-widgets",
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          "NSHealthShareUsageDescription": "Arclo does not read any Health data.",
-          "NSHealthUpdateUsageDescription": "Arclo adds your completed workouts to Apple Health when you turn this on in Settings.",
-          "background": false
-        }
-      ]
+      "expo-widgets"
     ],
     "experiments": {
       "typedRoutes": true,
