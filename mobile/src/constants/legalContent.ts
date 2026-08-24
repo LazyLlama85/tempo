@@ -272,12 +272,17 @@ export const TERMS_SECTIONS: LegalSection[] = [
     title: 'Limitation of liability',
     blocks: [
       {
-        // Wording carried over verbatim from web/terms.html rather than rewritten.
-        // A named monetary cap (e.g. "the greater of what you paid us in the last
-        // 12 months, or $50") is the stronger, more standard clause and is worth
-        // asking counsel about — but inventing a figure unilaterally is not our
-        // call to make inside a binding document.
-        p: 'To the maximum extent permitted by law, {brand} and its providers will not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of data, profits, or health or physical injury arising out of or related to your use of the app. Where liability cannot be excluded, it is limited to the greatest extent permitted by law.',
+        // Founder's call 2026-08-24: add the standard monetary cap, skip counsel
+        // for now. Worth knowing what it does and doesn't do — in most US states
+        // a cap does NOT limit personal-injury claims and gross negligence can't
+        // be waived, so for the injury scenario the real protection is the
+        // "Not medical advice" section, assumption of risk, and the disclaimer
+        // at the point injuries are collected. This clause covers the contract-
+        // shaped claims (billing, data loss) instead.
+        p: 'To the maximum extent permitted by law, {brand} and its providers will not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of data, profits, or goodwill arising out of or related to your use of the app.',
+      },
+      {
+        p: 'To the maximum extent permitted by law, our total liability for all claims relating to {brand} is limited to the greater of the amount you paid us in the twelve months before the claim arose, or fifty US dollars.',
       },
       {
         p: 'Some places do not allow certain limitations, so parts of this may not apply to you. Nothing here limits liability that cannot lawfully be limited.',
