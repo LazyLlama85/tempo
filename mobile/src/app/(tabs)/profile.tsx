@@ -942,6 +942,17 @@ export default function ProfileScreen() {
               })}
             </View>
 
+            {/* The disclaimer belongs HERE, not only in the Terms. This screen makes
+                an implicit safety claim — "tell us your bad knee and we'll work
+                around it" — and a user who reads that as medical screening is
+                reading it the way it's written. Stated once, plainly, where the
+                claim is made. */}
+            <Text style={styles.safetyNote}>
+              {BRAND_NAME} adjusts which exercises it picks. It can’t assess an injury or tell you
+              whether training is safe for you — if something hurts, stop, and get cleared by a
+              doctor or physio first.
+            </Text>
+
             <TouchableOpacity style={[styles.saveBtn, injurySaving && { opacity: 0.6 }]} onPress={saveInjuries} disabled={injurySaving} activeOpacity={0.85}>
               <Text style={styles.saveBtnText}>{injurySaving ? 'Saving…' : 'Save'}</Text>
             </TouchableOpacity>
@@ -1299,6 +1310,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   modalSheet: { padding: Spacing.lg, gap: Spacing.sm },
   modalTitle: { fontFamily: C.fontDisplay, fontSize: 22, color: C.text, letterSpacing: -0.3 },
   modalHint: { fontFamily: 'Inter_400Regular', fontSize: 13, color: C.textSecondary, lineHeight: 19, marginTop: 2 },
+  safetyNote: { fontFamily: 'Inter_400Regular', fontSize: 12.5, color: C.textSecondary, lineHeight: 18, marginTop: Spacing.md },
   equipRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md,
     backgroundColor: C.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.outlineVariant,

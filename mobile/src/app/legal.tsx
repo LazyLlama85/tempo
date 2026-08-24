@@ -14,11 +14,19 @@ import { ScreenHeader, DismissButton } from '@/components/brand'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Spacing, Radius } from '@/constants/theme'
 import { BRAND_NAME, BRAND_SUPPORT_EMAIL } from '@/constants/brand'
+import {
+  PRIVACY_SECTIONS, TERMS_SECTIONS, LEGAL_UPDATED,
+  type LegalSection, type LegalBlock,
+} from '@/constants/legalContent'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 
 
-const UPDATED = 'June 2026'
+const UPDATED = LEGAL_UPDATED
 const SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL
+
+/** Placeholders live in the content module so a brand rename can't strand a
+ *  stale name inside a legal document. */
+const fill = (t: string) => t.replace(/\{brand\}/g, BRAND_NAME).replace(/\{email\}/g, SUPPORT_EMAIL)
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const styles = useThemedStyles(makeStyles)
@@ -40,6 +48,31 @@ function Bullet({ children }: { children: React.ReactNode }) {
       <Text style={styles.bulletDot}>•</Text>
       <Text style={styles.bulletText}>{children}</Text>
     </View>
+  )
+}
+
+function Blocks({ blocks }: { blocks: LegalBlock[] }) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <>
+      {blocks.map((b, i) => {
+        if (b.sub) return <Text key={i} style={styles.sub}>{fill(b.sub)}</Text>
+        if (b.bullets) return <View key={i}>{b.bullets.map((t, j) => <Bullet key={j}>{fill(t)}</Bullet>)}</View>
+        return <P key={i}>{fill(b.p ?? '')}</P>
+      })}
+    </>
+  )
+}
+
+function Document({ sections }: { sections: LegalSection[] }) {
+  return (
+    <>
+      {sections.map((sec) => (
+        <Section key={sec.title} title={fill(sec.title)}>
+          <Blocks blocks={sec.blocks} />
+        </Section>
+      ))}
+    </>
   )
 }
 
@@ -73,34 +106,7 @@ export default function LegalScreen() {
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Privacy Policy</Text>
         <Text style={styles.updated}>Last updated {UPDATED}</Text>
-
-        <Section title="What we collect">
-          <P>{BRAND_NAME} stores only what it needs to plan and track your training:</P>
-          <Bullet>Account: your email and sign-in identity (via Apple, Google, or guest).</Bullet>
-          <Bullet>Profile: goal, experience, equipment, availability, and the preferences you set.</Bullet>
-          <Bullet>Training data: your plans, scheduled workouts, logged sets, reps, weights, RPE, and recovery check-ins.</Bullet>
-          <Bullet>Calendar: if you grant access, {BRAND_NAME} reads your busy times to schedule workouts around them. Event details are used on your device to find free time and are not sold or shared.</Bullet>
-        </Section>
-
-        <Section title="How we use it">
-          <P>Your data is used to generate your plan, schedule sessions around your real life, track progress, and personalize recommendations. We don’t sell your personal data, and we don’t use it for third-party advertising.</P>
-        </Section>
-
-        <Section title="Calendar access">
-          <P>Calendar permission is optional and used solely to find open time for workouts. You can revoke it anytime in your device settings, and {BRAND_NAME} keeps working without it. If you connect Google Calendar, your access is stored securely server-side and removed when you disconnect or delete your account.</P>
-        </Section>
-
-        <Section title="Storage & security">
-          <P>Your data is stored with our backend provider (Supabase) and protected so that only you can access your own records. Sensitive tokens are kept server-side and never shipped in the app.</P>
-        </Section>
-
-        <Section title="Deleting your account">
-          <P>You can permanently delete your account and all associated data at any time from Profile → Delete Account. This removes your profile, plans, workouts, logs, recovery data, and any connected-calendar tokens immediately and cannot be undone.</P>
-        </Section>
-
-        <Section title="Contact">
-          <P>Questions about your privacy or data? Reach us at {SUPPORT_EMAIL}.</P>
-        </Section>
+        <Document sections={PRIVACY_SECTIONS} />
 
         <View style={styles.divider} />
 
@@ -108,28 +114,7 @@ export default function LegalScreen() {
           <Text style={styles.h1}>Terms of Use</Text>
           <Text style={styles.updated}>Last updated {UPDATED}</Text>
         </View>
-
-        <Section title="Acceptance">
-          <P>By using {BRAND_NAME} you agree to these terms. If you don’t agree, please don’t use the app.</P>
-        </Section>
-
-        <Section title="Not medical advice">
-          <P>{BRAND_NAME} provides general fitness guidance for informational purposes only. It is not medical advice. Exercise carries inherent risks — consult a qualified professional before starting any program, and stop if you feel pain or discomfort. You train at your own risk.</P>
-        </Section>
-
-        <Section title="Your responsibilities">
-          <Bullet>Provide accurate information so recommendations fit you.</Bullet>
-          <Bullet>Use the app for your personal, non-commercial training.</Bullet>
-          <Bullet>Keep your account secure.</Bullet>
-        </Section>
-
-        <Section title="Availability & changes">
-          <P>We work to keep {BRAND_NAME} reliable but provide it “as is,” without warranties, and may update or change features over time. We may update these terms; continued use means you accept the changes.</P>
-        </Section>
-
-        <Section title="Contact">
-          <P>Questions about these terms? Reach us at {SUPPORT_EMAIL}.</P>
-        </Section>
+        <Document sections={TERMS_SECTIONS} />
 
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
@@ -146,6 +131,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   section: { marginTop: Spacing.md },
   h2: { fontFamily: 'Inter_700Bold', fontSize: 16, color: C.text, marginBottom: Spacing.xs, letterSpacing: -0.1 },
+  sub: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: C.text, marginTop: Spacing.sm, marginBottom: 2 },
   p: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.textSecondary, lineHeight: 21 },
 
   bulletRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: 6 },

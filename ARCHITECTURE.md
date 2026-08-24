@@ -3626,6 +3626,47 @@ only control on screen was the disabled "Unlock Arclo Pro", i.e. still a dead en
 now *becomes* the retry (label, icon, and handler) whenever `hasPlans` is false, and is no longer
 disabled in that state; it is the one element on the screen guaranteed to be visible.
 
+**Pre-submission audit: capability drift, legal drift, and one real vulnerability (2026-08-24).** A
+full pass over declared capabilities vs. actual usage, both legal surfaces, and the live database,
+prompted by the HealthKit rejection being a *class* of problem rather than a one-off. Fixed:
+
+- **A second HealthKit was still in the binary.** `app.json` declared `NSRemindersUsageDescription`
+  and passed `remindersPermission` to the expo-calendar plugin, which links EventKit's **Reminders**
+  entity. Nothing in the app has ever used it — every "reminder" is an `expo-notifications` local
+  notification. Worse than first reported: the plugin adds **two** keys
+  (`NSRemindersUsageDescription` + `NSRemindersFullAccessUsageDescription`) from its own defaults, so
+  deleting the custom string would only have swapped in Expo's boilerplate text. The plugin's
+  `applyPermissions` deletes a key when its value is `false`, so `remindersPermission: false` is the
+  actual fix. Verified against `npx expo config --type prebuild`, not the source file — the resolved
+  Info.plist now contains only `NSCalendars*`, `NSPhotoLibraryUsageDescription`, and
+  `ITSAppUsesNonExemptEncryption`, each mapping to a real feature. Also dropped
+  `NSUserNotificationsUsageDescription`, which is not an Apple key at all.
+- **The documented account-deletion path was wrong in four places.** Guideline 5.1.1(v) reviewers
+  follow the path you publish; all of `legal.tsx`, `web/privacy.html`, `web/terms.html`, and
+  `web/launch.html` said "Profile → Delete Account" while the control lives in Settings
+  (`settings.tsx:682`), reached via the gear on the Profile tab. Now "Profile → Settings → Delete
+  Account" everywhere.
+- **Two legal documents for one app** — the hosted pair under `web/` was thorough; the in-app screen
+  was a hand-written summary that never mentioned analytics or crash reporting (both live in
+  production), had no limitation of liability, and no governing law. New **`src/constants/legalContent.ts`**
+  is the canonical text and `app/legal.tsx` now renders it, so the in-app document is complete rather
+  than a summary. `{brand}`/`{email}` placeholders are substituted at render time so a rename can't
+  strand a stale name in a legal document. Liability and governing-law wording was carried over
+  **verbatim** from the hosted terms rather than rewritten — a named venue and a monetary cap are the
+  stronger clauses, but both assert facts only the founder can state, so they are flagged for counsel
+  instead of invented. The `web/` pages gained the matching subscription + vendor disclosures and a
+  pointer back to the module; generating them from it is a logged follow-up, not done.
+- **The injury disclaimer moved to where the claim is made.** Profile's Injuries sheet promises to
+  steer programming around what you report — an implicit safety claim whose only disclaimer sat in
+  Terms. One line now sits directly above the Save button.
+- **`save_exercise_instructions` was executable by `anon`** — see
+  `supabase/harden_definer_functions.sql`. Applied live.
+
+**Corrected from the audit's own first pass:** `set_profile_identity` was reported as an anon-reachable
+definer function. It returns `trigger`, and PostgREST does not expose trigger functions, so there is no
+endpoint — revoking EXECUTE on something that fires on every profile insert would have been real
+regression risk for zero gain. Left alone deliberately, and the reasoning recorded in the migration.
+
 ---
 
 *See also `LAUNCH.md` (iOS/Android launch guide) and `CLAUDE.md` (build/run + project conventions).*

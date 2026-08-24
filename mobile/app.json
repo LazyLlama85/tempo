@@ -26,8 +26,6 @@
         "NSCalendarsUsageDescription": "Arclo uses your calendar to schedule workouts around your life.",
         "NSCalendarsFullAccessUsageDescription": "Arclo reads your calendar to schedule workouts around your life, and \u2014 only when you turn it on \u2014 adds your sessions to it.",
         "NSCalendarsWriteOnlyAccessUsageDescription": "Arclo adds your scheduled workouts to your calendar when you turn that on.",
-        "NSRemindersUsageDescription": "Arclo sends reminders before your scheduled workouts.",
-        "NSUserNotificationsUsageDescription": "Arclo sends reminders before your scheduled workouts.",
         "NSPhotoLibraryUsageDescription": "Arclo lets you attach progress photos to your measurements. Photos stay private to your account."
       }
     },
@@ -71,7 +69,7 @@
         "expo-calendar",
         {
           "calendarPermission": "Arclo needs calendar access to schedule your workouts.",
-          "remindersPermission": "Arclo needs reminder access to send workout alerts."
+          "remindersPermission": false
         }
       ],
       [
