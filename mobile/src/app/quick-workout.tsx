@@ -25,6 +25,7 @@ import { ProBadge } from '@/components/ProGate'
 import { fetchPresets, savePresets, type EquipmentPreset } from '@/lib/equipmentPresets'
 import { EquipmentPresetSheet } from '@/components/EquipmentPresetSheet'
 import type { Equipment } from '@/types'
+import { BRAND_NAME } from '@/constants/brand'
 
 const PURPOSE_ORDER: QuickPurpose[] = [
   'strength_maintenance', 'muscle_growth', 'conditioning', 'athletic', 'recovery', 'mobility',
@@ -286,7 +287,7 @@ export default function QuickWorkoutScreen() {
         <TempoLottie source={require('@/assets/lottie/coach/walking.json')} width={46} height={82} style={styles.coachWalking} />
         <Text style={styles.lead}>How much time do you have?</Text>
         <Text style={styles.leadSub}>
-          No setup. Tempo builds the highest-impact session for your window and goal.
+          No setup. {BRAND_NAME} builds the highest-impact session for your window and goal.
         </Text>
 
         {/* Duration — one slider instead of eight separate buttons */}

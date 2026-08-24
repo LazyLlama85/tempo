@@ -217,6 +217,20 @@ export function roleRepMod(role: Role): RoleRepMod {
   }
 }
 
+/**
+ * Human-readable form of a muscle key, for display only.
+ *
+ * The exercise DB stores muscles as snake_case keys (`upper_chest`,
+ * `rear_delts`). Rendering one straight into the UI leaks the raw enum — it
+ * shipped that way in an App Store screenshot ("UPPER_CHEST · TRICEPS").
+ * This is deliberately a faithful, lossless transform: it does NOT reuse
+ * sessionRationale's MUSCLE_LABEL, which maps `lats` to the looser prose word
+ * "back" and would change what the "Muscles worked" chips currently say.
+ */
+export function formatMuscleName(muscle: string): string {
+  return muscle.replace(/_/g, ' ')
+}
+
 export function isIsolation(slot: Slot): boolean {
   return ISOLATION_SLOTS.has(slot)
 }

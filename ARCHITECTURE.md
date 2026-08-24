@@ -19,6 +19,14 @@ A detailed description of everything Arclo is — frontend, backend, features, d
 > intentionally out of scope until that step happens (and especially not worth doing while the
 > name itself is still provisional). This document below still refers to those real identifiers
 > by their real (current) names.
+>
+> **2026-08-24 brand-leak sweep.** A pass over rendered copy (not comments, not identifiers)
+> found four places that still said "Tempo" as literal user-facing text and now read
+> `BRAND_NAME`: `quick-workout.tsx`'s lead-in, `calendar-setup.tsx`'s privacy hint,
+> `pause-mode.tsx`'s intro, and `progression.ts`'s "log the weight" coaching reason. The
+> Quick Workout one was live in App Store screenshot 4, so this was a real store-metadata
+> mismatch, not just cosmetics. The component/file names listed above are still deliberately
+> untouched — only rendered strings were in scope.
 
 > **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
 > inventory of everything still wrong in the code/logic/UI described below (absorbed from the
@@ -1854,7 +1862,14 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   (squat/hinge/lunge/knee_flexion/quad_iso/calf/h_push/v_push/chest_iso/triceps/h_pull/v_pull/
   rear_delt/lat_raise/biceps/core/cardio/carry), a **role** (power/compound/isolation/core/cardio),
   and a lift **family** from `primary_muscles` + name keywords + pattern (no DB migration — those
-  columns already exist). Session templates are **ordered `SlotSpec` lists** (power → primary →
+  columns already exist). The same module also exports **`formatMuscleName()`** (added
+  2026-08-24) — the display transform for snake_case muscle keys, used by Plan's exercise rows,
+  the active-session header, and the form sheet's "Muscles worked" chips. It is deliberately
+  lossless (`upper_chest` → `upper chest`) and does NOT reuse `sessionRationale.ts`'s
+  `MUSCLE_LABEL`, which maps `lats` → the prose word "back"; routing the chips through that map
+  would silently change what muscle they name. Regression-tested in
+  `lib/__tests__/formatMuscleName.test.ts` — the raw enum shipped visibly as
+  "UPPER_CHEST · TRICEPS" in App Store screenshot 2. Session templates are **ordered `SlotSpec` lists** (power → primary →
   secondary → accessory → isolation → finisher) per goal × split; `selectForSlots` fills them
   enforcing **role fit** (a compound slot rejects isolation work), **anti-redundancy by family**
   (never two deadlift variants), **per-focus rotation** (the FIRST Legs day opens with the canonical

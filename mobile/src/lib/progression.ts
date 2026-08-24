@@ -7,6 +7,7 @@ import type { Goal, Experience } from '@/types'
 import type { WeekProgression } from '@/lib/periodization'
 import { roleRepMod, slotRepMod, type Role, type Slot } from '@/lib/exerciseProgramming'
 import { titrateForWeeklyVolume, isLandmarkMuscleGroup } from '@/lib/volumeLandmarks'
+import { BRAND_NAME } from '@/constants/brand'
 
 export interface SetPerformance {
   weight_lbs: number | null
@@ -176,7 +177,7 @@ export function buildPrescription(
 
   if (last.length && !weighted.length) {
     direction = 'hold'
-    reason = 'Log the weight you use so Tempo can progress you next time.'
+    reason = `Log the weight you use so ${BRAND_NAME} can progress you next time.`
   } else if (weighted.length) {
     const topWeight = Math.max(...weighted.map(s => s.weight_lbs))
     baselineWeight = topWeight

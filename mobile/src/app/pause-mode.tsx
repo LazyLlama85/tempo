@@ -21,6 +21,7 @@ import { pausePlan, resumePlan, describePauseUntil } from '@/lib/pauseMode'
 import { invalidateTrainingData } from '@/lib/queryInvalidation'
 import { track } from '@/lib/analytics'
 import { Slider } from '@/components/Slider'
+import { BRAND_NAME } from '@/constants/brand'
 
 // Any exact day count is valid (matches pauseMode.ts's ~60-day shift horizon
 // comment) — quick-pick chips underneath the slider just save a drag for the
@@ -96,7 +97,7 @@ export default function PauseModeScreen() {
           </>
         ) : (
           <Text style={styles.intro}>
-            Going away? Pause your plan and Tempo shifts every upcoming session forward to make
+            Going away? Pause your plan and {BRAND_NAME} shifts every upcoming session forward to make
             room — no missed sessions, no broken streak. It resumes automatically the day you're
             back, or tap "Resume now" anytime before then.
           </Text>

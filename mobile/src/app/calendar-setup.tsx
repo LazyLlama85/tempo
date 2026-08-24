@@ -255,7 +255,7 @@ export default function CalendarSetupScreen() {
         </View>
 
         <Text style={styles.hint}>
-          Both work the same way — connect whichever you actually check. Tempo only reads busy
+          Both work the same way — connect whichever you actually check. {BRAND_NAME} only reads busy
           times to plan around; your event details are never stored on our servers.
         </Text>
       </ScrollView>

@@ -60,7 +60,7 @@ import { getActiveTravelMode, describeTravelEquipment } from '@/lib/travelMode'
 import { excludeExercisePermanently } from '@/lib/exerciseExclusions'
 import { PlateCalcSheet } from '@/components/PlateCalcSheet'
 import { metricsFor } from '@/lib/customExercises'
-import { classifyExercise } from '@/lib/exerciseProgramming'
+import { classifyExercise, formatMuscleName } from '@/lib/exerciseProgramming'
 import { describeSession } from '@/lib/sessionRationale'
 import { expandEquipment } from '@/lib/equipmentMatch'
 import { useUnitStore, unitLabel, displayWeight, toInputString, inputToLbs, type WeightUnit } from '@/lib/units'
@@ -2214,7 +2214,7 @@ export default function WorkoutsScreen() {
                 <Text style={styles.hubRowNum}>{i + 1}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.hubRowName} numberOfLines={1}>{ex.name}</Text>
-                  <Text style={styles.hubRowMuscle} numberOfLines={1}>{ex.primary_muscles.join(' · ').toUpperCase()}</Text>
+                  <Text style={styles.hubRowMuscle} numberOfLines={1}>{ex.primary_muscles.map(formatMuscleName).join(' · ').toUpperCase()}</Text>
                 </View>
                 <Text style={styles.hubRowSets}>{sets[ex.id]?.length ?? targets[ex.id]?.sets ?? 3} sets</Text>
               </View>
@@ -2580,7 +2580,7 @@ export default function WorkoutsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.exerciseName}>{ex.name}</Text>
                   <Text style={styles.muscleLabel}>
-                    {ex.primary_muscles.join(' · ').toUpperCase()}
+                    {ex.primary_muscles.map(formatMuscleName).join(' · ').toUpperCase()}
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>

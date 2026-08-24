@@ -13,6 +13,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { fetchExerciseId, gifSource } from '@/lib/exerciseGif'
 import { getExerciseGifSource, getExerciseMedia } from '@/data/exerciseMedia'
 import { exdbIdForExercise, fetchRemoteInstructions } from '@/lib/exerciseDb'
+import { formatMuscleName } from '@/lib/exerciseProgramming'
 
 
 export interface FormExercise {
@@ -235,12 +236,12 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 {exercise.primary_muscles.map(m => (
                   <View key={m} style={styles.musclePrimary}>
                     <View style={styles.muscleDot} />
-                    <Text style={styles.musclePrimaryText}>{m}</Text>
+                    <Text style={styles.musclePrimaryText}>{formatMuscleName(m)}</Text>
                   </View>
                 ))}
                 {exercise.secondary_muscles.map(m => (
                   <View key={m} style={styles.muscleSecondary}>
-                    <Text style={styles.muscleSecondaryText}>{m}</Text>
+                    <Text style={styles.muscleSecondaryText}>{formatMuscleName(m)}</Text>
                   </View>
                 ))}
               </View>
