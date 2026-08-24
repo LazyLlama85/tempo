@@ -24,3 +24,6 @@ android/
 
 # Claude Code local settings (machine-specific; may contain tokens/keys)
 .claude/settings.local.json
+
+# Claude Code auto-installed skills (machine-local tooling, not app code)
+**/.claude/skills/
