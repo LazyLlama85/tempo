@@ -661,6 +661,12 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
+            <SettingRow
+              icon="hand-left-outline"
+              label="BLOCKED ACCOUNTS"
+              value="See and undo who you've blocked"
+              onPress={() => router.push('/blocked-users')}
+            />
             <SettingRow icon="shield-outline" label="PRIVACY & TERMS" value="View" onPress={() => router.push('/legal')} />
           </View>
         </View>

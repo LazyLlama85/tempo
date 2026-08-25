@@ -20,6 +20,7 @@ import { FriendAvatar } from '@/components/FriendAvatar'
 import { BadgeShelf } from '@/components/BadgeShelf'
 import { OptionSheet } from '@/components/OptionSheet'
 import { ScheduleTogetherSheet } from '@/components/ScheduleTogetherSheet'
+import { ModerationMenu } from '@/components/ModerationMenu'
 import * as haptics from '@/lib/haptics'
 import {
   fetchFriendOverview, fetchFriendTemplates, copyTemplateToLibrary,
@@ -54,6 +55,8 @@ export default function FriendProfileScreen() {
   const [sheetTemplate, setSheetTemplate] = useState<WorkoutTemplate | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  // Guideline 1.2 — Report / Block. Never offered on your own profile.
+  const [moderationOpen, setModerationOpen] = useState(false)
   const unit = useWeightUnit()
 
   useEffect(() => {
@@ -86,7 +89,30 @@ export default function FriendProfileScreen() {
         title="Profile"
         size="sm"
         leading={<DismissButton onPress={() => router.back()} label="Back" />}
+        right={
+          targetId && targetId !== myId ? (
+            <TouchableOpacity
+              onPress={() => setModerationOpen(true)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Report or block this person"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
+            </TouchableOpacity>
+          ) : undefined
+        }
       />
+
+      {targetId && targetId !== myId && (
+        <ModerationMenu
+          visible={moderationOpen}
+          onClose={() => setModerationOpen(false)}
+          targetUserId={targetId}
+          targetName={name}
+          context="profile"
+          onBlocked={() => router.back()}
+        />
+      )}
 
       {loading ? (
         <View style={styles.center}><PulseLoader caption="Loading profile…" /></View>

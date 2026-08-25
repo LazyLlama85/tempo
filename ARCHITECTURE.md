@@ -28,6 +28,26 @@ A detailed description of everything Arclo is — frontend, backend, features, d
 > mismatch, not just cosmetics. The component/file names listed above are still deliberately
 > untouched — only rendered strings were in scope.
 
+> **Moderation (App Store Guideline 1.2), added 2026-08-25.** The age rating declares
+> user-generated content — correctly, since usernames (`updateUsername`) and group names
+> (`create_group`) are free text shown to other people — so the app must offer a way to REPORT
+> content and a way to BLOCK a user. Migration `mobile/supabase/add_moderation_block_report.sql`
+> (**applied**) adds `blocked_users` + `content_reports` with RLS, the `is_blocked(a,b)` helper
+> (symmetric: if either party blocks, neither sees the other), and the `block_user` /
+> `unblock_user` / `list_blocked_users` / `report_content` RPCs. `block_user` also deletes any
+> friendship in either direction, and the `friendships` INSERT policy now refuses a request from
+> a blocked party, so a block cannot be walked around by re-requesting. **Enforcement is
+> server-side by necessity:** every discovery surface reads through a SECURITY DEFINER RPC, which
+> bypasses RLS, so all eight (`search_profiles`, `get_public_profiles`, `friend_feed`,
+> `friend_events`, `friends_leaderboard`, `friends_leaderboard_v2`, `group_leaderboard`,
+> `friend_overview`) were re-created with their live bodies preserved verbatim plus one
+> `is_blocked` predicate. Client: `lib/moderation.ts` (I/O) + `lib/moderationReasons.ts` (the
+> pure, testable half — same split rationale as `proPlans.ts`/`purchases.ts`),
+> `components/ModerationMenu.tsx`, and `app/blocked-users.tsx` reached from Settings → Account.
+> The menu lives on `friend-profile.tsx` because every social surface opens a person through
+> `/friend-profile?userId=…`, so one placement covers feed, both leaderboards, activity events,
+> the friends list, and group members.
+
 > **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
 > inventory of everything still wrong in the code/logic/UI described below (absorbed from the
 > retired `MASTER_FIX_PLAN.md`, a 2026-07-19 full-codebase review), with per-item files/scope.
