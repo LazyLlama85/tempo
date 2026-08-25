@@ -18,6 +18,56 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-25 — App Store Connect audited directly via the API, and the ledger was wrong.**
+The 2026-08-24 entry below ends "**▶ NEXT (founder):** when build 30 lands, select it … and submit."
+**That never happened, and the entry recorded the intent as though it had.** Read from the live
+store with an App Store Connect API key: version 1.0 was `REJECTED` with **build 29 — the HealthKit
+build — still attached**; builds 30, 31 and 32 were all `VALID` and none was selected; the review
+submission had sat at `UNRESOLVED_ISSUES` since 2026-08-20. Nothing was in review for four days.
+**Read the store, don't trust this file, before believing anything is submitted.**
+
+**Fixed on the store this session** (all verified by reading the record back):
+- Attached build **32**, which cleared the HealthKit binary and moved the version `REJECTED` →
+  `PREPARE_FOR_SUBMISSION`. Later superseded by build 33.
+- Cancelled the dead review submission. Required: subscription metadata returns **409 "can not be
+  modified"** while a submitted submission holds it, and individual items cannot be removed
+  ("Item was already submitted") — cancelling is the only unlock.
+- Renamed everything customer-facing from **"Tempo Pro"** to **"Arclo Pro"**: the group display
+  name, the group reference name, and both products. StoreKit renders these in the purchase sheet
+  and iOS shows them under Settings → Subscriptions; an app called Arclo selling "Tempo Pro
+  (Yearly)" is a Guideline 2.3.1 metadata mismatch.
+- Yearly `groupLevel` **2 → 1**, matching monthly. They were inverted, so StoreKit treated a
+  $4.99/mo purchase as an *upgrade* from $34.99/yr and would have prorated it. Same tier, different
+  billing period = same level = crossgrade at renewal.
+- Replaced the yearly's review note (it was the single word "Tempo") and wrote a real one on both.
+- **Corrected the reviewer note's navigation:** it said "Profile tab → Settings → Arclo Pro". The
+  tab is labelled **"You"**, not Profile (`(tabs)/_layout.tsx` line 54). Sending a reviewer to a tab
+  that does not exist is how the two earlier 2.1(b) "could not locate the IAP" rejections happen.
+
+**Verified clean and needing nothing:** the annual introductory offer ($24.99 first year vs $34.99
+list in the US, pay-up-front, one year, one period, **all 175 territories**, live 2026-07-22,
+**ends 2026-12-31**); both subscriptions' App Review screenshots; the age-rating declaration; the
+production Info.plist (Calendars + Photo Library only — no Health, Camera, Microphone or
+local-network keys).
+
+**Two real bugs were live in the App Store screenshots** and are now fixed in code (`0e889e4`):
+screenshot 4 read "No setup. **Tempo** builds the highest-impact session…" and screenshot 2 rendered
+"**UPPER_CHEST** · TRICEPS", a raw DB enum. A sweep found four rendered "Tempo" strings total.
+
+**Guideline 1.2 closed** (`1601513`): the age rating declares user-generated content and the app had
+no report and no block. Migration `add_moderation_block_report.sql` **applied and verified live**;
+enforcement is server-side because all eight discovery RPCs are SECURITY DEFINER. tsc clean, 453/453.
+
+**⚠ App Privacy is the one item that could not be verified.** Apple exposes no `appDataUsages`
+endpoint — it is ASC web UI only. The answers were filled 2026-08-06, **18 days before HealthKit was
+removed**, so check whether **Health & Fitness → Health** is still declared and drop it; confirm
+**Purchases → Purchase History** is present (the merged policy discloses it); and consider dropping
+**Diagnostics → Performance Data**, since `crashReporting.ts` sets `tracesSampleRate: 0`.
+
+**▶ NEXT:** build 33 (the first binary containing both the brand-leak fixes and report/block) →
+attach to version 1.0 → submit with both subscriptions. **Do not write "submitted" here without
+reading the version state back from the API.**
+
 **2026-08-24 — FIFTH App Store rejection (Guideline 2.5.1, build 1.0(29), iPhone 17 Pro Max + iPad
 Air M3): HealthKit declared in the binary without the functionality being clearly identified in the
 UI. Resolved by removing HealthKit entirely — founder's call, taken after being shown both options.**
