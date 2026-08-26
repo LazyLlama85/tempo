@@ -18,6 +18,44 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-26 — Build 35 IS IN REVIEW. The two subscriptions are NOT, and that is the open risk.**
+Read back from the API, not assumed:
+- Version 1.0 + build **35**: `WAITING_FOR_REVIEW` ✅
+- Review submission `fbc5cd2d`: `WAITING_FOR_REVIEW`, **1 item — the app version only**
+- `tempo_pro_month` / `tempo_pro_year`: still **`READY_TO_SUBMIT`**, outside the submission ❌
+
+**Why they are missing, and it is not fixable from here.** `POST /v1/reviewSubmissionItems`
+rejected `subscription` with *"not a relationship on the resource."* Probing every plausible name
+showed the only valid item relationships are `appStoreVersion`, `appEvent`,
+`appCustomProductPageVersion`, `appStoreVersionExperiment`, `appStoreVersionExperimentV2`.
+`appStoreVersion` itself exposes no IAP relationship either. **Attaching subscriptions to a review
+submission is a web-UI-only operation in App Store Connect.** The public API cannot do it, so any
+future automated submission will hit exactly this wall.
+
+**The risk this creates.** The App Review note explicitly walks the reviewer to the paywall
+("You" tab -> gear -> ARCLO PRO). If the subscriptions are not in review, `getOfferings()` returns
+no purchasable product and the paywall shows its unavailable state — which is the **2.1(b)
+"could not locate the in-app purchase"** rejection this app already took twice.
+
+**▶ NEXT (founder, in the ASC web UI, before review starts):** open the 1.0 version page and add
+both Arclo Pro subscriptions to the submission. If ASC refuses while the version is
+`WAITING_FOR_REVIEW`, the submission must be cancelled first — say so and it can be cancelled by
+API in seconds, then re-submitted with `node submit.js --send` from the local `asc-check` folder
+once the subscriptions are attached.
+
+**Everything else is done and verified:** build 35 attached; six screenshots all `COMPLETE`, in
+order, with the "Tempo" and `UPPER_CHEST` defects replaced by real captures from the fixed binary;
+subscriptions renamed **Arclo Pro** with correct group levels and real review notes; reviewer note
+navigation corrected to the "You" tab; App Privacy verified (9 types, no stale Health entry);
+Guideline 1.2 report/block shipped and enforced server-side; the rest-timer Live Activity shelved
+and bundle-verified absent.
+
+**⚠ EAS Apple credential is stale.** It 401s on Developer Portal operations — it broke
+`eas metadata:pull`, then killed a production build outright when that build had to register the
+widget extension's bundle id. Every build and submit currently needs
+`EXPO_ASC_API_KEY_PATH` / `EXPO_ASC_KEY_ID` / `EXPO_ASC_ISSUER_ID` passed by hand. Fix with
+`npx eas credentials`.
+
 **2026-08-25 — App Store Connect audited directly via the API, and the ledger was wrong.**
 The 2026-08-24 entry below ends "**▶ NEXT (founder):** when build 30 lands, select it … and submit."
 **That never happened, and the entry recorded the intent as though it had.** Read from the live
