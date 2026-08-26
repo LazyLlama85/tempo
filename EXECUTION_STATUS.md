@@ -18,7 +18,24 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-08-26 — Build 35 IS IN REVIEW. The two subscriptions are NOT, and that is the open risk.**
+**2026-08-26 — SUBMITTED: version 1.0 + build 35 + BOTH subscriptions, in one submission.**
+Confirmed by reading the API back, not by trusting the write:
+- Version 1.0, build **35**: `WAITING_FOR_REVIEW`
+- `Arclo Pro (Monthly)` and `Arclo Pro (Yearly)`: `WAITING_FOR_REVIEW`
+- Submission `032321f9`: `WAITING_FOR_REVIEW`, **4 items**, submitted 22:29 UTC
+
+**The gotcha that cost a round trip, worth knowing for next time.** `POST
+/v1/reviewSubmissionItems` accepts `appStoreVersion` but has **no `subscription`
+relationship** — probing every plausible name confirms the only valid item types are
+`appStoreVersion`, `appEvent`, `appCustomProductPageVersion` and the two experiment types.
+So an API-only submission silently ships the binary *without* its in-app purchases, which
+would have walked the reviewer to a paywall with nothing to sell — the 2.1(b) rejection
+this app already took twice. **The fix: add the subscriptions to a Draft Submission in the
+ASC web UI (Monetization → Subscriptions → "Add for Review"), then add the version to that
+same draft by API and submit it.** A version already `WAITING_FOR_REVIEW` must be cancelled
+first to free it; it returns as `DEVELOPER_REJECTED`, which is submittable.
+
+~~**Build 35 IS IN REVIEW. The two subscriptions are NOT, and that is the open risk.**~~
 Read back from the API, not assumed:
 - Version 1.0 + build **35**: `WAITING_FOR_REVIEW` ✅
 - Review submission `fbc5cd2d`: `WAITING_FOR_REVIEW`, **1 item — the app version only**
