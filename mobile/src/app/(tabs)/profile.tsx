@@ -469,15 +469,32 @@ export default function ProfileScreen() {
           setSaving(false)
           return
         }
+        if (res === 'blocked') {
+          Alert.alert('Choose another username', 'That username isn’t allowed. Please pick a different one.')
+          setSaving(false)
+          return
+        }
         if (res === 'failed') throw new Error('username update failed')
       }
-      await supabase
+      // The error was previously discarded, so ANY failure here looked like a
+      // successful save. It matters more now: the Guideline 1.2 name filter can
+      // reject display_name outright, and silently keeping the old name while
+      // showing success is worse than saying why.
+      const { error: profileError } = await supabase
         .from('user_profiles')
         .update({
           display_name: nameInput.trim() || null,
           ...(preset ? { avatar_url: buildAvatarValue(preset.icon, preset.color) } : {}),
         })
         .eq('user_id', userId)
+      if (profileError) {
+        if (`${profileError.message}`.includes('display_name_not_allowed')) {
+          Alert.alert('Choose another name', 'That display name isn’t allowed. Please pick a different one.')
+          setSaving(false)
+          return
+        }
+        throw profileError
+      }
       await refreshProfile()
       setEditing(false)
     } catch {

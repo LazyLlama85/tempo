@@ -85,17 +85,25 @@ export async function fetchSocialNotifCount(client: SupabaseClient, userId: stri
 
 export const USERNAME_RULE = /^[a-z0-9_]{3,20}$/
 
-/** Update the user's @username. Returns 'ok' | 'invalid' | 'taken' | 'failed'. */
+/**
+ * Update the user's @username.
+ *
+ * `blocked` comes from the database trigger added for App Store Guideline 1.2 —
+ * the objectionable-name filter is server-side because this writes straight to
+ * `user_profiles` under RLS, so a client-side check would be bypassable.
+ */
 export async function updateUsername(
   client: SupabaseClient,
   userId: string,
   username: string,
-): Promise<'ok' | 'invalid' | 'taken' | 'failed'> {
+): Promise<'ok' | 'invalid' | 'taken' | 'blocked' | 'failed'> {
   const u = username.trim().toLowerCase().replace(/^@/, '')
   if (!USERNAME_RULE.test(u)) return 'invalid'
   const { error } = await client.from('user_profiles').update({ username: u }).eq('user_id', userId)
   if (!error) return 'ok'
-  return `${error.message}`.toLowerCase().includes('duplicate') || error.code === '23505' ? 'taken' : 'failed'
+  const msg = `${error.message}`.toLowerCase()
+  if (msg.includes('username_not_allowed')) return 'blocked'
+  return msg.includes('duplicate') || error.code === '23505' ? 'taken' : 'failed'
 }
 
 // ── Activity feed + leaderboard ───────────────────────────────────────────────

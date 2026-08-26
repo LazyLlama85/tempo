@@ -26,13 +26,29 @@ export async function listMyGroups(client: SupabaseClient): Promise<GroupSummary
   }))
 }
 
-/** Create a group (caller becomes owner + first member). Returns it, or null. */
-export async function createGroup(client: SupabaseClient, name: string): Promise<GroupSummary | null> {
+/**
+ * Why a group could not be created. `blocked` is its own case so the UI can
+ * explain the name was rejected rather than showing "please try again" for
+ * something retrying will never fix.
+ */
+export type CreateGroupResult =
+  | { ok: true; group: GroupSummary }
+  | { ok: false; reason: 'blocked' | 'failed' }
+
+/** Create a group (caller becomes owner + first member). */
+export async function createGroup(client: SupabaseClient, name: string): Promise<CreateGroupResult> {
   const { data, error } = await client.rpc('create_group', { p_name: name.trim() })
-  if (error) return null
+  if (error) {
+    // The name filter raises `group_name_not_allowed` (Guideline 1.2). Every
+    // other error is a genuine failure worth retrying.
+    return { ok: false, reason: `${error.message}`.includes('group_name_not_allowed') ? 'blocked' : 'failed' }
+  }
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null
-  if (!row?.id) return null
-  return { id: String(row.id), name: String(row.name ?? name), invite_code: String(row.invite_code ?? ''), owner_id: '', member_count: 1 }
+  if (!row?.id) return { ok: false, reason: 'failed' }
+  return {
+    ok: true,
+    group: { id: String(row.id), name: String(row.name ?? name), invite_code: String(row.invite_code ?? ''), owner_id: '', member_count: 1 },
+  }
 }
 
 /** Join by invite code. Returns the group id (idempotent) or null if not found. */

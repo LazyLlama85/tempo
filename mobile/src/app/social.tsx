@@ -213,9 +213,12 @@ export default function SocialScreen() {
     if (!name) return
     haptics.tapLight()
     setGroupName('')
-    const g = await createGroup(supabase, name)
-    if (g) { track('group_created'); load(); router.push(`/group-detail?id=${g.id}`) }
-    else Alert.alert("Couldn't create group", 'Please try again.')
+    const res = await createGroup(supabase, name)
+    if (res.ok) { track('group_created'); load(); router.push(`/group-detail?id=${res.group.id}`) }
+    else if (res.reason === 'blocked') {
+      setGroupName(name) // keep it so they can edit rather than retype
+      Alert.alert('Choose another name', 'That group name isn’t allowed. Pick something else and try again.')
+    } else Alert.alert("Couldn't create group", 'Please try again.')
   }
   const onJoinGroup = async () => {
     const c = groupCode.trim()

@@ -63,6 +63,24 @@ A detailed description of everything Arclo is — frontend, backend, features, d
 > removing it is a native change to a working build config, and an unused widget extension is not
 > something Apple cites.
 
+> **Objectionable-name filtering added 2026-08-26** (`add_moderation_name_filter.sql`, **applied**),
+> closing the third of Guideline 1.2's four requirements after report/block covered two. Three
+> fields are user-authored and shown to others: `user_profiles.username`, `user_profiles.display_name`
+> and `groups.name`. Enforcement is a BEFORE trigger on `user_profiles` plus a check inside
+> `create_group`, **not** client-side — both profile fields are written straight to the table under
+> RLS, so a client check would be bypassable. `is_objectionable_text()` uses three lists: an
+> **allowlist** whose tokens are dropped entirely (this is what stops "Scunthorpe", "spicy",
+> "shiitake", "flame retardant"), a **whole-token** list for profanity that appears inside innocent
+> words, and an **unambiguous** list matched against the concatenated remainder to catch "fuckyou"
+> and separator/leetspeak evasion. Both sides of every comparison go through `mod_norm` (strip
+> non-letters *then* collapse repeats) — an earlier version collapsed first and let the plain
+> spelling of the worst slur through while catching the evaded one. Verified against an 80-case
+> corpus with zero failures and against all 61 live profiles and every existing group (none
+> flagged); the trigger only inspects a field that actually changed, so a legacy name can never
+> block an unrelated profile edit. Client: `updateUsername` gained a `blocked` result, `createGroup`
+> now returns a `CreateGroupResult` discriminating `blocked` from `failed`, and the display-name
+> save **stops discarding its error** — it previously swallowed every failure and reported success.
+
 > **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
 > inventory of everything still wrong in the code/logic/UI described below (absorbed from the
 > retired `MASTER_FIX_PLAN.md`, a 2026-07-19 full-codebase review), with per-item files/scope.
