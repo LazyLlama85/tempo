@@ -48,6 +48,21 @@ A detailed description of everything Arclo is — frontend, backend, features, d
 > `/friend-profile?userId=…`, so one placement covers feed, both leaderboards, activity events,
 > the friends list, and group members.
 
+> **Rest-timer Live Activity SHELVED 2026-08-26 (not deleted).** It rendered as a blank dark
+> capsule on a real device — no ring, no label, no countdown (`EXECUTION_STATUS.md` N7) — and
+> diagnosing `expo-widgets`' SwiftUI compilation pass needs Xcode on a Mac. Rather than ship a
+> visibly broken Lock Screen surface into App Review as Guideline 2.1 bait, it was switched off at
+> the **module-resolution** layer: `widgets/RestTimerActivity.ios.tsx` moved to
+> `widgets/dormant/`, which nothing imports, so Metro finds no platform override and iOS now
+> resolves `@/widgets/RestTimerActivity` to the same no-op stub Android/web always used. The two
+> call sites (`plan.tsx`, `_layout.tsx`) were **not touched** — all four functions return void and
+> no caller reads a result, so the in-app rest timer is unaffected. Verified by exporting the iOS
+> bundle and reading its source map: only the stub is bundled, nothing from `dormant/`, and zero
+> `@expo/ui/swift-ui` modules. The file stays under `src/` so `tsc` keeps compiling it; to restore
+> the feature, move it back one directory. `expo-widgets` stays in `app.json` deliberately —
+> removing it is a native change to a working build config, and an unused widget extension is not
+> something Apple cites.
+
 > **Active fix roadmap:** `EXECUTION_STATUS.md`'s Open Backlog section is the execution-ready
 > inventory of everything still wrong in the code/logic/UI described below (absorbed from the
 > retired `MASTER_FIX_PLAN.md`, a 2026-07-19 full-codebase review), with per-item files/scope.
