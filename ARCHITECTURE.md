@@ -3343,10 +3343,27 @@ recoverable from git history if it is ever wanted back.
   all read from that one constant, and the existing guard still stands: a non-`http` value makes every
   button fall back to `#get` rather than shipping a dead link. Verified in a browser, not just by
   reading the diff — all six hrefs rewritten, `target="_blank"`, no horizontal overflow at 1920px,
-  no `REPLACE_WITH` left in the DOM. **Still open on this page:** all seven phone frames are
-  deliberate blank placeholders (`.shot-placeholder` / `.side-placeholder`, each labeled with the
-  screen it wants) — real device captures exist and have not been dropped in yet — and the ratings
-  strip and testimonial rail stay commented out until there are real numbers and real quotes.
+  no `REPLACE_WITH` left in the DOM. **Still open on this page:** the ratings strip and testimonial
+  rail stay commented out until there are real numbers and real quotes.
+- **2026-08-30 (b), the seven phone frames filled with real captures.** `web/img/shots/*.webp` — the
+  live Play listing's own screenshots, pulled at full resolution through the Publishing API and
+  downsized to 560px wide (WebP q82, 224KB for all seven, from ~2.4MB of source PNG). Not mockups and
+  not built HTML, per the standing rule against fabricated app screens. The frames render at 274×596
+  CSS px and the captures are 1179×2556 / 1284×2778, so `object-fit: cover` with `object-position:
+  top` crops almost nothing; the `.notch` pill sits over the empty middle of each capture's real
+  status bar, which is why the status bar was deliberately *not* cropped out. Mapping: hero centre
+  `home`, hero left `adapt`, hero right `quick`, The schedule `plan`, The session `session`, The
+  adaptation `body`, The proof `progress`. Three of the original wish-list screens (Streaks & badges,
+  Exercise library, the post-workout RPE prompt) are not in the store set and were re-cast rather than
+  invented; The adaptation row deliberately got the muscle-recovery map, since "it reads the week you
+  actually had" is what that screen shows, and the reschedule prompt moved to the hero cluster where
+  the wedge belongs. The hero's three images are `loading="eager"`; the four feature-row ones are
+  `loading="lazy"`. **The two side-panel images stay eager on purpose** — they are `display:none`
+  below the tablet breakpoint, so lazy would save a little mobile bandwidth, but a test showed a
+  browser can defer them and leave the hero's side panels blank on first paint, which is a worse
+  trade than ~56KB. The `.shot-placeholder` / `.side-placeholder` CSS is left in place, unused, as the
+  documented fallback. Verified in a browser: all seven load (`naturalWidth` 560, no errors) and every
+  frame paints.
 - **Deployment:** `.github/workflows/` has **two identical workflows** (`static.yml` and `deploy.yml`),
   both named "Deploy to GitHub Pages", both triggered on push to `main`, both uploading `./web`. One is
   redundant and they race on every push. Left alone rather than fixed drive-by; worth deleting one.

@@ -36,12 +36,16 @@ join a waitlist for an app they could already download.
   rewritten with `target="_blank"`, no `REPLACE_WITH` left in the DOM, and no horizontal overflow at
   1920px.
 
-**▶ Still open on this page, and worth doing soon:** all seven phone frames are blank placeholders
-(`.shot-placeholder` / `.side-placeholder`, each labeled with the screen it wants). The real captures
-already exist — they are on both store listings — they have just never been dropped into the site. A
-launch page whose product visual is seven empty rectangles is a real conversion cost on the day
-traffic starts. The ratings strip and testimonial rail stay commented out, correctly, until there are
-real numbers and quotes.
+~~**▶ Still open on this page:** all seven phone frames are blank placeholders.~~ **Done the same
+day.** `web/img/shots/*.webp` now carries the live Play listing's own seven screenshots, pulled at
+full resolution through the Publishing API and downsized to 560px wide (224KB for all seven, from
+~2.4MB of source PNG). Real captures, not mockups. Three of the seven slots wanted screens the store
+set does not contain (Streaks & badges, Exercise library, the post-workout RPE prompt) and were
+re-cast rather than invented — The adaptation row took the muscle-recovery map, which is what "it
+reads the week you actually had" actually looks like, and the reschedule prompt moved into the hero
+cluster. Verified in a browser: all seven load, every frame paints, no horizontal overflow. The
+ratings strip and testimonial rail stay commented out, correctly, until there are real numbers and
+quotes.
 
 **Also noted, deliberately not fixed:** `.github/workflows/` holds **two identical** GitHub Pages
 workflows (`static.yml` and `deploy.yml`) — same name, same trigger, same `./web` upload. They race on
@@ -756,6 +760,10 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-30 (c)** — Filled the site's seven blank phone frames with the live store listing's own
+  screenshots (`web/img/shots/*.webp`, 224KB total). Three slots re-cast against screens the store set
+  doesn't contain, rather than inventing them.
 
 - **2026-08-30 (b)** — Swapped the marketing site: `web/launch.html` → `web/index.html`, waitlist page
   deleted, real App Store + Play URLs filled into the `STORE` constant and verified live in a browser.

@@ -30,13 +30,11 @@
     was deleted (recoverable from git history — it asked a ready-to-download
     visitor for their email address, which on a launched app costs installs).
 
+    2026-08-30: the seven phone frames now carry real device captures pulled
+    from the live store listings (see the comment above the hero markup).
+
     STILL OPEN BEFORE THIS PAGE IS FINISHED:
-      1. Every phone frame (.shot-placeholder / .side-placeholder) is a
-         deliberate blank, each labeled with the exact real screenshot it
-         wants (see the comment above the hero markup for the full list of
-         all seven, chosen so no screen repeats across the page). Drop in
-         real device screenshots before launch, not fabricated UI.
-      2. The ratings strip (search "RATINGS BLOCK") and testimonial rail
+      1. The ratings strip (search "RATINGS BLOCK") and testimonial rail
          (search "TESTIMONIAL BLOCK") are commented out on purpose. Uncomment
          only with real numbers and quotes, never invented ones.
 
@@ -374,6 +372,13 @@
   .side-left .side-placeholder { transform: translateX(-30px); }
   .side-right .side-placeholder { transform: translateX(30px); }
   .side-placeholder svg { opacity: 0.45; }
+  /* Real device captures, same files the store listings use. object-position
+     is top so the crop eats the bottom of the screen rather than the header,
+     which is where each screenshot's point actually is. */
+  .side-img, .shot-img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: top center; display: block;
+  }
   .side-placeholder span {
     font-family: var(--font-body); font-size: 9px; font-weight: 600;
     letter-spacing: 0.08em; text-transform: uppercase;
@@ -634,16 +639,23 @@
       </div>
     </div>
 
-    <!-- Every device slot below names the exact real screenshot to drop in.
-         All seven are deliberately different screens (hero + 4 feature rows),
-         picked to be the most compelling ones and to never repeat:
-           Hero center (flagship) → Today view (Home tab: plan + Start Workout)
-           Hero left               → Streaks & badges (weekly recap)
-           Hero right              → Exercise library
-           The schedule            → Calendar view (month/week grid)
-           The session             → Live workout (active logging)
-           The adaptation          → Session feedback (post-workout RPE prompt)
-           The proof               → Progress dashboard (charts + PRs) -->
+    <!-- 2026-08-30: the seven blanks are filled. Every image below is a real
+         device capture taken from the live store listings (img/shots/*.webp,
+         downsized from the Play originals), not a mockup and not built HTML.
+         All seven are different screens, none repeats:
+           Hero center (flagship) → home     Today view, session in a real gap
+           Hero left               → adapt    "Still on for this?" + Reschedule
+           Hero right              → quick    Quick Workout
+           The schedule            → plan     Week view + today's exercises
+           The session             → session  Live runner, logging sets
+           The adaptation          → body     Muscle map, shaded by recovery
+           The proof               → progress Volume, weight trend, frequency
+         Three slots were re-cast against the original wish-list: Streaks &
+         badges, Exercise library and the post-workout RPE prompt are not in
+         the store set, and inventing them was not an option. The adaptation
+         row shows the muscle-recovery map instead, which is what "it reads
+         the week you actually had" actually looks like; the real reschedule
+         prompt moved into the hero cluster, where the wedge belongs. -->
     <div class="hero-visual" data-sr style="--d:150ms">
       <div class="visual-stage" id="visual-stage">
         <div class="glow-ring" aria-hidden="true"></div>
@@ -651,29 +663,24 @@
         <div class="phone-stack" id="phone-stack">
 
           <div class="side-panel side-left" aria-hidden="true">
-            <div class="side-placeholder">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-1 6-4 6-8 0-3-2-5-3-7-.5 2-1 3-2 3-.5 0-1-1-1-2-2 2-4 4-4 6 0 4 2 7 4 8z"/></svg>
-              <span>Streaks &amp; badges</span>
-            </div>
+            <img class="side-img" src="img/shots/adapt.webp" width="560" height="1214" alt=""
+                   loading="eager" decoding="async">
           </div>
 
           <div class="device-wrap main-device">
             <div class="device">
               <div class="device-screen">
                 <div class="notch"></div>
-                <div class="shot-placeholder">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg>
-                  <span>Today view</span>
-                </div>
+                <img class="shot-img" src="img/shots/home.webp" width="560" height="1214"
+                       alt="Arclo&rsquo;s Today view: the day&rsquo;s real calendar events with the workout placed in a free gap."
+                       loading="eager" fetchpriority="high" decoding="async">
               </div>
             </div>
           </div>
 
           <div class="side-panel side-right" aria-hidden="true">
-            <div class="side-placeholder">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 10h4M18 10h4M2 14h4M18 14h4M6 12h12"/></svg>
-              <span>Exercise library</span>
-            </div>
+            <img class="side-img" src="img/shots/quick.webp" width="560" height="1214" alt=""
+                   loading="eager" decoding="async">
           </div>
 
         </div>
@@ -742,10 +749,9 @@
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
-          <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-            <span>Calendar view</span>
-          </div>
+          <img class="shot-img" src="img/shots/plan.webp" width="560" height="1214"
+                       alt="Arclo&rsquo;s week view: each day&rsquo;s session laid out across the calendar, with today&rsquo;s exercises listed underneath."
+                       loading="lazy" decoding="async">
         </div></div>
       </div>
     </div>
@@ -767,10 +773,9 @@
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
-          <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1M8 12l2.5 2.5L16 9"/></svg>
-            <span>Live workout</span>
-          </div>
+          <img class="shot-img" src="img/shots/session.webp" width="560" height="1214"
+                       alt="Arclo&rsquo;s live session runner: an exercise with its sets, previous weights and rep targets ready to log."
+                       loading="lazy" decoding="async">
         </div></div>
       </div>
     </div>
@@ -792,10 +797,9 @@
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
-          <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.5 8.5 8.5 0 0 1-8.9-.6L3 20l1.6-4.6a8.38 8.38 0 0 1-.6-3.9 8.5 8.5 0 0 1 7.5-4.5h.5a8.48 8.48 0 0 1 8 8v.5z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
-            <span>Session feedback</span>
-          </div>
+          <img class="shot-img" src="img/shots/body.webp" width="560" height="1214"
+                       alt="Arclo&rsquo;s muscle map, shading each muscle group by how recovered it is after the week&rsquo;s training."
+                       loading="lazy" decoding="async">
         </div></div>
       </div>
     </div>
@@ -817,10 +821,9 @@
       <div class="device-wrap" data-sr style="--d:120ms">
         <div class="device"><div class="device-screen">
           <div class="notch"></div>
-          <div class="shot-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
-            <span>Progress dashboard</span>
-          </div>
+          <img class="shot-img" src="img/shots/progress.webp" width="560" height="1214"
+                       alt="Arclo&rsquo;s progress dashboard: volume lifted, weight trend and training frequency over time."
+                       loading="lazy" decoding="async">
         </div></div>
       </div>
     </div>
