@@ -268,7 +268,7 @@
     <div class="kick">
       <span class="dot"></span>
       <span class="wordmark">tempo</span>
-      <span class="eyebrow">· Independent Product Audit · Panel of 10 · v1.0.0 pre-launch</span>
+      <span class="eyebrow">· Independent Product Audit · Panel of 10 · v1.0.0 &mdash; live on the App Store and Google Play (2026-08-30)</span>
     </div>
     <div class="heroGrid">
       <div>
@@ -301,6 +301,14 @@
     <span class="lab">Update Log — living document</span>
     <p style="margin:0 0 16px;font-size:14.5px;">This audit is re-scored as the app changes. The rule it holds itself to: <b>building a fix closes a gap; it does not move a score until the outcome is measured.</b> Shipping instrumentation, a paywall, or a feature earns an "addressed" note — the number only changes when a real cohort or conversion figure proves it. Newest first.</p>
     <div class="stack">
+      <div class="find high">
+        <h4><span class="pill p-high">2026-08-30 &mdash; Approved on iOS. And Google Play had been serving three-week-old code the whole time</span> Both stores are now current and correct <span class="pill p-blue" style="margin-left:6px;">1.0 READY_FOR_SALE; Play production 11 &rarr; 12; tsc clean, 453/453</span></h4>
+        <p><b>Apple approved it.</b> Version 1.0 reads <code>READY_FOR_SALE</code> and both subscriptions read <code>APPROVED</code>, checked against the API rather than an email. After three rejections (3.1.2, a missing EULA link, then 2.5.1 HealthKit) the app is on sale with working monetization behind it. That is the end of a five-week thread, and it is worth being precise about what it earns: distribution, not demand.</p>
+        <p><b>The finding of this session is not the approval, it is what the approval exposed.</b> Attention had been on Apple for a month. Google Play production was still serving <b>versionCode 11, built 2026-08-06</b> &mdash; 53 commits stale. Everything shipped since had gone to Apple only: the Android Google sign-in hang, the app-open bottleneck work, the fix that stopped treating an unverifiable session as a sign-out, the whole paywall-recovery pass, report/block, and the Arclo rename. OTA updates had been quietly covering the JS half of that gap, which is precisely why nobody noticed &mdash; the platform with the <em>fewer</em> release constraints drifted furthest behind, because nothing ever forced a look at it. Build 12 is now live in Play production at 100%.</p>
+        <p><b>And <code>eas.json</code> still pointed the Android submit profile at <code>track: "alpha"</code></b>, three weeks after the app went to Play production. Any future <code>eas submit</code> run without reading the config would have quietly published a production build to a closed-testing track and reported success. Config that disagrees with reality is worse than missing config, for the same reason a filter that fails open is worse than no filter: it is believed.</p>
+        <p><b>The live Play listing carried both defects that were fixed for Apple and never mirrored.</b> Screenshot 3 showed the raw <code>UPPER_CHEST &middot; TRICEPS</code> enum; screenshot 5 read "No setup. <em>Tempo</em> builds the highest-impact session." These are the exact two captures replaced in App Store Connect on 08-24. The source was already correct &mdash; <code>quick-workout.tsx</code> renders <code>BRAND_NAME</code> &mdash; so this was pure store-asset drift, invisible to every test and every typecheck, and found only by downloading what the store actually serves and looking at it. The one open item inherited from 08-09, "Play's Feature Graphic still says Tempo," turned out to be already fixed; it was carried as open for three weeks on nobody's re-check. Both screenshots are replaced, order preserved, read back and confirmed.</p>
+        <p><b>Score: nothing moves, for the sixth consecutive entry, and this one is the least ambiguous of the six.</b> Shipping existing code to a second store is distribution work. Not one line of app behavior improved today for anyone who already had the app; Android users get three weeks of fixes they should have had three weeks ago, which is a correction of this project's own lapse, not new value. App Store Potential holds at 5 and stays frozen with the rest of the Market Proof rows &mdash; a correct listing is not a converting listing, and there is still no install, retention, or conversion figure anywhere in this project. The gap this document has named since July is unchanged and now completely unobstructed: <b>two approved store listings, zero proof anybody wants it.</b> Every excuse for not measuring is gone.</p>
+      </div>
       <div class="find high">
         <h4><span class="pill p-high">2026-08-26 (b) &mdash; Submitted, and then the Guideline 1.2 hole got closed properly</span> Name filtering shipped; two bugs in the first version were caught by testing, not by reading it back <span class="pill p-blue" style="margin-left:6px;">80-case corpus, 0 failures; tsc clean, 453/453; version + both subscriptions WAITING_FOR_REVIEW</span></h4>
         <p><b>It is in review, with the monetization attached this time.</b> Submission <code>032321f9</code> carries four items &mdash; version 1.0 on build 35, the Arclo Pro group, and both subscriptions &mdash; all reading <code>WAITING_FOR_REVIEW</code> from the API. The first attempt shipped the binary <em>alone</em>, because <code>POST /v1/reviewSubmissionItems</code> accepts <code>appStoreVersion</code> but has no <code>subscription</code> relationship at all. That would have walked the reviewer, via the review note, to a paywall with nothing to sell &mdash; the 2.1(b) rejection this app has already taken twice, reintroduced by the automation meant to prevent it. Subscriptions have to be added to a draft submission through the web UI; the API can only add the version to that draft.</p>
@@ -912,7 +920,7 @@
 <section id="scorecard">
   <div class="wrap">
     <div class="secHead"><span class="num">02</span><h2>Category Scorecard</h2></div>
-    <p class="subhead">48 dimensions. <b>Current</b> = where it honestly is today (pre-launch, unvalidated, but built). <b>Potential</b> = realistic ceiling if the right work is done. The gap is the opportunity. Bars: filled = current, dashed marker = potential.</p>
+    <p class="subhead">48 dimensions. <b>Current</b> = where it honestly is today (shipped on both stores as of 2026-08-30, still unvalidated by any cohort). <b>Potential</b> = realistic ceiling if the right work is done. The gap is the opportunity. Bars: filled = current, dashed marker = potential.</p>
 
     <div class="tableWrap">
       <table>
@@ -2547,6 +2555,6 @@
 <div class="foot">
   <div class="wrap"><div>
     Independent product audit of <b style="color:var(--text-2)">Tempo v1.0.0</b> (feature/tempo-pro) · Panel review across product, design, growth, fitness science, behavioral psychology, architecture, venture, ASO, subscription, and QA lenses · Grounded in the live codebase, <span class="mono" style="font-size:12px">ARCHITECTURE.md</span>, and <span class="mono" style="font-size:12px">DESIGN_STRATEGY.md</span>.
-    <br><br>Scores reflect a pre-launch, unvalidated but fully-built product. "Potential" assumes disciplined execution of the roadmap above. No metric here is a substitute for a retained cohort — get real users on the core loop, and re-audit against their behavior.
+    <br><br>Scores reflect a shipped-but-unvalidated product: public on both stores since 2026-08-30, with no retention or conversion data behind a single row. "Potential" assumes disciplined execution of the roadmap above. No metric here is a substitute for a retained cohort — get real users on the core loop, and re-audit against their behavior.
   </div></div>
 </div>

@@ -50,7 +50,8 @@
       },
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
-        "track": "alpha"
+        "track": "production",
+        "releaseStatus": "completed"
       }
     }
   }

@@ -2774,7 +2774,12 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   white rounded badge shown on the dark splash on both platforms. In-app brand assets:
   `tempo-logo.png` (white-tile badge), `tempo-mark.png` (transparent two-tone glyph), `tempo-glyph.png`
   (white silhouette for `tintColor`). `app.json` carries permission strings + export-compliance flag;
-  `eas.json` has build env + submit scaffold; launch steps in `LAUNCH.md`. **2026-08-06:**
+  `eas.json` has build env + submit scaffold; launch steps in `LAUNCH.md`. **2026-08-30:**
+  `submit.production.android` corrected from `track: "alpha"` to `track: "production"` +
+  `releaseStatus: "completed"` — the app had been live on Play production since 2026-08-09 while the
+  profile still pointed at closed testing, so any non-interactive `eas submit` would have published a
+  production build to the alpha track and reported success. Android versionCode 12 (v1.0.0) shipped to
+  Play production at 100% through the corrected profile. **2026-08-06:**
   `submit.production.ios.ascAppId` added (`6785075737`, the App Store Connect numeric app ID —
   required for `eas submit -p ios --non-interactive` to resolve the app without an interactive
   prompt); the actual first production submissions to both stores happened this session — see

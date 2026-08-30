@@ -18,6 +18,46 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-30 — SHIPPED ON BOTH STORES. iOS is `READY_FOR_SALE`; Play production is now
+versionCode 12.** Every claim below was read back from the two store APIs, not assumed.
+
+**App Store — approved and live.** Version 1.0 is `READY_FOR_SALE`. `tempo_pro_month` and
+`tempo_pro_year` are both `APPROVED`, so the paywall the reviewer was walked to has real products
+behind it. The 2026-08-26 draft-submission workaround (subscriptions attached in the web UI, version
+added by API) worked — that is the procedure to repeat for 1.1.
+
+**Google Play was three weeks and 53 commits behind, and nobody had noticed.** Production still
+served **versionCode 11, built 2026-08-06**, while every fix since had gone to Apple: the Android
+Google sign-in hang, the app-open bottleneck work, the "unverifiable session ≠ sign-out" fix, the
+paywall recovery pass, report/block, and the Arclo rename. OTA updates had been papering over the JS
+half of that gap; the native half never shipped.
+
+Fixed this session, end to end:
+- **Build 12** (v1.0.0, versionCode auto-incremented 11 → 12) built on EAS from a clean tree,
+  `tsc` clean and 453/453 tests green beforehand.
+- Submitted to the **production** track at **100%**, `status: completed`, and read back from the
+  Play API as live. Release notes written and verified on the release.
+- **`eas.json`'s Android submit profile still said `track: "alpha"`** even though the app has been
+  in Play production since 2026-08-09 — a real trap for any future `eas submit`. Now
+  `track: "production"` + `releaseStatus: "completed"`.
+
+**Two live-listing defects found by auditing Play's actual assets, not the docs.** Both were the
+*same* defects fixed for Apple on 2026-08-24 and never mirrored to Google: screenshot 3 showed the
+raw `UPPER_CHEST · TRICEPS` enum, and screenshot 5 read "No setup. **Tempo** builds the
+highest-impact session." The app source was already correct (`quick-workout.tsx` uses `BRAND_NAME`)
+— the screenshots were stale captures. Replaced both with the corrected captures in one
+transactional Play edit, order preserved, and re-downloaded the listing to confirm. The listing
+title, description and feature graphic were already correctly Arclo-branded, closing the
+2026-08-09 "Feature Graphic still says Tempo" open item by evidence.
+
+**▶ NEXT.** Nothing is blocking a release any more, which makes the next constraint the honest
+one: **there is still no on-device verification pass and no retention cohort.** The founder-only
+list below is now the critical path — T1.2 (on-device pass), the stale EAS Apple credential,
+Tempo Coach deployment, the Google Calendar reconnect tap, and B6.2 (one acquisition channel).
+Shipping to two stores is not traction.
+
+---
+
 **2026-08-26 — SUBMITTED: version 1.0 + build 35 + BOTH subscriptions, in one submission.**
 Confirmed by reading the API back, not by trusting the write:
 - Version 1.0, build **35**: `WAITING_FOR_REVIEW`
@@ -476,8 +516,10 @@ then discovering App Store Connect's v1.0 record had never been filled in for re
 All of it is now filled and submitted together (app version + both Pro subscriptions + subscription
 group), per Apple's requirement that the first subscription group ship with a new app version. Google
 Play's live store listing was also found still branded "Tempo" and corrected to Arclo, submitted for
-review. **Open from this session:** Play's Feature Graphic image still literally says "Tempo" — needs
-a real redesigned asset (founder/design call, not a text fix); RevenueCat entitlement ID still hasn't
+review. ~~**Open from this session:** Play's Feature Graphic image still literally says "Tempo" — needs
+a real redesigned asset (founder/design call, not a text fix);~~ **(Feature Graphic closed
+2026-08-30 — downloaded the live asset and it reads "Arclo / Precision fitness scheduling for your
+peak performance." It had already been replaced.)** RevenueCat entitlement ID still hasn't
 been independently verified against `eas.json`'s value (item 5 below); both store reviews are pending
 (Apple ~48h, Google typically within 7 days).
 
@@ -551,7 +593,7 @@ Each row names the **metric it moves** (per `EXECUTION.md` §9 — a batch that 
 ### M6 — Growth & Table Stakes
 | ID | Item | Status | Metric it moves | Primary files / where | Done-when |
 |---|---|---|---|---|---|
-| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Android: live in production as of 2026-08-09.** iOS: rejected twice — 3.1.2 (2026-08-08, fixed) then a missing Terms of Use/EULA link in the App Description metadata (2026-08-09, founder set both ASC fields and resubmitted app version + both subscriptions together). Awaiting Apple's review. Still 🔍 until conversion data exists on the live listing. |
+| B6.1 | Wedge-led App Store listing | 🔍 | Install→page conv. | App Store Connect + Play Console | **Both listings are now live and correct (2026-08-30).** iOS 1.0 is `READY_FOR_SALE` after three rejections (3.1.2, then a missing Terms of Use/EULA link, then 2.5.1 HealthKit). Android has been in Play production since 2026-08-09; on 2026-08-30 its two stale screenshots (raw `UPPER_CHEST` enum, old "Tempo" wording) were replaced, and the Feature Graphic was verified already Arclo-branded. Still 🔍 — a correct listing is not a converting one, and there is no conversion data yet. |
 | B6.2 | One acquisition channel (calendar-trick content) | 🔲 | Top-of-funnel | *(founder)* | A repeatable weekly motion running. `PRODUCT_AUDIT.html` Part II has the full route (short-form video, 8-week plan, ASO fields) |
 | B6.3 | "Year in Training" annual Wrapped | ⏸ | Organic growth | `lib/wrapped.ts` (extend) | Postponed past M4 |
 | B6.4 | Table-stakes polish (Watch, widget, Live Activity, named programs, exercise prefs) | ⏸ | Various | various | Each unlocked only as data justifies. Superset/circuit support and "love this exercise" boosting (the other half of `MASTER_FIX_PLAN.md`'s exercise-preferences item — the "never show again" half shipped, see Open backlog) still genuinely open here |
@@ -675,13 +717,21 @@ them).
     directly in the dashboard. Not the cause of the 3.1.2 rejection (see Session Log).
 11. **B6.2 — one acquisition channel running weekly.** `PRODUCT_AUDIT.html` Part II has the full
     proposed route (short-form video, 8-week start plan, ASO fields) — founder-only execution.
-12. **Native rebuild batch.** Apple Health export (write-only, opt-in, off by default) and Focus
-    Mode's Settings toggle both ship as code but stay inert until the next `eas build` — batch with
-    any other pending native-module work per `EXECUTION.md` §5's guidance to minimize rebuild cycles.
+12. ~~**Native rebuild batch.**~~ **Closed 2026-08-30 on both platforms.** Apple Health export was
+    deleted outright for App Review 2.5.1 (2026-08-24), so only Focus Mode's Settings toggle remained
+    pending a rebuild — it is now live in iOS build 35 and Android versionCode 12. No native work is
+    sitting inert behind a build any more.
 
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-30** — App Store approved (1.0 `READY_FOR_SALE`, both subscriptions `APPROVED`). Found
+  Play production still on versionCode 11 from Aug 6, 53 commits stale; built and shipped **build 12**
+  to Play production at 100% with release notes. Fixed `eas.json`'s Android submit track (`alpha` →
+  `production`). Audited the live Play listing and replaced the two screenshots still carrying the
+  `UPPER_CHEST` enum and the old "Tempo" wording — the same defects fixed for Apple on Aug 24 and
+  never mirrored. 453/453 tests, tsc clean.
 
 - **2026-08-24** — App Review 2.5.1 (HealthKit not clearly identified in the UI) on build 29. Removed
   HealthKit entirely on the founder's call — plugin, dependency, module, Settings row, call site.
