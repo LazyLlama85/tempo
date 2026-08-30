@@ -18,6 +18,37 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-30 (b) — The marketing site is live, and it is no longer a waitlist.**
+`web/launch.html` (built 07-28, refined across five passes on 07-29, and carried as "still
+unpublished" in every entry since) is now `web/index.html`. The old pre-launch page — "Coming soon
+to iOS & Android," every CTA an email capture, no pricing, no store links — is deleted, recoverable
+from git. For part of today, visitors arriving from two *live* store listings were being asked to
+join a waitlist for an app they could already download.
+
+- **Real store URLs, verified before committing, not pasted from memory:**
+  `https://apps.apple.com/app/id6785075737` (locale-free on purpose — Apple routes each visitor to
+  their own storefront; a hardcoded `/us/` link would not) and
+  `https://play.google.com/store/apps/details?id=com.fittempo.app`. Both returned 200.
+- Six `[data-store]` anchors (hero, final CTA, footer) all read from the single `STORE` constant, so
+  one edit lit all of them. The existing guard survives: a non-`http` value makes every button fall
+  back to `#get` rather than ship a dead link.
+- **Verified in a browser, not by reading the diff** — served `web/` locally, confirmed all six hrefs
+  rewritten with `target="_blank"`, no `REPLACE_WITH` left in the DOM, and no horizontal overflow at
+  1920px.
+
+**▶ Still open on this page, and worth doing soon:** all seven phone frames are blank placeholders
+(`.shot-placeholder` / `.side-placeholder`, each labeled with the screen it wants). The real captures
+already exist — they are on both store listings — they have just never been dropped into the site. A
+launch page whose product visual is seven empty rectangles is a real conversion cost on the day
+traffic starts. The ratings strip and testimonial rail stay commented out, correctly, until there are
+real numbers and quotes.
+
+**Also noted, deliberately not fixed:** `.github/workflows/` holds **two identical** GitHub Pages
+workflows (`static.yml` and `deploy.yml`) — same name, same trigger, same `./web` upload. They race on
+every push. One should be deleted; it wasn't touched here to keep this change scoped.
+
+---
+
 **2026-08-30 — SHIPPED ON BOTH STORES. iOS is `READY_FOR_SALE`; Play production is now
 versionCode 12.** Every claim below was read back from the two store APIs, not assumed.
 
@@ -725,6 +756,10 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-30 (b)** — Swapped the marketing site: `web/launch.html` → `web/index.html`, waitlist page
+  deleted, real App Store + Play URLs filled into the `STORE` constant and verified live in a browser.
+  Seven blank screenshot placeholders remain open; two duplicate Pages workflows flagged, not fixed.
 
 - **2026-08-30** — App Store approved (1.0 `READY_FOR_SALE`, both subscriptions `APPROVED`). Found
   Play production still on versionCode 11 from Aug 6, 53 commits stale; built and shipped **build 12**

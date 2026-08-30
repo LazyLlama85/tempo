@@ -3325,11 +3325,31 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
-### Post-launch marketing site — `web/launch.html` (2026-07-28, restyled + tightened 2026-07-29, polish + trim passes 2026-07-29)
-`web/index.html` is a **pre-launch waitlist page**: its hero says "Coming soon to iOS & Android," every
-CTA is an email capture, and there is no pricing, no store links, and no comparison against the
-category. None of that survives the App Store listing going live, so the launch-day site is a separate
-file rather than a rewrite. **`index.html` is untouched**; swap the filenames when the stores are live.
+### Marketing site — `web/index.html` (built 2026-07-28 as `launch.html`, restyled + tightened 2026-07-29, **promoted to the live site 2026-08-30**)
+**This is now the public page at `fittempo.app`.** It was built as `web/launch.html` alongside the old
+pre-launch waitlist page, whose hero said "Coming soon to iOS & Android," whose every CTA was an email
+capture, and which had no pricing, no store links, and no comparison against the category — a page that
+asks a ready-to-download visitor for their email address, which on a launched app costs installs. With
+Arclo live on both stores (App Store `READY_FOR_SALE`, Play production versionCode 12), the swap was
+made: the waitlist page was deleted and `launch.html` renamed to `index.html`. The old page is
+recoverable from git history if it is ever wanted back.
+
+- **2026-08-30, the swap + real store URLs.** `STORE.ios` / `STORE.android` (top of the page's single
+  `<script>` block) were the last two placeholders; both are now real and were verified to resolve
+  before being committed: `https://apps.apple.com/app/id6785075737` and
+  `https://play.google.com/store/apps/details?id=com.fittempo.app`. The iOS one is deliberately the
+  locale-free `/app/id<id>` form — Apple redirects it to the visitor's own storefront, where a
+  hardcoded `/us/` link would not. Six `[data-store]` anchors across the page (hero, final CTA, footer)
+  all read from that one constant, and the existing guard still stands: a non-`http` value makes every
+  button fall back to `#get` rather than shipping a dead link. Verified in a browser, not just by
+  reading the diff — all six hrefs rewritten, `target="_blank"`, no horizontal overflow at 1920px,
+  no `REPLACE_WITH` left in the DOM. **Still open on this page:** all seven phone frames are
+  deliberate blank placeholders (`.shot-placeholder` / `.side-placeholder`, each labeled with the
+  screen it wants) — real device captures exist and have not been dropped in yet — and the ratings
+  strip and testimonial rail stay commented out until there are real numbers and real quotes.
+- **Deployment:** `.github/workflows/` has **two identical workflows** (`static.yml` and `deploy.yml`),
+  both named "Deploy to GitHub Pages", both triggered on push to `main`, both uploading `./web`. One is
+  redundant and they race on every push. Left alone rather than fixed drive-by; worth deleting one.
 
 - **2026-07-29, fifth pass: two sections cut for reading as generic and defensive.** The founder's own
   read of `#pricing`'s two upstream neighbors: the "Six more things that shipped with it" numbered list

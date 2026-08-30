@@ -3,1802 +3,1144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arclo — Fitness that fits your schedule</title>
-  <meta name="description" content="Arclo builds your training around your real calendar and adapts the moment life gets busy. Most apps make you fit life around a plan — Arclo fits the plan around your life. Coming to iOS &amp; Android.">
+  <title>Arclo: Training That Fits Your Week</title>
+  <meta name="description" content="Arclo builds your training around your calendar and reschedules when plans change. Free on iPhone and Android.">
+  <meta name="theme-color" content="#15161F">
 
-
-  <meta property="og:title" content="Arclo — Fitness that fits your schedule">
-  <meta property="og:description" content="Most fitness apps expect your life to fit their plan. Arclo builds training around your real calendar — and adapts when life gets busy.">
+  <meta property="og:title" content="Arclo: Training That Fits Your Week">
+  <meta property="og:description" content="Arclo builds your training around your calendar and reschedules when plans change. Free on iPhone and Android.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://fittempo.app/">
+  <meta property="og:image" content="https://fittempo.app/tempo-logo.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="tempo-logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="tempo-logo.png">
+  <link rel="canonical" href="https://fittempo.app/">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!--
+    ══════════════════════════════════════════════════════════════════════════
+    ARCLO: LAUNCH MARKETING SITE  (v4, treated as live, not "coming soon")
+
+    2026-08-30: THIS IS NOW THE LIVE SITE. Arclo is public on both stores, so
+    this file was renamed to index.html and the old waitlist page it replaced
+    was deleted (recoverable from git history — it asked a ready-to-download
+    visitor for their email address, which on a launched app costs installs).
+
+    STILL OPEN BEFORE THIS PAGE IS FINISHED:
+      1. Every phone frame (.shot-placeholder / .side-placeholder) is a
+         deliberate blank, each labeled with the exact real screenshot it
+         wants (see the comment above the hero markup for the full list of
+         all seven, chosen so no screen repeats across the page). Drop in
+         real device screenshots before launch, not fabricated UI.
+      2. The ratings strip (search "RATINGS BLOCK") and testimonial rail
+         (search "TESTIMONIAL BLOCK") are commented out on purpose. Uncomment
+         only with real numbers and quotes, never invented ones.
+
+      Also: the store badges below are hand-drawn approximations so this file
+      stays dependency-free. Swap them for Apple's and Google's official
+      badge assets before launch; both stores require their own artwork.
+
+    2026-07-29: rebuilt toward fitbod.me's look. Flatter dark navy, one accent
+    color (kept the app's own blue instead of Fitbod's coral, to match the app),
+    no gradient glows, no status pill, no built HTML/CSS "simulations" of app
+    screens. Same day, second pass: removed the calendar-privacy section and
+    the "coming soon"/waitlist fallback (this is the live launch page, not a
+    pre-launch teaser), cut every em dash from the copy, tightened the wording
+    throughout, and softened the scroll animations for a smoother fade.
+    ══════════════════════════════════════════════════════════════════════════
+  -->
+
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* ───────────────────────── 1. Tokens ───────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
+  :root {
+    /* Navy surface ramp: flatter and bluer than the old pure-black ink */
+    --bg:        #15161F;
+    --surface:   #191B25;
+    --card:      #1F212C;
+    --card-2:    #262837;
+    --raised:    #2E3140;
 
-      --bg:        #faf8f4;
-      --bg-2:      #f2ede4;
-      --surface:   #ffffff;
-      --ink:       #17140f;
-      --ink-2:     #423c33;
-      --muted:     #6c655b;
-      --line:      rgba(23,20,15,0.10);
-      --line-2:    rgba(23,20,15,0.18);
+    --line:      rgba(255,255,255,0.075);
+    --line-2:    rgba(255,255,255,0.14);
+    --line-3:    rgba(255,255,255,0.24);
 
+    --text:      #F3F4F7;
+    --text-2:    #AEB4C0;
+    --text-3:    #767C88;
 
-      --accent:      #3D82F7;
-      --accent-ink:  #2563EB;
-      --accent-soft: rgba(61, 130, 247, 0.12);
+    /* One accent color, used sparingly. Matches the app's actual blue */
+    --blue:        #4E8BFF;
+    --blue-bright: #7CACFF;
+    --blue-deep:   #1E4FD0;
+    --blue-soft:   rgba(78,139,255,0.13);
+    --ember:       #FF6A45;
+    --ember-soft:  rgba(255,106,69,0.14);
+    --gold:        #D9A13B;
+    --green:       #22C55E;
 
+    --maxw: 1180px;
+    --r-sm: 10px;
+    --r:    16px;
+    --r-lg: 22px;
+    --r-xl: 30px;
 
-      --dark:        #14110d;
-      --dark-2:      #1d1914;
-      --dark-line:   rgba(255,255,255,0.10);
-      --dark-text:   #f5f1ea;
-      --dark-muted:  #a79e92;
+    --ease:   cubic-bezier(0.16, 1, 0.3, 1);
+    --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
-      --ease: cubic-bezier(0.16, 1, 0.3, 1);
-      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-      --radius: 18px;
-      --maxw: 1140px;
-      --shadow-soft: 0 1px 2px rgba(23,20,15,0.04), 0 8px 24px rgba(23,20,15,0.06);
-      --shadow-lift: 0 2px 6px rgba(23,20,15,0.06), 0 22px 48px rgba(23,20,15,0.12);
-    }
+    --shadow:      0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.35);
+    --shadow-lift: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px rgba(0,0,0,0.5);
 
-    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-      overflow-x: hidden;
-      line-height: 1.5;
-      position: relative;
-    }
-    body::before {
-      content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
-      background-image:
-        radial-gradient(rgba(23,20,15,0.035) 1px, transparent 1px);
-      background-size: 22px 22px;
-      mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 40%, transparent 100%);
-      -webkit-mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 40%, transparent 100%);
-    }
-    body::after {
-      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.5;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-      mix-blend-mode: multiply;
-    }
-    ::selection { background: var(--accent); color: #fff; }
-    a { color: inherit; }
+    --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    --font-body:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
 
-    .scroll-progress {
-      position: fixed; top: 0; left: 0; height: 2px; z-index: 200;
-      width: var(--p, 0%);
-      background: linear-gradient(90deg, var(--accent), #60a5fa);
-      box-shadow: 0 0 12px rgba(61,130,247,0.6);
-      transition: width 0.1s linear;
-    }
+  /* ───────────────────────── 2. Base ───────────────────────── */
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; scroll-padding-top: 88px; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  /* Faint hour-rule texture: the calendar DNA, applied to the whole page */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px);
+    background-size: 100% 56px;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 42%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 42%);
+  }
+  body > * { position: relative; z-index: 1; }
 
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--blue); color: #fff; }
 
-    [data-sr] {
-      opacity: 0;
-      transform: translateY(22px);
-      transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
-      transition-delay: var(--d, 0ms);
-      will-change: opacity, transform;
-    }
-    [data-sr].in { opacity: 1; transform: none; }
-    @media (prefers-reduced-motion: reduce) {
-      [data-sr] { opacity: 1 !important; transform: none !important; transition: none; }
-      html { scroll-behavior: auto; }
-    }
+  :focus-visible {
+    outline: 2px solid var(--blue-bright);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
 
-    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .skip {
+    position: absolute; left: 12px; top: -60px; z-index: 300;
+    background: var(--blue); color: #fff; padding: 10px 16px;
+    border-radius: 8px; font-weight: 600; font-size: 14px;
+    transition: top 0.2s var(--ease);
+  }
+  .skip:focus { top: 12px; }
 
+  /* ───────────────────────── 3. Type + layout ───────────────────────── */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 780px; margin-left: auto; margin-right: auto; }
 
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      font: 600 15px/1 'Inter', sans-serif;
-      border-radius: 12px; padding: 14px 22px;
-      text-decoration: none; cursor: pointer; border: 1px solid transparent;
-      white-space: nowrap;
-      transition: background 0.18s, box-shadow 0.22s, transform 0.15s, border-color 0.18s, color 0.18s;
-    }
-    .btn-primary {
-      background: var(--accent); color: #fff;
-      box-shadow: 0 1px 2px rgba(37,99,235,0.25);
-    }
-    .btn-primary:hover { background: #1d4ed8; box-shadow: 0 8px 24px rgba(61,130,247,0.30); transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); }
-    .btn-primary:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
-    .btn-ghost {
-      background: transparent; color: var(--ink); border-color: var(--line-2);
-    }
-    .btn-ghost:hover { border-color: var(--ink); background: rgba(23,20,15,0.04); }
-    .btn-sm { padding: 10px 16px; font-size: 14px; border-radius: 10px; }
-    .btn-lg { padding: 16px 26px; font-size: 16px; }
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
 
+  .h-xl { font-size: clamp(38px, 5vw, 64px); }
+  .h-lg { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.06; }
+  .h-md { font-size: clamp(24px, 2.6vw, 34px); line-height: 1.12; }
 
-    nav {
-      position: fixed; inset: 0 0 auto; z-index: 100; height: 66px;
-      display: flex; align-items: center;
-      transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s;
-      border-bottom: 1px solid transparent;
-    }
-    nav.stuck {
-      background: rgba(250,248,244,0.82);
-      backdrop-filter: blur(16px) saturate(150%);
-      -webkit-backdrop-filter: blur(16px) saturate(150%);
-      border-bottom: 1px solid var(--line);
-    }
-    nav .wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-    .logo-mark {
-      width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
-      display: block; object-fit: contain;
-    }
-    .logo-name { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
-    .nav-links { display: flex; align-items: center; gap: 4px; }
-    .nav-link {
-      font-size: 14px; font-weight: 500; color: var(--ink-2);
-      text-decoration: none; padding: 8px 12px; border-radius: 8px;
-      transition: color 0.16s, background 0.16s;
-    }
-    .nav-link:hover { color: var(--ink); background: rgba(23,20,15,0.05); }
-    .nav-right { display: flex; align-items: center; gap: 8px; }
+  .lead   { font-size: clamp(16.5px, 1.5vw, 19px); color: var(--text-2); line-height: 1.62; }
+  .muted  { color: var(--text-2); }
+  .dim    { color: var(--text-3); }
 
+  .eyebrow {
+    font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
+    display: inline-flex; align-items: center; gap: 9px;
+  }
+  .eyebrow::before {
+    content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.6;
+  }
+  .num { font-family: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 
-    .hero { padding: 132px 0 84px; position: relative; overflow: hidden; }
-    .hero-grid {
-      display: grid; grid-template-columns: 1.05fr 0.95fr;
-      gap: 56px; align-items: center;
-    }
-    .pill {
-      display: inline-flex; align-items: center; gap: 9px;
-      background: var(--surface); border: 1px solid var(--line-2);
-      color: var(--ink-2); border-radius: 999px;
-      padding: 6px 8px 6px 13px; font-size: 12.5px; font-weight: 600;
-      margin-bottom: 26px; box-shadow: var(--shadow-soft);
-    }
-    .pill-dot {
-      position: relative; width: 8px; height: 8px; border-radius: 50%;
-      background: var(--accent); flex-shrink: 0;
-    }
-    .pill-dot::after {
-      content: ''; position: absolute; inset: 0; border-radius: 50%;
-      background: var(--accent); animation: pulse-ring 2.2s var(--ease) infinite;
-    }
-    @keyframes pulse-ring {
-      0%   { transform: scale(1); opacity: 0.55; }
-      70%  { transform: scale(3.4); opacity: 0; }
-      100% { transform: scale(3.4); opacity: 0; }
-    }
-    .pill-arrow { color: var(--muted); display: inline-flex; transition: transform 0.22s var(--ease); }
-    .pill:hover .pill-arrow { transform: translateX(3px); color: var(--accent-ink); }
-    h1.hero-title {
-      font-size: clamp(42px, 6vw, 70px); font-weight: 800;
-      line-height: 1.02; letter-spacing: -0.035em; margin-bottom: 22px;
-    }
-    h1.hero-title em {
-      font-style: normal; position: relative; white-space: nowrap;
-      background: linear-gradient(105deg, var(--accent), #6aa6ff 60%, var(--accent-ink));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    h1.hero-title em .scribble {
-      position: absolute; left: -4%; bottom: -0.18em; width: 108%; height: 0.34em; overflow: visible;
-    }
-    h1.hero-title em .scribble path {
-      fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
-      stroke-dasharray: 320; stroke-dashoffset: 320;
-      animation: underline-in 1s var(--ease) 0.5s forwards;
-    }
-    @keyframes underline-in { to { stroke-dashoffset: 0; } }
-    .hero-sub {
-      font-size: clamp(16.5px, 2vw, 19px); color: var(--ink-2);
-      line-height: 1.62; max-width: 540px; margin-bottom: 32px;
-    }
-    .hero-sub strong { color: var(--ink); font-weight: 600; }
+  .grad {
+    background: linear-gradient(100deg, var(--blue-bright), var(--blue) 45%, #A9C6FF);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
 
-    .signup { max-width: 480px; }
-    .email-row { display: flex; gap: 8px; }
-    .email-field {
-      flex: 1; min-width: 0;
-      background: var(--surface); border: 1px solid var(--line-2);
-      border-radius: 12px; padding: 14px 16px;
-      font: 15px/1 'Inter', sans-serif; color: var(--ink); outline: none;
-      transition: border-color 0.18s, box-shadow 0.18s;
-    }
-    .email-field::placeholder { color: #9b938a; }
-    .email-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(61,130,247,0.14); }
-    .form-note { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
-    .form-note svg { flex-shrink: 0; }
-    .form-msg { display: none; font-size: 13.5px; font-weight: 500; margin-top: 12px; }
-    .form-msg.ok  { color: #15803d; }
-    .form-msg.err { color: #dc2626; }
+  section { padding: clamp(72px, 9vw, 128px) 0; position: relative; }
+  .sec-head { max-width: 720px; margin-bottom: clamp(40px, 5vw, 64px); }
+  .sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+  .sec-head.center .eyebrow::before { display: none; }
+  .sec-head h2 { margin: 16px 0 0; }
+  .sec-head p  { margin-top: 18px; }
 
-    .hero-visual { position: relative; display: flex; justify-content: center; }
-    .hero-visual .phone { width: 300px; position: relative; z-index: 2; }
-    .hero-visual::before {
-      content: ''; position: absolute; inset: -14% -16% -10%;
-      z-index: 0;
-      background:
-        radial-gradient(ellipse 52% 46% at 64% 32%, rgba(61,130,247,0.22), transparent 70%),
-        radial-gradient(ellipse 44% 40% at 30% 78%, rgba(106,166,255,0.16), transparent 72%);
-      filter: blur(6px);
-      animation: glow-drift 12s ease-in-out infinite alternate;
-    }
-    @keyframes glow-drift {
-      0%   { transform: translate(0,0) scale(1); }
-      100% { transform: translate(-3%, 3%) scale(1.06); }
-    }
-    .hero-visual::after {
-      content: ''; position: absolute; inset: 8% 4% 4%; z-index: 1;
-      border-radius: 48px; pointer-events: none;
-      background:
-        repeating-linear-gradient(115deg, transparent 0 26px, rgba(23,20,15,0.025) 26px 27px);
-      mask-image: radial-gradient(60% 60% at 50% 50%, #000, transparent 75%);
-      -webkit-mask-image: radial-gradient(60% 60% at 50% 50%, #000, transparent 75%);
-    }
-    .float-chip {
-      position: absolute; z-index: 4;
-      display: flex; align-items: center; gap: 10px;
-      background: rgba(255,255,255,0.82);
-      border: 1px solid rgba(23,20,15,0.10);
-      border-radius: 15px; padding: 10px 14px;
-      box-shadow: 0 1px 2px rgba(23,20,15,0.05), 0 18px 44px rgba(23,20,15,0.16);
-      backdrop-filter: blur(14px) saturate(160%);
-      -webkit-backdrop-filter: blur(14px) saturate(160%);
-      transition: box-shadow 0.3s var(--ease);
-      will-change: transform;
-    }
-    .float-chip.top { top: 6%; left: -9%; animation: floaty 7s ease-in-out infinite; }
-    .float-chip.bot { bottom: 9%; right: -7%; animation: floaty 7s ease-in-out infinite reverse; animation-delay: -2.5s; }
-    @keyframes floaty {
-      0%, 100% { transform: translate(var(--px,0px), var(--py,0px)) translateY(0) rotate(-0.4deg); }
-      50%      { transform: translate(var(--px,0px), var(--py,0px)) translateY(-12px) rotate(0.4deg); }
-    }
-    .float-chip:hover { box-shadow: 0 1px 2px rgba(23,20,15,0.06), 0 26px 60px rgba(23,20,15,0.22); }
-    .float-chip .fc-ic {
-      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-      background: linear-gradient(140deg, var(--accent), var(--accent-ink)); color: #fff;
-      display: grid; place-items: center;
-      box-shadow: 0 4px 12px rgba(61,130,247,0.35);
-    }
-    .float-chip .fc-t { font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; }
-    .float-chip .fc-s { font-size: 11px; color: var(--muted); margin-top: 1px; }
-    .float-chip .fc-live {
-      width: 6px; height: 6px; border-radius: 50%; background: #16a34a; margin-left: 2px;
-      box-shadow: 0 0 0 0 rgba(22,163,74,0.5); animation: live-blink 1.8s ease-in-out infinite;
-    }
-    @keyframes live-blink {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
-      50%      { box-shadow: 0 0 0 5px rgba(22,163,74,0); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .float-chip.top, .float-chip.bot, .hero-visual::before, .pill-dot::after, .fc-live { animation: none !important; }
-    }
+  .rule { height: 1px; background: var(--line); border: 0; }
 
-    .ann {
-      font-family: 'Caveat', cursive; font-weight: 700; color: var(--accent-ink);
-      line-height: 1; display: inline-block;
-    }
-    .hero-doodle {
-      position: absolute; pointer-events: none; z-index: 5;
-      font-family: 'Caveat', cursive; font-weight: 700; font-size: 22px; color: var(--accent-ink);
-      transform: rotate(-7deg);
-    }
-    .scribble path { stroke-dasharray: 1; stroke-dashoffset: 1; pathLength: 1; }
-    .in .scribble path { animation: draw 0.9s var(--ease) 0.4s forwards; }
-    @keyframes draw { to { stroke-dashoffset: 0; } }
+  /* Scroll reveal: a slow, gentle settle rather than a slide-in */
+  [data-sr] {
+    opacity: 0; transform: translateY(14px) scale(0.987);
+    transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-sr].in { opacity: 1; transform: none; }
 
-    .tilt-stage { perspective: 1200px; }
-    .tilt {
-      transform-style: preserve-3d;
-      transition: transform 0.4s var(--ease);
-      will-change: transform;
-    }
-    .depth { transition: transform 0.3s var(--ease); will-change: transform; }
+  /* Hero fades in on load, staggered, since it's above the fold and never scrolled into view */
+  .hero-copy > * {
+    opacity: 0; transform: translateY(10px);
+    animation: hero-in 0.8s var(--ease) forwards;
+  }
+  .hero-copy > *:nth-child(1) { animation-delay: 0.05s; }
+  .hero-copy > *:nth-child(2) { animation-delay: 0.15s; }
+  .hero-copy > *:nth-child(3) { animation-delay: 0.25s; }
+  .hero-copy > *:nth-child(4) { animation-delay: 0.35s; }
+  @keyframes hero-in { to { opacity: 1; transform: none; } }
 
-    .mag { will-change: transform; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    [data-sr] { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .hero-copy > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+  }
 
-    .duration-row .duration-chip {
-      cursor: pointer; user-select: none;
-      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.18s var(--ease-spring), box-shadow 0.2s;
-    }
-    .duration-row .duration-chip:hover { border-color: var(--accent); color: var(--accent-ink); transform: translateY(-2px); }
-    .duration-row .duration-chip.on:hover { color: #fff; }
-    .duration-row .duration-chip:active { transform: scale(0.94); }
-    .duration-chip.on { box-shadow: 0 8px 20px rgba(61,130,247,0.28); }
+  /* ───────────────────────── 4. Buttons + badges ───────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    font: 600 15px/1 var(--font-body);
+    padding: 14px 22px; border-radius: 12px; border: 1px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.18s, border-color 0.18s, transform 0.16s var(--spring), box-shadow 0.22s, color 0.18s;
+  }
+  .btn-primary { background: var(--blue); color: #fff; box-shadow: 0 6px 20px rgba(78,139,255,0.22); }
+  .btn-primary:hover { background: var(--blue-bright); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(78,139,255,0.34); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: rgba(255,255,255,0.045); color: var(--text); border-color: var(--line-2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.09); border-color: var(--line-3); transform: translateY(-2px); }
+  .btn-sm { padding: 10px 16px; font-size: 14px; border-radius: 10px; }
+  .btn-lg { padding: 17px 28px; font-size: 16.5px; border-radius: 14px; }
 
-    .app-dur-chip, .app-purpose { cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.16s var(--ease-spring); }
-    .app-dur-chip:active, .app-purpose:active { transform: scale(0.92); }
+  /* Store badges: approximations. Swap for official artwork before launch */
+  .stores { display: flex; flex-wrap: wrap; gap: 12px; }
+  .store {
+    display: inline-flex; align-items: center; gap: 11px;
+    background: #fff; color: #0B0C0F;
+    padding: 10px 18px 10px 15px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.9);
+    transition: transform 0.18s var(--spring), box-shadow 0.22s, background 0.2s;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  .store:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0,0,0,0.55); }
+  .store svg { flex-shrink: 0; }
+  .store-txt { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+  .store-txt small { font-size: 10.5px; font-weight: 500; opacity: 0.72; letter-spacing: 0.02em; }
+  .store-txt strong { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
 
-    .swap-fade { transition: opacity 0.22s var(--ease), transform 0.22s var(--ease); }
-    .swap-fade.swapping { opacity: 0; transform: translateY(6px); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-body); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 6px;
+  }
+  .tag-blue  { background: var(--blue-soft);  color: var(--blue-bright); }
+  .tag-ember { background: var(--ember-soft); color: var(--ember); }
+  .tag-gold  { background: rgba(217,161,59,0.14); color: var(--gold); }
 
-    .phone-poke {
-      position: absolute; right: -8px; top: 38%; z-index: 6; pointer-events: none;
-      font-family: 'Caveat', cursive; font-weight: 700; font-size: 19px; color: var(--accent-ink);
-      transform: rotate(6deg); white-space: nowrap;
-    }
-    @media (max-width: 720px) { .hero-doodle, .phone-poke { display: none; } }
-    @media (prefers-reduced-motion: reduce) {
-      .tilt, .depth { transition: none !important; transform: none !important; }
-      .scribble path { stroke-dashoffset: 0 !important; animation: none !important; }
-    }
+  /* ───────────────────────── 5. Nav ───────────────────────── */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 72px;
+    display: flex; align-items: center;
+    border-bottom: 1px solid transparent;
+    transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s, height 0.3s;
+  }
+  .nav.stuck {
+    height: 64px;
+    background: rgba(21,22,31,0.78);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border-bottom-color: var(--line);
+  }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 20px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .brand span { font-family: var(--font-display); font-size: 19px; font-weight: 800; letter-spacing: -0.04em; }
+  .nav-links { display: flex; align-items: center; gap: 2px; }
+  .nav-links a {
+    font-size: 14px; font-weight: 500; color: var(--text-2);
+    padding: 8px 13px; border-radius: 9px;
+    transition: color 0.16s, background 0.16s;
+  }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .nav-toggle {
+    display: none; width: 42px; height: 42px; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--line-2);
+    border-radius: 11px; color: var(--text); cursor: pointer;
+  }
+  .drawer {
+    position: fixed; inset: 64px 0 auto; z-index: 99;
+    background: rgba(21,22,31,0.97);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px 24px;
+    display: none; flex-direction: column; gap: 4px;
+  }
+  .drawer.open { display: flex; }
+  .drawer a {
+    padding: 14px 8px; font-size: 16px; font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  .drawer .btn { margin-top: 14px; }
 
-    .trust {
-      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-      background: rgba(255,255,255,0.55); overflow: hidden;
-      -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-      mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-    }
-    .trust-track {
-      display: flex; align-items: center; gap: 0; width: max-content;
-      padding: 20px 0; animation: marquee 34s linear infinite;
-    }
-    .trust:hover .trust-track { animation-play-state: paused; }
-    @keyframes marquee { to { transform: translateX(-50%); } }
-    .trust-item {
-      display: inline-flex; align-items: center; gap: 10px; padding: 0 30px;
-      font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
-    }
-    .trust-item::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--line-2); margin-left: 30px; }
-    .trust-item svg { color: var(--accent); flex-shrink: 0; }
-    @media (prefers-reduced-motion: reduce) { .trust-track { animation: none; } }
+  /* ───────────────────────── 6. Hero ───────────────────────── */
+  .hero { padding: 152px 0 clamp(64px, 8vw, 104px); overflow: hidden; }
+  .hero-grid {
+    display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    gap: clamp(32px, 5vw, 64px); align-items: center;
+  }
+  .hero h1 { margin: 22px 0 22px; text-transform: uppercase; }
+  .hero h1 .line2 { display: block; }
+  .hero .lead { max-width: 540px; }
+  .hero .stores { margin: 30px 0 18px; }
+  .hero-micro {
+    display: flex; flex-wrap: wrap; gap: 8px 20px;
+    font-size: 13px; color: var(--text-3);
+  }
+  .hero-micro span { display: inline-flex; align-items: center; gap: 7px; }
+  .hero-micro svg { color: var(--green); flex-shrink: 0; }
 
-    .stats-band { padding: 56px 0; border-bottom: 1px solid var(--line); }
-    .stats-grid {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
-    }
-    .stat {
-      position: relative; padding: 4px 22px; text-align: center;
-    }
-    .stat + .stat::before {
-      content: ''; position: absolute; left: 0; top: 12%; bottom: 12%; width: 1px; background: var(--line);
-    }
-    .stat-num {
-      font-size: clamp(30px, 4vw, 44px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
-      background: linear-gradient(160deg, var(--ink), var(--accent-ink));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .stat-num .unit { font-size: 0.55em; font-weight: 700; -webkit-text-fill-color: var(--accent); }
-    .stat-lbl { margin-top: 9px; font-size: 13.5px; color: var(--muted); font-weight: 500; line-height: 1.4; }
-    @media (max-width: 720px) { .stats-grid { grid-template-columns: 1fr 1fr; gap: 28px 8px; } .stat + .stat::before { display: none; } }
+  /* ── Hero visual: main device flanked by two decorative side panels + glow ring ── */
+  .visual-stage {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    min-height: 680px; perspective: 1400px;
+  }
+  .glow-ring {
+    position: absolute; top: 50%; left: 50%; width: 620px; height: 620px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle, rgba(78,139,255,0.38), transparent 62%);
+    filter: blur(38px); z-index: 0; pointer-events: none;
+    animation: ring-pulse 7s ease-in-out infinite;
+  }
+  /* Kept separate from .glow-ring so its stroke stays crisp: a blur filter on
+     the glow blob would otherwise smear a thin border into invisibility. */
+  .glow-ring-line {
+    position: absolute; top: 50%; left: 50%; width: 568px; height: 568px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    border: 1px solid rgba(140,182,255,0.30);
+    box-shadow: 0 0 24px rgba(78,139,255,0.20);
+    z-index: 0; pointer-events: none;
+    animation: ring-pulse 7s ease-in-out infinite;
+  }
+  .glow-ring-line::after {
+    content: ''; position: absolute; inset: 58px; border-radius: 50%;
+    border: 1px solid rgba(140,182,255,0.16);
+  }
+  @keyframes ring-pulse {
+    0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+    50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.035); }
+  }
 
-    .section { padding: 104px 0; }
-    .section-dark { background: var(--dark); color: var(--dark-text); }
-    .section-alt  { background: var(--bg-2); }
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 9px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
-      text-transform: uppercase; color: var(--accent-ink); margin-bottom: 18px;
-    }
-    .section-dark .eyebrow { color: #60a5fa; }
-    .eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: currentColor; }
-    .s-head { max-width: 680px; margin-bottom: 18px; }
-    .s-title { font-size: clamp(30px, 4.2vw, 46px); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
-    .s-body { font-size: 17.5px; color: var(--muted); line-height: 1.62; max-width: 560px; }
-    .section-dark .s-body { color: var(--dark-muted); }
-    .center { text-align: center; margin-left: auto; margin-right: auto; }
-    .center .eyebrow { justify-content: center; }
+  .phone-stack {
+    position: relative; z-index: 1; transform-style: preserve-3d;
+    transform: rotateY(calc(var(--mx, 0) * 7deg)) rotateX(calc(var(--my, 0) * -7deg));
+    transition: transform 0.4s var(--ease);
+  }
+  .phone-stack .main-device { position: relative; z-index: 3; }
 
+  .side-panel {
+    position: absolute; top: 50%; width: 172px; height: 360px;
+    background: var(--card); border: 1px solid var(--line-2);
+    border-radius: 26px; box-shadow: var(--shadow);
+    z-index: 2; transition: transform 0.15s linear;
+    overflow: hidden;
+  }
+  .side-left {
+    left: -102px; transform: translateY(-54%) rotate(-9deg) scale(0.88) translateX(calc(var(--mx, 0) * -10px));
+    mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, #000 24%);
+    -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, #000 24%);
+  }
+  .side-right {
+    right: -102px; transform: translateY(-46%) rotate(9deg) scale(0.88) translateX(calc(var(--mx, 0) * -10px));
+    mask-image: linear-gradient(to left, rgba(0,0,0,0.55) 0%, #000 24%);
+    -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.55) 0%, #000 24%);
+  }
 
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 58px; counter-reset: step; }
-    .step {
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--radius); padding: 30px 28px; position: relative; overflow: hidden;
-      transition: border-color 0.25s, box-shadow 0.3s var(--ease), transform 0.3s var(--ease);
-    }
-    .step::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, var(--accent), #6aa6ff);
-      transform: scaleX(0); transform-origin: left; transition: transform 0.4s var(--ease);
-    }
-    .step:hover { border-color: transparent; box-shadow: var(--shadow-lift); transform: translateY(-4px); }
-    .step:hover::before { transform: scaleX(1); }
-    .step-ic {
-      width: 48px; height: 48px; border-radius: 13px; margin-bottom: 22px;
-      background: var(--accent-soft); color: var(--accent-ink);
-      display: grid; place-items: center;
-      transition: background 0.3s, color 0.3s, transform 0.3s var(--ease-spring);
-    }
-    .step:hover .step-ic { background: linear-gradient(140deg, var(--accent), var(--accent-ink)); color: #fff; transform: scale(1.06) rotate(-3deg); }
-    .step-n {
-      position: absolute; top: 22px; right: 26px; font-size: 30px; font-weight: 800;
-      letter-spacing: -0.04em; line-height: 1;
-      color: transparent; -webkit-text-stroke: 1.4px var(--line-2);
-    }
-    .step h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
-    .step p { font-size: 15px; color: var(--muted); line-height: 1.62; }
+  .side-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+    color: var(--text-3); text-align: center; padding: 24px;
+  }
+  /* Icon+label nudged toward the edge that actually peeks out from behind the
+     main phone, since the panel itself is centered but half-hidden. */
+  .side-left .side-placeholder { transform: translateX(-30px); }
+  .side-right .side-placeholder { transform: translateX(30px); }
+  .side-placeholder svg { opacity: 0.45; }
+  .side-placeholder span {
+    font-family: var(--font-body); font-size: 9px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
 
+  @media (max-width: 680px) {
+    .visual-stage { min-height: 480px; }
+    .side-panel { width: 130px; height: 280px; }
+    .side-left { left: -64px; }
+    .side-right { right: -64px; }
+    .side-left .side-placeholder { transform: translateX(-20px); }
+    .side-right .side-placeholder { transform: translateX(20px); }
+  }
+  @media (max-width: 460px) {
+    .side-panel { display: none; }
+    .glow-ring { width: 380px; height: 380px; }
+  }
 
-    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 58px; align-items: stretch; }
-    .cmp-card { border-radius: 22px; padding: 34px 32px; }
-    .cmp-old {
-      background: var(--dark-2); border: 1px solid var(--dark-line);
-    }
-    .cmp-new {
-      background: linear-gradient(180deg, rgba(61,130,247,0.12), rgba(61,130,247,0.05));
-      border: 1px solid rgba(61,130,247,0.40);
-      box-shadow: 0 24px 60px rgba(0,0,0,0.35);
-    }
-    .cmp-tag {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em;
-      padding: 6px 13px; border-radius: 999px; margin-bottom: 24px;
-    }
-    .cmp-old .cmp-tag  { background: rgba(255,255,255,0.07); color: var(--dark-muted); }
-    .cmp-new .cmp-tag  { background: var(--accent); color: #fff; }
-    .cmp-card h3 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 22px; }
-    .cmp-list { list-style: none; display: flex; flex-direction: column; gap: 15px; }
-    .cmp-list li { display: flex; align-items: flex-start; gap: 12px; font-size: 15.5px; line-height: 1.5; }
-    .cmp-list .ic { flex-shrink: 0; margin-top: 1px; }
-    .cmp-old li { color: var(--dark-muted); }
-    .cmp-old .ic { color: #7c7368; }
-    .cmp-new li { color: var(--dark-text); }
-    .cmp-new .ic { color: #60a5fa; }
+  /* ───────────────────────── 8. Statement / compare ───────────────────────── */
+  .statement { text-align: center; }
+  .statement h2 { max-width: 900px; margin: 18px auto 0; }
 
+  .compare-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    margin-top: clamp(40px, 5vw, 64px); text-align: left;
+  }
+  .cmp {
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    padding: 30px 28px; background: var(--card);
+  }
+  .cmp.good {
+    border-color: rgba(78,139,255,0.42);
+    background: linear-gradient(165deg, rgba(78,139,255,0.09), var(--card) 55%);
+    box-shadow: 0 20px 60px rgba(78,139,255,0.10);
+  }
+  .cmp h3 { font-size: 21px; margin: 14px 0 20px; }
+  .cmp ul { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .cmp li { display: flex; gap: 12px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
+  .cmp li .ic { flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+  .cmp.bad  li .ic { background: rgba(255,255,255,0.06); color: var(--text-3); }
+  .cmp.good li .ic { background: var(--blue-soft); color: var(--blue-bright); }
 
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
-    .split-visual { display: flex; justify-content: center; position: relative; }
-    .split-visual .phone { width: 290px; }
-    .qw-points { list-style: none; display: flex; flex-direction: column; gap: 20px; margin-top: 34px; }
-    .qw-point { display: flex; gap: 16px; }
-    .qw-ic {
-      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
-      background: var(--accent-soft); color: var(--accent-ink);
-      display: grid; place-items: center;
-    }
-    .qw-point h4 { font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
-    .qw-point p { font-size: 14.5px; color: var(--muted); line-height: 1.55; }
-    .duration-row { display: flex; gap: 8px; margin-top: 30px; flex-wrap: wrap; }
-    .duration-chip {
-      border: 1px solid var(--line-2); border-radius: 999px;
-      padding: 8px 16px; font-size: 14px; font-weight: 600; color: var(--ink-2);
-      background: var(--surface);
-    }
-    .duration-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* ───────────────────────── 10. Feature rows + device ───────────────────────── */
+  .frow {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr);
+    gap: clamp(32px, 6vw, 80px); align-items: center;
+    padding: clamp(32px, 5vw, 56px) 0;
+  }
+  .frow.flip .fr-copy { order: 2; }
+  .frow h3 { font-size: clamp(26px, 3vw, 38px); margin: 16px 0 18px; }
+  .frow .tag {
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    background: none; padding: 0; border-radius: 0;
+  }
+  .flist { list-style: none; margin-top: 26px; display: flex; flex-direction: column; gap: 15px; }
+  .flist li { display: flex; gap: 13px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
+  .flist .ic {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 7px;
+    display: grid; place-items: center; margin-top: 1px;
+    background: var(--blue-soft); color: var(--blue-bright);
+  }
+  .flist b { color: var(--text); font-weight: 600; }
 
+  /* Phone frame: an empty slot for a real screenshot, not a built mockup */
+  .device-wrap { display: flex; justify-content: center; perspective: 1400px; }
+  .device {
+    width: 292px; flex-shrink: 0;
+    background: linear-gradient(155deg, #2A2E36, #14161B);
+    border-radius: 42px; padding: 9px;
+    box-shadow: var(--shadow-lift), 0 0 0 1px rgba(255,255,255,0.09);
+  }
+  .device-screen {
+    background: var(--surface); border-radius: 34px; overflow: hidden;
+    position: relative; height: 596px;
+  }
+  .notch {
+    position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 82px; height: 22px; background: #05060A; border-radius: 999px; z-index: 6;
+  }
+  .shot-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: var(--text-3); text-align: center; padding: 30px;
+  }
+  .shot-placeholder svg { opacity: 0.45; }
+  .shot-placeholder span {
+    font-family: var(--font-body); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
 
-    .phone-row {
-      display: flex; justify-content: center; align-items: flex-end;
-      gap: 28px; margin-top: 64px; flex-wrap: wrap;
-    }
-    .phone-col { text-align: center; max-width: 280px; }
-    .phone-col .phone { width: 248px; margin: 0 auto 22px; }
-    .phone-col h4 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
-    .phone-col p { font-size: 14px; color: var(--muted); line-height: 1.55; }
+  /* ───────────────────────── 14. Pricing ───────────────────────── */
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+  .plan {
+    background: var(--card); border: 1px solid var(--line-2);
+    border-radius: var(--r-lg); padding: 32px 30px;
+    display: flex; flex-direction: column;
+  }
+  .plan.pro {
+    border-color: rgba(78,139,255,0.5);
+    background: linear-gradient(170deg, rgba(78,139,255,0.11), var(--card) 58%);
+    box-shadow: 0 24px 70px rgba(78,139,255,0.12);
+    position: relative;
+  }
+  .plan-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .plan-price { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 6px; }
+  .plan-price .amt { font-family: var(--font-body); font-size: 42px; font-weight: 700; letter-spacing: -0.03em; }
+  .plan-price .per { font-size: 14px; color: var(--text-3); }
+  .plan-sub { font-size: 13px; color: var(--text-2); min-height: 40px; }
+  .plan ul { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 22px 0 26px; }
+  .plan li { display: flex; gap: 11px; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+  .plan li .ic { flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; margin-top: 2px; background: rgba(255,255,255,0.06); color: var(--text-2); }
+  .plan.pro li .ic { background: var(--blue-soft); color: var(--blue-bright); }
+  .plan .btn { margin-top: auto; }
+  .founding {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 11px 14px;
+    background: rgba(217,161,59,0.10); border: 1px solid rgba(217,161,59,0.32);
+    border-radius: 11px; font-size: 12.5px; color: #EBC77F;
+  }
+  .price-note { margin-top: 22px; font-size: 12.5px; color: var(--text-3); text-align: center; }
 
+  /* ───────────────────────── 16. FAQ ───────────────────────── */
+  .faq { max-width: 820px; margin: 0 auto; border-top: 1px solid var(--line); }
+  .faq-item { border-bottom: 1px solid var(--line); }
+  .faq-q {
+    width: 100%; background: none; border: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    padding: 24px 4px; text-align: left;
+    font-family: var(--font-display); font-size: 17.5px; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text);
+    transition: color 0.16s;
+  }
+  .faq-q:hover { color: var(--blue-bright); }
+  .faq-ic { flex-shrink: 0; color: var(--text-3); transition: transform 0.3s var(--ease), color 0.2s; }
+  .faq-item.open .faq-ic { transform: rotate(45deg); color: var(--blue); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.36s var(--ease); }
+  .faq-a > div { padding: 0 4px 24px; font-size: 14.5px; color: var(--text-2); line-height: 1.65; max-width: 700px; }
+  .faq-a a { color: var(--blue-bright); text-decoration: underline; text-underline-offset: 3px; }
 
-    .cta-section { padding: 40px 0 110px; }
-    .cta-card {
-      max-width: var(--maxw); margin: 0 auto;
-      background: var(--dark); color: var(--dark-text);
-      border-radius: 28px; padding: 72px 56px; position: relative; overflow: hidden;
-      display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 56px; align-items: center;
-    }
-    .cta-card::before {
-      content: ''; position: absolute; right: -120px; top: -80px;
-      width: 460px; height: 460px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(61,130,247,0.18), transparent 62%);
-      pointer-events: none;
-    }
-    .cta-card h2 { font-size: clamp(30px, 4vw, 44px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; margin-bottom: 16px; position: relative; }
-    .cta-card > div { position: relative; }
-    .cta-card .lead { font-size: 17px; color: var(--dark-muted); line-height: 1.6; margin-bottom: 26px; }
-    .cta-perks { list-style: none; display: flex; flex-direction: column; gap: 14px; }
-    .cta-perks li { display: flex; align-items: flex-start; gap: 12px; font-size: 15.5px; color: var(--dark-text); line-height: 1.45; }
-    .cta-perks .ic { color: #60a5fa; flex-shrink: 0; margin-top: 1px; }
-    .cta-card .email-field { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #fff; }
-    .cta-card .email-field::placeholder { color: var(--dark-muted); }
-    .cta-card .email-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(61,130,247,0.18); }
-    .cta-card .form-note { color: var(--dark-muted); }
-    .cta-card .form-msg.ok { color: #4ade80; }
+  /* ───────────────────────── 17. Final CTA + footer ───────────────────────── */
+  .cta {
+    text-align: center;
+    border-top: 1px solid var(--line);
+  }
+  .cta .stores { justify-content: center; margin-top: 32px; }
 
+  footer { border-top: 1px solid var(--line); padding: 60px 0 40px; background: var(--surface); }
+  .foot-top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 44px; }
+  .foot-brand p { font-size: 13.5px; color: var(--text-3); margin-top: 14px; max-width: 320px; line-height: 1.6; }
+  .foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .foot-col h5 {
+    font-family: var(--font-body); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 14px;
+  }
+  .foot-col a { display: block; font-size: 14px; color: var(--text-2); padding: 6px 0; transition: color 0.16s; }
+  .foot-col a:hover { color: var(--blue-bright); }
+  .foot-bot {
+    margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;
+    font-size: 12.5px; color: var(--text-3);
+  }
 
-    .faq { max-width: 760px; margin: 52px auto 0; }
-    .faq-item { border-bottom: 1px solid var(--line); }
-    .faq-q {
-      width: 100%; background: none; border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: space-between; gap: 20px;
-      padding: 24px 4px; text-align: left;
-      font: 600 18px/1.4 'Inter', sans-serif; color: var(--ink); letter-spacing: -0.01em;
-    }
-    .faq-q:hover { color: var(--accent-ink); }
-    .faq-icon { flex-shrink: 0; transition: transform 0.3s var(--ease); color: var(--accent); }
-    .faq-item.open .faq-icon { transform: rotate(45deg); }
-    .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s var(--ease); }
-    .faq-a-inner { padding: 0 4px 24px; font-size: 16px; color: var(--muted); line-height: 1.65; max-width: 640px; }
-
-
-    footer { background: var(--dark); color: var(--dark-muted); padding: 56px 0 40px; }
-    .footer-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; flex-wrap: wrap; padding-bottom: 36px; border-bottom: 1px solid var(--dark-line); }
-    .footer-brand { max-width: 320px; }
-    .footer-brand .logo-name { color: var(--dark-text); }
-    .footer-brand p { font-size: 14px; line-height: 1.6; margin-top: 14px; }
-    .footer-cols { display: flex; gap: 56px; flex-wrap: wrap; }
-    .footer-col h5 { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dark-text); margin-bottom: 14px; }
-    .footer-col a { display: block; font-size: 14px; color: var(--dark-muted); text-decoration: none; margin-bottom: 10px; transition: color 0.16s; }
-    .footer-col a:hover { color: var(--dark-text); }
-    .footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 28px; font-size: 13px; }
-
-
-    .phone { position: relative; }
-    .phone-frame {
-      width: 100%; background: #0c0a09; border-radius: 44px;
-      padding: 9px; border: 1px solid rgba(23,20,15,0.14);
-      box-shadow: 0 40px 80px rgba(23,20,15,0.22), 0 12px 28px rgba(23,20,15,0.14);
-    }
-    .phone-screen-wrap { position: relative; overflow: hidden; border-radius: 36px; aspect-ratio: 300/620; background: #0C0D10; }
-    .phone-island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 92px; height: 26px; background: #000; border-radius: 16px; z-index: 10; }
-
-
-    .app-screen {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      background: #0C0D10; font-family: 'Inter', -apple-system, sans-serif;
-      color: #F2F3F6; -webkit-font-smoothing: antialiased; overflow: hidden;
-    }
-    .app-sb { height: 46px; flex-shrink: 0; }
-    .app-scroll { flex: 1; overflow: hidden; padding: 0 12px; }
-    .app-scroll-pad { padding-bottom: 8px; }
-
-
-    .app-eyebrow { font-size: 9px; font-weight: 700; color: #767E8C; letter-spacing: 0.6px; text-transform: uppercase; }
-    .app-avatar { width: 28px; height: 28px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; flex-shrink: 0; }
-    .app-avatar svg { color: #fff; }
-    .app-tabbar {
-      flex-shrink: 0; display: flex; background: #15181E;
-      border-top: 0.5px solid #2B313B; padding: 6px 4px 14px;
-    }
-    .app-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-    .app-tab svg { color: #767E8C; }
-    .app-tab.on svg, .app-tab.on .app-tab-lbl { color: #3D82F7; }
-    .app-tab-lbl { font-size: 9px; font-weight: 500; color: #767E8C; }
-
-
-    .app-sched-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px 10px; border-bottom: 0.5px solid #2B313B; flex-shrink: 0;
-    }
-    .app-greeting-name { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-top: 1px; }
-    .app-month-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 8px; }
-    .app-month-text { font-size: 17px; font-weight: 700; color: #F2F3F6; letter-spacing: -0.2px; }
-    .app-month-nav { display: flex; gap: 8px; color: #F2F3F6; }
-    .app-date-strip { display: flex; gap: 4px; margin-bottom: 10px; overflow: hidden; }
-    .app-day {
-      min-width: 44px; padding: 8px 10px; border-radius: 14px; text-align: center; flex-shrink: 0;
-    }
-    .app-day.on { background: #3D82F7; }
-    .app-day-lbl { font-size: 9px; font-weight: 500; color: #767E8C; margin-bottom: 3px; }
-    .app-day.on .app-day-lbl, .app-day.on .app-day-num { color: #fff; }
-    .app-day-num { font-size: 16px; font-weight: 700; color: #F2F3F6; line-height: 1; }
-    .app-day-dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; margin: 4px auto 0; }
-    .app-quick-card {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-      background: #15181E; border: 1.5px solid #3D82F7; border-radius: 18px; padding: 10px;
-    }
-    .app-quick-ic {
-      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-      background: rgba(61,130,247,0.16); display: grid; place-items: center; color: #3D82F7;
-    }
-    .app-quick-title { font-size: 12px; font-weight: 800; color: #F2F3F6; margin-top: 1px; }
-    .app-quick-sub { font-size: 9.5px; color: #A6ACBA; margin-top: 2px; line-height: 1.35; }
-    .app-quick-go { width: 28px; height: 28px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; flex-shrink: 0; color: #fff; }
-    .app-timeline-row { display: flex; gap: 10px; align-items: flex-start; }
-    .app-time-col { width: 34px; padding-top: 12px; font-size: 10px; font-weight: 700; color: #3D82F7; flex-shrink: 0; }
-    .app-workout-card {
-      flex: 1; background: #15181E; border-radius: 14px; border: 1px solid #2B313B;
-      border-left: 3px solid #3D82F7; padding: 10px; margin-bottom: 8px;
-    }
-    .app-wk-badge {
-      display: inline-block; font-size: 8px; font-weight: 700; color: #3D82F7;
-      letter-spacing: 0.5px; background: #191C22; border-radius: 999px; padding: 2px 7px; margin-bottom: 5px;
-    }
-    .app-wk-title { font-size: 15px; font-weight: 700; color: #F2F3F6; line-height: 1.2; letter-spacing: -0.2px; }
-    .app-wk-meta { display: flex; gap: 12px; margin: 7px 0 8px; }
-    .app-wk-meta-lbl { font-size: 8px; font-weight: 700; color: #767E8C; letter-spacing: 0.5px; }
-    .app-wk-meta-val { font-size: 11px; font-weight: 700; color: #F2F3F6; margin-top: 1px; }
-    .app-start-btn {
-      height: 34px; background: #3D82F7; border-radius: 14px;
-      display: flex; align-items: center; justify-content: center; gap: 5px;
-      font-size: 10px; font-weight: 700; color: #fff; letter-spacing: 0.3px;
-    }
-    .app-fab {
-      position: absolute; right: 14px; bottom: 58px; width: 42px; height: 42px;
-      border-radius: 50%; background: #3D82F7; display: grid; place-items: center; color: #fff;
-      box-shadow: 0 8px 24px rgba(0,88,188,0.28); z-index: 5;
-    }
-
-
-    .app-qw-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 12px 8px; flex-shrink: 0;
-    }
-    .app-qw-hdr-title { font-size: 13px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.2px; }
-    .app-qw-lead { font-size: 14px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-bottom: 4px; }
-    .app-qw-sub { font-size: 10px; color: #A6ACBA; line-height: 1.45; margin-bottom: 10px; }
-    .app-dur-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
-    .app-dur-chip {
-      width: calc(20% - 4px); aspect-ratio: 1.1; border-radius: 12px;
-      background: #15181E; border: 1.5px solid #2B313B;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    .app-dur-chip.on { background: #3D82F7; border-color: #3D82F7; }
-    .app-dur-num { font-size: 14px; font-weight: 800; color: #F2F3F6; line-height: 1; }
-    .app-dur-chip.on .app-dur-num, .app-dur-chip.on .app-dur-unit { color: #fff; }
-    .app-dur-unit { font-size: 8px; font-weight: 500; color: #767E8C; margin-top: 1px; }
-    .app-purpose-row { display: flex; gap: 5px; margin-bottom: 10px; overflow: hidden; }
-    .app-purpose {
-      display: flex; align-items: center; gap: 4px; flex-shrink: 0;
-      background: #15181E; border: 1.5px solid #2B313B; border-radius: 999px;
-      padding: 5px 10px; font-size: 9px; font-weight: 700; color: #F2F3F6;
-    }
-    .app-purpose.on { background: #3D82F7; border-color: #3D82F7; color: #fff; }
-    .app-purpose svg { flex-shrink: 0; }
-    .app-preview-card {
-      background: #15181E; border: 1px solid #2B313B; border-radius: 18px; padding: 11px; margin-bottom: 8px;
-    }
-    .app-preview-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .app-purpose-badge {
-      display: flex; align-items: center; gap: 4px; font-size: 8px; font-weight: 700;
-      color: #3D82F7; letter-spacing: 0.5px; background: rgba(61,130,247,0.16);
-      border-radius: 999px; padding: 3px 8px;
-    }
-    .app-preview-est { font-size: 10px; font-weight: 700; color: #A6ACBA; }
-    .app-preview-title { font-size: 14px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin-bottom: 7px; }
-    .app-why-box {
-      display: flex; gap: 6px; background: #191C22; border-radius: 12px; padding: 8px; margin-bottom: 8px;
-      font-size: 9px; color: #A6ACBA; line-height: 1.45;
-    }
-    .app-ex-row {
-      display: flex; align-items: center; gap: 8px; padding: 6px 0;
-      border-bottom: 1px solid #2A2F39; font-size: 10px;
-    }
-    .app-ex-row:last-child { border-bottom: none; }
-    .app-ex-idx { width: 14px; font-weight: 700; color: #767E8C; text-align: center; }
-    .app-ex-name { font-weight: 700; color: #F2F3F6; }
-    .app-ex-meta { font-size: 8.5px; color: #A6ACBA; margin-top: 1px; }
-    .app-ex-dose { font-weight: 700; color: #3D82F7; margin-left: auto; flex-shrink: 0; }
-    .app-footer-btn {
-      margin: 0 12px 10px; height: 40px; background: #3D82F7; border-radius: 14px;
-      display: flex; align-items: center; justify-content: center; gap: 5px;
-      font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
-    }
-
-
-    .app-plan-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; flex-shrink: 0;
-    }
-    .app-logo-txt { font-size: 12px; font-weight: 800; color: #3D82F7; letter-spacing: 2px; }
-    .app-session-bar {
-      display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 0 12px 8px; flex-shrink: 0;
-    }
-    .app-session-title { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.2px; margin-top: 1px; }
-    .app-session-timer { font-size: 15px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.4px; text-align: right; }
-    .app-session-est { font-size: 8px; font-weight: 700; color: #3D82F7; letter-spacing: 0.6px; text-align: right; }
-    .app-prog-track { height: 3px; background: #2A2F39; margin: 0 12px 10px; border-radius: 999px; flex-shrink: 0; }
-    .app-prog-fill { height: 3px; background: #3D82F7; border-radius: 999px; width: 42%; }
-    .app-ex-card {
-      background: #15181E; border: 1px solid #2B313B; border-radius: 18px; padding: 10px; margin-bottom: 8px;
-    }
-    .app-ex-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .app-ex-thumb {
-      width: 40px; height: 40px; border-radius: 10px; background: #191C22;
-      border: 1px solid #2B313B; display: grid; place-items: center; color: #767E8C; flex-shrink: 0;
-    }
-    .app-ex-hname { font-size: 12px; font-weight: 700; color: #F2F3F6; }
-    .app-ex-muscles { font-size: 8px; font-weight: 700; color: #A6ACBA; letter-spacing: 0.5px; margin-top: 2px; }
-    .app-ex-count { font-size: 10px; font-weight: 500; color: #767E8C; margin-left: auto; }
-    .app-target-card {
-      background: #EFF4FF; border-radius: 12px; padding: 8px; margin-bottom: 8px;
-    }
-    .app-target-lbl { font-size: 8px; font-weight: 700; color: #3D82F7; letter-spacing: 0.5px; }
-    .app-target-val { font-size: 10px; font-weight: 700; color: #1e3a8a; margin-top: 2px; }
-    .app-set-table { font-size: 8px; }
-    .app-set-hdr { display: flex; padding-bottom: 4px; border-bottom: 1px solid #2A2F39; color: #767E8C; font-weight: 700; letter-spacing: 0.5px; }
-    .app-set-hdr span, .app-set-row span { flex: 1; text-align: center; }
-    .app-set-hdr span:first-child, .app-set-row span:first-child { flex: 0.5; }
-    .app-set-hdr span:nth-child(2), .app-set-row span:nth-child(2) { flex: 1.3; text-align: left; padding-left: 4px; }
-    .app-set-row { display: flex; align-items: center; padding: 6px 0; font-size: 10px; font-weight: 700; color: #F2F3F6; }
-    .app-set-row.done span:nth-child(2) { color: #767E8C; font-weight: 500; }
-    .app-set-row.active {
-      background: #15181E; border: 1.5px solid #3D82F7; border-radius: 10px;
-      padding: 6px 4px; margin: 0 -4px;
-    }
-    .app-set-row.active span:first-child { color: #3D82F7; }
-    .app-check { width: 18px; height: 18px; border-radius: 50%; background: #3D82F7; display: grid; place-items: center; margin: 0 auto; color: #fff; }
-    .app-check-empty { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #2B313B; margin: 0 auto; }
-    .app-input-fake { display: block; width: 100%; height: 24px; background: #191C22; border: 1px solid #2B313B; border-radius: 6px; }
-
-
-    .app-prog-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; flex-shrink: 0;
-    }
-    .app-prog-hdr-right { display: flex; align-items: center; gap: 10px; color: #F2F3F6; }
-    .app-page-title { font-size: 16px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.3px; margin: 4px 0 10px; }
-    .app-ring-card {
-      background: #191C22; border-radius: 18px; padding: 11px; margin-bottom: 8px; text-align: center;
-    }
-    .app-ring-card .app-eyebrow { display: block; text-align: left; margin-bottom: 8px; }
-    .app-ring {
-      width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 6px;
-      background: conic-gradient(#3D82F7 281deg, #2A2F39 281deg);
-      display: grid; place-items: center; position: relative;
-    }
-    .app-ring::before {
-      content: ''; position: absolute; inset: 9px; background: #191C22; border-radius: 50%;
-    }
-    .app-ring-in { position: relative; z-index: 1; text-align: center; }
-    .app-ring-pct { font-size: 18px; font-weight: 800; color: #3D82F7; line-height: 1; letter-spacing: -0.5px; }
-    .app-ring-lbl { font-size: 7px; font-weight: 700; color: #A6ACBA; letter-spacing: 0.5px; margin-top: 2px; }
-    .app-ring-cap { font-size: 9px; color: #A6ACBA; line-height: 1.4; }
-    .app-streak-card {
-      background: #3D82F7; border-radius: 18px; padding: 11px; margin-bottom: 8px;
-    }
-    .app-streak-card .app-eyebrow { color: rgba(255,255,255,0.7); }
-    .app-streak-num { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; margin-top: 2px; }
-    .app-streak-unit { font-size: 14px; font-weight: 400; color: rgba(255,255,255,0.8); }
-    .app-streak-cap { font-size: 9px; color: rgba(255,255,255,0.7); margin-top: 4px; line-height: 1.4; }
-    .app-stat-card {
-      background: #15181E; border-radius: 18px; padding: 11px; margin-bottom: 8px;
-    }
-    .app-stat-row { display: flex; justify-content: space-between; align-items: flex-end; margin: 4px 0 8px; }
-    .app-stat-val { font-size: 20px; font-weight: 800; color: #F2F3F6; letter-spacing: -0.5px; line-height: 1; }
-    .app-stat-unit { font-size: 11px; font-weight: 400; color: #A6ACBA; }
-    .app-period-toggle { display: flex; background: #191C22; border-radius: 10px; padding: 2px; gap: 2px; }
-    .app-period-btn { padding: 3px 8px; border-radius: 7px; font-size: 9px; font-weight: 700; color: #767E8C; }
-    .app-period-btn.on { background: #3D82F7; color: #fff; }
-    .app-bars { display: flex; align-items: flex-end; gap: 4px; height: 44px; margin-top: 4px; }
-    .app-bwrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-    .app-bar { width: 100%; border-radius: 3px 3px 0 0; background: #2A2F39; min-height: 2px; }
-    .app-bar.done { background: #2A2F39; }
-    .app-bar.cur { background: #3D82F7; }
-    .app-blbl { font-size: 8px; color: #767E8C; font-weight: 500; }
-    .app-blbl.on { color: #3D82F7; font-weight: 700; }
-
-
-    .modal-overlay {
-      position: fixed; inset: 0; z-index: 200;
-      display: flex; align-items: center; justify-content: center; padding: 24px;
-      background: rgba(23,20,15,0.5);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      opacity: 0; visibility: hidden; transition: opacity 0.32s var(--ease), visibility 0.32s;
-    }
-    .modal-overlay.open { opacity: 1; visibility: visible; }
-    .modal {
-      position: relative; width: 100%; max-width: 432px;
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: 24px; padding: 40px 34px 30px; text-align: center;
-      box-shadow: 0 40px 100px rgba(23,20,15,0.30);
-      transform: translateY(16px) scale(0.97); opacity: 0;
-      transition: transform 0.42s var(--ease), opacity 0.42s var(--ease);
-    }
-    .modal-overlay.open .modal { transform: none; opacity: 1; }
-    .modal-badge {
-      width: 60px; height: 60px; margin: 0 auto 20px; border-radius: 18px;
-      background: var(--accent); color: #fff;
-      display: grid; place-items: center;
-      box-shadow: 0 10px 26px rgba(61,130,247,0.32);
-    }
-    .modal h3 { font-size: 24px; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 10px; }
-    .modal > p { font-size: 15px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
-    .modal > p strong { color: var(--ink); font-weight: 600; }
-    .modal-steps { display: flex; gap: 10px; text-align: left; margin-bottom: 24px; }
-    .modal-step { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 13px 12px; }
-    .modal-step-i { color: var(--accent-ink); margin-bottom: 8px; }
-    .modal-step-t { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; }
-    .modal-cta { width: 100%; }
-    .modal-close {
-      position: absolute; top: 14px; right: 14px; width: 32px; height: 32px;
-      border-radius: 9px; background: var(--bg); border: 1px solid var(--line);
-      color: var(--muted); cursor: pointer; display: grid; place-items: center;
-      transition: background 0.18s, color 0.18s;
-    }
-    .modal-close:hover { background: var(--bg-2); color: var(--ink); }
-
-    .btn-spinner {
-      display: inline-block; width: 15px; height: 15px;
-      border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-      border-radius: 50%; animation: btnspin 0.7s linear infinite; vertical-align: -2px;
-    }
-    @keyframes btnspin { to { transform: rotate(360deg); } }
-
-
-    @media (max-width: 960px) {
-      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-      .hero-visual { order: 2; }
-      .hero { padding-top: 116px; }
-      .compare { grid-template-columns: 1fr; }
-      .split { grid-template-columns: 1fr; gap: 40px; }
-      .split-visual { order: -1; }
-      .cta-card { grid-template-columns: 1fr; gap: 36px; padding: 48px 32px; }
-    }
-    @media (max-width: 720px) {
-      .nav-links { display: none; }
-      .steps { grid-template-columns: 1fr; }
-      .section { padding: 76px 0; }
-      .hero-sub { font-size: 16.5px; }
-      .float-chip {
-        position: static;
-        margin-bottom: 16px;
-        width: calc(100% - 8px);
-        margin-left: 4px;
-        margin-right: 4px;
-        padding: 12px 14px;
-        border-radius: 12px;
-      }
-      .float-chip .fc-ic {
-        width: 28px;
-        height: 28px;
-      }
-      .float-chip .fc-t {
-        font-size: 12px;
-      }
-      .float-chip .fc-s {
-        font-size: 10px;
-      }
-      .float-chip.top {
-        transform: none;
-        top: auto;
-        left: auto;
-        order: -1;
-      }
-      .float-chip.bot {
-        transform: none;
-        bottom: auto;
-        right: auto;
-        order: 3;
-      }
-      .float-chip:hover {
-        transform: translateY(-2px);
-      }
-      .hero-visual {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .hero-visual .phone {
-        order: 1;
-        width: 100% !important;
-        max-width: 300px;
-      }
-      .modal-steps { flex-direction: column; }
-      .cta-card { padding: 40px 22px; border-radius: 22px; }
-      .email-row { flex-direction: column; }
-      .footer-top { flex-direction: column; gap: 28px; }
-    }
+  /* ───────────────────────── 18. Responsive ───────────────────────── */
+  @media (max-width: 1080px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    .hero { padding-top: 128px; }
+    .hero .lead { max-width: none; }
+  }
+  @media (max-width: 900px) {
+    .nav-links { display: none; }
+    .nav-toggle { display: inline-flex; }
+    .nav-right .btn-store { display: none; }
+    .compare-2 { grid-template-columns: 1fr; }
+    .frow, .frow.flip .fr-copy { grid-template-columns: 1fr; order: 0; }
+    .frow { gap: 40px; }
+    .price-grid { grid-template-columns: 1fr; }
+    .foot-top { grid-template-columns: 1fr; gap: 34px; }
+  }
+  @media (max-width: 640px) {
+    .foot-cols { grid-template-columns: 1fr 1fr; }
+    .device { width: 264px; }
+    .device-screen { height: 546px; }
+    .hero .stores, .cta .stores { flex-direction: column; align-items: stretch; }
+    .store { justify-content: center; }
+  }
   </style>
 </head>
 <body>
 
-<div class="scroll-progress" id="scroll-progress"></div>
+<a class="skip" href="#main">Skip to content</a>
 
-<nav id="nav">
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav class="nav" id="nav">
   <div class="wrap">
-    <a href="#top" class="logo">
-      <img class="logo-mark" src="tempo-logo.png" alt="Arclo" width="32" height="32">
-      <span class="logo-name">Arclo</span>
+    <a href="#top" class="brand" aria-label="Arclo home">
+      <img src="tempo-logo.png" alt="" width="32" height="32">
+      <span>Arclo</span>
     </a>
     <div class="nav-links">
-      <a href="#how" class="nav-link">How it works</a>
-      <a href="#different" class="nav-link">Why Arclo</a>
-      <a href="#quick" class="nav-link">Quick workouts</a>
-      <a href="#faq" class="nav-link">FAQ</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
     </div>
     <div class="nav-right">
-      <a href="#join" class="btn btn-primary btn-sm mag">Join the waitlist</a>
+      <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="drawer" aria-label="Open menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a href="#get" class="btn btn-primary btn-sm btn-store">Get Arclo</a>
     </div>
   </div>
 </nav>
 
+<div class="drawer" id="drawer">
+  <a href="#how">How it works</a>
+  <a href="#features">Features</a>
+  <a href="#pricing">Pricing</a>
+  <a href="#faq">FAQ</a>
+  <a href="#get" class="btn btn-primary">Get Arclo</a>
+</div>
 
+<main id="main">
+
+<!-- ═══════════════ HERO ═══════════════ -->
 <header class="hero" id="top">
   <div class="wrap hero-grid">
-    <div>
-      <span class="pill"><span class="pill-dot"></span> Coming soon to iOS &amp; Android <span class="pill-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span>
-      <h1 class="hero-title">Fitness that fits <em>your<svg class="scribble" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true"><path d="M3 11 C 40 4, 70 14, 100 8 S 165 3, 197 9"/></svg></em> schedule.</h1>
-      <p class="hero-sub">
-        Most fitness apps hand you a fixed plan and expect your life to cooperate.
-        <strong>Arclo does the opposite</strong> — it reads your calendar, builds training around the
-        time you actually have, and quietly reshuffles the week when life gets in the way.
+    <div class="hero-copy">
+      <h1 class="h-xl">
+        Less scheduling.
+        <span class="line2 grad">More training.</span>
+      </h1>
+      <p class="lead">
+        Arclo builds your training plan around your actual calendar, then moves it the moment
+        something changes. No missed sessions, no starting over.
       </p>
-      <div class="signup">
-        <form class="email-row" id="hero-form" action="https://formgrid.dev/api/f/1it6zjtm" method="POST">
-          <input type="email" name="email" class="email-field" placeholder="you@email.com" autocomplete="email" required>
-          <button type="submit" class="btn btn-primary mag">Join the waitlist</button>
-        </form>
-        <p class="form-note">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Free to join · We email you once, when it&rsquo;s your turn.
-        </p>
-        <p class="form-msg ok"  id="h-ok"></p>
-        <p class="form-msg err" id="h-err"></p>
+
+      <div class="stores">
+        <a class="store" data-store="ios" href="#get">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.72c.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.72-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.87-.76-1.48.02-2.84.86-3.6 2.18-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.75 2.21 1.1-.05 1.52-.71 2.85-.71 1.33 0 1.71.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.54zM14.2 5.9c.61-.74 1.02-1.77.91-2.8-.88.04-1.94.59-2.57 1.32-.56.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.58-1.22z"/></svg>
+          <span class="store-txt"><small>Download on the</small><strong>App Store</strong></span>
+        </a>
+        <a class="store" data-store="android" href="#get">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.6 2.3c-.3.3-.5.8-.5 1.4v16.6c0 .6.2 1.1.5 1.4l.1.1 9.3-9.3v-.2L3.7 2.2l-.1.1z" fill="#00D2FF"/>
+            <path d="M16.1 15.6 13 12.5v-.2l3.1-3.1.1.1 3.7 2.1c1 .6 1 1.6 0 2.2l-3.8 2z" fill="#FFCE00"/>
+            <path d="m16.2 15.5-3.2-3.2-9.4 9.4c.3.4.9.4 1.5.1l11.1-6.3" fill="#FF3A44"/>
+            <path d="M16.2 9.2 5.1 2.9c-.6-.4-1.2-.3-1.5.1l9.4 9.3 3.2-3.1z" fill="#00E676"/>
+          </svg>
+          <span class="store-txt"><small>Get it on</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+
+      <div class="hero-micro">
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> Free to use</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> No ads, ever</span>
       </div>
     </div>
 
-    <div class="hero-visual tilt-stage" id="hero-stage">
-      <span class="hero-doodle" style="top:-14px;right:4%">psst — move your mouse ✦</span>
-      <div class="float-chip top depth" data-depth="26" data-sr style="--d:500ms">
-        <div class="fc-ic">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        </div>
-        <div style="flex:1"><div class="fc-t" style="display:flex;align-items:center;gap:6px">Calendar synced<span class="fc-live"></span></div><div class="fc-s">Finds your free windows</div></div>
-      </div>
+    <!-- Every device slot below names the exact real screenshot to drop in.
+         All seven are deliberately different screens (hero + 4 feature rows),
+         picked to be the most compelling ones and to never repeat:
+           Hero center (flagship) → Today view (Home tab: plan + Start Workout)
+           Hero left               → Streaks & badges (weekly recap)
+           Hero right              → Exercise library
+           The schedule            → Calendar view (month/week grid)
+           The session             → Live workout (active logging)
+           The adaptation          → Session feedback (post-workout RPE prompt)
+           The proof               → Progress dashboard (charts + PRs) -->
+    <div class="hero-visual" data-sr style="--d:150ms">
+      <div class="visual-stage" id="visual-stage">
+        <div class="glow-ring" aria-hidden="true"></div>
+        <div class="glow-ring-line" aria-hidden="true"></div>
+        <div class="phone-stack" id="phone-stack">
 
-      <div class="phone tilt" id="hero-phone">
-        <div class="phone-frame">
-          <div class="phone-screen-wrap">
-            <div class="phone-island"></div>
+          <div class="side-panel side-left" aria-hidden="true">
+            <div class="side-placeholder">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-1 6-4 6-8 0-3-2-5-3-7-.5 2-1 3-2 3-.5 0-1-1-1-2-2 2-4 4-4 6 0 4 2 7 4 8z"/></svg>
+              <span>Streaks &amp; badges</span>
+            </div>
+          </div>
 
-            <div class="app-screen">
-              <div class="app-sb"></div>
-              <div class="app-sched-hdr">
-                <div>
-                  <div class="app-eyebrow">GOOD MORNING</div>
-                  <div class="app-greeting-name">Jacob</div>
+          <div class="device-wrap main-device">
+            <div class="device">
+              <div class="device-screen">
+                <div class="notch"></div>
+                <div class="shot-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg>
+                  <span>Today view</span>
                 </div>
-                <div class="app-avatar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </div>
-              </div>
-              <div class="app-scroll app-scroll-pad">
-                <div class="app-month-row">
-                  <div class="app-month-text">June 2026</div>
-                  <div class="app-month-nav">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                  </div>
-                </div>
-                <div class="app-date-strip">
-                  <div class="app-day"><div class="app-day-lbl">MON</div><div class="app-day-num">16</div></div>
-                  <div class="app-day on"><div class="app-day-lbl">TUE</div><div class="app-day-num">17</div><div class="app-day-dot"></div></div>
-                  <div class="app-day"><div class="app-day-lbl">WED</div><div class="app-day-num">18</div><div class="app-day-dot" style="background:#3D82F7"></div></div>
-                  <div class="app-day"><div class="app-day-lbl">THU</div><div class="app-day-num">19</div></div>
-                  <div class="app-day"><div class="app-day-lbl">FRI</div><div class="app-day-num">20</div></div>
-                </div>
-                <div class="app-quick-card">
-                  <div class="app-quick-ic">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
-                  </div>
-                  <div style="flex:1;min-width:0">
-                    <div class="app-eyebrow" style="color:#3D82F7">QUICK WORKOUT</div>
-                    <div class="app-quick-title">20 min before your 1:30</div>
-                    <div class="app-quick-sub">Build a session for the gap you actually have.</div>
-                  </div>
-                  <div class="app-quick-go">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                  </div>
-                </div>
-                <div class="app-timeline-row">
-                  <div class="app-time-col">10:30</div>
-                  <div class="app-workout-card">
-                    <div class="app-wk-badge">SCHEDULED</div>
-                    <div class="app-wk-title">Upper Body Power</div>
-                    <div class="app-wk-meta">
-                      <div><div class="app-wk-meta-lbl">START TIME</div><div class="app-wk-meta-val">10:30 AM</div></div>
-                      <div><div class="app-wk-meta-lbl">DURATION</div><div class="app-wk-meta-val">45 min</div></div>
-                    </div>
-                    <div class="app-start-btn">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                      Start Session
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="app-fab">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
-              </div>
-              <div class="app-tabbar">
-                <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
-                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
-                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
-                <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div class="float-chip bot depth" data-depth="40" data-sr style="--d:650ms">
-        <div class="fc-ic">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+          <div class="side-panel side-right" aria-hidden="true">
+            <div class="side-placeholder">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 10h4M18 10h4M2 14h4M18 14h4M6 12h12"/></svg>
+              <span>Exercise library</span>
+            </div>
+          </div>
+
         </div>
-        <div><div class="fc-t">Plan adapted</div><div class="fc-s">Busy day &rarr; reshuffled</div></div>
       </div>
     </div>
   </div>
 </header>
 
-<section class="trust" aria-label="Highlights">
-  <div class="trust-track" id="trust-track">
-    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google &amp; Apple Calendar</span>
-    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Reads free/busy only — never event details</span>
-    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg> Free to join · No credit card</span>
-    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg> 5–30 minute Quick Workouts</span>
-    <span class="trust-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg> Auto-reschedules a busy week</span>
-  </div>
-</section>
-
-<section class="stats-band">
+<!-- ═══════════════ STATEMENT + COMPARE ═══════════════ -->
+<section class="statement" id="how">
   <div class="wrap">
-    <div class="stats-grid">
-      <div class="stat" data-sr>
-        <div class="stat-num" data-count="3"><span class="cv">0</span></div>
-        <div class="stat-lbl">Taps from calendar to a full plan</div>
-      </div>
-      <div class="stat" data-sr style="--d:80ms">
-        <div class="stat-num" data-count="30"><span class="cv">0</span><span class="unit">min</span></div>
-        <div class="stat-lbl">Longest a workout needs to be</div>
-      </div>
-      <div class="stat" data-sr style="--d:160ms">
-        <div class="stat-num" data-count="0"><span class="cv">0</span></div>
-        <div class="stat-lbl">Times a missed day breaks your plan</div>
-      </div>
-      <div class="stat" data-sr style="--d:240ms">
-        <div class="stat-num" data-count="100"><span class="cv">0</span><span class="unit">%</span></div>
-        <div class="stat-lbl">Built around your real schedule</div>
-      </div>
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">The problem</span>
+      <h2 class="h-lg">Missed workouts aren&rsquo;t a willpower problem.<br>They&rsquo;re a scheduling problem.</h2>
+      <p class="lead">A fixed weekly plan assumes every week looks the same. Arclo assumes the opposite:
+        your calendar is the constraint, and the plan works around it.</p>
     </div>
-  </div>
-</section>
 
-
-<section class="section" id="how">
-  <div class="wrap">
-    <div class="s-head center" data-sr>
-      <span class="eyebrow">How it works</span>
-      <h2 class="s-title">Set it up once. It runs your week.</h2>
-      <p class="s-body" style="margin-top:14px">Three steps, then Arclo handles the planning so you don&rsquo;t have to think about it.</p>
-    </div>
-    <div class="steps">
-      <div class="step" data-sr style="--d:0ms">
-        <span class="step-n">01</span>
-        <div class="step-ic">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        </div>
-        <h3>Connect your calendar</h3>
-        <p>Link Google or Apple Calendar in seconds. Arclo only sees when you&rsquo;re free or busy — never what the events are.</p>
-      </div>
-      <div class="step" data-sr style="--d:120ms">
-        <span class="step-n">02</span>
-        <div class="step-ic">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        </div>
-        <h3>Arclo learns your week</h3>
-        <p>Tell it your goal, experience, and equipment. Arclo finds the real gaps in your schedule and books workouts like meetings.</p>
-      </div>
-      <div class="step" data-sr style="--d:240ms">
-        <span class="step-n">03</span>
-        <div class="step-ic">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-        </div>
-        <h3>It adapts when life changes</h3>
-        <p>A meeting runs long or a day blows up? Arclo reshuffles the plan automatically — you keep moving forward instead of falling behind.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<section class="section section-dark" id="different">
-  <div class="wrap">
-    <div class="s-head center" data-sr>
-      <span class="eyebrow">Why Arclo is different</span>
-      <h2 class="s-title">You don&rsquo;t quit because you&rsquo;re lazy.<br>You quit because the plan won&rsquo;t bend.</h2>
-      <p class="s-body" style="margin-top:14px">One busy week breaks a fixed plan — and most apps never let you recover. Arclo is built around the opposite idea.</p>
-    </div>
-    <div class="compare">
-      <div class="cmp-card cmp-old" data-sr style="--d:0ms">
-        <span class="cmp-tag">Traditional fitness apps</span>
+    <div class="compare-2">
+      <div class="cmp bad" data-sr>
+        <span class="tag" style="background:rgba(255,255,255,0.06);color:var(--text-3)">Every other plan</span>
         <h3>You fit your life around the app.</h3>
-        <ul class="cmp-list">
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> A fixed weekly plan, no matter what your week looks like</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> Miss a workout and you&rsquo;re instantly &ldquo;behind&rdquo;</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> The same 60-minute session whether you have 20 minutes or two hours</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> Broken streaks, guilt notifications, and eventually quitting</li>
+        <ul>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> The same week whether you have four free evenings or none</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> Miss one session and you&rsquo;re permanently &ldquo;behind&rdquo;</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> A 60-minute session offered to someone with 20 minutes</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span> A broken streak, a guilt notification, an uninstall</li>
         </ul>
       </div>
-      <div class="cmp-card cmp-new" data-sr style="--d:120ms">
-        <span class="cmp-tag">Arclo</span>
-        <h3>The app fits around your life.</h3>
-        <ul class="cmp-list">
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A plan built around the time your calendar actually has</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Miss a workout and Arclo quietly reshuffles the rest of the week</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Sessions that scale to the time you have — 5 to 30 minutes when it&rsquo;s tight</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Streaks that survive real life, so consistency actually sticks</li>
+      <div class="cmp good" data-sr style="--d:110ms">
+        <span class="tag tag-blue">Arclo</span>
+        <h3>The plan fits around your life.</h3>
+        <ul>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Sessions placed in the gaps your calendar actually has</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Miss one and the rest of the week quietly re-lays itself</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A real session sized to the window, down to five minutes</li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A hard month makes the plan easier, not you a failure</li>
         </ul>
       </div>
     </div>
   </div>
 </section>
 
-
-<section class="section" id="quick">
-  <div class="wrap split">
-    <div data-sr>
-      <span class="eyebrow">Quick Workout</span>
-      <h2 class="s-title">A busy day shouldn&rsquo;t be a missed day.</h2>
-      <p class="s-body" style="margin-top:16px">When your schedule tightens, Arclo doesn&rsquo;t cancel — it shrinks. Tell it how long you&rsquo;ve got and it builds a focused session that keeps your streak and your progress intact.</p>
-
-      <p class="ann" style="font-size:20px;margin:30px 0 -6px;transform:rotate(-2deg)">Tap a time — the phone rebuilds it live ↓</p>
-      <div class="duration-row" id="qw-durs">
-        <span class="duration-chip" data-dur="5">5 min</span>
-        <span class="duration-chip" data-dur="10">10 min</span>
-        <span class="duration-chip" data-dur="15">15 min</span>
-        <span class="duration-chip on" data-dur="20">20 min</span>
-        <span class="duration-chip" data-dur="30">30 min</span>
-      </div>
-
-      <ul class="qw-points">
-        <li class="qw-point">
-          <span class="qw-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
-          <div><h4>5&ndash;30 minute sessions</h4><p>Real workouts sized to the gap you actually have — not a watered-down warm-up.</p></div>
-        </li>
-        <li class="qw-point">
-          <span class="qw-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
-          <div><h4>Missed-workout recovery</h4><p>Skipped yesterday? Arclo folds the important work into today instead of letting it pile up.</p></div>
-        </li>
-        <li class="qw-point">
-          <span class="qw-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
-          <div><h4>Consistency that compounds</h4><p>Showing up small beats skipping big. Arclo protects the habit so momentum never resets to zero.</p></div>
-        </li>
-      </ul>
-    </div>
-
-    <div class="split-visual" data-sr style="--d:120ms">
-      <div class="phone">
-        <div class="phone-frame">
-          <div class="phone-screen-wrap">
-            <div class="phone-island"></div>
-            <div class="app-screen">
-              <div class="app-sb"></div>
-              <div class="app-qw-hdr">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2F3F6" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                <div class="app-qw-hdr-title">Quick Workout</div>
-                <div style="width:18px"></div>
-              </div>
-              <div class="app-scroll app-scroll-pad">
-                <div class="app-qw-lead">How much time do you have?</div>
-                <div class="app-qw-sub">No setup. Arclo builds the highest-impact session for your window and goal.</div>
-                <div class="app-dur-grid" id="qw-phone-durs">
-                  <div class="app-dur-chip" data-dur="5"><div class="app-dur-num">5</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip" data-dur="10"><div class="app-dur-num">10</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip" data-dur="15"><div class="app-dur-num">15</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip on" data-dur="20"><div class="app-dur-num">20</div><div class="app-dur-unit">min</div></div>
-                  <div class="app-dur-chip" data-dur="30"><div class="app-dur-num">30</div><div class="app-dur-unit">min</div></div>
-                </div>
-                <div class="app-eyebrow" style="margin-bottom:6px">FOCUS</div>
-                <div class="app-purpose-row" id="qw-focus">
-                  <div class="app-purpose on" data-focus="muscle">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
-                    Muscle
-                  </div>
-                  <div class="app-purpose" data-focus="strength">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/></svg>
-                    Strength
-                  </div>
-                  <div class="app-purpose" data-focus="conditioning">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round"><path d="M8.5 14.5A5 5 0 0 1 12 6v0a5 5 0 0 1 3.5 8.5"/></svg>
-                    Conditioning
-                  </div>
-                </div>
-                <div class="app-preview-card swap-fade" id="qw-card">
-                  <div class="app-preview-top">
-                    <div class="app-purpose-badge">
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 6.5h11v11h-11z"/></svg>
-                      <span id="qw-badge">MUSCLE</span>
-                    </div>
-                    <div class="app-preview-est" id="qw-est">~18 min</div>
-                  </div>
-                  <div class="app-preview-title" id="qw-title">Upper Push Express</div>
-                  <div class="app-why-box">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#3D82F7" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
-                    <span id="qw-why">Hits chest and triceps in your 20-min gap — keeps hypertrophy on track without blowing your afternoon.</span>
-                  </div>
-                  <div id="qw-ex">
-                    <div class="app-ex-row"><div class="app-ex-idx">1</div><div><div class="app-ex-name">Incline DB Press</div><div class="app-ex-meta">Chest · Shoulders</div></div><div class="app-ex-dose">3 × 10–12</div></div>
-                    <div class="app-ex-row"><div class="app-ex-idx">2</div><div><div class="app-ex-name">Push-ups</div><div class="app-ex-meta">Chest · Triceps</div></div><div class="app-ex-dose">3 × 12–15</div></div>
-                    <div class="app-ex-row"><div class="app-ex-idx">3</div><div><div class="app-ex-name">Lateral Raises</div><div class="app-ex-meta">Shoulders</div></div><div class="app-ex-dose">3 × 12–15</div></div>
-                  </div>
-                </div>
-              </div>
-              <div class="app-footer-btn" id="qw-btn">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                Start 20-Minute Workout
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<section class="section section-alt" id="preview">
+<!-- ═══════════════ FEATURE ROWS ═══════════════ -->
+<section id="features">
   <div class="wrap">
-    <div class="s-head center" data-sr>
-      <span class="eyebrow">Inside the app</span>
-      <h2 class="s-title">Plan, train, and watch it stick.</h2>
-      <p class="s-body" style="margin-top:14px">A dark, focused app that gets out of your way — from your daily schedule to the set you&rsquo;re logging right now.</p>
+    <div class="sec-head" data-sr>
+      <span class="eyebrow">Inside Arclo</span>
+      <h2 class="h-lg">Four things, done properly.</h2>
     </div>
 
-    <div class="phone-row">
-
-      <div class="phone-col" data-sr style="--d:0ms">
-        <div class="phone">
-          <div class="phone-frame">
-            <div class="phone-screen-wrap">
-              <div class="phone-island"></div>
-              <div class="app-screen">
-                <div class="app-sb"></div>
-                <div class="app-sched-hdr">
-                  <div>
-                    <div class="app-eyebrow">GOOD AFTERNOON</div>
-                    <div class="app-greeting-name">Jacob</div>
-                  </div>
-                  <div class="app-avatar">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                </div>
-                <div class="app-scroll app-scroll-pad">
-                  <div class="app-month-row">
-                    <div class="app-month-text">June 2026</div>
-                    <div class="app-month-nav">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                    </div>
-                  </div>
-                  <div class="app-date-strip">
-                    <div class="app-day"><div class="app-day-lbl">MON</div><div class="app-day-num">16</div></div>
-                    <div class="app-day on"><div class="app-day-lbl">TUE</div><div class="app-day-num">17</div><div class="app-day-dot"></div></div>
-                    <div class="app-day"><div class="app-day-lbl">WED</div><div class="app-day-num">18</div></div>
-                    <div class="app-day"><div class="app-day-lbl">THU</div><div class="app-day-num">19</div></div>
-                  </div>
-                  <div class="app-quick-card">
-                    <div class="app-quick-ic">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
-                    </div>
-                    <div style="flex:1;min-width:0">
-                      <div class="app-eyebrow" style="color:#3D82F7">QUICK WORKOUT</div>
-                      <div class="app-quick-title">Short on time?</div>
-                      <div class="app-quick-sub">Build a session for the minutes you actually have.</div>
-                    </div>
-                    <div class="app-quick-go">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    </div>
-                  </div>
-                  <div class="app-timeline-row">
-                    <div class="app-time-col">10:30</div>
-                    <div class="app-workout-card">
-                      <div class="app-wk-badge">SCHEDULED</div>
-                      <div class="app-wk-title">Upper Body Power</div>
-                      <div class="app-wk-meta">
-                        <div><div class="app-wk-meta-lbl">START TIME</div><div class="app-wk-meta-val">10:30 AM</div></div>
-                        <div><div class="app-wk-meta-lbl">DURATION</div><div class="app-wk-meta-val">45 min</div></div>
-                      </div>
-                      <div class="app-start-btn">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                        Start Session
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="app-tabbar">
-                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <h4>Your week, planned</h4>
-        <p>Greeting, date strip, quick workout entry, and scheduled sessions on a timeline.</p>
-      </div>
-
-
-      <div class="phone-col" data-sr style="--d:120ms">
-        <div class="phone">
-          <div class="phone-frame">
-            <div class="phone-screen-wrap">
-              <div class="phone-island"></div>
-              <div class="app-screen">
-                <div class="app-sb"></div>
-                <div class="app-plan-hdr">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F2F3F6" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
-                  <div class="app-logo-txt">ARCLO</div>
-                  <div class="app-avatar">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                </div>
-                <div class="app-session-bar">
-                  <div>
-                    <div class="app-eyebrow">ACTIVE SESSION</div>
-                    <div class="app-session-title">Upper Body Power</div>
-                  </div>
-                  <div>
-                    <div class="app-session-est">EST. 45 MINS</div>
-                    <div class="app-session-timer">18:42</div>
-                  </div>
-                </div>
-                <div class="app-prog-track"><div class="app-prog-fill"></div></div>
-                <div class="app-scroll app-scroll-pad">
-                  <div class="app-ex-card">
-                    <div class="app-ex-hdr">
-                      <div class="app-ex-thumb">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg>
-                      </div>
-                      <div>
-                        <div class="app-ex-hname">Barbell Bench Press</div>
-                        <div class="app-ex-muscles">CHEST · TRICEPS</div>
-                      </div>
-                      <div class="app-ex-count">2/4</div>
-                    </div>
-                    <div class="app-target-card">
-                      <div class="app-target-lbl">TODAY&rsquo;S TARGET</div>
-                      <div class="app-target-val">135 lbs · 8&ndash;10 reps × 4</div>
-                    </div>
-                    <div class="app-set-table">
-                      <div class="app-set-hdr"><span>SET</span><span>PREV</span><span>LBS</span><span>REPS</span><span>✓</span></div>
-                      <div class="app-set-row done"><span>1</span><span>130 × 10</span><span>135</span><span>10</span><span><div class="app-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></div></span></div>
-                      <div class="app-set-row done"><span>2</span><span>130 × 9</span><span>135</span><span>9</span><span><div class="app-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></div></span></div>
-                      <div class="app-set-row active"><span>3</span><span>130 × 8</span><span><div class="app-input-fake"></div></span><span><div class="app-input-fake"></div></span><span><div class="app-check-empty"></div></span></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="app-tabbar">
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
-                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <h4>Guided sessions</h4>
-        <p>Set-by-set logging with targets, previous weights, and adaptive coaching.</p>
-      </div>
-
-
-      <div class="phone-col" data-sr style="--d:240ms">
-        <div class="phone">
-          <div class="phone-frame">
-            <div class="phone-screen-wrap">
-              <div class="phone-island"></div>
-              <div class="app-screen">
-                <div class="app-sb"></div>
-                <div class="app-prog-hdr">
-                  <div class="app-logo-txt">ARCLO</div>
-                  <div class="app-prog-hdr-right">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    <div class="app-avatar">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    </div>
-                  </div>
-                </div>
-                <div class="app-scroll app-scroll-pad">
-                  <div class="app-eyebrow">YOUR PERFORMANCE</div>
-                  <div class="app-page-title">Progress Overview</div>
-                  <div class="app-ring-card">
-                    <div class="app-eyebrow">CONSISTENCY SCORE</div>
-                    <div class="app-ring"><div class="app-ring-in"><div class="app-ring-pct">78%</div><div class="app-ring-lbl">KEEP GOING</div></div></div>
-                    <div class="app-ring-cap">78% completion rate in the last 30 days.</div>
-                  </div>
-                  <div class="app-streak-card">
-                    <div class="app-eyebrow">CURRENT STREAK</div>
-                    <div class="app-streak-num">12 <span class="app-streak-unit">Days</span></div>
-                    <div class="app-streak-cap">12-day streak — keep the momentum going!</div>
-                  </div>
-                  <div class="app-stat-card">
-                    <div class="app-eyebrow">VOLUME LIFTED</div>
-                    <div class="app-stat-row">
-                      <div class="app-stat-val">24.8k <span class="app-stat-unit">lbs</span></div>
-                      <div class="app-period-toggle">
-                        <div class="app-period-btn">W</div>
-                        <div class="app-period-btn on">M</div>
-                        <div class="app-period-btn">6M</div>
-                      </div>
-                    </div>
-                    <div class="app-bars">
-                      <div class="app-bwrap"><div class="app-bar done" style="height:28px"></div><div class="app-blbl">W1</div></div>
-                      <div class="app-bwrap"><div class="app-bar done" style="height:34px"></div><div class="app-blbl">W2</div></div>
-                      <div class="app-bwrap"><div class="app-bar done" style="height:30px"></div><div class="app-blbl">W3</div></div>
-                      <div class="app-bwrap"><div class="app-bar cur" style="height:38px"></div><div class="app-blbl on">W4</div></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="app-tabbar">
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="app-tab-lbl">Schedule</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M6.5 10h11M10 6.5v11"/></svg><span class="app-tab-lbl">Workouts</span></div>
-                  <div class="app-tab on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-10"/></svg><span class="app-tab-lbl">Progress</span></div>
-                  <div class="app-tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="app-tab-lbl">Profile</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <h4>Progress that proves it</h4>
-        <p>Consistency rings, streaks, and volume trends that compound over time.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<section class="cta-section" id="join">
-  <div class="wrap">
-    <div class="cta-card" data-sr>
-      <div>
-        <h2>Be first in line when Arclo launches.</h2>
-        <p class="lead">We&rsquo;re opening access in small batches before the public launch. Join the waitlist and you&rsquo;ll get:</p>
-        <ul class="cta-perks">
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Early access before Arclo opens to everyone</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> Founding-member pricing, locked in for good</li>
-          <li><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span> A direct line to the team to help shape what we build</li>
+    <!-- 1. Schedule -->
+    <div class="frow">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-blue">The schedule</span>
+        <h3>A real time slot Arclo protects.</h3>
+        <p class="lead">Connect Google or Apple Calendar once. Arclo finds your free windows, places
+          each session to fit your day and recovery, and writes it back to your calendar.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Gap-aware placement.</b> Sessions land in windows long enough to actually finish them.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Conflict detection.</b> A meeting lands on your workout and Arclo tells you, or on Pro, just moves it.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Availability you control.</b> Mark days off, set earliest and latest times, switch on Travel Mode.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Reminders that make sense.</b> A nudge before the session you scheduled, not at a random 6 PM.</span></li>
         </ul>
       </div>
-      <div>
-        <form class="email-row" id="cta-form" action="https://formgrid.dev/api/f/1it6zjtm" method="POST" style="flex-direction:column;gap:10px">
-          <input type="email" name="email" class="email-field" placeholder="you@email.com" autocomplete="email" required>
-          <button type="submit" class="btn btn-primary btn-lg mag" style="width:100%">Join the waitlist</button>
-        </form>
-        <p class="form-note">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          No spam, ever. One email when it&rsquo;s your turn.
-        </p>
-        <p class="form-msg ok"  id="c-ok"></p>
-        <p class="form-msg err" id="c-err"></p>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            <span>Calendar view</span>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 2. Session -->
+    <div class="frow flip">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-blue">The session</span>
+        <h3>A logbook that already knows your numbers.</h3>
+        <p class="lead">Open a session and the weights are already filled in, picked from what you
+          lifted last time and how it felt. Log a set with one tap and keep moving.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Today&rsquo;s target, pre-filled.</b> Progressive overload applied automatically, set by set.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>1,300+ exercises</b> with form guides, plus swap-any-exercise for the gear you actually have.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Works offline.</b> Every set saves locally, even with no signal, and syncs when you&rsquo;re back.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Was that too hard?</b> One answer at the end reshapes next week&rsquo;s loads.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1M8 12l2.5 2.5L16 9"/></svg>
+            <span>Live workout</span>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 3. Adaptation -->
+    <div class="frow">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-ember">The adaptation</span>
+        <h3>It reads the week you actually had.</h3>
+        <p class="lead">Arclo runs a real training block: three weeks of building, then a lighter
+          deload week. When your logs say the block isn&rsquo;t landing, the block changes, not you.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Missed a few?</b> Arclo drops into a recovery block and re-stamps every upcoming session, not just today&rsquo;s.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Crushing it?</b> Say a session was too easy enough times and Arclo gives you harder exercises and bigger jumps.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Scheduled deloads.</b> Week four backs off on purpose, the way a coach would program it.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Away from your gym?</b> Travel Mode rewrites upcoming sessions for whatever equipment you have.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.5 8.5 8.5 0 0 1-8.9-.6L3 20l1.6-4.6a8.38 8.38 0 0 1-.6-3.9 8.5 8.5 0 0 1 7.5-4.5h.5a8.48 8.48 0 0 1 8 8v.5z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
+            <span>Session feedback</span>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 4. Progress -->
+    <div class="frow flip">
+      <div class="fr-copy" data-sr>
+        <span class="tag tag-gold">The proof</span>
+        <h3>Consistency you can actually see.</h3>
+        <p class="lead">Not vanity charts. A completion rate that tells the truth, a streak that survives
+          a bad week, and per-lift strength curves that show whether the last month did anything.</p>
+        <ul class="flist">
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Consistency score:</b> the share of scheduled sessions you actually completed.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Volume &amp; strength trends</b> per lift, with every personal record kept.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Weight &amp; measurement history</b> with a real trend line, not just today&rsquo;s number.</span></li>
+          <li><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Weekly recap</b> and badges: a short read on Sunday, not a slot machine.</span></li>
+        </ul>
+      </div>
+      <div class="device-wrap" data-sr style="--d:120ms">
+        <div class="device"><div class="device-screen">
+          <div class="notch"></div>
+          <div class="shot-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            <span>Progress dashboard</span>
+          </div>
+        </div></div>
       </div>
     </div>
   </div>
 </section>
 
-
-<section class="section" id="faq">
+<!-- ═══════════════ PRICING ═══════════════ -->
+<section id="pricing" style="background:var(--surface);border-block:1px solid var(--line)">
   <div class="wrap">
-    <div class="s-head center" data-sr>
+    <div class="sec-head center" data-sr>
+      <span class="eyebrow">Pricing</span>
+      <h2 class="h-lg">The whole app works for free.</h2>
+      <p class="lead">Planning, scheduling this week, unlimited logging, the full exercise library, and progress:
+        all free, no ads. Pro adds automation (every future week auto-fitted, conflicts resolved for you)
+        plus your full training history beyond the free 4-month window.</p>
+    </div>
+
+    <div class="price-grid">
+      <div class="plan" data-sr>
+        <div class="plan-name">Free</div>
+        <div class="plan-price"><span class="amt">$0</span><span class="per">forever</span></div>
+        <p class="plan-sub">Everything you need to train consistently, with no trial clock.</p>
+        <ul>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Auto-generated plan for your goal, level &amp; equipment</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Calendar auto-fit for the current week</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Unlimited logging &middot; 4 months of history</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Full 1,300+ exercise library &amp; Quick Workouts</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> Progress, streaks, PRs &amp; analytics</li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span> 1 custom plan &middot; 5 custom workouts &amp; exercises</li>
+        </ul>
+        <a href="#get" class="btn btn-ghost btn-lg">Download Arclo</a>
+      </div>
+
+      <div class="plan pro" data-sr style="--d:110ms">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div class="plan-name">Arclo Pro</div>
+          <span class="tag tag-blue">Most useful if your week moves</span>
+        </div>
+        <div class="plan-price"><span class="amt">$4.99</span><span class="per">/ month</span></div>
+        <p class="plan-sub">or <b class="num">$34.99</b> a year, about <b class="num">$2.92</b> a month.</p>
+        <ul>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Rolling auto-schedule:</b> every future week fitted to your calendar, not just this one</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Auto-reschedule</b> when a meeting lands on a session</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Re-plan my whole week</b> in one tap, recovery-aware</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Travel Mode</b> &amp; multi-calendar busy time</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Muscle intelligence</b> body map &amp; <b>PR forecast</b></span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span><b>Full training history</b> — no 4-month cutoff on your charts, lifts &amp; muscle trends</span></li>
+          <li><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg></span><span>Unlimited custom plans, workouts &amp; exercises, plus the plate calculator</span></li>
+        </ul>
+        <div class="founding" style="margin-bottom:20px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 3l2.2 5.6L20 9.8l-4 4.2 1 6-5-2.9-5 2.9 1-6-4-4.2 5.8-1.2z"/></svg>
+          <span><b>Founding member:</b> $24.99 for your first year, then $34.99.</span>
+        </div>
+        <a href="#get" class="btn btn-primary btn-lg">Get Arclo &amp; try Pro</a>
+      </div>
+    </div>
+    <p class="price-note">
+      Subscriptions are billed through the App Store or Google Play and can be cancelled there at any time.
+      Prices shown in USD; your store may show local pricing. Pro is optional. The free app is not a demo.
+    </p>
+  </div>
+</section>
+
+<!--
+  ═══════════ RATINGS BLOCK ═══════════
+  Un-comment once you have REAL App Store / Play numbers, and paste the real figures in.
+  Do not ship invented ratings.
+
+  <section style="padding-top:0">
+    <div class="wrap" style="display:flex;gap:48px;justify-content:center;flex-wrap:wrap;text-align:center">
+      <div><div class="stat-big" style="font-size:40px">4.x</div><div class="dim">App Store &middot; n ratings</div></div>
+      <div><div class="stat-big" style="font-size:40px">4.x</div><div class="dim">Google Play &middot; n ratings</div></div>
+    </div>
+  </section>
+
+  ═══════════ TESTIMONIAL BLOCK ═══════════
+  Same rule: real quotes from real users only, with permission. A three-card rail
+  using .grid-3 / .tile styling will drop straight in here.
+-->
+
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head center" data-sr>
       <span class="eyebrow">FAQ</span>
-      <h2 class="s-title">Good questions, straight answers.</h2>
+      <h2 class="h-lg">Questions</h2>
     </div>
-    <div class="faq" data-sr style="--d:80ms">
+    <div class="faq" data-sr>
       <div class="faq-item">
-        <button class="faq-q" aria-expanded="false">Is Arclo free?
-          <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <div class="faq-a"><div class="faq-a-inner">Yes — Arclo will have a free plan that covers the core experience: calendar-based scheduling, your adaptive plan, and quick workouts. A Pro tier adds advanced programming and deeper insights, and waitlist members lock in founding-member pricing. You don&rsquo;t need a credit card to join the waitlist.</div></div>
+        <button class="faq-q" aria-expanded="false">Do I have to connect a calendar?</button>
+        <div class="faq-a"><div>No. Arclo runs your plan fine without one, you just pick the days you train. Connecting Google or Apple Calendar adds real scheduling: sessions at real times, with a heads-up when something collides. Connect it now or later.</div></div>
       </div>
       <div class="faq-item">
-        <button class="faq-q" aria-expanded="false">When does it launch on iOS?
-          <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <div class="faq-a"><div class="faq-a-inner">iOS is our first launch, rolling out in 2026. We&rsquo;re inviting waitlist members in batches before the public release, so the earlier you join, the sooner you&rsquo;re likely to get in.</div></div>
+        <button class="faq-q" aria-expanded="false">What can Arclo see in my calendar?</button>
+        <div class="faq-a"><div>Only when you&rsquo;re free and when you&rsquo;re busy, never event titles, attendees, locations, or notes. Turn calendar sync off and Arclo removes the events it added. Full detail is in the <a href="privacy.html">Privacy Policy</a>.</div></div>
       </div>
       <div class="faq-item">
-        <button class="faq-q" aria-expanded="false">What about Android?
-          <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <div class="faq-a"><div class="faq-a-inner">Android is coming right after iOS. When you join the waitlist you can tell us which platform you&rsquo;re on, and we use that to prioritize the rollout — so adding yourself genuinely helps move Android up the list.</div></div>
+        <button class="faq-q" aria-expanded="false">Is it really free, or is it a trial?</button>
+        <div class="faq-a"><div>Really free, with no clock on it. The free app generates your plan, fits this week around your calendar, and logs unlimited workouts (with the last 4 months of history), the whole 1,300+ exercise library, Quick Workouts, and your progress and PRs. Arclo Pro ($4.99/month or $34.99/year) adds rolling auto-scheduling, automatic conflict resolution, Travel Mode, multi-calendar, the muscle map, PR forecasting, your full training history with no cutoff, and unlimited custom content. No ads in either tier.</div></div>
       </div>
       <div class="faq-item">
-        <button class="faq-q" aria-expanded="false">Is my calendar data private?
-          <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <div class="faq-a"><div class="faq-a-inner">Arclo only reads your free/busy times — it never sees event titles, attendees, locations, or notes. Your calendar data is never sold or shared, it&rsquo;s used only to schedule your workouts, and you can disconnect your calendar at any time.</div></div>
+        <button class="faq-q" aria-expanded="false">I&rsquo;m a beginner. Will this be too much?</button>
+        <div class="faq-a"><div>No, beginners are the default. Arclo picks simpler movements, gentler loads, and fewer sets to start, and every exercise has a form guide. You move to harder programming once your own logs show you&rsquo;re ready.</div></div>
       </div>
       <div class="faq-item">
-        <button class="faq-q" aria-expanded="false">I&rsquo;m a total beginner (or pretty advanced). Is it for me?
-          <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <div class="faq-a"><div class="faq-a-inner">Both. Arclo builds your plan around your experience level, your equipment, and your goals — whether that&rsquo;s your first-ever workout or progressive overload you&rsquo;ve been chasing for years. It starts where you are and scales as you go.</div></div>
+        <button class="faq-q" aria-expanded="false">What if I miss a week?</button>
+        <div class="faq-a"><div>Nothing breaks and nothing piles up. Arclo notices the missed sessions, eases the loads, re-stamps your upcoming weeks into a recovery block, and carries on. You&rsquo;ll never open the app to a backlog of overdue workouts.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Do I need a gym?</button>
+        <div class="faq-a"><div>No. Tell Arclo what equipment you have (a full gym, a couple of dumbbells, bands, or nothing at all) and it only programs what you can actually do. Travel Mode (Pro) rewrites upcoming sessions when that changes, like a week in a hotel.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Does it work without signal?</button>
+        <div class="faq-a"><div>Yes. Sets save on your device as you log them and sync when you&rsquo;re back online, so a basement gym or a plane never costs you a workout.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">Can I delete my account and data?</button>
+        <div class="faq-a"><div>Yes, from inside the app: Profile &rarr; Settings &rarr; Delete Account. It removes your account and data immediately, no support ticket needed. There&rsquo;s also a <a href="delete-account.html">web form</a> if you no longer have the app installed.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">iPhone and Android both?</button>
+        <div class="faq-a"><div>Both, with the same feature set. Your account, plan, and history sync across devices, so switching phones doesn&rsquo;t restart anything.</div></div>
       </div>
     </div>
   </div>
 </section>
 
+<!-- ═══════════════ FINAL CTA ═══════════════ -->
+<section class="cta" id="get">
+  <div class="wrap narrow">
+    <div data-sr>
+      <span class="eyebrow" style="justify-content:center">Get started</span>
+      <h2 class="h-lg" style="margin:18px 0 18px">Stop scheduling your life around training.</h2>
+      <p class="lead">Download Arclo, answer four questions, and see your week planned in under three
+        minutes. Free, no ads, cancel nothing.</p>
 
+      <div class="stores">
+        <a class="store" data-store="ios" href="#get">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.72c.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.72-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.87-.76-1.48.02-2.84.86-3.6 2.18-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.75 2.21 1.1-.05 1.52-.71 2.85-.71 1.33 0 1.71.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.54zM14.2 5.9c.61-.74 1.02-1.77.91-2.8-.88.04-1.94.59-2.57 1.32-.56.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.58-1.22z"/></svg>
+          <span class="store-txt"><small>Download on the</small><strong>App Store</strong></span>
+        </a>
+        <a class="store" data-store="android" href="#get">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.6 2.3c-.3.3-.5.8-.5 1.4v16.6c0 .6.2 1.1.5 1.4l.1.1 9.3-9.3v-.2L3.7 2.2l-.1.1z" fill="#00D2FF"/>
+            <path d="M16.1 15.6 13 12.5v-.2l3.1-3.1.1.1 3.7 2.1c1 .6 1 1.6 0 2.2l-3.8 2z" fill="#FFCE00"/>
+            <path d="m16.2 15.5-3.2-3.2-9.4 9.4c.3.4.9.4 1.5.1l11.1-6.3" fill="#FF3A44"/>
+            <path d="M16.2 9.2 5.1 2.9c-.6-.4-1.2-.3-1.5.1l9.4 9.3 3.2-3.1z" fill="#00E676"/>
+          </svg>
+          <span class="store-txt"><small>Get it on</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
 <footer>
   <div class="wrap">
-    <div class="footer-top">
-      <div class="footer-brand">
-        <a href="#top" class="logo"><img class="logo-mark" src="tempo-logo.png" alt="Arclo" width="32" height="32"><span class="logo-name">Arclo</span></a>
-        <p>The fitness app that adapts around your real schedule — so a busy week never becomes a lost one.</p>
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a href="#top" class="brand"><img src="tempo-logo.png" alt="" width="32" height="32"><span>Arclo</span></a>
+        <p>The fitness app that schedules training around your real calendar, so a busy week never becomes a lost one.</p>
       </div>
-      <div class="footer-cols">
-        <div class="footer-col">
+      <div class="foot-cols">
+        <div class="foot-col">
           <h5>Product</h5>
           <a href="#how">How it works</a>
-          <a href="#different">Why Arclo</a>
-          <a href="#quick">Quick workouts</a>
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="foot-col">
+          <h5>Get Arclo</h5>
+          <a href="#get" data-store="ios">iPhone: App Store</a>
+          <a href="#get" data-store="android">Android: Google Play</a>
           <a href="#faq">FAQ</a>
         </div>
-        <div class="footer-col">
-          <h5>Get started</h5>
-          <a href="#join">Join the waitlist</a>
-          <a href="#preview">Inside the app</a>
-        </div>
-        <div class="footer-col">
-          <h5>Legal</h5>
+        <div class="foot-col">
+          <h5>Legal &amp; support</h5>
           <a href="privacy.html">Privacy Policy</a>
           <a href="terms.html">Terms of Service</a>
-          <a href="delete-account.html">Delete account</a>
+          <a href="delete-account.html">Delete your account</a>
         </div>
       </div>
     </div>
-    <div class="footer-bottom">
-      <span>© 2026 Arclo. All rights reserved.</span>
-      <span>Coming soon to iOS &amp; Android.</span>
+    <div class="foot-bot">
+      <span>&copy; <span id="year">2026</span> Arclo. All rights reserved.</span>
+      <span>Made for people whose weeks don&rsquo;t cooperate.</span>
     </div>
   </div>
 </footer>
 
-
-<div class="modal-overlay" id="success-modal" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <button class="modal-close" id="modal-close" aria-label="Close">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </button>
-    <div class="modal-badge">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-    </div>
-    <h3 id="modal-title">You&rsquo;re on the list.</h3>
-    <p>We&rsquo;ll email <strong id="modal-email">your inbox</strong> the moment it&rsquo;s your turn to get into Arclo. No spam in the meantime — promise.</p>
-    <div class="modal-steps">
-      <div class="modal-step"><div class="modal-step-i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></div><div class="modal-step-t">Watch your inbox for the invite</div></div>
-      <div class="modal-step"><div class="modal-step-i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div class="modal-step-t">Connect your calendar in 30 seconds</div></div>
-      <div class="modal-step"><div class="modal-step-i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></div><div class="modal-step-t">Get a plan built around your week</div></div>
-    </div>
-    <button class="btn btn-primary modal-cta" id="modal-ok">Got it</button>
-  </div>
-</div>
-
 <script>
-const nav = document.getElementById('nav');
-const progress = document.getElementById('scroll-progress');
-const onScroll = () => {
-  nav.classList.toggle('stuck', scrollY > 12);
-  const max = document.documentElement.scrollHeight - innerHeight;
-  progress.style.setProperty('--p', (max > 0 ? (scrollY / max) * 100 : 0) + '%');
-};
-addEventListener('scroll', onScroll, { passive: true });
-onScroll();
+(function () {
+  'use strict';
 
-const track = document.getElementById('trust-track');
-if (track) track.innerHTML += track.innerHTML;
-
-function countUp(el) {
-  const target = parseFloat(el.dataset.count);
-  const cv = el.querySelector('.cv');
-  if (!cv || isNaN(target)) return;
-  if (target === 0) { cv.textContent = '0'; return; }
-  const dur = 1100, start = performance.now();
-  const step = (now) => {
-    const t = Math.min((now - start) / dur, 1);
-    const eased = 1 - Math.pow(1 - t, 3);
-    cv.textContent = Math.round(eased * target).toString();
-    if (t < 1) requestAnimationFrame(step);
+  /* ══════════════════════════════════════════════════════════════════
+     Real store URLs, both verified live 2026-08-30. The iOS link is the
+     locale-free /app/id<id> form on purpose: Apple redirects it to the
+     visitor's own storefront, where a hardcoded /us/ one would not.
+     If either is ever blanked out, the buttons fall back to #get rather
+     than shipping a dead link.
+     ══════════════════════════════════════════════════════════════════ */
+  var STORE = {
+    ios:     'https://apps.apple.com/app/id6785075737',
+    android: 'https://play.google.com/store/apps/details?id=com.fittempo.app'
   };
-  requestAnimationFrame(step);
-}
 
-const reveal = new IntersectionObserver((entries) => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      e.target.classList.add('in');
-      if (e.target.dataset.count !== undefined) countUp(e.target);
-      e.target.querySelectorAll?.('[data-count]').forEach(countUp);
-      reveal.unobserve(e.target);
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── Store links ─────────────────────────────────────────────── */
+  var live = { ios: STORE.ios.indexOf('http') === 0, android: STORE.android.indexOf('http') === 0 };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-store]'), function (el) {
+    var k = el.getAttribute('data-store');
+    if (live[k]) {
+      el.href = STORE[k];
+      el.target = '_blank';
+      el.rel = 'noopener';
     }
   });
-}, { threshold: 0.12, rootMargin: '0px 0px -48px 0px' });
-document.querySelectorAll('[data-sr]').forEach(el => reveal.observe(el));
 
+  /* ── Nav ─────────────────────────────────────────────────────── */
+  var nav = document.getElementById('nav');
+  var drawer = document.getElementById('drawer');
+  var toggle = document.getElementById('nav-toggle');
 
-document.querySelectorAll('.faq-q').forEach(q => {
-  q.addEventListener('click', () => {
-    const item = q.parentElement;
-    const answer = item.querySelector('.faq-a');
-    const isOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item.open').forEach(o => {
-      if (o !== item) {
-        o.classList.remove('open');
-        o.querySelector('.faq-a').style.maxHeight = null;
-        o.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
-      }
-    });
-    item.classList.toggle('open');
-    q.setAttribute('aria-expanded', String(!isOpen));
-    answer.style.maxHeight = isOpen ? null : answer.scrollHeight + 'px';
+  function onScroll() { nav.classList.toggle('stuck', window.scrollY > 10); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  toggle.addEventListener('click', function () {
+    var open = drawer.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(open));
   });
-});
-
-
-const successModal = document.getElementById('success-modal');
-function openSuccess(email) {
-  const emailEl = document.getElementById('modal-email');
-  if (emailEl && email) emailEl.textContent = email;
-  successModal.classList.add('open');
-  successModal.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-  document.getElementById('modal-ok').focus();
-}
-function closeSuccess() {
-  successModal.classList.remove('open');
-  successModal.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
-}
-document.getElementById('modal-close').addEventListener('click', closeSuccess);
-document.getElementById('modal-ok').addEventListener('click', closeSuccess);
-successModal.addEventListener('click', e => { if (e.target === successModal) closeSuccess(); });
-addEventListener('keydown', e => { if (e.key === 'Escape' && successModal.classList.contains('open')) closeSuccess(); });
-
-
-async function submit(form, okId, errId) {
-  const email = form.querySelector('input').value.trim();
-  const btn   = form.querySelector('button');
-  const okEl  = document.getElementById(okId);
-  const errEl = document.getElementById(errId);
-  const orig  = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spinner"></span>';
-  if (okEl)  okEl.style.display = 'none';
-  if (errEl) errEl.style.display = 'none';
-  try {
-    const res  = await fetch('/api/waitlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+  Array.prototype.forEach.call(drawer.querySelectorAll('a'), function (a) {
+    a.addEventListener('click', function () {
+      drawer.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
     });
-    const data = await res.json();
-    if (res.ok) {
-      form.reset();
-      openSuccess(email);
-    } else {
-      errEl.textContent = data.error || 'Something went wrong.';
-      errEl.style.display = 'block';
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) {
+      drawer.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.focus();
     }
-  } catch {
-    errEl.textContent = 'Could not connect. Please try again.';
-    errEl.style.display = 'block';
-  }
-  btn.disabled = false;
-  btn.innerHTML = orig;
-}
-document.getElementById('hero-form').addEventListener('submit', e => { e.preventDefault(); submit(e.target, 'h-ok', 'h-err'); });
-document.getElementById('cta-form').addEventListener('submit',  e => { e.preventDefault(); submit(e.target, 'c-ok', 'c-err'); });
-
-const QW = {
-  muscle: {
-    badge: 'MUSCLE', title: 'Upper Push Express', muscles: 'chest and triceps',
-    benefit: 'keeps hypertrophy on track without blowing your afternoon',
-    ex: [
-      ['Incline DB Press', 'Chest · Shoulders', '3 × 10–12'],
-      ['Push-ups', 'Chest · Triceps', '3 × 12–15'],
-      ['Lateral Raises', 'Shoulders', '3 × 12–15'],
-      ['Triceps Dips', 'Triceps', '3 × 10–12'],
-      ['Cable Fly', 'Chest', '2 × 15'],
-    ],
-  },
-  strength: {
-    badge: 'STRENGTH', title: 'Heavy Lower Focus', muscles: 'quads and glutes',
-    benefit: 'moves the big lifts so your strength keeps climbing',
-    ex: [
-      ['Back Squat', 'Quads · Glutes', '5 × 5'],
-      ['Romanian Deadlift', 'Hamstrings', '4 × 6'],
-      ['Walking Lunge', 'Quads · Glutes', '3 × 8'],
-      ['Hip Thrust', 'Glutes', '3 × 8'],
-      ['Calf Raise', 'Calves', '3 × 12'],
-    ],
-  },
-  conditioning: {
-    badge: 'CONDITIONING', title: 'Engine Builder', muscles: 'heart and legs',
-    benefit: 'spikes your heart rate and burns the clock efficiently',
-    ex: [
-      ['Rowing Intervals', 'Full Body', '4 × 250m'],
-      ['Kettlebell Swings', 'Posterior', '5 × 20'],
-      ['Burpees', 'Full Body', '4 × 12'],
-      ['Mountain Climbers', 'Core', '4 × 30s'],
-      ['Jump Rope', 'Calves · Cardio', '3 × 60s'],
-    ],
-  },
-};
-const QW_COUNT = { 5: 2, 10: 2, 15: 3, 20: 4, 30: 5 };
-let qwState = { dur: 20, focus: 'muscle' };
-
-const $ = id => document.getElementById(id);
-function syncOn(container, attr, val) {
-  if (!container) return;
-  container.querySelectorAll('[data-' + attr + ']').forEach(el => {
-    el.classList.toggle('on', el.dataset[attr] === String(val));
   });
-}
-function renderQW() {
-  const f = QW[qwState.focus];
-  const card = $('qw-card');
-  if (!card) return;
-  syncOn($('qw-durs'), 'dur', qwState.dur);
-  syncOn($('qw-phone-durs'), 'dur', qwState.dur);
-  syncOn($('qw-focus'), 'focus', qwState.focus);
-  card.classList.add('swapping');
-  setTimeout(() => {
-    $('qw-badge').textContent = f.badge;
-    $('qw-est').textContent = '~' + Math.max(qwState.dur - 2, 4) + ' min';
-    $('qw-title').textContent = f.title;
-    $('qw-why').textContent = 'Hits ' + f.muscles + ' in your ' + qwState.dur +
-      '-min gap — ' + f.benefit + '.';
-    $('qw-ex').innerHTML = f.ex.slice(0, QW_COUNT[qwState.dur]).map((e, i) =>
-      '<div class="app-ex-row"><div class="app-ex-idx">' + (i + 1) +
-      '</div><div><div class="app-ex-name">' + e[0] +
-      '</div><div class="app-ex-meta">' + e[1] +
-      '</div></div><div class="app-ex-dose">' + e[2] + '</div></div>'
-    ).join('');
-    $('qw-btn').innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start ' +
-      qwState.dur + '-Minute Workout';
-    card.classList.remove('swapping');
-  }, 180);
-}
-['qw-durs', 'qw-phone-durs'].forEach(id => {
-  $(id)?.addEventListener('click', e => {
-    const c = e.target.closest('[data-dur]');
-    if (!c) return;
-    qwState.dur = +c.dataset.dur;
-    renderQW();
-  });
-});
-$('qw-focus')?.addEventListener('click', e => {
-  const c = e.target.closest('[data-focus]');
-  if (!c) return;
-  qwState.focus = c.dataset.focus;
-  renderQW();
-});
 
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const fine = matchMedia('(pointer: fine)').matches;
-if (!reduce && fine) {
-  const stage = $('hero-stage');
-  const phone = $('hero-phone');
-  const depths = stage ? [...stage.querySelectorAll('.depth')] : [];
-  let raf = 0;
-  stage?.addEventListener('pointermove', e => {
-    const r = stage.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width - 0.5;
-    const py = (e.clientY - r.top) / r.height - 0.5;
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      if (phone) phone.style.transform =
-        'rotateY(' + (px * 12) + 'deg) rotateX(' + (-py * 12) + 'deg) translateZ(0)';
-      depths.forEach(d => {
-        const k = +d.dataset.depth || 20;
-        d.style.setProperty('--px', (-px * k) + 'px');
-        d.style.setProperty('--py', (-py * k) + 'px');
+  /* ── Scroll reveal ───────────────────────────────────────────── */
+  var srEls = document.querySelectorAll('[data-sr]');
+  var loopEls = document.querySelectorAll('#features [data-sr]');
+  var loopArr = Array.prototype.slice.call(loopEls);
+  var onceEls = Array.prototype.filter.call(srEls, function (el) { return loopArr.indexOf(el) === -1; });
+
+  if ('IntersectionObserver' in window && !reduced) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
       });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    onceEls.forEach(function (el) { io.observe(el); });
+
+    // The "Inside Arclo" feature rows fade back out on the way past too,
+    // instead of staying revealed forever like the rest of the page.
+    var ioLoop = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { e.target.classList.toggle('in', e.isIntersecting); });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    loopArr.forEach(function (el) { ioLoop.observe(el); });
+  } else {
+    Array.prototype.forEach.call(srEls, function (el) { el.classList.add('in'); });
+  }
+
+  /* ── Hero visual parallax (fine-pointer devices only) ───────────── */
+  var stage = document.getElementById('visual-stage');
+  var finePointer = window.matchMedia('(pointer: fine)').matches;
+  if (stage && finePointer && !reduced) {
+    stage.addEventListener('mousemove', function (e) {
+      var r = stage.getBoundingClientRect();
+      var x = ((e.clientX - r.left) / r.width - 0.5) * 2;
+      var y = ((e.clientY - r.top) / r.height - 0.5) * 2;
+      stage.style.setProperty('--mx', x.toFixed(3));
+      stage.style.setProperty('--my', y.toFixed(3));
     });
-  });
-  stage?.addEventListener('pointerleave', () => {
-    if (phone) phone.style.transform = '';
-    depths.forEach(d => { d.style.setProperty('--px', '0px'); d.style.setProperty('--py', '0px'); });
+    stage.addEventListener('mouseleave', function () {
+      stage.style.setProperty('--mx', 0);
+      stage.style.setProperty('--my', 0);
+    });
+  }
+
+  /* ── FAQ accordion ───────────────────────────────────────────── */
+  Array.prototype.forEach.call(document.querySelectorAll('.faq-q'), function (q) {
+    // The +/- icon is decorative, so it's injected rather than repeated in markup.
+    q.insertAdjacentHTML('beforeend',
+      '<svg class="faq-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>');
+
+    q.addEventListener('click', function () {
+      var item = q.parentElement;
+      var ans = item.querySelector('.faq-a');
+      var isOpen = item.classList.contains('open');
+
+      Array.prototype.forEach.call(document.querySelectorAll('.faq-item.open'), function (o) {
+        if (o !== item) {
+          o.classList.remove('open');
+          o.querySelector('.faq-a').style.maxHeight = '';
+          o.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      item.classList.toggle('open', !isOpen);
+      q.setAttribute('aria-expanded', String(!isOpen));
+      ans.style.maxHeight = isOpen ? '' : ans.scrollHeight + 'px';
+    });
   });
 
-  document.querySelectorAll('.mag').forEach(btn => {
-    btn.addEventListener('pointermove', e => {
-      const r = btn.getBoundingClientRect();
-      btn.style.transform = 'translate(' + ((e.clientX - r.left - r.width / 2) * 0.22) +
-        'px,' + ((e.clientY - r.top - r.height / 2) * 0.3) + 'px)';
-    });
-    btn.addEventListener('pointerleave', () => { btn.style.transform = ''; });
-  });
-}
+  /* ── Footer year ─────────────────────────────────────────────── */
+  document.getElementById('year').textContent = new Date().getFullYear();
+})();
 </script>
+
 </body>
 </html>
