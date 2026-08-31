@@ -18,6 +18,44 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-08-30 (d) — New store screenshots: live on Play, BLOCKED on the App Store.**
+The founder supplied six AI-generated marketing frames and asked for them on both listings. They
+were not used, for reasons worth keeping:
+
+- **The phone screens in them were redrawn, not composited.** The Body Intelligence frame invented a
+  "Recovery by muscle" grid (Chest 92%, Back 78%, Shoulders 64%, Legs 90%) that does not exist in the
+  app; the Progress frame's volume axis read `W1 W2 W3 W4 W4 W5 W6 W7 W8`; the Plan frame re-typeset
+  the exercise list, un-truncating a name the app truncates and renumbering the rows.
+- **They were 853×1844.** App Store Connect only accepts its fixed display sizes and would have
+  rejected the upload outright.
+
+**Rebuilt instead: `brand-assets/make-store-frames.py`.** Real captures composited into drawn device
+frames, output at 1284×2778, Inter vendored under `brand-assets/fonts/`. Copy and layout live in one
+`FRAMES` list, so a wording change is an edit and a re-run rather than another round of image
+generation. **Researched first**, against the live App Store listings for Fitbod, Hevy, Alpha
+Progression, Boostcamp, Ladder and Caliber (pulled through Apple's lookup API): all six put a short
+headline on top and give the rest of the frame to a large, legible device: none uses a left-text /
+right-phone split, and none uses a rail of icon bullets. The layout follows that.
+
+**The set renders as one continuous 7,704px strip and is then sliced**, which is the only way the
+crossings line up — each device sits right of its panel centre so its tail reappears at the left edge
+of the next frame, and one blue sweep runs the length of all six. Devices are auto-fitted so the
+bottom edge stays inside the canvas and the app's own tab bar is visible, while the top stays clear
+of the headline. **Frame order is now load-bearing:** reordering the screenshots in either store
+breaks the crossings and needs a re-render.
+
+- **Google Play: DONE and verified** — six new screenshots live, read back at 1284×2778 with byte
+  sizes matching the generated files.
+- **App Store: cannot be done from here.** `POST /v1/appScreenshots` returns **409, "An attribute
+  value is not acceptable for the current resource state"** — version 1.0 is `READY_FOR_SALE` and
+  Apple locks screenshots on a released version. Changing them needs a new App Store version, and a
+  new version needs a new build (a 1.0.1 version cannot take a build stamped 1.0), so this is a full
+  review round. **Deliberately not started:** the app cleared review two days ago after five
+  rejections, and spending a review cycle purely on screenshots is a bad trade. **▶ The set is
+  committed at `brand-assets/store-frames/` — attach it to the next iOS version whenever one ships.**
+
+---
+
 **2026-08-30 (b) — The marketing site is live, and it is no longer a waitlist.**
 `web/launch.html` (built 07-28, refined across five passes on 07-29, and carried as "still
 unpublished" in every entry since) is now `web/index.html`. The old pre-launch page — "Coming soon
@@ -760,6 +798,11 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-08-30 (d)** — Rebuilt the store screenshots as marketing frames around real captures
+  (`brand-assets/make-store-frames.py`, researched against six competitor listings, rendered as one
+  strip and sliced so the devices cross the seams). Live on Play; App Store refuses screenshot edits
+  on a `READY_FOR_SALE` version, so the set waits for the next iOS build.
 
 - **2026-08-30 (c)** — Filled the site's seven blank phone frames with the live store listing's own
   screenshots (`web/img/shots/*.webp`, 224KB total). Three slots re-cast against screens the store set

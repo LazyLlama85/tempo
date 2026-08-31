@@ -3325,6 +3325,33 @@ chart primitive changed. `SvgGrowBar` stays in use elsewhere (Progress tab's vol
 
 ---
 
+### Store screenshot frames — `brand-assets/make-store-frames.py` (2026-08-30)
+Generates the marketing-framed store screenshots for both listings. **The rule the script exists to
+enforce: the phone screen is always a real device capture, composited in — nothing inside the device
+frame is drawn, regenerated or invented.** It replaced a set of AI-generated frames that had redrawn
+the UI and invented a "Recovery by muscle" grid (Chest 92%, Back 78%…) that does not exist in the app,
+duplicated a `W4` label in the volume chart, and re-typeset the Plan exercise list.
+
+- **Layout** follows what the category actually does, checked against the live App Store listings for
+  Fitbod, Hevy, Alpha Progression, Boostcamp, Ladder and Caliber via Apple's lookup API: short
+  headline on top, large legible device below. No left-text/right-phone split, no icon bullet rail.
+- **Rendered as one continuous strip** (`W × n` wide) and then sliced into panels. Each device sits
+  right of its panel centre so roughly its last fifth crosses the seam and reappears at the left edge
+  of the next frame, and a single blue sweep spans the whole set. Positioning six separate canvases by
+  hand would drift and the seams would read as broken. **Frame order is therefore load-bearing** —
+  reordering in either store breaks the crossings and needs a re-render.
+- **Device auto-fit:** the panel's text block is measured first, then the device is shrunk until its
+  bottom edge sits inside the canvas (so the app's tab bar is visible) *and* its top clears the
+  headline. The blue sweep is alpha-ramped between 0.38H and 0.56H so it never runs behind type.
+- Output 1284×2778, valid for the App Store `APP_IPHONE_65` set and for Play. Inter is vendored at
+  `brand-assets/fonts/` (fetched from Google Fonts) so the frames match the app and the site. Copy
+  lives in one `FRAMES` list at the bottom; `_carousel.png` is emitted alongside so the crossings can
+  be judged before upload. Canonical output is committed at `brand-assets/store-frames/`.
+- **App Store limitation, found by trying it:** `POST /v1/appScreenshots` returns **409** against a
+  `READY_FOR_SALE` version — Apple locks screenshots once a version is live, and a new version needs a
+  new build, so replacing them is a full review round. The Play listing carries the new set; the App
+  Store keeps the plain captures until the next iOS version ships.
+
 ### Marketing site — `web/index.html` (built 2026-07-28 as `launch.html`, restyled + tightened 2026-07-29, **promoted to the live site 2026-08-30**)
 **This is now the public page at `fittempo.app`.** It was built as `web/launch.html` alongside the old
 pre-launch waitlist page, whose hero said "Coming soon to iOS & Android," whose every CTA was an email
