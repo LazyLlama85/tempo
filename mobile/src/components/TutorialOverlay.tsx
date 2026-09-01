@@ -19,7 +19,7 @@ import { useTheme, useThemedStyles } from '@/theme'
 import { PressableScale, useReducedMotion } from '@/components/motion'
 import * as haptics from '@/lib/haptics'
 import { useTutorialStore, type TargetRect } from '@/stores/tutorial'
-import { shouldShowTip, markTipSeen, TOUR_STEPS, type TutorialStep } from '@/lib/tutorial'
+import { shouldShowTip, markTipSeen, TOUR_STEPS, spotlightLayout, type TutorialStep } from '@/lib/tutorial'
 
 // Stable empty reference so the "no active tour" case never mints a new array.
 const EMPTY_STEPS: TutorialStep[] = []
@@ -195,32 +195,18 @@ export function TutorialOverlay() {
 
   if (!activeTour || !step) return null
 
-  const pad = 8
-  const hole = rect
-    ? { x: Math.max(0, rect.x - pad), y: Math.max(0, rect.y - pad), w: rect.width + pad * 2, h: rect.height + pad * 2 }
-    : null
-
-  // Tooltip sits below the target (or above, per placement / screen room).
-  //
-  // When it goes ABOVE, it is anchored by `bottom`, so its TOP edge is wherever
-  // the card's own height puts it — and nothing used to stop that running off
-  // the top of the screen. Spotlighting an element in the lower half of Home
-  // produced a card whose "1 of 4" and "Skip" row sat *underneath the status
-  // bar*, overlapping the clock and the wifi/battery icons (seen on device
-  // 2026-07-23). `insets.top` was already read in this component but only
-  // `insets.bottom` was ever applied.
-  //
-  // Two guards, because clamping alone can squash the card into something
-  // unusable: if there genuinely isn't room above, flip it below instead; and
-  // whatever is left, cap its height so it can never cross into the inset.
-  const MIN_TOOLTIP_H = 180
-  const roomAbove = hole ? hole.y - 12 - insets.top - 8 : Number.POSITIVE_INFINITY
-  const wantsBelow = hole ? (step.placement === 'top' ? false : hole.y + hole.h < sh * 0.6) : true
-  const below = wantsBelow || (!!hole && roomAbove < MIN_TOOLTIP_H)
-
-  const tooltipTop = hole ? (below ? hole.y + hole.h + 12 : undefined) : sh / 2 - 90
-  const tooltipBottom = hole && !below ? sh - hole.y + 12 : undefined
-  const tooltipMaxHeight = hole && !below ? Math.max(MIN_TOOLTIP_H, roomAbove) : undefined
+  // Layout is a pure function (lib/tutorial.spotlightLayout) so the awkward
+  // cases have unit tests rather than only showing up on a device. It also
+  // clamps the card against the BOTTOM of the screen, which is the fix for the
+  // first-run bug where a tall high target pushed the card (and the Next
+  // button) off the bottom edge and the tour looked frozen on step 1.
+  const layout = spotlightLayout({
+    rect, screenH: sh, insetTop: insets.top, insetBottom: insets.bottom, placement: step.placement,
+  })
+  const hole = layout.hole
+  const tooltipTop = layout.top
+  const tooltipBottom = layout.bottom
+  const tooltipMaxHeight = layout.maxHeight
 
   const isLast = stepIndex + 1 >= steps.length
 
@@ -233,6 +219,11 @@ export function TutorialOverlay() {
           <Dim onPress={nextStep} style={{ left: 0, top: hole.y, width: hole.x, height: hole.h }} />
           <Dim onPress={nextStep} style={{ left: hole.x + hole.w, top: hole.y, width: sw - (hole.x + hole.w), height: hole.h }} />
           <Dim onPress={nextStep} style={{ left: 0, top: hole.y + hole.h, width: sw, height: sh - (hole.y + hole.h) }} />
+          {/* The hole itself also advances. No step needs the user to interact
+              with the highlighted element, and leaving it inert made most of
+              the screen a dead zone: taps did nothing, which is what made the
+              tour read as frozen. */}
+          <Dim onPress={nextStep} style={{ left: hole.x, top: hole.y, width: hole.w, height: hole.h, backgroundColor: 'transparent' }} />
           {/* Highlight ring around the spotlight */}
           <Animated.View
             pointerEvents="none"

@@ -115,6 +115,70 @@ export function resumeStepIndex(steps: TutorialStep[], completedSteps: Record<st
   return i === -1 ? 0 : i
 }
 
+// ── Spotlight layout ───────────────────────────────────────────────────────────
+// Where the tooltip card goes for a given target rect. Pure, so the awkward
+// cases are unit-testable instead of only discoverable on a device.
+//
+// This exists because of a real first-run bug (founder screen recording,
+// 2026-08-31): the overlay clamped the card against the TOP of the screen but
+// never against the BOTTOM. A target that is both tall and starts high — Home's
+// `home.today`, which is most of the screen — produced roomAbove < MIN_TOOLTIP_H,
+// so the card was placed below the target at `hole.y + hole.h + 12`, i.e. off the
+// bottom edge, taking the Next button with it. The tour looked frozen on step 1.
+// The user then tapped repeatedly at a spotlight hole that does not advance,
+// and several taps eventually landed at once, which is what read as "it jumps
+// from 1 of 7 to 4 of 7".
+
+export const MIN_TOOLTIP_H = 180
+
+// A hole taller than this fraction of the screen is not a spotlight, it is a
+// box around half the UI. Better to show the plain centred card.
+export const MAX_HOLE_FRACTION = 0.55
+
+export interface SpotlightLayout {
+  /** Null when there is no usable rect: caller renders a centred card. */
+  hole: { x: number; y: number; w: number; h: number } | null
+  top?: number
+  bottom?: number
+  maxHeight?: number
+}
+
+export function spotlightLayout(opts: {
+  rect?: { x: number; y: number; width: number; height: number }
+  screenH: number
+  insetTop: number
+  insetBottom: number
+  placement?: 'top' | 'bottom' | 'auto'
+  pad?: number
+}): SpotlightLayout {
+  const { rect, screenH: sh, insetTop, insetBottom, placement } = opts
+  const pad = opts.pad ?? 8
+
+  const tooBig = !!rect && rect.height + pad * 2 > sh * MAX_HOLE_FRACTION
+  const hole = rect && !tooBig
+    ? { x: Math.max(0, rect.x - pad), y: Math.max(0, rect.y - pad), w: rect.width + pad * 2, h: rect.height + pad * 2 }
+    : null
+
+  if (!hole) return { hole: null, top: sh / 2 - 90 }
+
+  const roomAbove = hole.y - 12 - insetTop - 8
+  const roomBelow = sh - (hole.y + hole.h) - 12 - insetBottom
+  const wantsBelow = placement === 'top' ? false : hole.y + hole.h < sh * 0.6
+  let below = wantsBelow || roomAbove < MIN_TOOLTIP_H
+
+  // The guard that was missing: if there is no room below either, do not shove
+  // the card off the bottom. Prefer above when it fits, otherwise pin it to the
+  // bottom safe area so Next is always reachable.
+  if (below && roomBelow < MIN_TOOLTIP_H) {
+    if (roomAbove >= MIN_TOOLTIP_H) below = false
+    else return { hole, bottom: insetBottom + 12, maxHeight: Math.max(MIN_TOOLTIP_H, sh * 0.45) }
+  }
+
+  return below
+    ? { hole, top: hole.y + hole.h + 12, maxHeight: Math.max(MIN_TOOLTIP_H, roomBelow) }
+    : { hole, bottom: sh - hole.y + 12, maxHeight: Math.max(MIN_TOOLTIP_H, roomAbove) }
+}
+
 // ── Persisted state ────────────────────────────────────────────────────────────
 
 export interface TutorialData {
