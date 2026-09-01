@@ -206,7 +206,6 @@ export function TutorialOverlay() {
   const hole = layout.hole
   const tooltipTop = layout.top
   const tooltipBottom = layout.bottom
-  const tooltipMaxHeight = layout.maxHeight
 
   const isLast = stepIndex + 1 >= steps.length
 
@@ -244,7 +243,7 @@ export function TutorialOverlay() {
         pointerEvents="box-none"
         style={[
           styles.tipWrap,
-          { top: tooltipTop, bottom: tooltipBottom, maxHeight: tooltipMaxHeight, paddingHorizontal: Spacing.containerPadding },
+          { top: tooltipTop, bottom: tooltipBottom, paddingHorizontal: Spacing.containerPadding },
         ]}
       >
         <View style={styles.tipCard}>

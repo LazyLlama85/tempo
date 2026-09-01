@@ -129,7 +129,11 @@ export function resumeStepIndex(steps: TutorialStep[], completedSteps: Record<st
 // and several taps eventually landed at once, which is what read as "it jumps
 // from 1 of 7 to 4 of 7".
 
-export const MIN_TOOLTIP_H = 180
+// A realistic rendered height for the card: step row + title + up to ~5 lines of
+// body + the 46pt Next button + padding. The old value (180) was an underestimate,
+// which is how a "there is room here" check could still clip the Next button off
+// the bottom of the card.
+export const MIN_TOOLTIP_H = 280
 
 // A hole taller than this fraction of the screen is not a spotlight, it is a
 // box around half the UI. Better to show the plain centred card.
@@ -140,9 +144,13 @@ export interface SpotlightLayout {
   hole: { x: number; y: number; w: number; h: number } | null
   top?: number
   bottom?: number
-  maxHeight?: number
 }
 
+// Deliberately returns no maxHeight. Clamping the card's height is what clips
+// the Next button, and an un-clamped card that slightly overlaps the spotlight
+// is strictly better than a card you cannot press. Placement only ever picks a
+// side that has been checked to have room for a full card; when neither side
+// does, the card is pinned to the bottom safe area, where it always fits.
 export function spotlightLayout(opts: {
   rect?: { x: number; y: number; width: number; height: number }
   screenH: number
@@ -159,24 +167,17 @@ export function spotlightLayout(opts: {
     ? { x: Math.max(0, rect.x - pad), y: Math.max(0, rect.y - pad), w: rect.width + pad * 2, h: rect.height + pad * 2 }
     : null
 
-  if (!hole) return { hole: null, top: sh / 2 - 90 }
+  if (!hole) return { hole: null, top: Math.max(insetTop + 12, sh / 2 - 140) }
 
   const roomAbove = hole.y - 12 - insetTop - 8
   const roomBelow = sh - (hole.y + hole.h) - 12 - insetBottom
-  const wantsBelow = placement === 'top' ? false : hole.y + hole.h < sh * 0.6
-  let below = wantsBelow || roomAbove < MIN_TOOLTIP_H
+  const prefersBelow = placement !== 'top' && hole.y + hole.h < sh * 0.6
 
-  // The guard that was missing: if there is no room below either, do not shove
-  // the card off the bottom. Prefer above when it fits, otherwise pin it to the
-  // bottom safe area so Next is always reachable.
-  if (below && roomBelow < MIN_TOOLTIP_H) {
-    if (roomAbove >= MIN_TOOLTIP_H) below = false
-    else return { hole, bottom: insetBottom + 12, maxHeight: Math.max(MIN_TOOLTIP_H, sh * 0.45) }
-  }
-
-  return below
-    ? { hole, top: hole.y + hole.h + 12, maxHeight: Math.max(MIN_TOOLTIP_H, roomBelow) }
-    : { hole, bottom: sh - hole.y + 12, maxHeight: Math.max(MIN_TOOLTIP_H, roomAbove) }
+  if (prefersBelow && roomBelow >= MIN_TOOLTIP_H) return { hole, top: hole.y + hole.h + 12 }
+  if (roomAbove >= MIN_TOOLTIP_H) return { hole, bottom: sh - hole.y + 12 }
+  if (roomBelow >= MIN_TOOLTIP_H) return { hole, top: hole.y + hole.h + 12 }
+  // Neither side fits a full card: pin to the bottom safe area, where it does.
+  return { hole, bottom: insetBottom + 12 }
 }
 
 // ── Persisted state ────────────────────────────────────────────────────────────

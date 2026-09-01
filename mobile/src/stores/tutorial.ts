@@ -61,6 +61,9 @@ interface TutorialStoreState {
 }
 
 export const useTutorialStore = create<TutorialStoreState>((set, get) => {
+  // Last time nextStep actually advanced, for the tap debounce below.
+  let lastAdvanceAt = 0
+
   const persist = (mut: (d: TutorialData) => TutorialData) => {
     const { userId, data } = get()
     const next = mut({ ...data })
@@ -123,6 +126,7 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     setTargetRect: (id, rect) => set(s => ({ targets: { ...s.targets, [id]: rect } })),
 
     startTour: (id) => {
+      lastAdvanceAt = 0
       const { data } = get()
       set({ activeTour: id, stepIndex: resumeStepIndex(TOUR_STEPS[id], data.completedSteps) })
       track('tutorial_started', { tutorial: id })
@@ -130,6 +134,15 @@ export const useTutorialStore = create<TutorialStoreState>((set, get) => {
     nextStep: () => {
       const { activeTour, stepIndex } = get()
       if (!activeTour) return
+      // One tap, one step. The overlay's dim strips, the spotlight hole and the
+      // Next button all call this, and a user tapping at a card that looked
+      // stuck could land several advances at once — which is what "1 of 7 jumped
+      // to 4 of 7" actually was (founder recording, 2026-08-31). The underlying
+      // layout bug is fixed, but this makes multi-advance impossible rather than
+      // unlikely: taps closer together than a deliberate press are ignored.
+      const now = Date.now()
+      if (now - lastAdvanceAt < 350) return
+      lastAdvanceAt = now
       const steps = TOUR_STEPS[activeTour]
       const step = steps[stepIndex]
       if (step) { get().completeStep(step.id); track('tutorial_step_completed', { tutorial: activeTour, step: step.id }) }

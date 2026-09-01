@@ -33,54 +33,90 @@ describe('resumeStepIndex — tour resume point (T3.4)', () => {
 
 // ── spotlightLayout ────────────────────────────────────────────────────────────
 // Regression tests for the first-run bug in the founder's 2026-08-31 recording:
-// a tall target that starts high pushed the tooltip (and its Next button) off
-// the bottom of the screen, so the tour looked frozen on step 1.
+// the card (and its Next button) was placed off the bottom of the screen, so the
+// tour looked frozen on step 1 and repeated taps then advanced several steps at
+// once. The guarantee these tests pin: whatever the target rect, the whole card
+// is on screen and pressable.
 describe('spotlightLayout', () => {
-  const SH = 2556 / 3 // ~852pt, an iPhone 15 Pro in points
-  const base = { screenH: SH, insetTop: 59, insetBottom: 34 }
+  // A few real device shapes, in points.
+  const DEVICES = [
+    { name: 'iPhone SE', screenH: 667, insetTop: 20, insetBottom: 0 },
+    { name: 'iPhone 15', screenH: 852, insetTop: 59, insetBottom: 34 },
+    { name: 'iPhone 15 Pro Max', screenH: 932, insetTop: 62, insetBottom: 34 },
+    { name: 'Pixel 8', screenH: 800, insetTop: 24, insetBottom: 24 },
+  ]
 
-  it('centres the card when there is no rect', () => {
-    const l = spotlightLayout({ ...base })
-    expect(l.hole).toBeNull()
-    expect(l.top).toBeCloseTo(SH / 2 - 90)
-  })
-
-  it('drops the hole when the target is more than half the screen', () => {
-    // home.today is most of Home: a ring around it is not a spotlight.
-    const l = spotlightLayout({ ...base, rect: { x: 16, y: 120, width: 350, height: SH * 0.7 } })
-    expect(l.hole).toBeNull()
-  })
-
-  it('never places the card off the bottom of the screen', () => {
-    // The exact shape that broke: tall-ish, starts high, so there is no room
-    // above (card would hit the status bar) and little room below.
-    const l = spotlightLayout({ ...base, rect: { x: 16, y: 90, width: 350, height: SH * 0.5 }, placement: 'bottom' })
+  /** The card is fully within the safe area, so Next can always be pressed. */
+  function assertCardFullyVisible(l: ReturnType<typeof spotlightLayout>, d: typeof DEVICES[number]) {
+    const usableTop = d.insetTop
+    const usableBottom = d.screenH - d.insetBottom
     if (l.top !== undefined) {
-      expect(l.top + MIN_TOOLTIP_H).toBeLessThanOrEqual(SH)
+      expect(l.top).toBeGreaterThanOrEqual(0)
+      expect(l.top + MIN_TOOLTIP_H).toBeLessThanOrEqual(usableBottom)
+    } else if (l.bottom !== undefined) {
+      expect(l.bottom).toBeGreaterThanOrEqual(0)
+      expect(d.screenH - l.bottom - MIN_TOOLTIP_H).toBeGreaterThanOrEqual(usableTop)
     } else {
-      expect(l.bottom).toBeGreaterThanOrEqual(base.insetBottom)
+      throw new Error('layout placed the card with neither top nor bottom')
     }
-  })
+  }
 
-  it('puts the card below a target sitting high on the screen', () => {
-    const l = spotlightLayout({ ...base, rect: { x: 16, y: 100, width: 350, height: 90 }, placement: 'bottom' })
-    expect(l.hole).not.toBeNull()
-    expect(l.top).toBeGreaterThan(190)
-  })
-
-  it('puts the card above a target pinned to the bottom (the tab bar)', () => {
-    const l = spotlightLayout({ ...base, rect: { x: 150, y: SH - 90, width: 60, height: 50 }, placement: 'top' })
-    expect(l.hole).not.toBeNull()
-    expect(l.bottom).toBeGreaterThan(0)
-    expect(l.top).toBeUndefined()
-  })
-
-  it('always leaves at least MIN_TOOLTIP_H of room', () => {
-    for (const y of [0, 60, 200, 400, 600, SH - 120]) {
-      for (const h of [40, 120, 300]) {
-        const l = spotlightLayout({ ...base, rect: { x: 16, y, width: 350, height: h } })
-        if (l.maxHeight !== undefined) expect(l.maxHeight).toBeGreaterThanOrEqual(MIN_TOOLTIP_H)
+  it('never places the card off screen, for any target on any device', () => {
+    for (const d of DEVICES) {
+      for (const placement of ['top', 'bottom', 'auto', undefined] as const) {
+        // Sweep the target down the screen at several heights, including the
+        // tall-and-high shape that caused the bug.
+        for (let y = 0; y < d.screenH; y += 40) {
+          for (const h of [40, 90, 160, 280, Math.round(d.screenH * 0.5)]) {
+            const l = spotlightLayout({
+              rect: { x: 16, y, width: 340, height: h },
+              screenH: d.screenH, insetTop: d.insetTop, insetBottom: d.insetBottom, placement,
+            })
+            assertCardFullyVisible(l, d)
+          }
+        }
       }
     }
+  })
+
+  it('handles a missing rect with a centred, on-screen card', () => {
+    for (const d of DEVICES) {
+      const l = spotlightLayout({ screenH: d.screenH, insetTop: d.insetTop, insetBottom: d.insetBottom })
+      expect(l.hole).toBeNull()
+      assertCardFullyVisible(l, d)
+    }
+  })
+
+  it('drops the spotlight when the target is more than half the screen', () => {
+    // `home.today` is most of Home: a ring around it is not a spotlight, and it
+    // was the target that produced the off-screen card.
+    const l = spotlightLayout({ rect: { x: 16, y: 120, width: 350, height: 600 }, screenH: 852, insetTop: 59, insetBottom: 34 })
+    expect(l.hole).toBeNull()
+  })
+
+  it('the exact shape from the recording keeps Next on screen', () => {
+    // Tall-ish, starts high: no room above, little room below.
+    const d = DEVICES[1]
+    const l = spotlightLayout({
+      rect: { x: 16, y: 90, width: 350, height: 420 },
+      screenH: d.screenH, insetTop: d.insetTop, insetBottom: d.insetBottom, placement: 'bottom',
+    })
+    assertCardFullyVisible(l, d)
+  })
+
+  it('puts the card above a target pinned to the bottom, like the tab bar', () => {
+    const d = DEVICES[1]
+    const l = spotlightLayout({
+      rect: { x: 150, y: d.screenH - 90, width: 60, height: 50 },
+      screenH: d.screenH, insetTop: d.insetTop, insetBottom: d.insetBottom, placement: 'top',
+    })
+    expect(l.hole).not.toBeNull()
+    expect(l.top).toBeUndefined()
+    assertCardFullyVisible(l, d)
+  })
+
+  it('never returns a maxHeight, which is what used to clip the Next button', () => {
+    const l = spotlightLayout({ rect: { x: 16, y: 200, width: 340, height: 90 }, screenH: 852, insetTop: 59, insetBottom: 34 })
+    expect((l as Record<string, unknown>).maxHeight).toBeUndefined()
   })
 })
