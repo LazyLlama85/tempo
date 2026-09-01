@@ -26,7 +26,10 @@ interface TutorialStoreState {
   userId: string | null
   data: TutorialData
   // Registry: element id → a function that re-measures it into window coords.
-  measurers: Record<string, () => void>
+  // The flag is "this attempt may scroll the target into view": the overlay passes
+  // true once per step and false on its retries, so a step scrolls once instead of
+  // re-aiming mid-animation on every poll.
+  measurers: Record<string, (allowScroll?: boolean) => void>
   targets: Record<string, TargetRect>
   // Active overlay tour.
   activeTour: TutorialId | null
@@ -51,7 +54,7 @@ interface TutorialStoreState {
   setFirstWorkoutCompleted: () => void
   resetAll: () => void
   // Target registry (ephemeral).
-  registerTarget: (id: string, measure: () => void) => void
+  registerTarget: (id: string, measure: (allowScroll?: boolean) => void) => void
   unregisterTarget: (id: string) => void
   setTargetRect: (id: string, rect: TargetRect) => void
   // Tour control (ephemeral).

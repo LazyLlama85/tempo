@@ -50,17 +50,29 @@ export function useTutorialTarget(id: string | null, opts?: { scrollIntoView?: b
 
   useEffect(() => {
     if (!id) return
-    const measure = () => {
+    // `allowScroll` is passed true by the overlay's FIRST measure attempt for a
+    // step and false by every retry. That distinction matters: the overlay polls
+    // a few times over ~1.5s to catch a target that mounts late, and the old
+    // code let every one of those attempts start its own scroll. Attempt two
+    // would measure the list mid-animation, compute a fresh delta from a moving
+    // position, and scroll again — the screen fought itself instead of settling.
+    // One scroll per step, then measure-only.
+    const measure = (allowScroll?: boolean) => {
       requestAnimationFrame(() => {
         ref.current?.measureInWindow?.((x, y, width, height) => {
           if (width <= 0 || height <= 0) return
-          const container = scrollIntoView ? useTutorialStore.getState().scrollContainer : null
-          const desiredY = winH * 0.3
+          const container = scrollIntoView && allowScroll
+            ? useTutorialStore.getState().scrollContainer
+            : null
+          // Short targets sit a third of the way down; a tall one is pulled
+          // higher so more of it is actually on screen.
+          const desiredY = height > winH * 0.4 ? winH * 0.18 : winH * 0.3
           const delta = y - desiredY
           if (container && Math.abs(delta) > SCROLL_THRESHOLD_PX) {
+            // Publish the pre-scroll rect immediately so the step always has
+            // something to point at, then correct it once the scroll settles.
+            setRect(id, { x, y, width, height })
             container.scrollTo(Math.max(0, container.getScrollY() + delta))
-            // Re-measure once the scroll animation has settled, so the stored
-            // rect matches where the element actually ends up.
             setTimeout(() => {
               ref.current?.measureInWindow?.((x2, y2, w2, h2) => {
                 if (w2 > 0 && h2 > 0) setRect(id, { x: x2, y: y2, width: w2, height: h2 })
@@ -170,12 +182,14 @@ export function TutorialOverlay() {
     if (!step?.target) return
     const targetId = step.target
     let cancelled = false
-    const attempt = () => {
+    const attempt = (allowScroll: boolean) => {
       if (cancelled) return
-      useTutorialStore.getState().measurers[targetId]?.()
+      useTutorialStore.getState().measurers[targetId]?.(allowScroll)
     }
-    attempt()
-    const timers = [200, 450, 800, 1300].map(ms => setTimeout(attempt, ms))
+    // Only the first attempt may scroll; the retries exist to catch a late-
+    // mounting target, not to re-aim the scroll position.
+    attempt(true)
+    const timers = [200, 450, 800, 1300].map(ms => setTimeout(() => attempt(false), ms))
     return () => { cancelled = true; timers.forEach(clearTimeout) }
   }, [step?.target, stepIndex])
 
