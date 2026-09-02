@@ -11,7 +11,7 @@ import { useFocusEffect } from 'expo-router'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
 import { useTutorialStore } from '@/stores/tutorial'
-import { T, HOME_TOUR_STEPS, CONCEPTS_TOUR_STEPS, TARGET } from '@/lib/tutorial'
+import { T, FIRST_RUN_TOUR_STEPS, TARGET } from '@/lib/tutorial'
 import { Spacing, Radius, CardShadow, Elevation, BottomTabInset } from '@/constants/theme'
 import { BRAND_NAME } from '@/constants/brand'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
@@ -327,20 +327,13 @@ export default function ScheduleScreen() {
     useCallback(() => {
       const t = setTimeout(() => {
         const s = useTutorialStore.getState()
-        const lastConceptStep = CONCEPTS_TOUR_STEPS[CONCEPTS_TOUR_STEPS.length - 1].id
-        const lastStep = HOME_TOUR_STEPS[HOME_TOUR_STEPS.length - 1].id
+        const lastStep = FIRST_RUN_TOUR_STEPS[FIRST_RUN_TOUR_STEPS.length - 1].id
         if (!s.isStepDone('welcome_done')) return
-        // Definitions (workout/split/generates-vs-schedules/etc.) come before the
-        // spotlight tour — it explains WHAT things are; the tour then shows WHERE.
-        // This used to push a separate slideshow screen (how-tempo-works.tsx,
-        // deleted 2026-07-18) — now it's just another tour, taught on the real
-        // screens, so it's gated/started exactly like every other tour here.
-        if (s.isArmed(T.conceptsTour) && !s.isStepDone(lastConceptStep) && !s.activeTour) {
+        // One tour now, four steps, starting here on Home (2026-08-31). The
+        // Home and Plan tours it replaced are gone; T.conceptsTour is the only
+        // first-run tour left, kept under that id so existing progress resolves.
+        if (s.isArmed(T.conceptsTour) && !s.isStepDone(lastStep) && !s.activeTour) {
           s.startTour(T.conceptsTour)
-          return
-        }
-        if (s.isArmed(T.homeTour) && !s.isStepDone(lastStep) && !s.activeTour) {
-          s.startTour(T.homeTour)
         }
       }, 650) // let the calendar + card measure first
       return () => clearTimeout(t)

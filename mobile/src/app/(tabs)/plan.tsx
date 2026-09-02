@@ -32,7 +32,7 @@ import { cancelWorkoutReminder, scheduleRestDoneNotification, cancelRestDoneNoti
 import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
 import { useTutorialTarget, useTutorialScrollContainer } from '@/components/TutorialOverlay'
-import { T, TARGET, PLAN_TOUR_STEPS } from '@/lib/tutorial'
+import { TARGET } from '@/lib/tutorial'
 import { track } from '@/lib/analytics'
 import { buildPrescription, type ExercisePrescription, type SetPerformance } from '@/lib/progression'
 import { mondayStr } from '@/lib/schedulingImpact'
@@ -787,21 +787,11 @@ export default function WorkoutsScreen() {
 
   // Plan tour (Phase 6) — fires the first time this tab is focused post-welcome,
   // independent of the Home tour (a user may open Plan before ever settling on
-  // Home). Same gating shape as Home's: armed at onboarding, never mid-session.
-  useFocusEffect(
-    useCallback(() => {
-      const t = setTimeout(() => {
-        const s = useTutorialStore.getState()
-        const lastStep = PLAN_TOUR_STEPS[PLAN_TOUR_STEPS.length - 1].id
-        if (!s.isStepDone('welcome_done')) return
-        if (lifecycle.current.sessionActive) return // never mid-session
-        if (s.isArmed(T.planTour) && !s.isStepDone(lastStep) && !s.activeTour) {
-          s.startTour(T.planTour)
-        }
-      }, 650) // let the calendar/split card measure first
-      return () => clearTimeout(t)
-    }, []),
-  )
+  // The Plan tour is gone (2026-08-31): its three steps taught a calendar with
+  // a Week/Month toggle, a split card and a labelled nav row, none of which the
+  // UI needed help saying. The one idea worth keeping from it (what a split is)
+  // moved into the single first-run tour, which Home starts and which walks the
+  // user here for its last two steps. Nothing auto-starts from this screen now.
 
   // Learn how this user's real sessions compare to estimates (best-effort).
   useEffect(() => {

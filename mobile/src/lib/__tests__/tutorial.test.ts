@@ -1,4 +1,4 @@
-import { resumeStepIndex, type TutorialStep, spotlightLayout, MIN_TOOLTIP_H } from '@/lib/tutorial'
+import { T, TOUR_STEPS, TARGET, FIRST_RUN_TOUR_STEPS, HOME_TOUR_STEPS, PLAN_TOUR_STEPS, resumeStepIndex, spotlightLayout, MIN_TOOLTIP_H, type TutorialStep } from '@/lib/tutorial'
 
 const steps: TutorialStep[] = [
   { id: 'a', title: '', body: '' },
@@ -118,5 +118,50 @@ describe('spotlightLayout', () => {
   it('never returns a maxHeight, which is what used to clip the Next button', () => {
     const l = spotlightLayout({ rect: { x: 16, y: 200, width: 340, height: 90 }, screenH: 852, insetTop: 59, insetBottom: 34 })
     expect((l as Record<string, unknown>).maxHeight).toBeUndefined()
+  })
+})
+
+// ── The first-run tour's shape ─────────────────────────────────────────────────
+// Pins the 2026-08-31 cut from 14 cards across three tours to 4 in one, so the
+// walkthrough cannot quietly grow back.
+describe('FIRST_RUN_TOUR_STEPS', () => {
+  it('is short enough to actually get through', () => {
+    expect(FIRST_RUN_TOUR_STEPS.length).toBeLessThanOrEqual(4)
+  })
+
+  it('is the only tour with steps', () => {
+    expect(HOME_TOUR_STEPS).toHaveLength(0)
+    expect(PLAN_TOUR_STEPS).toHaveLength(0)
+    expect(TOUR_STEPS[T.conceptsTour]).toBe(FIRST_RUN_TOUR_STEPS)
+  })
+
+  it('crosses screens exactly once', () => {
+    const screens = FIRST_RUN_TOUR_STEPS.map(s => s.screen)
+    const hops = screens.filter((s, i) => i > 0 && s !== screens[i - 1]).length
+    expect(hops).toBe(1)
+  })
+
+  it('reuses step ids so anyone who saw the old tour is not shown it again', () => {
+    // Completion is stored per step id. A user who finished the old walkthrough
+    // has these marked done, so resumeStepIndex lands past them.
+    const done = Object.fromEntries(FIRST_RUN_TOUR_STEPS.map(s => [s.id, true as const]))
+    expect(resumeStepIndex(FIRST_RUN_TOUR_STEPS, done)).toBe(0)
+    const lastId = FIRST_RUN_TOUR_STEPS[FIRST_RUN_TOUR_STEPS.length - 1].id
+    expect(['concept_schedule', 'concept_split', 'home_today', 'home_go']).toContain(lastId)
+  })
+
+  it('every step points at a target a screen actually registers', () => {
+    const known = new Set(Object.values(TARGET))
+    for (const s of FIRST_RUN_TOUR_STEPS) {
+      expect(s.target).toBeDefined()
+      expect(known.has(s.target as never)).toBe(true)
+    }
+  })
+
+  it('keeps every step to at most two sentences', () => {
+    for (const s of FIRST_RUN_TOUR_STEPS) {
+      const sentences = s.body.split(/[.?!]\s/).filter(Boolean)
+      expect(sentences.length).toBeLessThanOrEqual(3)
+    }
   })
 })

@@ -249,7 +249,7 @@ export default function SettingsScreen() {
       const ls = (globalThis as { localStorage?: Storage }).localStorage
       ls?.removeItem('tempo.coach.session')
     } catch { /* best-effort */ }
-    Alert.alert('Tour reset', 'The guided walkthrough will play again on Home, Plan, and Profile.', [
+    Alert.alert('Tour reset', 'The walkthrough will play again the next time you open Home.', [
       {
         text: 'Show me',
         onPress: () => {
