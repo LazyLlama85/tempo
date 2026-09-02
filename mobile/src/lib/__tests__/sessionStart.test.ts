@@ -95,3 +95,42 @@ describe('chooseSessionStart', () => {
     }
   })
 })
+
+// ── Work and school are weekday commitments ────────────────────────────────────
+// Found 2026-09-02 while auditing the class of bug behind the 07:00-during-school
+// report: work/school hours were applied to every day of the week, so Saturday
+// and Sunday 09:00–17:00 were blocked for every 9-to-5 user.
+describe('weekday commitments', () => {
+  const worker = { wake_time: '06:30', bedtime: '22:30', work_start: '09:00', work_end: '17:00' }
+  const MON = 1, SAT = 6, SUN = 7
+
+  it('blocks working hours on a weekday', () => {
+    const free = weekdayFreeIntervals(worker, MON)
+    expect(free.some(([s, e]) => s <= toMinutes('12:00')! && e > toMinutes('12:00')!)).toBe(false)
+  })
+
+  it('leaves the weekend free during those same hours', () => {
+    for (const day of [SAT, SUN]) {
+      const free = weekdayFreeIntervals(worker, day)
+      const noon = toMinutes('12:00')!
+      expect(free.some(([s, e]) => s <= noon && e >= noon + 45)).toBe(true)
+    }
+  })
+
+  it('can place a Saturday midday session for a 9-to-5 user', () => {
+    const s = chooseSessionStart({
+      candidates: [toMinutes('12:30')!], weekday: SAT, durationMin: 45, av: worker,
+    })
+    expect(s).toBe(toMinutes('12:30')!)
+  })
+
+  it('still respects a weekend unavailable block', () => {
+    const av = {
+      ...worker,
+      unavailable_blocks: [{ scope: 'weekday' as const, weekday: SAT, start: '09:00', end: '17:00' }],
+    }
+    const free = weekdayFreeIntervals(av, SAT)
+    const noon = toMinutes('12:00')!
+    expect(free.some(([s, e]) => s <= noon && e >= noon + 45)).toBe(false)
+  })
+})

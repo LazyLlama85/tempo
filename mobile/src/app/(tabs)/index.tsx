@@ -28,6 +28,7 @@ import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/Calendar
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
 import { checkMissedWorkouts } from '@/lib/missedWorkouts'
+import { retimeUnmakeableSessions } from '@/lib/retimeUnmakeable'
 import { refreshAdaptation } from '@/lib/adaptation'
 import { resolveCalendarConflicts, autoScheduleUpcoming, findCalendarConflicts, type CalendarConflict } from '@/lib/autoSchedule'
 import { isConflictDismissed, dismissConflict } from '@/lib/conflictDismissal'
@@ -717,6 +718,12 @@ export default function ScheduleScreen() {
       } catch { /* best-effort */ }
       try { if (await dedupeScheduledWorkouts(supabase, userId)) changed = true } catch { /* ignore */ }
       try { if (await checkMissedWorkouts(supabase, userId)) changed = true } catch { /* ignore */ }
+      // Repair sessions already sitting at a time the user cannot make — inside
+      // school, work or sleep, or before they are even up. Fixing the generators
+      // only helps plans built from now on; this reaches the ones already on
+      // someone's calendar. Narrow and idempotent: it only touches sessions that
+      // genuinely collide, so a time the user chose themselves is left alone.
+      try { if (await retimeUnmakeableSessions(supabase, userId) > 0) changed = true } catch { /* ignore */ }
       // Let real signals (missed sessions, repeated "too hard") feed the
       // mesocycle — enough misses shifts the coming weeks into recovery/deload.
       try { if ((await refreshAdaptation(supabase, userId)).wrote) changed = true } catch { /* ignore */ }

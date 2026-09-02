@@ -37,6 +37,16 @@ export interface SharedSlot { date: string; startMin: number; endMin: number; la
 const DEFAULT_WAKE = 6 * 60 + 30 // 06:30
 const DEFAULT_BED = 22 * 60 + 30 // 22:30
 
+/**
+ * Work and school hours are Monday–Friday commitments. They used to be applied to
+ * every day of the week, which silently blocked Saturday and Sunday 09:00–17:00
+ * for every 9-to-5 user and the whole school day for every student — so weekend
+ * sessions were pushed into the evening or refused outright (found 2026-09-02
+ * while auditing the class of bug behind the 07:00-during-school report).
+ * Someone who genuinely works weekends adds an unavailable block for it.
+ */
+export const isWeekdayCommitmentDay = (weekday: number) => weekday >= 1 && weekday <= 5
+
 export function toMinutes(t?: string | null): number | null {
   if (!t) return null
   const [h, m] = t.split(':')
@@ -125,8 +135,10 @@ export function freeWindows(
 
     const busyIv: [number, number][] = []
     const add = (s: number | null, e: number | null) => { if (s != null && e != null && e > s) busyIv.push([s, e]) }
-    add(toMinutes(av.work_start), toMinutes(av.work_end))
-    add(toMinutes(av.school_start), toMinutes(av.school_end))
+    if (isWeekdayCommitmentDay(dow)) {
+      add(toMinutes(av.work_start), toMinutes(av.work_end))
+      add(toMinutes(av.school_start), toMinutes(av.school_end))
+    }
     for (const b of av.unavailable_blocks ?? []) {
       const applies = (b.scope === 'weekday' && b.weekday === dow) || (b.scope === 'date' && b.date === date)
       if (!applies) continue
@@ -158,8 +170,10 @@ export function weekdayFreeIntervals(av: AvailabilityInputs, weekday: number): [
 
   const busy: [number, number][] = []
   const add = (st: number | null, e: number | null) => { if (st != null && e != null && e > st) busy.push([st, e]) }
-  add(toMinutes(av.work_start), toMinutes(av.work_end))
-  add(toMinutes(av.school_start), toMinutes(av.school_end))
+  if (isWeekdayCommitmentDay(weekday)) {
+    add(toMinutes(av.work_start), toMinutes(av.work_end))
+    add(toMinutes(av.school_start), toMinutes(av.school_end))
+  }
   for (const b of av.unavailable_blocks ?? []) {
     if (b.scope !== 'weekday' || b.weekday !== weekday) continue
     if (b.allDay) busy.push([dayStart, dayEnd])

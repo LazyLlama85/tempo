@@ -12,15 +12,20 @@ import { autoScheduleUpcoming, autoSchedulingEnabled } from './autoSchedule'
 import { estimateSessionMin } from './durationEstimate'
 import { fetchActiveSplit, setActiveSplit, ensureAutoSplit, isAutoSplit } from './splits'
 import { generatePlan, type PlanProfile } from './generatePlan'
+import {
+  chooseSessionStart, toMinutes, minutesToTime, type AvailabilityInputs,
+} from '@/lib/availability'
 import { sweepScheduledPlanRows } from './retireWorkouts'
 import { toDateStr } from './dates'
 import { fetchExcludedExerciseIds } from './exerciseExclusions'
 
 const HORIZON_DAYS = 28
 
-// Varied default start times per time-of-day (mirrors generatePlan) so a fresh split
-// doesn't read as the same hour every day. Auto mode refines these around the real
-// calendar afterward; manual mode leaves them as the user's chosen window.
+// Candidate start times per time-of-day (mirrors generatePlan). These are only
+// CANDIDATES: chooseSessionStart keeps whichever the user can actually make given
+// wake time, work and school. Before 2026-09-02 this array was used directly, so a
+// split could land a session inside school hours exactly like the plan generator
+// did — the same bug, in a second place, because the table was duplicated here.
 const START_TIMES: Record<TimeOfDay, string[]> = {
   morning:   ['07:00:00', '08:00:00', '06:30:00', '07:30:00'],
   afternoon: ['12:30:00', '15:30:00', '13:00:00', '16:00:00'],
@@ -35,6 +40,41 @@ function nowTimeStr(): string {
 // ISO weekday 1=Mon … 7=Sun.
 function isoWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1
+}
+
+/** Wake/bed/work/school for this user, best-effort — defaults are safe. */
+async function fetchAvailability(client: SupabaseClient, userId: string): Promise<AvailabilityInputs> {
+  try {
+    const { data } = await client
+      .from('user_profiles')
+      .select('wake_time, bedtime, work_start, work_end, school_start, school_end, unavailable_blocks')
+      .eq('user_id', userId)
+      .maybeSingle()
+    return {
+      wake_time: (data?.wake_time ?? null) as string | null,
+      bedtime: (data?.bedtime ?? null) as string | null,
+      work_start: (data?.work_start ?? null) as string | null,
+      work_end: (data?.work_end ?? null) as string | null,
+      school_start: (data?.school_start ?? null) as string | null,
+      school_end: (data?.school_end ?? null) as string | null,
+      unavailable_blocks: (data?.unavailable_blocks ?? []) as AvailabilityInputs['unavailable_blocks'],
+    }
+  } catch {
+    return {}
+  }
+}
+
+/** A start time the user can actually make, preferring their usual hours. */
+function startTimeFor(
+  times: string[], idx: number, weekday: number, durationMin: number, av: AvailabilityInputs,
+): string {
+  const rotated = times.map((_, i) => times[(i + idx) % times.length])
+  const fallback = Object.values(START_TIMES).flat()
+  const candidates = [...rotated, ...fallback]
+    .map(t => toMinutes(t))
+    .filter((m): m is number => m != null)
+  const chosen = chooseSessionStart({ candidates, weekday, durationMin, av })
+  return chosen != null ? minutesToTime(chosen) : rotated[0]
 }
 
 function estimateDurationMin(config: WorkoutExerciseConfig[]): number {
@@ -100,6 +140,9 @@ export async function materializeSplit(
   const tod = preferredTimeOfDay ?? 'morning'
   const times = START_TIMES[tod]
   const nowStr = nowTimeStr()
+  // Read availability here rather than taking it as an argument: materializeSplit
+  // has four call sites and the point is that none of them can forget it.
+  const availability = await fetchAvailability(client, userId)
   const rows: object[] = []
   let idx = 0
   for (let i = 0; i < HORIZON_DAYS; i++) {
@@ -111,16 +154,17 @@ export async function materializeSplit(
     // Today specifically: don't lay down a session whose natural slot has already
     // passed — a split activated/built late in the day would otherwise read as
     // overdue within minutes (mirrors generatePlan.ts's identical same-day guard).
-    const startTime = times[idx % times.length]
-    if (i === 0 && startTime <= nowStr) { idx++; continue }
     const config = day.config ?? []
+    const durationMin = estimateDurationMin(config)
+    const startTime = startTimeFor(times, idx, isoWeekday(date), durationMin, availability)
+    if (i === 0 && startTime <= nowStr) { idx++; continue }
     rows.push({
       user_id: userId,
       user_plan_id: null,
       split_id: split.id,
       planned_date: dateStr,
       planned_start_time: startTime,
-      planned_duration_min: estimateDurationMin(config),
+      planned_duration_min: durationMin,
       focus: day.label || 'Workout',
       status: 'scheduled',
       source: 'split',

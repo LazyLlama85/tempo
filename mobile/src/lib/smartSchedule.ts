@@ -14,6 +14,7 @@
 // human planned it.
 
 import type { TimeOfDay, UnavailableBlock } from '@/types'
+import { WAKE_BUFFER_MIN, WEEKDAY_EARLIEST_MIN, isWeekdayCommitmentDay } from '@/lib/availability'
 import { toDateStr as dateStr } from '@/lib/dates'
 
 export interface BusySlot { start: Date; end: Date }
@@ -75,7 +76,12 @@ function sameDay(a: Date, b: Date): boolean { return startOfDay(a).getTime() ===
 
 // Recurring daily commitments (work + school) as minute-intervals. Sleep is
 // handled by clamping the search to [wake, bed]; calendar busy slots merge in later.
-function recurringBlocks(avail: Availability): Interval[] {
+// Work and school are Monday–Friday commitments. Applying them to every day (as
+// this did until 2026-09-02) blocked Saturday and Sunday 09:00–17:00 for every
+// 9-to-5 user, quietly pushing weekend sessions into the evening or refusing to
+// place them at all. Weekend work is expressed as an unavailable block instead.
+function recurringBlocks(avail: Availability, weekday: number): Interval[] {
+  if (!isWeekdayCommitmentDay(weekday)) return []
   const blocks: Interval[] = []
   const ws = hmToMin(avail.workStart, -1), we = hmToMin(avail.workEnd, -1)
   if (ws >= 0 && we > ws) blocks.push({ start: ws, end: we })
@@ -118,7 +124,7 @@ function mergeIntervals(xs: Interval[]): Interval[] {
 function blocksForDay(day: Date, avail: Availability, busy: BusySlot[]): Interval[] {
   const d0 = startOfDay(day).getTime()
   const dayEnd = d0 + 24 * 60 * 60 * 1000
-  const out = [...recurringBlocks(avail), ...unavailableForDay(day, avail.unavailable)]
+  const out = [...recurringBlocks(avail, isoWeekday(day)), ...unavailableForDay(day, avail.unavailable)]
   for (const b of busy) {
     const bs = b.start.getTime(), be = b.end.getTime()
     if (be <= d0 || bs >= dayEnd) continue
@@ -179,26 +185,38 @@ export function findVariedSlot(
   // Try the preferred window across the week first, then widen to all waking hours.
   const windows: [number, number][] = pref ? [TOD_WINDOWS[pref], [wake, bed]] : [[wake, bed]]
 
-  for (const [wStart, wEnd] of windows) {
-    for (let dOff = 0; dOff < horizon; dOff++) {
-      const day = startOfDay(now); day.setDate(day.getDate() + dOff)
-      if (allowDays.size && !allowDays.has(isoWeekday(day))) continue
+  // Nobody trains the minute their alarm goes off. Without this the engine would
+  // happily hand a 06:30-waker a 06:30 session — the same class of defect as the
+  // plan generator scheduling into school hours (founder report, 2026-09-02).
+  const wakeFloor = wake + WAKE_BUFFER_MIN
 
-      let winStart = Math.max(wake, wStart)
-      const winEnd = Math.min(bed, wEnd)
-      // Respect the lead time on the first day; if it spills past today, skip today.
-      if (dOff === 0) {
-        if (!sameDay(earliest, day)) continue
-        winStart = Math.max(winStart, minuteOfDay(earliest))
-      }
-      if (winStart >= winEnd) continue
+  // Two passes. The first keeps weekday sessions out of the early morning; the
+  // second drops that preference, so someone whose ONLY free window is early
+  // still gets placed rather than being left on a template time.
+  for (const applySoftFloor of [true, false]) {
+    for (const [wStart, wEnd] of windows) {
+      for (let dOff = 0; dOff < horizon; dOff++) {
+        const day = startOfDay(now); day.setDate(day.getDate() + dOff)
+        const dow = isoWeekday(day)
+        if (allowDays.size && !allowDays.has(dow)) continue
 
-      const blocks = blocksForDay(day, avail, busy)
-      const startMin = pickVaried(candidateStarts(winStart, winEnd, blocks, needed), seed + dOff, options.avoidStartMinute)
-      if (startMin != null) {
-        const start = atMinute(day, startMin)
-        const end = new Date(start.getTime() + constraints.durationMinutes * 60000)
-        return { startTime: start.toISOString(), endTime: end.toISOString() }
+        let winStart = Math.max(wakeFloor, wStart)
+        if (applySoftFloor && dow >= 1 && dow <= 5) winStart = Math.max(winStart, WEEKDAY_EARLIEST_MIN)
+        const winEnd = Math.min(bed, wEnd)
+        // Respect the lead time on the first day; if it spills past today, skip today.
+        if (dOff === 0) {
+          if (!sameDay(earliest, day)) continue
+          winStart = Math.max(winStart, minuteOfDay(earliest))
+        }
+        if (winStart >= winEnd) continue
+
+        const blocks = blocksForDay(day, avail, busy)
+        const startMin = pickVaried(candidateStarts(winStart, winEnd, blocks, needed), seed + dOff, options.avoidStartMinute)
+        if (startMin != null) {
+          const start = atMinute(day, startMin)
+          const end = new Date(start.getTime() + constraints.durationMinutes * 60000)
+          return { startTime: start.toISOString(), endTime: end.toISOString() }
+        }
       }
     }
   }
