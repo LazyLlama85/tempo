@@ -144,6 +144,93 @@ export function freeWindows(
   return out
 }
 
+/**
+ * Free intervals (minutes from midnight) on a given ISO weekday, from waking
+ * hours minus work, school and any weekday-scoped unavailable blocks. Date-less,
+ * so plan generation can reason about "a typical Tuesday" weeks ahead without
+ * inventing calendar dates.
+ */
+export function weekdayFreeIntervals(av: AvailabilityInputs, weekday: number): [number, number][] {
+  const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
+  const bed = toMinutes(av.bedtime) ?? DEFAULT_BED
+  const dayStart = Math.min(wake, bed)
+  const dayEnd = Math.max(wake, bed)
+
+  const busy: [number, number][] = []
+  const add = (st: number | null, e: number | null) => { if (st != null && e != null && e > st) busy.push([st, e]) }
+  add(toMinutes(av.work_start), toMinutes(av.work_end))
+  add(toMinutes(av.school_start), toMinutes(av.school_end))
+  for (const b of av.unavailable_blocks ?? []) {
+    if (b.scope !== 'weekday' || b.weekday !== weekday) continue
+    if (b.allDay) busy.push([dayStart, dayEnd])
+    else add(toMinutes(b.start), toMinutes(b.end))
+  }
+  return subtractBusy(dayStart, dayEnd, busy)
+}
+
+/** Getting-up buffer: nobody trains the minute their alarm goes off. */
+export const WAKE_BUFFER_MIN = 30
+
+/** Weekdays, a session should not start before this unless nothing else fits. */
+export const WEEKDAY_EARLIEST_MIN = 8 * 60
+
+/**
+ * Pick a start minute for a session on `weekday`, given preferred start times in
+ * priority order. Returns null when the day has no window long enough at all.
+ *
+ * This exists because plan generation used to pick from a hardcoded table keyed
+ * only on preferred time-of-day, with no idea when the user wakes, works or is
+ * at school. A user who said "wake 06:30, school 07:00" and picked "morning" was
+ * given a 07:00 session — the exact minute school starts (founder report,
+ * 2026-09-02). The rules, in order of how hard they are:
+ *
+ *  1. Hard: the WHOLE session must fit inside a free window, and never start
+ *     before wake + WAKE_BUFFER_MIN.
+ *  2. Soft: on Mon–Fri prefer not to start before WEEKDAY_EARLIEST_MIN. Honoured
+ *     only when something later actually fits — a user whose sole free window is
+ *     early still gets that window rather than nothing.
+ *  3. Fallback: anchor to the longest window that fits, rounded to :00/:30.
+ */
+export function chooseSessionStart(opts: {
+  candidates: number[]
+  weekday: number
+  durationMin: number
+  av: AvailabilityInputs
+  weekdayEarliestMin?: number
+  wakeBufferMin?: number
+}): number | null {
+  const { candidates, weekday, durationMin, av } = opts
+  const earliestSoft = opts.weekdayEarliestMin ?? WEEKDAY_EARLIEST_MIN
+  const buffer = opts.wakeBufferMin ?? WAKE_BUFFER_MIN
+  const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
+  const hardEarliest = wake + buffer
+  const isWeekday = weekday >= 1 && weekday <= 5
+
+  const windows = weekdayFreeIntervals(av, weekday)
+    .map(([s, e]) => [Math.max(s, hardEarliest), e] as [number, number])
+    .filter(([s, e]) => e - s >= durationMin)
+  if (windows.length === 0) return null
+
+  const fits = (start: number) => windows.some(([s, e]) => start >= s && start + durationMin <= e)
+
+  const softFloor = isWeekday ? earliestSoft : 0
+  for (const c of candidates) if (c >= softFloor && fits(c)) return c
+  for (const c of candidates) if (fits(c)) return c
+
+  // Nothing on the preferred list fits: anchor to a real window. Prefer one that
+  // clears the soft floor, then the longest.
+  const ranked = [...windows].sort((a, b) => {
+    const aOk = a[1] - Math.max(a[0], softFloor) >= durationMin ? 0 : 1
+    const bOk = b[1] - Math.max(b[0], softFloor) >= durationMin ? 0 : 1
+    return aOk - bOk || (b[1] - b[0]) - (a[1] - a[0])
+  })
+  const [ws, we] = ranked[0]
+  const from = Math.max(ws, we - durationMin >= softFloor ? softFloor : ws)
+  const rounded = Math.ceil(Math.max(ws, from) / 30) * 30
+  const start = Math.min(Math.max(rounded, ws), we - durationMin)
+  return start >= ws ? start : ws
+}
+
 /** Local 'YYYY-MM-DD' and minutes-since-midnight for "now" (past-time filtering). */
 export function localNow(now: Date): { todayStr: string; nowMin: number } {
   const p = (n: number) => String(n).padStart(2, '0')

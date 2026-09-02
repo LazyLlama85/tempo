@@ -10,6 +10,9 @@ import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgrammin
 import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
 import { captureApiError } from '@/lib/crashReporting'
 import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
+import {
+  chooseSessionStart, toMinutes, minutesToTime, type AvailabilityInputs,
+} from '@/lib/availability'
 
 export interface PlanProfile {
   goal: Goal
@@ -18,6 +21,15 @@ export interface PlanProfile {
   days_per_week: number
   preferred_duration_min: number
   preferred_time_of_day?: TimeOfDay | null
+  // Availability, so a start time can be chosen that the user can actually make.
+  // Without these the plan picked purely off preferred_time_of_day and happily
+  // scheduled into school or work (founder report, 2026-09-02).
+  wake_time?: string | null
+  bedtime?: string | null
+  work_start?: string | null
+  work_end?: string | null
+  school_start?: string | null
+  school_end?: string | null
   // Optional cardio finisher (onboarding question, Phase 7c). muscle_gain/strength
   // templates carry zero cardio by design (pure hypertrophy/strength focus) —
   // this appends CARDIO as an OPTIONAL trailing slot on those two goals only, so a
@@ -32,15 +44,20 @@ interface PlanConstraints {
   blockedWeekdays: Set<number>   // ISO 1=Mon … 7=Sun
   injuries: string[]
   excludedExerciseIds: Set<string>
+  /** Wake/bed/work/school + weekday blocks, read here so EVERY caller of
+   *  generatePlan gets availability-aware start times, not just the ones that
+   *  happen to pass those fields in (splitSchedule.activateAutoPlan did not). */
+  availability: AvailabilityInputs
 }
 
 async function fetchPlanConstraints(client: SupabaseClient, userId: string): Promise<PlanConstraints> {
   const blocked = new Set<number>()
   let injuries: string[] = []
+  let availability: AvailabilityInputs = {}
   try {
     const { data } = await client
       .from('user_profiles')
-      .select('unavailable_blocks, training_days, injuries')
+      .select('unavailable_blocks, training_days, injuries, wake_time, bedtime, work_start, work_end, school_start, school_end')
       .eq('user_id', userId)
       .maybeSingle()
     for (const b of ((data?.unavailable_blocks ?? []) as UnavailableBlock[])) {
@@ -50,24 +67,60 @@ async function fetchPlanConstraints(client: SupabaseClient, userId: string): Pro
     const allowed = (data?.training_days ?? []) as number[]
     if (allowed.length) for (let d = 1; d <= 7; d++) if (!allowed.includes(d)) blocked.add(d)
     injuries = (data?.injuries as string[] | null) ?? []
+    availability = {
+      wake_time: (data?.wake_time ?? null) as string | null,
+      bedtime: (data?.bedtime ?? null) as string | null,
+      work_start: (data?.work_start ?? null) as string | null,
+      work_end: (data?.work_end ?? null) as string | null,
+      school_start: (data?.school_start ?? null) as string | null,
+      school_end: (data?.school_end ?? null) as string | null,
+      unavailable_blocks: (data?.unavailable_blocks ?? []) as UnavailableBlock[],
+    }
   } catch { /* optional columns may not exist yet — no constraints */ }
   // Everything blocked is a contradiction — ignore the blocks rather than emit no plan.
   if (blocked.size >= 7) blocked.clear()
   const excludedExerciseIds = await fetchExcludedExerciseIds(client, userId)
-  return { blockedWeekdays: blocked, injuries, excludedExerciseIds }
+  return { blockedWeekdays: blocked, injuries, excludedExerciseIds, availability }
 }
 
-// Varied default start times per time-of-day, so a fresh plan doesn't read as the
-// exact same hour every day. The Smart Scheduler later refines these around the
-// user's real calendar; this just keeps the base plan from feeling robotic.
+// Preferred start times per time-of-day, in priority order. These are only
+// CANDIDATES now: chooseSessionStart keeps whichever the user can actually make,
+// given wake time, work and school. The variety stops a fresh plan reading as the
+// same hour every day; the availability check stops it reading as impossible.
 const START_TIMES: Record<TimeOfDay, string[]> = {
   morning:   ['07:00:00', '08:00:00', '06:30:00', '07:30:00'],
   afternoon: ['12:30:00', '15:30:00', '13:00:00', '16:00:00'],
   evening:   ['17:30:00', '18:30:00', '19:00:00', '18:00:00'],
 }
-function startTimeFor(tod: TimeOfDay, idx: number): string {
-  const times = START_TIMES[tod]
-  return times[idx % times.length]
+const TOD_FALLBACK_ORDER: Record<TimeOfDay, TimeOfDay[]> = {
+  morning: ['evening', 'afternoon'],
+  afternoon: ['evening', 'morning'],
+  evening: ['afternoon', 'morning'],
+}
+
+/**
+ * The start time for one session. Rotates the user's preferred time-of-day for
+ * variety, then falls back to the other times of day, and finally to any window
+ * the day actually has — because a preference that cannot be met is not a
+ * preference, it is a session the user will miss. A student who wakes at 06:30
+ * and starts school at 07:00 must not be handed a 07:00 workout.
+ */
+function startTimeFor(
+  tod: TimeOfDay,
+  idx: number,
+  weekday: number,
+  durationMin: number,
+  av: AvailabilityInputs,
+): string {
+  const rotate = (arr: string[]) => arr.map((_, i) => arr[(i + idx) % arr.length])
+  const preferred = rotate(START_TIMES[tod])
+  const fallback = TOD_FALLBACK_ORDER[tod].flatMap(t => START_TIMES[t])
+  const candidates = [...preferred, ...fallback]
+    .map(t => toMinutes(t))
+    .filter((m): m is number => m != null)
+
+  const chosen = chooseSessionStart({ candidates, weekday, durationMin, av })
+  return chosen != null ? minutesToTime(chosen) : preferred[0]
 }
 
 // 'HH:MM:SS', local time — comparable directly against planned_start_time.
@@ -595,6 +648,10 @@ interface BlockBuildCtx {
   timeOfDay: TimeOfDay
   experience: Experience
   goal: Goal
+  /** Wake/bed/work/school, so every start time is one the user can make. */
+  availability: AvailabilityInputs
+  /** Session length used to check a start actually FITS before the next commitment. */
+  sessionMinutes: number
   /** Days the user marked unavailable — needed to re-lay the current week (see currentWeekSlots). */
   blockedWeekdays: Set<number>
 }
@@ -683,6 +740,19 @@ async function buildBlockContext(
     timeOfDay: profile.preferred_time_of_day ?? 'morning',
     experience: profile.experience,
     goal: profile.goal,
+    // Profile fields win when the caller supplied them; otherwise the values
+    // fetchPlanConstraints already read. Either way every generation is
+    // availability-aware.
+    availability: {
+      ...constraints.availability,
+      ...(profile.wake_time != null ? { wake_time: profile.wake_time } : {}),
+      ...(profile.bedtime != null ? { bedtime: profile.bedtime } : {}),
+      ...(profile.work_start != null ? { work_start: profile.work_start } : {}),
+      ...(profile.work_end != null ? { work_end: profile.work_end } : {}),
+      ...(profile.school_start != null ? { school_start: profile.school_start } : {}),
+      ...(profile.school_end != null ? { school_end: profile.school_end } : {}),
+    },
+    sessionMinutes: profile.preferred_duration_min,
   }
 }
 
@@ -700,6 +770,10 @@ function buildBlockRows(
   const nowStr = nowTimeStr()
   const rows: object[] = []
   let sessionCount = sessionCountStart
+  // Start times are per-weekday now: the same session is a different hour on a
+  // school day than on a Saturday, because the free windows differ.
+  const startAt = (weekday: number, idx: number) =>
+    startTimeFor(ctx.timeOfDay, idx, weekday, ctx.sessionMinutes, ctx.availability)
   // Per-focus occurrence index drives exercise rotation, so the FIRST Push/Pull/
   // Legs each open with the canonical top lift and later ones vary. Seeded from
   // the rotation offset so a rollover block keeps varying rather than resetting.
@@ -722,7 +796,7 @@ function buildBlockRows(
       ? currentWeekSlots(
           ctx.slots,
           ((new Date().getDay() + 6) % 7) + 1, // today, 1=Mon … 7=Sun
-          startTimeFor(ctx.timeOfDay, sessionCount) > nowStr,
+          startAt(((new Date().getDay() + 6) % 7) + 1, sessionCount) > nowStr,
           ctx.blockedWeekdays,
         )
       : ctx.slots
@@ -739,7 +813,7 @@ function buildBlockRows(
       // not "missed" by the DB sweep (date isn't in the past), but it reads as
       // overdue within minutes of finishing onboarding. Push to the next valid day
       // instead of forcing a session into a window that's already gone.
-      if (formatDate(date) === todayStr && startTimeFor(ctx.timeOfDay, sessionCount) <= nowStr) continue
+      if (formatDate(date) === todayStr && startAt(slot, sessionCount) <= nowStr) continue
 
       const template = ctx.templates[sessionCount % ctx.templates.length]
       const rot = (focusRotation.get(template.focus) ?? Math.floor(sessionCountStart / ctx.templates.length))
@@ -750,7 +824,7 @@ function buildBlockRows(
         user_id: userId,
         user_plan_id: planId,
         planned_date: formatDate(date),
-        planned_start_time: startTimeFor(ctx.timeOfDay, sessionCount),
+        planned_start_time: startAt(slot, sessionCount),
         planned_duration_min: estimateSessionMinutes(exerciseIds.length, ctx.goal, progression.isDeload),
         focus: progression.isDeload ? `${template.focus} (Deload)` : template.focus,
         status: 'scheduled',
@@ -823,7 +897,7 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
 
     const { data: p } = await client
       .from('user_profiles')
-      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day')
+      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day, wake_time, bedtime, work_start, work_end, school_start, school_end')
       .eq('user_id', userId)
       .maybeSingle()
     if (!p) return 0
@@ -835,6 +909,12 @@ export async function extendActivePlan(client: SupabaseClient, userId: string): 
       days_per_week: clampDays(p.days_per_week ?? 3),
       preferred_duration_min: p.preferred_duration_min ?? 45,
       preferred_time_of_day: (p.preferred_time_of_day ?? null) as TimeOfDay | null,
+      wake_time: (p.wake_time ?? null) as string | null,
+      bedtime: (p.bedtime ?? null) as string | null,
+      work_start: (p.work_start ?? null) as string | null,
+      work_end: (p.work_end ?? null) as string | null,
+      school_start: (p.school_start ?? null) as string | null,
+      school_end: (p.school_end ?? null) as string | null,
     }
     const constraints = await fetchPlanConstraints(client, userId)
     const ctx = await buildBlockContext(client, profile, constraints)
@@ -923,7 +1003,7 @@ export async function restampFuturePlanForExperience(
 
     const { data: p } = await client
       .from('user_profiles')
-      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day, include_cardio')
+      .select('goal, experience, equipment, days_per_week, preferred_duration_min, preferred_time_of_day, include_cardio, wake_time, bedtime, work_start, work_end, school_start, school_end')
       .eq('user_id', userId)
       .maybeSingle()
     if (!p) return 0
@@ -935,6 +1015,12 @@ export async function restampFuturePlanForExperience(
       days_per_week: clampDays(p.days_per_week ?? 3),
       preferred_duration_min: p.preferred_duration_min ?? 45,
       preferred_time_of_day: (p.preferred_time_of_day ?? null) as TimeOfDay | null,
+      wake_time: (p.wake_time ?? null) as string | null,
+      bedtime: (p.bedtime ?? null) as string | null,
+      work_start: (p.work_start ?? null) as string | null,
+      work_end: (p.work_end ?? null) as string | null,
+      school_start: (p.school_start ?? null) as string | null,
+      school_end: (p.school_end ?? null) as string | null,
       include_cardio: !!p.include_cardio,
     }
     const constraints = await fetchPlanConstraints(client, userId)
