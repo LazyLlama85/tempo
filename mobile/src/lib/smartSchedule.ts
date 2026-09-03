@@ -177,7 +177,11 @@ export function findVariedSlot(
   const needed = constraints.durationMinutes + (constraints.bufferMinutes ?? 0)
 
   const wake = hmToMin(avail.wakeTime, DEFAULT_WAKE)
-  const bed = hmToMin(avail.bedtime, DEFAULT_BED)
+  // A bedtime at or before wake time means "past midnight": the waking window
+  // runs to the end of the day, not backwards into the small hours. Taking it
+  // literally clamped the searchable window to the user's sleeping hours.
+  const bedRaw = hmToMin(avail.bedtime, DEFAULT_BED)
+  const bed = bedRaw > wake ? bedRaw : 24 * 60
   const earliest = new Date(now.getTime() + lead * 60000)
   const allowDays = new Set(avail.trainingDays ?? [])
 

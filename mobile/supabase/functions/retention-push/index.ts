@@ -310,10 +310,17 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     //    nagging people to train on them would contradict Tempo's own coaching.
     const pendingToday = mine.some((w) => w.planned_date === today && w.status === 'scheduled')
     if (pendingToday && !completedToday && nowHourUtc >= EVENING_HOUR) {
+      // Only promise a streak to someone who has one. Telling a user with no
+      // completed sessions that their "streak stays alive" is a claim about
+      // their history that is false, and the fastest way to make every other
+      // number in the app look untrustworthy.
+      const hasHistory = completed.size > 0
       add({
         type: 'streak_at_risk',
         title: "Tonight's session is still open",
-        body: 'A shorter version still counts — finish today and your streak of completed sessions stays alive.',
+        body: hasHistory
+          ? 'A shorter version still counts — finish today and your streak of completed sessions stays alive.'
+          : 'A shorter version still counts. Even 15 minutes gets today on the board.',
         data: { screen: 'plan' },
       })
       continue
@@ -361,15 +368,28 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
       add({
         type: 'free_time_gap',
         title: 'Got 20 minutes?',
-        body: "There's a gap in your day — Tempo can build a quick session that fits it right now.",
+        // Was "There's a gap in your day" and named Tempo. This function has no
+        // sight of the user's calendar, so a gap was an assumption presented as
+        // fact; and the app has been called Arclo since 2026-08-05, so the push
+        // named a product that no longer exists.
+        body: "Nothing's scheduled today. If you find 20 minutes, Arclo can build a session that fits.",
         data: { screen: 'quick-workout' },
       })
       continue
     }
 
-    // 4. Reactivation — no completed workout in the last INACTIVE_DAYS days.
+    // 4. Reactivation — someone who WAS training has gone quiet for INACTIVE_DAYS+.
+    //
+    //    The `Infinity` fallback here used to mean a user with no completed
+    //    workouts at all counted as maximally inactive, so this fired at people
+    //    who had installed the app hours earlier and told them to "pick up right
+    //    where you left off" — a sentence that was simply not true of them
+    //    (reported 2026-09-02). Someone who has never completed a session has not
+    //    lapsed, they have not started, and the missed-workout rule above already
+    //    covers "you had a session today and it is still open" accurately.
     const lastActive = mostRecent(completed)
-    const inactiveDays = lastActive ? daysBetween(lastActive, today) : Infinity
+    if (!lastActive) continue
+    const inactiveDays = daysBetween(lastActive, today)
     if (inactiveDays >= INACTIVE_DAYS) {
       add({
         type: 'reactivation',

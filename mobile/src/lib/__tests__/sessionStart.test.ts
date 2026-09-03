@@ -7,7 +7,7 @@
 
 import {
   chooseSessionStart, weekdayFreeIntervals, minutesToTime, toMinutes,
-  WEEKDAY_EARLIEST_MIN, WAKE_BUFFER_MIN,
+  WEEKDAY_EARLIEST_MIN, WAKE_BUFFER_MIN, wakingWindow,
 } from '@/lib/availability'
 
 const MORNING = ['07:00:00', '08:00:00', '06:30:00', '07:30:00'].map(t => toMinutes(t)!)
@@ -132,5 +132,41 @@ describe('weekday commitments', () => {
     const free = weekdayFreeIntervals(av, SAT)
     const noon = toMinutes('12:00')!
     expect(free.some(([s, e]) => s <= noon && e >= noon + 45)).toBe(false)
+  })
+})
+
+// ── The reports from 2026-09-02, each as a test ────────────────────────────────
+describe('reported cases', () => {
+  const MON = 1
+
+  it('"I said I wake up at 7:00 AM and it told me to work out at 6:30 AM"', () => {
+    const av = { wake_time: '07:00', bedtime: '22:30' }
+    const s = chooseSessionStart({ candidates: ALL, weekday: MON, durationMin: 45, av })!
+    expect(s).toBeGreaterThanOrEqual(toMinutes('07:30')!) // wake + buffer
+    expect(minutesToTime(s)).not.toBe('06:30:00')
+  })
+
+  it('"I told it the school timings and then it made a workout at like 2:30 PM"', () => {
+    const av = { wake_time: '06:30', bedtime: '22:30', school_start: '08:00', school_end: '15:00' }
+    const s = chooseSessionStart({ candidates: ALL, weekday: MON, durationMin: 45, av })!
+    const schoolStart = toMinutes('08:00')!, schoolEnd = toMinutes('15:00')!
+    expect(s >= schoolEnd || s + 45 <= schoolStart).toBe(true)
+  })
+
+  it('"I said I slept at 9:30 and it made a workout at 9:30"', () => {
+    const av = { wake_time: '06:30', bedtime: '21:30' }
+    const s = chooseSessionStart({ candidates: ALL, weekday: MON, durationMin: 45, av })!
+    expect(s + 45).toBeLessThanOrEqual(toMinutes('21:30')!)
+  })
+
+  it('a bedtime after midnight means the evening is free, not the small hours', () => {
+    // wake 07:00, bed 00:30. min/max used to make the window 00:30-07:00, i.e.
+    // exactly when the user is asleep, so every slot offered was overnight.
+    const av = { wake_time: '07:00', bedtime: '00:30' }
+    const [start, end] = wakingWindow(av)
+    expect(start).toBe(toMinutes('07:00')!)
+    expect(end).toBeGreaterThan(toMinutes('22:00')!)
+    const s = chooseSessionStart({ candidates: EVENING, weekday: MON, durationMin: 45, av })!
+    expect(s).toBeGreaterThanOrEqual(toMinutes('07:30')!)
   })
 })

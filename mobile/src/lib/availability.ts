@@ -105,6 +105,23 @@ function subtractBusy(start: number, end: number, busy: [number, number][]): [nu
 }
 
 /**
+ * The user's waking window for a day, in minutes from midnight.
+ *
+ * This used to be `[min(wake, bed), max(wake, bed)]`, which is right only while
+ * bedtime is later in the clock-day than wake time. For anyone who goes to bed
+ * after midnight — bed 00:30, wake 07:00 — min/max produced 00:30 to 07:00,
+ * which is precisely their SLEEPING hours: the app would offer only times while
+ * they were asleep and treat the entire waking day as unavailable. A bedtime at
+ * or before wake time means "past midnight", so the window runs from waking to
+ * the end of the day.
+ */
+export function wakingWindow(av: AvailabilityInputs): [number, number] {
+  const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
+  const bed = toMinutes(av.bedtime) ?? DEFAULT_BED
+  return bed > wake ? [wake, bed] : [wake, 24 * 60]
+}
+
+/**
  * Free windows across the given dates (waking hours minus work/school/blocks/busy).
  * Pass `opts.todayStr` + `opts.nowMin` to never return times already in the past
  * today (start is clamped forward to the next :30).
@@ -115,10 +132,7 @@ export function freeWindows(
   dates: string[],
   opts?: { todayStr?: string; nowMin?: number },
 ): Window[] {
-  const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
-  const bed = toMinutes(av.bedtime) ?? DEFAULT_BED
-  const dayStart = Math.min(wake, bed)
-  const dayEnd = Math.max(wake, bed)
+  const [dayStart, dayEnd] = wakingWindow(av)
   const trainingDays = av.training_days ?? []
   const out: Window[] = []
 
@@ -163,10 +177,7 @@ export function freeWindows(
  * inventing calendar dates.
  */
 export function weekdayFreeIntervals(av: AvailabilityInputs, weekday: number): [number, number][] {
-  const wake = toMinutes(av.wake_time) ?? DEFAULT_WAKE
-  const bed = toMinutes(av.bedtime) ?? DEFAULT_BED
-  const dayStart = Math.min(wake, bed)
-  const dayEnd = Math.max(wake, bed)
+  const [dayStart, dayEnd] = wakingWindow(av)
 
   const busy: [number, number][] = []
   const add = (st: number | null, e: number | null) => { if (st != null && e != null && e > st) busy.push([st, e]) }

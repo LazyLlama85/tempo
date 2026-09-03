@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { ScreenHeader, DismissButton } from '@/components/brand'
 import { BRAND_NAME } from '@/constants/brand'
 import { useRouter } from 'expo-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { retimeUnmakeableSessions } from '@/lib/retimeUnmakeable'
 import { Spacing, Radius, CardShadow } from '@/constants/theme'
 import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { supabase } from '@/lib/supabase'
@@ -146,6 +148,8 @@ export default function AvailabilityScreen() {
     unavailStart: 'Unavailable from', unavailEnd: 'Unavailable until',
   }
 
+  const queryClient = useQueryClient()
+
   const handleSave = async () => {
     if (!userId || saving) return
     setSaving(true)
@@ -165,6 +169,22 @@ export default function AvailabilityScreen() {
         .eq('user_id', userId)
       if (error) throw error
       await refreshProfile()
+      // Make the change actually DO something, now, on the sessions the user is
+      // looking at. Saving new hours and seeing the same impossible times is
+      // what "the settings don't work" means from the outside (reported
+      // 2026-09-02) -- the values were always saved, they just had no effect
+      // until something happened to regenerate the plan.
+      let moved = 0
+      try { moved = await retimeUnmakeableSessions(supabase, userId) } catch { /* best-effort */ }
+      if (moved > 0) {
+        queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+        Alert.alert(
+          'Availability saved',
+          `${moved} upcoming ${moved === 1 ? 'session was' : 'sessions were'} outside your new hours, so ${moved === 1 ? 'it has' : 'they have'} been moved.`,
+          [{ text: 'OK', onPress: () => router.back() }],
+        )
+        return
+      }
       router.back()
     } catch {
       Alert.alert('Could not save', 'Please try again.')
