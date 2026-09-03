@@ -254,6 +254,7 @@ export default function ScheduleScreen() {
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
   const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
   const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
+
   // "Review plan" (d30 reactivation) used to jump straight into onboarding's
   // re-plan flow with zero warning — unlike Profile's "Change Plan", which already
   // confirms "this will replace your current plan" first. Silently doing that from
@@ -1094,6 +1095,20 @@ export default function ScheduleScreen() {
     } finally {
       setRescheduling(false)
     }
+  }
+
+  const onRescheduleSelect = (key: string) => {
+    const workout = rescheduleConfirm?.workout ?? null
+    if (key === 'manual') {
+      // A full screen, not a nested sheet: TimePickerSheet is a Modal, and this
+      // stack has a documented failure where a Modal opened over another Modal
+      // strands an invisible backdrop (see TempoSheet's header). Every other
+      // TimePickerSheet caller is a screen for the same reason.
+      setRescheduleConfirm(null)
+      if (workout) router.push(`/move-workout?workoutId=${workout.id}`)
+      return
+    }
+    void confirmMoveWorkout()
   }
 
   const confirmMoveWorkout = async () => {
@@ -2322,8 +2337,11 @@ export default function ScheduleScreen() {
         visible={rescheduleConfirm !== null}
         title="Reschedule workout"
         subtitle={rescheduleConfirm?.message ?? ''}
-        options={[{ key: 'move', label: 'Move it', icon: 'calendar-outline' }]}
-        onSelect={confirmMoveWorkout}
+        options={[
+          { key: 'move', label: 'Move it', icon: 'calendar-outline' },
+          { key: 'manual', label: 'Pick a date & time', icon: 'create-outline' },
+        ]}
+        onSelect={onRescheduleSelect}
         onClose={() => setRescheduleConfirm(null)}
       />
 
