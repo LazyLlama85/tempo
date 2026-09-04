@@ -1922,7 +1922,17 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   `MUSCLE_LABEL`, which maps `lats` → the prose word "back"; routing the chips through that map
   would silently change what muscle they name. Regression-tested in
   `lib/__tests__/formatMuscleName.test.ts` — the raw enum shipped visibly as
-  "UPPER_CHEST · TRICEPS" in App Store screenshot 2. Session templates are **ordered `SlotSpec` lists** (power → primary →
+  "UPPER_CHEST · TRICEPS" in App Store screenshot 2. **Slot sides (`slotSide` / `sideAllows`, added 2026-09-03):** every slot also carries a
+  **side** — `push` / `pull` / `lower` / `neutral` — derived from the existing
+  `PUSH_*`/`PULL_*`/`LOWER_*` slot groupings. `selectForSlots` computes the session's own
+  emphasis from its template (`templateSide`, in `generatePlan.ts`) and refuses any affinity
+  fallback that crosses it. Fixes a production bug: barbell-only users have an empty
+  `lat_raise` pool (every lateral raise needs cables or dumbbells), so a Push day walked the
+  `lat_raise → rear_delt` affinity edge, found `rear_delt` empty too, dropped to the full
+  library and programmed "Barbell Rear Delt Row" onto a Push day. A template's OWN slots are
+  never side-filtered, so a Press Day that deliberately asks for `h_pull` keeps it and a mixed
+  day (Upper, Full Body) may still use both sides. Covered by
+  `lib/__tests__/sessionSlotSides.test.ts`. Session templates are **ordered `SlotSpec` lists** (power → primary →
   secondary → accessory → isolation → finisher) per goal × split; `selectForSlots` fills them
   enforcing **role fit** (a compound slot rejects isolation work), **anti-redundancy by family**
   (never two deadlift variants), **per-focus rotation** (the FIRST Legs day opens with the canonical
@@ -2470,6 +2480,22 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   reads each user's `user_profiles.notification_prefs` and skips any rule the user turned off
   (`reactivation` is always-on and not user-exposed; every other rule defaults on). A missing
   column/row falls back to all-on, so the filter is a safe no-op until the migration is applied.
+  **Volume + honesty pass, 2026-09-03** (founder: notifications were "useless spam"): two hard
+  limits now sit above every rule. (1) **Quiet hours** — nothing sends before 08:00 or from 21:00
+  in the user's OWN local time. Rules previously gated only on their own window, and several had
+  no upper bound (`hour >= EVENING_HOUR` is still true at 23:00; `hour < EVENING_HOUR` is still
+  true at 03:00), so a weekly report could land near midnight and a missed-workout nudge before
+  dawn. (2) **`MAX_PUSHES_PER_DAY = 1`** across ALL rules — the per-type de-dup only ever stopped
+  the same rule repeating, so a user could collect missed_workout + streak_at_risk +
+  partner_reminder in one day. Counted by distinct *type*, not by `notification_log` row, because
+  the log holds one row per device token and a two-device user would otherwise be capped twice as
+  hard. Three accuracy fixes shipped with it: **missed_workout** now requires the session's own
+  `planned_start_time` to have passed (it read `planned_start_time` but never used it, so a 7pm
+  session was announced as "waiting" at 9am); **free_time_gap** now also requires no upcoming
+  scheduled session, so a planned REST day is no longer read as a gap to fill and nudged; and
+  every rule's copy states a fact the function can verify about that user — the session's real
+  time and focus, this week's real completed count, the real number of days lapsed — replacing
+  slogans and the unverifiable "your streak stays alive" claim.
   **`notification_log` is now read by the client (2026-07-22)** — see §3.2's Feed entry (Home
   screen); until then the table was write-only from the app's perspective despite its own RLS
   already granting users SELECT on their own rows.

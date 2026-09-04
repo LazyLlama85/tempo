@@ -6,8 +6,17 @@
 // of dumb device-local alarms: the decision is data-driven and server-triggered,
 // so it scales to every user with no manual sending.
 //
+// Two hard limits sit above every rule (added 2026-09-03, founder: notifications
+// were "useless spam"): nothing sends outside 08:00-21:00 in the USER's local
+// time, and each user gets at most MAX_PUSHES_PER_DAY retention pushes in total,
+// across all rules — the per-rule de-dup below only ever stopped the same rule
+// repeating. Every rule's copy states a fact the function can actually verify
+// about that user (the session's real time, this week's real count, the real
+// number of days lapsed) rather than a generic slogan.
+//
 // Rules implemented (each de-duplicated to at most once per user per day):
-//   1. missed_workout      — today's session still isn't done; the daytime nudge.
+//   1. missed_workout      — today's session is past its start time and still isn't
+//                            done; the daytime nudge.
 //   2. streak_at_risk      — today's SCHEDULED session is still open in the evening;
 //                            the last call before the session (and streak) is lost.
 //                            NEVER fires on a planned rest day — streaks count
@@ -16,8 +25,9 @@
 //                            day before) → "don't leave your partner hanging".
 //   2c. friend_competition — Thursday evening, you're exactly one workout from passing
 //                            a friend on this week's leaderboard → "get one in".
-//   3. free_time_gap       — user has free time today (no workout scheduled / completed)
-//                            during the daytime → "you've got 20 min, get a quick one in".
+//   3. free_time_gap       — nothing today AND nothing upcoming, during the daytime
+//                            → surface a Quick Workout. Requires no upcoming session
+//                            so a planned REST day is never treated as a gap to fill.
 //   4. reactivation        — no activity for INACTIVE_DAYS+ days → win them back.
 //
 // Social rules respect the same per-rule opt-out (§6.1) and the one-push-per-run cap.
@@ -43,6 +53,22 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const INACTIVE_DAYS = 5            // reactivation threshold
 const EVENING_HOUR = 18 // "evening" threshold, applied to each user's LOCAL hour (see localHourFor)
+
+// Quiet hours. Every rule below gated only on its own window, and several had no
+// upper bound at all — `nowHour >= EVENING_HOUR` is still true at 23:00, and
+// `nowHour < EVENING_HOUR` is still true at 03:00. So a reactivation or weekly
+// report could land near midnight and a missed-workout nudge before dawn. This is
+// the one hard gate: outside it nothing sends, whatever the rule thinks.
+const QUIET_END_HOUR = 8    // nothing before 08:00 local
+const QUIET_START_HOUR = 21 // nothing from 21:00 local
+
+// At most this many RETENTION pushes per user per day, across every rule. The
+// per-type de-dup below only stopped the SAME rule firing twice, so a user could
+// still collect a missed-workout nudge in the afternoon, a streak-at-risk nudge
+// in the evening and a partner reminder right after it. Three server pushes in a
+// day, on top of the on-device pre-workout reminder, is the "useless spam" the
+// founder reported. One is the whole budget.
+const MAX_PUSHES_PER_DAY = 1
 
 type NotificationType =
   | 'weekly_report' | 'missed_workout' | 'streak_at_risk' | 'free_time_gap' | 'reactivation'
@@ -93,6 +119,25 @@ function localDayFor(date: Date, timezone: string | null): number {
   } catch {
     return date.getUTCDay()
   }
+}
+
+// 'HH:MM:SS' → '6:30 PM'. planned_start_time is a wall-clock time on a plain
+// date, so it needs no timezone conversion — it already IS the user's local time.
+function formatTime12(t: string | null | undefined): string | null {
+  if (!t) return null
+  const [hRaw, m] = t.split(':')
+  const h = parseInt(hRaw, 10)
+  if (Number.isNaN(h) || m == null) return null
+  const suffix = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${m} ${suffix}`
+}
+
+// Has the session's own start time passed for this user yet?
+function startHasPassed(startTime: string | null | undefined, localHour: number): boolean {
+  if (!startTime) return true // no time recorded: fall back to the old behaviour
+  const h = parseInt(startTime.split(':')[0], 10)
+  return Number.isNaN(h) ? true : localHour >= h
 }
 
 // Per-rule opt-out (audit §6.1). `reactivation` is always on (low-frequency
@@ -188,6 +233,19 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     (profiles ?? []).map((r) => [r.user_id as string, (r.timezone as string | null) ?? null]),
   )
   const sentKey = new Set((alreadySent ?? []).map((r) => `${r.user_id}:${r.type}`))
+  // How many distinct notifications each user has already had today, for the daily
+  // cap. Counted by TYPE, not by log row: notification_log holds one row per
+  // device token, so a user with a phone and a tablet logs two rows for a single
+  // notification and a naive row count would cap them twice as hard as a
+  // single-device user.
+  const sentTypesByUser = new Map<string, Set<string>>()
+  for (const r of alreadySent ?? []) {
+    const u = r.user_id as string
+    const set = sentTypesByUser.get(u) ?? new Set<string>()
+    set.add(r.type as string)
+    sentTypesByUser.set(u, set)
+  }
+  const sentTodayCount = (u: string) => sentTypesByUser.get(u)?.size ?? 0
   const completedDates = byUser(logs ?? [], (r) => (r.completed_at as string | null)?.slice(0, 10))
   const sched = groupBy(scheduled ?? [], (r) => r.user_id as string)
 
@@ -259,11 +317,18 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const nowHourUtc = localHourFor(serverNowDate, tz)
     const nowDayUtc = localDayFor(serverNowDate, tz)
 
+    // Nothing sends outside the user's waking hours, whatever a rule concludes.
+    if (nowHourUtc < QUIET_END_HOUR || nowHourUtc >= QUIET_START_HOUR) continue
+
     const add = (c: Omit<Candidate, 'userId'>) => {
       if (!ruleEnabled(prefs, c.type)) return         // user muted this rule (§6.1)
       if (sentKey.has(`${userId}:${c.type}`)) return // de-dup: one per type per day
+      // Global daily budget, across every rule — not just this one.
+      if (sentTodayCount(userId) >= MAX_PUSHES_PER_DAY) return
       candidates.push({ userId, ...c })
       sentKey.add(`${userId}:${c.type}`)             // also prevent two rules colliding
+      const set = sentTypesByUser.get(userId) ?? new Set<string>()
+      set.add(c.type); sentTypesByUser.set(userId, set)
     }
 
     // 0. Weekly report — Sunday evening, if they trained at all this week. The
@@ -271,10 +336,14 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     if (nowDayUtc === 0 && nowHourUtc >= EVENING_HOUR) {
       const trainedThisWeek = [...completed].some(d => d >= weekStartStr)
       if (trainedThisWeek) {
+        // Lead with the number the user actually earned. weekCountByUser counts
+        // completed sessions since Monday — the same figure the weekly-report
+        // screen shows, so the push and the screen can never disagree.
+        const n = weekCountByUser.get(userId) ?? 0
         add({
           type: 'weekly_report',
-          title: 'Your week in review 📊',
-          body: 'See your progress this week — workouts, volume, and what improved. Then share it.',
+          title: n > 0 ? `${n} ${n === 1 ? 'session' : 'sessions'} this week` : 'Your week in review',
+          body: 'See the full breakdown: volume, what moved, and what to hit next week.',
           data: { screen: 'weekly-report' },
         })
         continue
@@ -294,11 +363,21 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     const missedToday = mine.find(
       (w) => w.planned_date === today && (w.status === 'missed' || w.status === 'scheduled'),
     )
-    if (missedToday && !completedToday && !trainedYesterday && nowHourUtc < EVENING_HOUR) {
+    // Only once the session's OWN start time has passed. planned_start_time was
+    // already loaded and never used, so this fired from midnight onward: someone
+    // with a 7pm session was told at 9am that it "is waiting" and that 15 minutes
+    // would keep them on track. It was not waiting; it had not started. That is
+    // the notification that reads as nagging rather than coaching.
+    const missedStart = missedToday?.planned_start_time as string | null | undefined
+    if (
+      missedToday && !completedToday && !trainedYesterday &&
+      nowHourUtc < EVENING_HOUR && startHasPassed(missedStart, nowHourUtc)
+    ) {
+      const at = formatTime12(missedStart)
       add({
         type: 'missed_workout',
-        title: 'Still time to train today',
-        body: `Your ${missedToday.focus} session is waiting. Even 15 minutes keeps you on track.`,
+        title: at ? `Your ${at} session is still open` : 'Your session is still open',
+        body: `${missedToday.focus}, and it hasn't been logged yet. A shorter version still counts.`,
         data: { screen: 'plan' },
       })
       continue // one push per user per run is plenty — don't stack nudges
@@ -308,18 +387,19 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     //    This never fires on a planned rest day: a streak is consecutive completed
     //    SESSIONS, so the rest days the plan itself schedules can't break it —
     //    nagging people to train on them would contradict Tempo's own coaching.
-    const pendingToday = mine.some((w) => w.planned_date === today && w.status === 'scheduled')
-    if (pendingToday && !completedToday && nowHourUtc >= EVENING_HOUR) {
-      // Only promise a streak to someone who has one. Telling a user with no
-      // completed sessions that their "streak stays alive" is a claim about
-      // their history that is false, and the fastest way to make every other
-      // number in the app look untrustworthy.
-      const hasHistory = completed.size > 0
+    const pendingTodayW = mine.find((w) => w.planned_date === today && w.status === 'scheduled')
+    if (pendingTodayW && !completedToday && nowHourUtc >= EVENING_HOUR) {
+      // Say something specific and checkable — the session that is actually open —
+      // rather than making a claim about the user's history. The old copy promised
+      // a "streak of completed sessions" the push cannot verify against the number
+      // the app itself shows; a nudge that overstates the stakes is exactly what
+      // trains people to swipe these away.
+      const doneThisWeek = weekCountByUser.get(userId) ?? 0
       add({
         type: 'streak_at_risk',
-        title: "Tonight's session is still open",
-        body: hasHistory
-          ? 'A shorter version still counts — finish today and your streak of completed sessions stays alive.'
+        title: `${pendingTodayW.focus} is still on today's plan`,
+        body: doneThisWeek > 0
+          ? `That's ${doneThisWeek} done this week. A shorter version still counts.`
           : 'A shorter version still counts. Even 15 minutes gets today on the board.',
         data: { screen: 'plan' },
       })
@@ -333,10 +413,11 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     )
     if (partnerW && nowHourUtc >= EVENING_HOUR) {
       const pname = firstName(nameById.get(partnerW.partner_id as string) ?? 'your friend')
+      const at = formatTime12(partnerW.planned_start_time as string | null)
       add({
         type: 'partner_reminder',
-        title: 'Training with a friend tomorrow 🤝',
-        body: `You and ${pname} have ${partnerW.focus} tomorrow — don't leave them hanging.`,
+        title: `${partnerW.focus} with ${pname} tomorrow`,
+        body: at ? `You're both booked for ${at}.` : "You're both booked in for tomorrow.",
         data: { screen: 'plan' },
       })
       continue
@@ -364,15 +445,24 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     // 3. Free-time gap — nothing scheduled or done today, during the active part of
     //    the day → surface a Quick Workout while there's room for it.
     const hasWorkoutToday = mine.some((w) => w.planned_date === today)
-    if (!hasWorkoutToday && !completedToday && nowHourUtc >= 12 && nowHourUtc < EVENING_HOUR) {
+    // An empty day inside an ACTIVE plan is a rest day the plan chose on purpose.
+    // This rule read that emptiness as a gap to fill, so every scheduled rest day
+    // earned a "got 20 minutes?" push — the app nagging users to break the
+    // recovery it had just prescribed them. Only nudge when there is genuinely
+    // nothing coming up, which is also the only case the copy is true of.
+    const hasUpcoming = mine.some((w) => w.planned_date > today && w.status === 'scheduled')
+    if (
+      !hasWorkoutToday && !hasUpcoming && !completedToday &&
+      nowHourUtc >= 12 && nowHourUtc < EVENING_HOUR
+    ) {
       add({
         type: 'free_time_gap',
-        title: 'Got 20 minutes?',
+        title: 'Nothing scheduled today',
         // Was "There's a gap in your day" and named Tempo. This function has no
         // sight of the user's calendar, so a gap was an assumption presented as
         // fact; and the app has been called Arclo since 2026-08-05, so the push
         // named a product that no longer exists.
-        body: "Nothing's scheduled today. If you find 20 minutes, Arclo can build a session that fits.",
+        body: 'If you find 20 minutes, Arclo can build a session that fits.',
         data: { screen: 'quick-workout' },
       })
       continue
@@ -391,10 +481,13 @@ async function buildCandidates(admin: SupabaseClient): Promise<Candidate[]> {
     if (!lastActive) continue
     const inactiveDays = daysBetween(lastActive, today)
     if (inactiveDays >= INACTIVE_DAYS) {
+      // State the real interval rather than "a few days" — this rule only reaches
+      // people who genuinely have trained before (see the !lastActive guard above),
+      // so the number is always true of them.
       add({
         type: 'reactivation',
-        title: 'Your plan is still here',
-        body: "It's been a few days. Pick up right where you left off — one short workout to restart.",
+        title: `${inactiveDays} days since your last session`,
+        body: 'Your plan is still here. One short workout is enough to restart it.',
         data: { screen: 'home' },
       })
     }
