@@ -18,33 +18,35 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-08-31 — 1.0.1 IS IN REVIEW, with the new screenshots.** Read back from the API, not assumed:
-- Version **1.0.1**: `IN_REVIEW` (submission `5cd79f45`, submitted 14:24:09Z)
-- Build **36** attached; six screenshots all `COMPLETE` at 1284×2778, in order
-- Version 1.0 stays `READY_FOR_SALE` and on sale until 1.0.1 replaces it
+**2026-09-03 — Push/pull bleed in generated plans fixed; retention pushes cut back to one a
+day inside quiet hours.** Both shipped and live.
 
-**Why a whole release for artwork.** Apple locks screenshots on a `READY_FOR_SALE` version
-(`POST /v1/appScreenshots` → 409), and a new version needs a build whose marketing version matches,
-so 1.0.0 → 1.0.1 was the only route. Build 36 carries **no app changes** over build 35; What's New
-says so plainly: *"Updated App Store artwork. No functional changes in this release."*
+**The Push-day report was real, but not where it was reported.** A tester said a Push day came
+back "mostly good but had pull exercises". `PUSH_DAY`'s template asks for push slots only, and
+the exercise classifier was verified correct first, so neither was the cause. Querying the live
+`scheduled_workouts` found the actual chain: barbell-only users have an **empty `lat_raise`
+pool** (every lateral raise in the core library needs cables or dumbbells), so the Push day
+walked the `lat_raise → rear_delt` affinity edge, found `rear_delt` empty too, dropped to the
+full library and programmed **"Barbell Rear Delt Row"** onto a Push day. Four such rows existed
+in production. Fixed as a class, not an edge: every slot now has a **side** and affinity
+fallback may not cross it (`slotSide`/`sideAllows` + `templateSide`). A template's own slots are
+untouched, so Press Day keeps its deliberate `h_pull` and Upper/Full Body still use both sides.
+**No future session needed repairing** — the only remaining cross-pattern rows are rear delts on
+Pull days, which is correct programming.
 
-**Two things worth knowing for next time.**
-1. **ASC auto-submits.** Attaching the build to a complete version put 1.0.1 straight into review on
-   its own — the explicit `POST /v1/reviewSubmissions` afterwards created a second, empty submission
-   (`3e9a81a1`, `READY_FOR_REVIEW`, zero items) which then **could not be deleted (403)**. Harmless,
-   but do not create a submission by hand before checking whether the version already moved.
-2. **The stale EAS Apple credential is still stale.** Both the build and the submit only worked with
-   `EXPO_ASC_API_KEY_PATH` / `EXPO_ASC_KEY_ID` / `EXPO_ASC_ISSUER_ID` passed inline. Still worth a
-   `npx eas credentials` pass.
+**Notifications were genuinely spammy, and two of them were untrue.** `missed_workout` gated
+only on "earlier than 18:00", so a 7pm session was announced as "waiting" at 9am;
+`free_time_gap` read a planned REST day as a gap and nudged users to break the recovery the app
+had just prescribed. Neither rule had an upper hour bound either, so pushes could land near
+midnight or before dawn. Now: **quiet hours 08:00–21:00 local**, **one retention push per user
+per day across all rules** (counted by type, not log row — the log has one row per device
+token), and every body states a fact the function can verify about that user. Deployed as
+`retention-push` v11 and read back to confirm.
 
-**⚠ OTA gotcha now live.** `runtimeVersion.policy` is `appVersion`, so **1.0.1 is a new runtime
-version**. Anyone on 1.0.0 will not receive updates published against 1.0.1 — publish to the 1.0.0
-runtime separately until the base has moved over. Android is unaffected for now: Play production is
-still versionCode 12 / 1.0.0, and the next Android build will pick up 1.0.1 from `app.json`.
-
-**▶ NEXT:** nothing is blocked. The founder-only list below is the critical path, unchanged — T1.2
-(on-device pass), the EAS Apple credential, Tempo Coach deployment, the Google Calendar reconnect
-tap, and B6.2 (one acquisition channel).
+**▶ NEXT:** unchanged — the founder-only list below is the critical path: T1.2 (on-device pass),
+the EAS Apple credential, Tempo Coach deployment, the Google Calendar reconnect tap, and B6.2
+(one acquisition channel). One loose end from 2026-08-31: the r/droidappshowcase Reddit post is
+drafted in the browser and still needs a flair before it can be posted.
 
 ---
 
@@ -828,6 +830,14 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-09-03** — Traced the "Push day with pull exercises" report to affinity fallback rather
+  than the template or the classifier (both verified correct first, then the live DB queried for
+  the real cases). Gave every slot a side and barred fallback from crossing it. Separately, cut
+  retention pushes to one per user per day inside 08:00–21:00 local, stopped `missed_workout`
+  firing before the session's own start time and `free_time_gap` firing on planned rest days, and
+  rewrote every push body to state a verifiable fact. Edge function v11; OTA to runtimes 1.0.0
+  and 1.0.1.
 
 - **2026-08-31** — Bumped to 1.0.1, built iOS build 36, uploaded it, created the 1.0.1 App Store
   version, replaced its screenshots with the new frames and got it into review. No app changes in the
