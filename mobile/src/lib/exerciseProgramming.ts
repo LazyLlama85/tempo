@@ -54,6 +54,40 @@ export const PUSH_ISO_SLOTS: Slot[] = ['chest_iso', 'lat_raise', 'triceps']
 export const PULL_COMPOUND_SLOTS: Slot[] = ['h_pull', 'v_pull']
 export const PULL_ISO_SLOTS: Slot[] = ['rear_delt', 'biceps']
 
+/**
+ * Which half of the body a slot trains. Used to stop slot FALLBACK from crossing
+ * the push/pull (or upper/lower) line — a Push day that cannot fill its lateral-
+ * raise slot must not quietly borrow a rear-delt row.
+ *
+ * Found in production, 2026-09-03: barbell-only users have an empty `lat_raise`
+ * pool (every lateral raise needs cables or dumbbells), so the Push day fell
+ * through the `lat_raise -> rear_delt` affinity edge, found rear_delt empty too,
+ * dropped to the full library and programmed "Barbell Rear Delt Row" — a rowing
+ * movement — onto a Push day. `core`, `cardio` and `carry` are side-less and pair
+ * with anything.
+ */
+export type SlotSide = 'push' | 'pull' | 'lower' | 'neutral'
+
+const SIDE_OF: Partial<Record<Slot, SlotSide>> = {
+  ...Object.fromEntries([...PUSH_COMPOUND_SLOTS, ...PUSH_ISO_SLOTS].map(s => [s, 'push'])),
+  ...Object.fromEntries([...PULL_COMPOUND_SLOTS, ...PULL_ISO_SLOTS].map(s => [s, 'pull'])),
+  ...Object.fromEntries([...LOWER_COMPOUND_SLOTS, ...LOWER_ISO_SLOTS].map(s => [s, 'lower'])),
+}
+
+export function slotSide(slot: Slot): SlotSide {
+  return SIDE_OF[slot] ?? 'neutral'
+}
+
+/**
+ * May a session whose own emphasis is `side` borrow from `slot`? Neutral slots
+ * and a mixed/neutral session pair with anything; opposing sides never do.
+ */
+export function sideAllows(side: SlotSide | 'mixed', slot: Slot): boolean {
+  if (side === 'mixed' || side === 'neutral') return true
+  const other = slotSide(slot)
+  return other === 'neutral' || other === side
+}
+
 const ISOLATION_SLOTS = new Set<Slot>([
   'knee_flexion', 'quad_iso', 'glute_iso', 'calf', 'chest_iso', 'triceps',
   'rear_delt', 'lat_raise', 'biceps',

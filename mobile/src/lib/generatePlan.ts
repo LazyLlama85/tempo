@@ -6,7 +6,10 @@ import { injuriesToRestrictions } from '@/lib/quickWorkout'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
 import { sweepScheduledPlanRows } from '@/lib/retireWorkouts'
 import { ensureAutoSplit } from '@/lib/splits'
-import { classifyExercise, type Slot, type Role } from '@/lib/exerciseProgramming'
+import {
+  classifyExercise, slotSide, sideAllows,
+  type Slot, type Role, type SlotSide,
+} from '@/lib/exerciseProgramming'
 import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
 import { captureApiError } from '@/lib/crashReporting'
 import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
@@ -448,6 +451,25 @@ function sortPool(pool: ExRow[], goal: Goal): ExRow[] {
 // actually program (pools are popularity-sorted before the cap).
 const SLOT_POOL_CAP = 10
 
+// A session's own emphasis, from the slots its template actually asks for. Used
+// to bound affinity fallback (below): a session that is wholly push or wholly
+// pull never borrows from the other side, while a genuinely mixed day (Upper,
+// Full Body) is free to use both. `core`/`cardio`/`carry` are side-less and are
+// ignored when working the emphasis out, so a Push day is still "push" despite
+// its core finisher.
+function templateSide(template: SessionTemplate): SlotSide | 'mixed' {
+  const sides = new Set<SlotSide>()
+  for (const spec of template.slots) {
+    for (const slot of spec.slots) {
+      const side = slotSide(slot)
+      if (side !== 'neutral') sides.add(side)
+    }
+  }
+  if (sides.size === 0) return 'neutral'
+  if (sides.size === 1) return [...sides][0]
+  return 'mixed'
+}
+
 // When a slot's own pool runs dry, which OTHER slots still serve the same job — a
 // thin knee_flexion borrows another hamstring movement, never a plank. Keeps the
 // coaching intent intact rather than padding with whatever's left.
@@ -520,10 +542,21 @@ function selectForSlots(
     return false
   }
 
+  // What this session is FOR. Affinity fallback may never cross it, so a Push day
+  // whose lateral-raise pool is empty widens into another press — never into a
+  // rear-delt row (production bug, 2026-09-03; see slotSide in exerciseProgramming).
+  const side = templateSide(template)
+
   chosen.forEach((spec, i) => {
     // Preferred slots first, then affinity neighbours — each in preference order.
+    // A template's OWN slots are always honoured (a Press Day may ask for h_pull
+    // on purpose); only the borrowed neighbours are side-checked.
     const order: Slot[] = [...spec.slots]
-    for (const s of spec.slots) for (const a of SLOT_AFFINITY[s] ?? []) if (!order.includes(a)) order.push(a)
+    for (const s of spec.slots) {
+      for (const a of SLOT_AFFINITY[s] ?? []) {
+        if (!order.includes(a) && sideAllows(side, a)) order.push(a)
+      }
+    }
     for (const slot of order) if (tryPick(bySlot[slot], spec, i, true)) return
     for (const slot of order) if (tryPick(bySlot[slot], spec, i, false)) return
     // Nothing fit (thin equipment/injury) — leave it out; a short honest session
