@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTutorialStore } from '@/stores/tutorial'
 import { TutorialOverlay } from '@/components/TutorialOverlay'
 import { useTheme, useThemeStore, ThemeTransitionOverlay, loadStoredThemeMode } from '@/theme'
+import { startUpdateWatcher } from '@/lib/otaUpdates'
 import { initAnalytics, track } from '@/lib/analytics'
 import { initCrashReporting, wrapWithCrashReporting, captureApiError } from '@/lib/crashReporting'
 import { TempoErrorBoundary } from '@/components/TempoErrorBoundary'
@@ -116,6 +117,13 @@ function RootLayoutInner() {
   useEffect(() => {
     if (sessionUserId) useTutorialStore.getState().init(sessionUserId)
   }, [sessionUserId])
+
+  // Actively deliver OTA updates. Without this, expo-updates only applies a
+  // downloaded bundle on the next COLD start, which on iOS may not happen for
+  // days — on 2026-09-04 that meant three days of shipped fixes had reached
+  // literally nobody. See lib/otaUpdates for the measurement. Never reloads
+  // during a live workout, and never more than once per app process.
+  useEffect(() => startUpdateWatcher(), [])
 
   // Tempo Pro (§10): tie RevenueCat to the signed-in user, load the dormant remote
   // flag, read current entitlement, and watch for live changes. All of it no-ops

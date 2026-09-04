@@ -1902,6 +1902,23 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   OTA — no rebuild — but appears only once the founder flips `tester_tools` on.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
+- **OTA update delivery (`lib/otaUpdates.ts`, added 2026-09-03):** the app never called
+  `expo-updates` at all, leaving delivery to the library's passive default — check on cold
+  start, download in the background, apply on the NEXT cold start. On iOS an app stays warm
+  for days, so that second cold start often never comes. Measured 2026-09-04: three days of
+  published fixes (the tutorial cut, the scheduling fixes, the push/pull fix) had reached
+  **nobody** — every `tutorial_step_completed` in the prior 48 hours carried a step id from the
+  old 14-card tour, on a build whose channel, branch and runtime all verified correct.
+  `startUpdateWatcher()` (called once from `_layout.tsx`) checks and downloads at cold start,
+  then applies on the next foreground that follows at least 30s in the background. Two hard
+  safety rules: it never reloads while `useSessionActiveStore.active` is true (a live workout
+  holds unsaved sets in memory), and never more than once per app process (so a bad update
+  cannot cause a reload loop). Every path is best-effort and swallowed — an update check must
+  never break startup. `updateProperties()` also feeds `js_update_id` / `js_update_created_at`
+  / `js_is_embedded` into `analytics.superProperties()`, because the pre-existing `app_version`
+  reports the NATIVE version and is identical whether or not a user took an OTA — which is
+  exactly why this failure was invisible for three days.
+
 - **Planning & progression:** `generatePlan` (4-week periodized plan from goal/experience/equipment;
   **respects hard constraints** — never-train weekdays from unavailable blocks + `training_days`,
   and **injuries** via the same restriction mapping Quick Workouts use; supports **2–6 days/week

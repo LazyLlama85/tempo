@@ -15,6 +15,7 @@
 import { Platform } from 'react-native'
 import Constants from 'expo-constants'
 import PostHog from 'posthog-react-native'
+import { updateProperties } from '@/lib/otaUpdates'
 
 const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY
 const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com'
@@ -117,6 +118,11 @@ export type EventProperties = {
   tutorial_skipped: { tutorial: string; experience?: string }
   tutorial_completed: { tutorial: string; experience?: string }
   tutorial_replayed: { tutorial: string }
+  // ── OTA delivery (lib/otaUpdates) ───────────────────────────────────────────
+  // How we know a shipped fix actually reached users, rather than assuming it
+  // did because the publish succeeded.
+  ota_update_downloaded: Record<string, never>
+  ota_update_applied: Record<string, never>
   first_workout_started: { experience?: string }
   first_set_logged: { experience?: string }
   first_workout_completed: { experience?: string; duration_min?: number }
@@ -204,10 +210,18 @@ export type SessionType = 'quick' | 'planned'
 type EventName = keyof EventProperties
 
 // Properties attached to every event automatically.
+//
+// `app_version` is the NATIVE build's version and is identical for every user on
+// a given build whether or not they have taken an OTA update. On 2026-09-04 that
+// turned out to hide a three-day delivery failure completely: every event read
+// "1.0.1" and looked healthy while nobody was actually running the shipped JS.
+// The `js_update_*` properties (see lib/otaUpdates) identify the bundle that is
+// really running, so "did this fix reach anyone" is now a groupable question.
 function superProperties() {
   return {
     platform: Platform.OS,
     app_version: APP_VERSION,
+    ...updateProperties(),
   }
 }
 
