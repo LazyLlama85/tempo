@@ -18,35 +18,47 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-09-03 — Push/pull bleed in generated plans fixed; retention pushes cut back to one a
-day inside quiet hours.** Both shipped and live.
+**2026-09-04 — The app could not deliver a fix to its own users. Fixed, and a 1.0.2 store
+build is going out.**
 
-**The Push-day report was real, but not where it was reported.** A tester said a Push day came
-back "mostly good but had pull exercises". `PUSH_DAY`'s template asks for push slots only, and
-the exercise classifier was verified correct first, so neither was the cause. Querying the live
-`scheduled_workouts` found the actual chain: barbell-only users have an **empty `lat_raise`
-pool** (every lateral raise in the core library needs cables or dumbbells), so the Push day
-walked the `lat_raise → rear_delt` affinity edge, found `rear_delt` empty too, dropped to the
-full library and programmed **"Barbell Rear Delt Row"** onto a Push day. Four such rows existed
-in production. Fixed as a class, not an edge: every slot now has a **side** and affinity
-fallback may not cross it (`slotSide`/`sideAllows` + `templateSide`). A template's own slots are
-untouched, so Press Day keeps its deliberate `h_pull` and Upper/Full Body still use both sides.
-**No future session needed repairing** — the only remaining cross-pattern rows are rear delts on
-Pull days, which is correct programming.
+**The finding.** A founder report ("people are telling me the app is buggy, tutorial is still
+kinda weird") turned out not to be about the tutorial code at all. PostHog: of everyone who
+ran the first-run tour in the previous 48 hours, **every step id belonged to the old 14-card
+tour** that had been cut two days earlier. Not one user was on the new bundle. The tutorial
+cut, the scheduling fixes and the push/pull fix had all been published and had reached nobody.
 
-**Notifications were genuinely spammy, and two of them were untrue.** `missed_workout` gated
-only on "earlier than 18:00", so a 7pm session was announced as "waiting" at 9am;
-`free_time_gap` read a planned REST day as a gap and nudged users to break the recovery the app
-had just prescribed. Neither rule had an upper hour bound either, so pushes could land near
-midnight or before dawn. Now: **quiet hours 08:00–21:00 local**, **one retention push per user
-per day across all rules** (counted by type, not log row — the log has one row per device
-token), and every body states a fact the function can verify about that user. Deployed as
-`retention-push` v11 and read back to confirm.
+**The cause, after verifying rather than assuming the plumbing.** Build 36 is channel
+`production`, runtime 1.0.1; the channel points at the branch; updates existed for both
+runtimes. All correct. The app simply **never called `expo-updates`**, so delivery fell back
+to the passive default: check on cold start, download in background, apply on the NEXT cold
+start. On iOS an app stays warm for days, so that second cold start often never happens.
 
-**▶ NEXT:** unchanged — the founder-only list below is the critical path: T1.2 (on-device pass),
-the EAS Apple credential, Tempo Coach deployment, the Google Calendar reconnect tap, and B6.2
-(one acquisition channel). One loose end from 2026-08-31: the r/droidappshowcase Reddit post is
-drafted in the browser and still needs a flair before it can be posted.
+**Fixed** — `mobile/src/lib/otaUpdates.ts` (`startUpdateWatcher`, wired in `_layout.tsx`):
+downloads at cold start, applies on the next foreground after 30s backgrounded. Never reloads
+during a live workout (unsaved sets), never more than once per process (no reload loop).
+Published to runtimes 1.0.0 and 1.0.1. **It bootstraps through the old passive path**, so each
+user gets it on their next genuine cold start and fast delivery from then on.
+
+**Why nobody noticed for three days.** `analytics.superProperties()` reported only
+`app_version` — the NATIVE version, identical whether or not a user took an OTA. Every event
+read "1.0.1" and looked healthy. Events now carry `js_update_id` / `js_update_created_at` /
+`js_is_embedded`. **Never treat a successful publish as delivery again; query those.**
+
+**⚠ Three live runtimes now (1.0.0, 1.0.1, 1.0.2).** `runtimeVersion.policy` is `appVersion`,
+so every marketing-version bump forks the runtime and each OTA must be published to all of
+them (the 1.0.0 publish still needs a temporary `app.json` version edit — this eas-cli has no
+`--runtime-version` flag). Worth revisiting the policy once the old bases drain.
+
+**First real cohort data, and it is bad.** 7 days: **46 signups → 31 onboarded → 24 got a plan
+→ 7 started a workout → 3 logged a set → 1 completed one.** `PRODUCT_AUDIT.html` moved
+Retention 4→3 and Market Proof 4.3→4.1 on it — the first time that block has ever moved. Note
+the cohort was on the broken bundle, so the *next* cohort is the one that tests the product.
+Not a defect: `purchase_failed` is all `reason: cancelled`, i.e. paywall declines.
+
+**▶ NEXT:** iOS build 37 + an Android build are running for **1.0.2** (bumped, committed).
+When they finish: submit both, then **verify delivery actually works** by querying
+`js_update_id` in PostHog rather than assuming. After that, re-measure the activation funnel
+on a cohort running the fixed bundle — that is the number M4 has always been waiting for.
 
 ---
 
@@ -830,6 +842,12 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-09-04** — Traced "the app is buggy" to a delivery failure, not a code failure: three
+  days of published fixes had reached zero users because the app never called `expo-updates`.
+  Added an active update watcher and put the running bundle id on every analytics event so this
+  cannot hide again. Recorded the first real activation funnel (46 signups, 1 completed workout)
+  and moved Retention 4→3 on it. Bumped to 1.0.2 and started store builds.
 
 - **2026-09-03** — Traced the "Push day with pull exercises" report to affinity fallback rather
   than the template or the classifier (both verified correct first, then the live DB queried for
