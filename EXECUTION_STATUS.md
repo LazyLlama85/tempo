@@ -18,47 +18,46 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-09-04 (later) — 1.0.2 IS SUBMITTED TO BOTH STORES, with every fix embedded.**
-Read back from the APIs, not assumed:
-- **iOS**: version 1.0.2, build **39**, state `WAITING_FOR_REVIEW` (submission `fbae743f`).
-  Release notes set on the en-US localization.
-- **Android**: versionCode **15** submitted to Play `production`, full rollout.
+**2026-09-05 — 44% of live scheduled sessions were unmakeable. Repaired in production.**
 
-**Rebuilt rather than shipping build 37**, which predated the quick-workout target-area fix,
-the skip-vs-delete change and exercise familiarity. Build 39 embeds all of it, so new installs
-get a correct app without waiting on an OTA.
+**The finding.** Asked to look for other bugs, an audit of live data found that of 333 future
+sessions, **74 started before wake+buffer, 84 overlapped school, 84 overlapped work** — 28 of
+33 users with upcoming sessions; 11 of the 15 recently-active ones, soonest two days out.
 
-**⚠ The Apple credential finally expired for real.** `eas build` failed with a 401 on
-registering the widget bundle id. The workaround is still the inline API key:
-`EXPO_ASC_API_KEY_PATH=C:/Users/jacob/Downloads/AuthKey_C55P83X354.p8`,
-`EXPO_ASC_KEY_ID=C55P83X354`, `EXPO_ASC_ISSUER_ID=61795ffc-3a86-4f27-b1f1-6369fec39b92`.
-Every build and submit needs those exported until `npx eas credentials` is re-run.
+**Why it persisted.** The engine fix AND `retimeUnmakeableSessions` already existed. Neither
+had reached anyone, and the repair *could not* — it runs client-side on app open, inside a
+bundle almost nobody had. The cleanup was trapped behind the same delivery failure as the bug.
 
-**ASC did NOT auto-submit this time** (unlike the 1.0.1 round). Attaching build 39 left the
-version at `PREPARE_FOR_SUBMISSION`; it needed an explicit `reviewSubmissions` create + item +
-`submitted:true`. All four prior submissions read `COMPLETE`, including the stale empty one from
-1.0.1, so nothing was orphaned. Scripts for both steps are in the session scratchpad.
+**The repair.** Generated with the REAL `isUnmakeable` / `chooseSessionStart` / `candidatesFor`
+(run under jest so the `@/` alias and native mocks resolve) against a dump of affected rows —
+not a SQL re-implementation, because the real rules cover unavailable blocks, post-midnight
+bedtimes and the weekday floor. Every result re-validated against `weekdayFreeIntervals`; every
+write guarded on the prior time + `status='scheduled'` so a user's own change couldn't be
+clobbered. **162 rows changed. Verified after: 0/0/0/0 across 349 future sessions.**
+Scripts + report are in the session scratchpad (`repair_report.txt`, `repair_compact.sql`).
 
-**Also live:** OTA published to runtimes 1.0.0, 1.0.1 and 1.0.2 for the target-area,
-skip/delete and familiarity work.
+**Four false alarms, each chased to a conclusion — do not re-raise these:**
+- *Plan cliff*: 57 onboarded users have no future workouts, but 14/15 recently-active users do,
+  and the 15th has no plan row to extend. Churned accounts, not a live cliff.
+- *Missed sweep*: 616 past rows still `scheduled`, but every one is dated on/after its owner's
+  last app open. Working as designed.
+- *Orphaned logs*: 71 workout_logs with no sets, all >30 days old.
+- *7 onboarded users with no plan*: `plan_rows = 0` is only reachable via the custom-build
+  branch (generatePlan writes its plan row first), so it is an explicit user choice. They land
+  on the "Nothing on your plan yet" empty state with an Add-workout action, not a blank screen.
 
 **▶ NEXT:**
-1. **Verify delivery actually works** — query `js_update_id` in PostHog. As of the last check
-   zero events carried it, i.e. nobody had yet taken the OTA that fixes OTA delivery. Once
-   people are on 1.0.2 that should change; if it does not, the watcher is not working.
-2. **Re-measure the activation funnel** on a cohort running the fixed build. The number that
-   matters is the plan→first-workout drop (was 24→7).
-3. **Rotate `EXPO_PUBLIC_RAPIDAPI_KEY`** out of the public repo and behind an edge function.
-   The repo is public and that key is billable; the rest of the committed keys are client-side
-   by design and are fine.
-4. Founder-only list below unchanged: EAS Apple credential, Tempo Coach deployment, the Google
-   Calendar reconnect tap, B6.2 (one acquisition channel).
-
-**Congressional App Challenge (VA-11, sophomore, deadline 2026-10-26).** Eligible; district is
-participating. The rulebook permits AI tools *with full disclosure*, but says AI "must not
-constitute the entirety of the technical development" and expects "significant individual
-contributions and technical understanding". A technical walkthrough of the architecture was
-published for study: https://claude.ai/code/artifact/b42b23c6-8aff-4dd2-9813-b72bd09de71a
+1. **`EXPO_PUBLIC_RAPIDAPI_KEY` is still exposed** in the public repo AND in every shipped
+   bundle. It is billable and not client-safe (the other committed keys are). Full fix =
+   proxy `exerciseDb.ts` + `exerciseGif.ts` through an edge function, THEN the founder rotates
+   the key in RapidAPI. Not attempted here: it changes a visual feature (form GIFs) that cannot
+   be verified without a device, and the session had just shipped a store build.
+2. **One pre-existing collision**: user `deb0b08e` has two `split` sessions on 2026-09-05 at
+   13:15. 1 of 349, left untouched on purpose. If it recurs, `splitSchedule.materializeSplit`
+   has no same-slot guard.
+3. **The repair is still client-side.** Consider whether `retimeUnmakeable` belongs in the
+   hourly `retention-push` cron so it can reach users who never take an update.
+4. Verify OTA delivery via `js_update_id` once 1.0.2 is out of review.
 
 ---
 
@@ -842,6 +841,10 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-09-05** — Production bug hunt. Found and repaired 162 unmakeable scheduled sessions
+  (44% of all future sessions), using the real scheduling logic rather than a SQL rewrite.
+  Ruled out four other suspected bugs with evidence. Verified no collisions introduced.
 
 - **2026-09-04 (later)** — Fixed Quick Workout target areas (Legs was returning ab holds via a
   `hip_flexors` mis-grouping plus any-primary-muscle matching), split skip from delete by workout
