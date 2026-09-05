@@ -14,6 +14,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Goal, Experience } from '@/types'
 import { effectiveEquipment } from '@/lib/travelMode'
 import { expandEquipment, canPerform } from '@/lib/equipmentMatch'
+import {
+  loadFamiliarity, byFamiliarity, noveltySlotIndex,
+  NO_HISTORY, type FamiliarityIndex,
+} from '@/lib/exerciseFamiliarity'
 import { resyncMovedWorkout } from '@/lib/moveWorkout'
 import { captureApiError } from '@/lib/crashReporting'
 import { BRAND_NAME } from '@/constants/brand'
@@ -264,12 +268,23 @@ function exerciseCostSeconds(scheme: PurposeScheme): number {
 }
 
 // Pick the highest-impact unused exercise of a pattern, rotated by `seed` for variety.
-function pickBest(pool: ExerciseRow[], used: Set<string>, seed: number): ExerciseRow | null {
+//
+// `fam` puts movements the user has actually trained before ahead of ones they
+// have never seen; `preferNew` inverts that for the single novelty slot (see
+// exerciseFamiliarity.noveltySlotIndex). With no history every candidate ties on
+// the familiarity key and the original impact/popularity/name ordering below is
+// preserved exactly, so nothing changes for a new user.
+function pickBest(
+  pool: ExerciseRow[], used: Set<string>, seed: number,
+  fam: FamiliarityIndex = NO_HISTORY, preferNew = false,
+): ExerciseRow | null {
   const avail = pool.filter(e => !used.has(e.id))
   if (!avail.length) return null
   // Impact ≈ total muscles worked; staples beat long-tail variants; ties broken
   // stably by name.
   const sorted = [...avail].sort((a, b) => {
+    const fm = byFamiliarity(a.id, b.id, fam, preferNew)
+    if (fm !== 0) return fm
     const am = a.primary_muscles.length + a.secondary_muscles.length
     const bm = b.primary_muscles.length + b.secondary_muscles.length
     if (bm !== am) return bm - am
@@ -279,7 +294,16 @@ function pickBest(pool: ExerciseRow[], used: Set<string>, seed: number): Exercis
   })
   // Rotate the starting index so the same time/purpose doesn't always return the
   // identical lift day-to-day, while still favouring the top of the impact list.
-  const head = sorted.slice(0, Math.min(3, sorted.length))
+  //
+  // The rotation is confined to ONE familiarity tier. Rotating across the whole
+  // sorted list would step straight past a lift the user knows onto one they have
+  // never done — the "variety" knob quietly undoing the "familiar" one, which is
+  // exactly what the first version of this did. Within a tier, rotation is
+  // untouched, so day-to-day variety still works. With no history every candidate
+  // is in the same tier and this is the original behaviour exactly.
+  const knownTier = fam.sessions(sorted[0].id) > 0
+  const tier = sorted.filter(e => (fam.sessions(e.id) > 0) === knownTier)
+  const head = tier.slice(0, Math.min(3, tier.length))
   return head[seed % head.length]
 }
 
@@ -311,9 +335,12 @@ function selectExercises(
   // them. When set, this REPLACES the purpose's own priority so a real
   // muscle-targeted pick always surfaces something.
   forcePatterns: MovementPattern[] | undefined,
+  fam: FamiliarityIndex = NO_HISTORY,
 ): BuiltSelection {
   const budget = minutes * 60
   const MAX = maxExercisesFor(minutes)
+  // Which pick, if any, deliberately goes to something the user has never done.
+  const noveltyAt = noveltySlotIndex(fam, MAX)
 
   // Short sessions get denser: fewer sets, shorter rest so the time is all work.
   //
@@ -354,7 +381,10 @@ function selectExercises(
     let addedThisRound = false
     for (const pattern of priority) {
       if (chosen.length >= MAX) break
-      const cand = pickBest(byPattern[pattern] ?? [], used, seed + round)
+      const cand = pickBest(
+        byPattern[pattern] ?? [], used, seed + round,
+        fam, chosen.length === noveltyAt,
+      )
       if (!cand) continue
       // Always allow the first pick so even a 5-minute window yields a workout.
       if (chosen.length > 0 && spent + cost > budget) continue
@@ -659,7 +689,12 @@ export async function generateQuickWorkout(
     : undefined
 
   const seed = dayOfYear() + ctx.minutes
-  const { exercises, estimatedSeconds } = selectExercises(finalPool, scheme, ctx.minutes, ctx.targetPattern, seed, forcePatterns)
+  // What this user has actually trained before, so the session is built from
+  // movements they know rather than whatever ranks highest in the abstract.
+  const familiarity = await loadFamiliarity(client, userId)
+  const { exercises, estimatedSeconds } = selectExercises(
+    finalPool, scheme, ctx.minutes, ctx.targetPattern, seed, forcePatterns, familiarity,
+  )
 
   return {
     minutes: ctx.minutes,

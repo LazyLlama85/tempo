@@ -67,6 +67,12 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
       eq: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
       neq: (col: string, val: any) => { filters.push((r) => r[col] !== val); return api },
       is: (col: string, val: any) => { filters.push((r) => r[col] === val); return api },
+      // Only shape used in this codebase: .not('col', 'is', value) — e.g.
+      // excluding warm-up sets with .not('is_warmup', 'is', true).
+      not: (col: string, op: string, val: any) => {
+        if (op === 'is') filters.push((r) => r[col] !== val)
+        return api
+      },
       gte: (col: string, val: any) => { filters.push((r) => r[col] >= val); return api },
       lte: (col: string, val: any) => { filters.push((r) => r[col] <= val); return api },
       lt: (col: string, val: any) => { filters.push((r) => r[col] < val); return api },

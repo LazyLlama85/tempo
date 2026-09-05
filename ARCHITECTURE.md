@@ -1902,6 +1902,30 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   OTA — no rebuild — but appears only once the founder flips `tester_tools` on.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
+- **Exercise familiarity (`lib/exerciseFamiliarity.ts`, added 2026-09-04):** both selection
+  engines ranked candidates purely on properties of the EXERCISE — muscles worked, popularity,
+  equipment — and never looked at what the person had actually done, so someone six weeks in
+  could be handed a movement they had never seen above one they had done twenty times. The
+  module answers one question, "how many separate SESSIONS has this user performed this
+  exercise in" (sessions, not sets — five sets in one workout is one exposure), read from
+  `set_logs` joined through `workout_logs` over the last 180 days, and leaves ranking policy to
+  the engines. Wired into **`quickWorkout.pickBest`** and **`generatePlan.sortPool` +
+  `selectForSlots`**; loaded once per generation via `PlanConstraints` (the same "every path
+  gets it, no caller can forget" pattern availability uses). Three properties, tested
+  separately because they pull against each other: *familiar* (known movements rank first),
+  *varied* (each engine's existing per-day/per-week rotation is preserved), and *new*
+  (`noveltySlotIndex` spends the LAST slot of a session on something unseen, but only above
+  `MIN_KNOWN_FOR_NOVELTY` distinct known exercises and `MIN_PICKS_FOR_NOVELTY` slots — a
+  beginner meets new work anyway). **The subtle part:** rotation had to be confined to a single
+  familiarity tier in both engines. Rotating across the whole sorted pool steps straight past a
+  known lift onto an unknown one, so the variety knob silently undoes the familiarity one — the
+  first implementation did exactly that and `quickWorkoutFamiliarity.test.ts` caught it. With
+  no history every candidate ties, `preferred` is the whole pool, and both engines behave
+  byte-for-byte as before; `loadFamiliarity` degrades to `NO_HISTORY` on any error so a
+  personalisation read can never break plan generation. Covered by
+  `exerciseFamiliarity.test.ts`, `quickWorkoutFamiliarity.test.ts` and `planFamiliarity.test.ts`
+  (`selectForSlots` and its template types are exported for that last one).
+
 - **Removing a workout (`lib/workoutRemoval.ts`, added 2026-09-04):** every removal path used
   to do one thing — `status = 'skipped'`. Home's "Skip it" and `EditWorkoutSheet`'s "Remove"
   were the same write under two different words. That is wrong for one-offs: a Quick Workout is

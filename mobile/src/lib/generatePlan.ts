@@ -10,6 +10,10 @@ import {
   classifyExercise, slotSide, sideAllows,
   type Slot, type Role, type SlotSide,
 } from '@/lib/exerciseProgramming'
+import {
+  loadFamiliarity, byFamiliarity, noveltySlotIndex,
+  NO_HISTORY, type FamiliarityIndex,
+} from '@/lib/exerciseFamiliarity'
 import { PLAN_RUNWAY_DAYS, formatLocalDate, planNeedsExtension, planExtensionWeeks } from '@/lib/planRollover'
 import { captureApiError } from '@/lib/crashReporting'
 import { fetchExcludedExerciseIds } from '@/lib/exerciseExclusions'
@@ -51,6 +55,10 @@ interface PlanConstraints {
    *  generatePlan gets availability-aware start times, not just the ones that
    *  happen to pass those fields in (splitSchedule.activateAutoPlan did not). */
   availability: AvailabilityInputs
+  /** What this user has actually trained before. Loaded here for the same reason
+   *  availability is — so EVERY generation path gets familiarity-aware selection
+   *  and no caller can forget to pass it. */
+  familiarity: FamiliarityIndex
 }
 
 async function fetchPlanConstraints(client: SupabaseClient, userId: string): Promise<PlanConstraints> {
@@ -83,7 +91,8 @@ async function fetchPlanConstraints(client: SupabaseClient, userId: string): Pro
   // Everything blocked is a contradiction — ignore the blocks rather than emit no plan.
   if (blocked.size >= 7) blocked.clear()
   const excludedExerciseIds = await fetchExcludedExerciseIds(client, userId)
-  return { blockedWeekdays: blocked, injuries, excludedExerciseIds, availability }
+  const familiarity = await loadFamiliarity(client, userId)
+  return { blockedWeekdays: blocked, injuries, excludedExerciseIds, availability, familiarity }
 }
 
 // Preferred start times per time-of-day, in priority order. These are only
@@ -234,13 +243,13 @@ function formatDate(d: Date): string {
 // session order, so exercises come out power → heavy compound → accessory →
 // isolation → core/cardio without any post-sort.
 type Tier = 'power' | 'primary' | 'secondary' | 'accessory' | 'isolation' | 'core' | 'cardio'
-interface SlotSpec {
+export interface SlotSpec {
   slots: Slot[]           // acceptable slots, most-preferred first
   tier: Tier
   optional?: boolean      // dropped first when the time budget is tight
   preferRole?: Role       // e.g. prefer explosive movements for an athletic power slot
 }
-interface SessionTemplate { focus: string; slots: SlotSpec[] }
+export interface SessionTemplate { focus: string; slots: SlotSpec[] }
 
 // ── Slot-spec shorthands ──────────────────────────────────────────────────────
 const S = (slots: Slot[], tier: Tier, opts: { optional?: boolean; preferRole?: Role } = {}): SlotSpec =>
@@ -416,7 +425,7 @@ function buildSessionTemplates(goal: Goal, days: number, includeCardio = false):
 
 // ── Exercise selection ────────────────────────────────────────────────────────
 
-interface ExRow {
+export interface ExRow {
   id: string
   name: string
   movement_pattern: string
@@ -431,7 +440,7 @@ interface ExRow {
 // Sort so the highest-value exercise comes first: prefer more equipment options
 // (barbells > dumbbells > bodyweight), then well-known staples over long-tail
 // variants (popularity), and breadth of primary muscles.
-function sortPool(pool: ExRow[], goal: Goal): ExRow[] {
+function sortPool(pool: ExRow[], goal: Goal, fam: FamiliarityIndex = NO_HISTORY): ExRow[] {
   const eqScore = (eq: string[]): number => {
     if (eq.includes('barbell'))   return goal === 'strength' ? 10 : 5
     if (eq.includes('full_gym'))  return 4
@@ -440,7 +449,10 @@ function sortPool(pool: ExRow[], goal: Goal): ExRow[] {
     if (eq.includes('resistance_bands')) return 2
     return 1 // bodyweight
   }
+  // Movements the user has actually trained come first; with no history every
+  // pair ties here and the original equipment/popularity order is untouched.
   return [...pool].sort((a, b) =>
+    byFamiliarity(a.id, b.id, fam) ||
     eqScore(b.required_equipment) - eqScore(a.required_equipment) ||
     (b.popularity ?? 30) - (a.popularity ?? 30)
   )
@@ -506,11 +518,12 @@ const COMPOUND_TIERS = new Set<Tier>(['power', 'primary', 'secondary', 'accessor
 // `rotation` is a per-focus occurrence index so the FIRST time a session appears
 // it opens with the canonical lift (back squat), then varies. Returns ids in
 // session order.
-function selectForSlots(
+export function selectForSlots(
   bySlot: Partial<Record<Slot, ExRow[]>>,
   template: SessionTemplate,
   rotation: number,
   target: number,
+  fam: FamiliarityIndex = NO_HISTORY,
 ): string[] {
   const required = template.slots.filter(s => !s.optional)
   const optional = template.slots.filter(s => s.optional)
@@ -519,27 +532,53 @@ function selectForSlots(
   const usedIds = new Set<string>()
   const usedFamilies = new Set<string>()
   const ids: string[] = []
+  // One slot per session may deliberately go to a movement the user has never
+  // done — the last one, and only for someone with enough of a base to benefit.
+  // Everything before it is ordered familiar-first by sortPool. See
+  // exerciseFamiliarity for why this is bounded rather than free-running.
+  const noveltyAt = noveltySlotIndex(fam, chosen.length)
 
   // Pick the first eligible exercise from a slot pool. `gated` enforces the
   // compound-tier role rule; a second ungated pass is the safety net so a
   // thin-equipment slot is never left empty on a technicality.
-  const tryPick = (pool: ExRow[] | undefined, spec: SlotSpec, offset: number, gated: boolean): boolean => {
+  const tryPick = (
+    pool: ExRow[] | undefined, spec: SlotSpec, offset: number, gated: boolean,
+    preferNew = false,
+  ): boolean => {
     if (!pool?.length) return false
-    const ordered = spec.preferRole
+    const roleOrdered = spec.preferRole
       ? [...pool].sort((a, b) =>
           (classifyExercise(b).role === spec.preferRole ? 1 : 0) -
           (classifyExercise(a).role === spec.preferRole ? 1 : 0))
       : pool
-    for (let k = 0; k < ordered.length; k++) {
-      const ex = ordered[(rotation + offset + k) % ordered.length]
-      if (!ex || usedIds.has(ex.id)) continue
-      const cls = classifyExercise(ex)
-      if (usedFamilies.has(cls.family)) continue
-      if (gated && COMPOUND_TIERS.has(spec.tier) && cls.role !== 'compound' && cls.role !== 'power') continue
-      usedIds.add(ex.id); usedFamilies.add(cls.family); ids.push(ex.id)
-      return true
+    // Split the pool by familiarity and rotate WITHIN the preferred half.
+    //
+    // `rotation` deliberately starts the scan at a different index each week, for
+    // week-to-week variety. Applied across the whole pool it would step straight
+    // past a lift the user knows onto one they have never done, so the variety
+    // knob would silently undo the familiarity one — the same trap Quick Workout's
+    // pickBest hit. Rotating inside a single tier keeps both properties.
+    //
+    // With no history every exercise falls in the same tier, `preferred` is the
+    // whole pool and `rest` is empty, so this is byte-for-byte the old behaviour.
+    const wantKnown = !preferNew
+    const preferred = roleOrdered.filter(e => (fam.sessions(e.id) > 0) === wantKnown)
+    const rest = preferred.length ? roleOrdered.filter(e => !preferred.includes(e)) : []
+    const scan = (list: ExRow[]): boolean => {
+      for (let k = 0; k < list.length; k++) {
+        const ex = list[(rotation + offset + k) % list.length]
+        if (!ex || usedIds.has(ex.id)) continue
+        const cls = classifyExercise(ex)
+        if (usedFamilies.has(cls.family)) continue
+        if (gated && COMPOUND_TIERS.has(spec.tier) && cls.role !== 'compound' && cls.role !== 'power') continue
+        usedIds.add(ex.id); usedFamilies.add(cls.family); ids.push(ex.id)
+        return true
+      }
+      return false
     }
-    return false
+    // Preferred tier first; the other half is a fallback so a slot is never left
+    // empty just because everything familiar was already used this session.
+    return scan(preferred.length ? preferred : roleOrdered) || (rest.length ? scan(rest) : false)
   }
 
   // What this session is FOR. Affinity fallback may never cross it, so a Push day
@@ -557,8 +596,9 @@ function selectForSlots(
         if (!order.includes(a) && sideAllows(side, a)) order.push(a)
       }
     }
-    for (const slot of order) if (tryPick(bySlot[slot], spec, i, true)) return
-    for (const slot of order) if (tryPick(bySlot[slot], spec, i, false)) return
+    const wantNew = i === noveltyAt
+    for (const slot of order) if (tryPick(bySlot[slot], spec, i, true, wantNew)) return
+    for (const slot of order) if (tryPick(bySlot[slot], spec, i, false, wantNew)) return
     // Nothing fit (thin equipment/injury) — leave it out; a short honest session
     // beats padding a Push day with planks.
   })
@@ -687,6 +727,8 @@ interface BlockBuildCtx {
   sessionMinutes: number
   /** Days the user marked unavailable — needed to re-lay the current week (see currentWeekSlots). */
   blockedWeekdays: Set<number>
+  /** What the user has trained before — biases selection toward known movements. */
+  familiarity: FamiliarityIndex
 }
 
 async function buildBlockContext(
@@ -756,13 +798,17 @@ async function buildBlockContext(
     const source = core.length ? core : all
     const inLevel = source.filter(ex => expIdxOf(ex) <= userExpIdx)
     const backup = source.filter(ex => expIdxOf(ex) > userExpIdx)
-    bySlot[slot] = [...sortPool(inLevel, profile.goal), ...sortPool(backup, profile.goal)].slice(0, SLOT_POOL_CAP)
+    bySlot[slot] = [
+      ...sortPool(inLevel, profile.goal, constraints.familiarity),
+      ...sortPool(backup, profile.goal, constraints.familiarity),
+    ].slice(0, SLOT_POOL_CAP)
   }
 
   const days = clampDays(profile.days_per_week)
   return {
     slots: chooseDaySlots(days, constraints.blockedWeekdays),
     blockedWeekdays: constraints.blockedWeekdays,
+    familiarity: constraints.familiarity,
     templates: buildSessionTemplates(profile.goal, days, profile.include_cardio),
     bySlot,
     // How many exercises fit the user's preferred session length FOR THIS GOAL —
@@ -851,7 +897,7 @@ function buildBlockRows(
       const template = ctx.templates[sessionCount % ctx.templates.length]
       const rot = (focusRotation.get(template.focus) ?? Math.floor(sessionCountStart / ctx.templates.length))
       focusRotation.set(template.focus, rot + 1)
-      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount)
+      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount, ctx.familiarity)
 
       rows.push({
         user_id: userId,
@@ -1109,7 +1155,7 @@ export async function restampFuturePlanForExperience(
       if (!template) continue // custom-renamed / unknown focus — leave it untouched
       const rot = focusRotation.get(baseFocus) ?? priorRot
       focusRotation.set(baseFocus, rot + 1)
-      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount)
+      const exerciseIds = selectForSlots(ctx.bySlot, template, rot, ctx.targetCount, ctx.familiarity)
       if (!exerciseIds.length) continue
       const weekIndex = (w.week_index as number | null) ?? 0
       const progression = weekProgression(weekIndex, profile.experience, mode)
