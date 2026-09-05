@@ -2553,6 +2553,26 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   user's avatar photo no longer stays reachable at its stable public URL forever. Best-effort —
   a storage failure is logged, never blocks the account deletion itself.
 - **google-calendar-token** — securely stores/uses the user's Google refresh token server-side.
+- **retime-sessions (edge function + `retime-sessions-hourly` cron, added 2026-09-05):**
+  server-side enforcement of "never schedule a session at a time the user cannot make".
+  `lib/retimeUnmakeable.ts` already does this on the client, on app open, and that is not
+  sufficient for one reason that took an incident to make obvious: **it can only run inside a JS
+  bundle the user has actually received.** On 2026-09-05, 162 future sessions (44% of all of
+  them) sat at impossible times while both the engine fix and the client repair existed and had
+  reached nobody. Those rows were repaired out of band — and hours later a user on an old bundle
+  generated a fresh plan containing a session starting at 07:30, the exact minute their workday
+  begins. A one-time data repair does not hold while any client can still write bad times.
+  The function re-times only genuinely unmakeable sessions (whole session must fit one free
+  window; never before wake + buffer; a day with no free window is left alone), guards each
+  write on the previous time so a user's own change is never clobbered, refuses to write a time
+  that is not itself makeable, and supports `?dry=1` to report without writing. It runs at :20
+  past the hour, offset from `retention-push-hourly` (:00), so a session is corrected before any
+  notification could announce it at the wrong time. **`availability.ts` is a verbatim copy** of
+  `src/lib/availability.ts` (which has zero imports precisely so it can be shared, since Deno
+  cannot import from `src/`); `lib/__tests__/availabilityVendorCopy.test.ts` fails the suite if
+  the two differ by a byte, so the client and server can never disagree about what a free window
+  is.
+
 - **retention-push** — the server-driven retention engine: evaluates per-user rules (**weekly_report**
   on Sunday evenings; **missed_workout** as the daytime "session still open" nudge; **streak_at_risk**
   only when *today's scheduled session* is still open in the evening — **never on a planned rest
