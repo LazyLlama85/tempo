@@ -18,47 +18,47 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-09-04 — The app could not deliver a fix to its own users. Fixed, and a 1.0.2 store
-build is going out.**
+**2026-09-04 (later) — 1.0.2 IS SUBMITTED TO BOTH STORES, with every fix embedded.**
+Read back from the APIs, not assumed:
+- **iOS**: version 1.0.2, build **39**, state `WAITING_FOR_REVIEW` (submission `fbae743f`).
+  Release notes set on the en-US localization.
+- **Android**: versionCode **15** submitted to Play `production`, full rollout.
 
-**The finding.** A founder report ("people are telling me the app is buggy, tutorial is still
-kinda weird") turned out not to be about the tutorial code at all. PostHog: of everyone who
-ran the first-run tour in the previous 48 hours, **every step id belonged to the old 14-card
-tour** that had been cut two days earlier. Not one user was on the new bundle. The tutorial
-cut, the scheduling fixes and the push/pull fix had all been published and had reached nobody.
+**Rebuilt rather than shipping build 37**, which predated the quick-workout target-area fix,
+the skip-vs-delete change and exercise familiarity. Build 39 embeds all of it, so new installs
+get a correct app without waiting on an OTA.
 
-**The cause, after verifying rather than assuming the plumbing.** Build 36 is channel
-`production`, runtime 1.0.1; the channel points at the branch; updates existed for both
-runtimes. All correct. The app simply **never called `expo-updates`**, so delivery fell back
-to the passive default: check on cold start, download in background, apply on the NEXT cold
-start. On iOS an app stays warm for days, so that second cold start often never happens.
+**⚠ The Apple credential finally expired for real.** `eas build` failed with a 401 on
+registering the widget bundle id. The workaround is still the inline API key:
+`EXPO_ASC_API_KEY_PATH=C:/Users/jacob/Downloads/AuthKey_C55P83X354.p8`,
+`EXPO_ASC_KEY_ID=C55P83X354`, `EXPO_ASC_ISSUER_ID=61795ffc-3a86-4f27-b1f1-6369fec39b92`.
+Every build and submit needs those exported until `npx eas credentials` is re-run.
 
-**Fixed** — `mobile/src/lib/otaUpdates.ts` (`startUpdateWatcher`, wired in `_layout.tsx`):
-downloads at cold start, applies on the next foreground after 30s backgrounded. Never reloads
-during a live workout (unsaved sets), never more than once per process (no reload loop).
-Published to runtimes 1.0.0 and 1.0.1. **It bootstraps through the old passive path**, so each
-user gets it on their next genuine cold start and fast delivery from then on.
+**ASC did NOT auto-submit this time** (unlike the 1.0.1 round). Attaching build 39 left the
+version at `PREPARE_FOR_SUBMISSION`; it needed an explicit `reviewSubmissions` create + item +
+`submitted:true`. All four prior submissions read `COMPLETE`, including the stale empty one from
+1.0.1, so nothing was orphaned. Scripts for both steps are in the session scratchpad.
 
-**Why nobody noticed for three days.** `analytics.superProperties()` reported only
-`app_version` — the NATIVE version, identical whether or not a user took an OTA. Every event
-read "1.0.1" and looked healthy. Events now carry `js_update_id` / `js_update_created_at` /
-`js_is_embedded`. **Never treat a successful publish as delivery again; query those.**
+**Also live:** OTA published to runtimes 1.0.0, 1.0.1 and 1.0.2 for the target-area,
+skip/delete and familiarity work.
 
-**⚠ Three live runtimes now (1.0.0, 1.0.1, 1.0.2).** `runtimeVersion.policy` is `appVersion`,
-so every marketing-version bump forks the runtime and each OTA must be published to all of
-them (the 1.0.0 publish still needs a temporary `app.json` version edit — this eas-cli has no
-`--runtime-version` flag). Worth revisiting the policy once the old bases drain.
+**▶ NEXT:**
+1. **Verify delivery actually works** — query `js_update_id` in PostHog. As of the last check
+   zero events carried it, i.e. nobody had yet taken the OTA that fixes OTA delivery. Once
+   people are on 1.0.2 that should change; if it does not, the watcher is not working.
+2. **Re-measure the activation funnel** on a cohort running the fixed build. The number that
+   matters is the plan→first-workout drop (was 24→7).
+3. **Rotate `EXPO_PUBLIC_RAPIDAPI_KEY`** out of the public repo and behind an edge function.
+   The repo is public and that key is billable; the rest of the committed keys are client-side
+   by design and are fine.
+4. Founder-only list below unchanged: EAS Apple credential, Tempo Coach deployment, the Google
+   Calendar reconnect tap, B6.2 (one acquisition channel).
 
-**First real cohort data, and it is bad.** 7 days: **46 signups → 31 onboarded → 24 got a plan
-→ 7 started a workout → 3 logged a set → 1 completed one.** `PRODUCT_AUDIT.html` moved
-Retention 4→3 and Market Proof 4.3→4.1 on it — the first time that block has ever moved. Note
-the cohort was on the broken bundle, so the *next* cohort is the one that tests the product.
-Not a defect: `purchase_failed` is all `reason: cancelled`, i.e. paywall declines.
-
-**▶ NEXT:** iOS build 37 + an Android build are running for **1.0.2** (bumped, committed).
-When they finish: submit both, then **verify delivery actually works** by querying
-`js_update_id` in PostHog rather than assuming. After that, re-measure the activation funnel
-on a cohort running the fixed bundle — that is the number M4 has always been waiting for.
+**Congressional App Challenge (VA-11, sophomore, deadline 2026-10-26).** Eligible; district is
+participating. The rulebook permits AI tools *with full disclosure*, but says AI "must not
+constitute the entirety of the technical development" and expects "significant individual
+contributions and technical understanding". A technical walkthrough of the architecture was
+published for study: https://claude.ai/code/artifact/b42b23c6-8aff-4dd2-9813-b72bd09de71a
 
 ---
 
@@ -842,6 +842,11 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-09-04 (later)** — Fixed Quick Workout target areas (Legs was returning ab holds via a
+  `hip_flexors` mis-grouping plus any-primary-muscle matching), split skip from delete by workout
+  source, and made both selection engines build from exercises the user has actually trained.
+  Rebuilt and submitted 1.0.2 to both stores.
 
 - **2026-09-04** — Traced "the app is buggy" to a delivery failure, not a code failure: three
   days of published fixes had reached zero users because the app never called `expo-updates`.
