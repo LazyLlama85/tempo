@@ -1902,6 +1902,24 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   OTA — no rebuild — but appears only once the founder flips `tester_tools` on.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
+- **Removing a workout (`lib/workoutRemoval.ts`, added 2026-09-04):** every removal path used
+  to do one thing — `status = 'skipped'`. Home's "Skip it" and `EditWorkoutSheet`'s "Remove"
+  were the same write under two different words. That is wrong for one-offs: a Quick Workout is
+  a session the user invented, it recurs never, so "skipped" records a failure that did not
+  happen and leaves a permanent ghost in history (production had 10 such rows, and
+  `useProgressStats` already filtered `source === 'quick' && skipped` back out — a workaround
+  for this gap). `removalModeFor(source)` now decides: `quick`/`custom` are **deleted** for
+  real, `plan`/`split`/unknown are **skipped** and keep the record (skip is the conservative
+  default because a delete cannot be undone). `removalCopy()` is shared so Home and the edit
+  sheet cannot drift apart in wording. `applyRemoval()` cleans the calendar event and the
+  pre-workout reminder either way, and — because `workout_logs.scheduled_workout_id` is
+  ON DELETE NO ACTION — **falls back to a skip when a delete hits a 23503 foreign-key
+  violation**, so a session someone already logged sets against keeps both its row and its
+  logged work instead of erroring at the user. Any other error code is rethrown rather than
+  silently downgraded. **Deliberately not offered:** "delete forever" on a plan session — plan
+  rows are generated per date, so deleting one occurrence would not stop next week's, and a
+  button claiming otherwise would be lying. Covered by `lib/__tests__/workoutRemoval.test.ts`.
+
 - **Quick Workout target areas (`lib/quickWorkout.ts`, corrected 2026-09-04):** a Target Area
   ("Legs", "Arms", "Upper Body"…) filters the candidate pool by muscle. Two defects made that
   filter return the wrong body part entirely, both found from the founder's real

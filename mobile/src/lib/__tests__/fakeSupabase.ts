@@ -20,6 +20,10 @@ interface FakeOptions {
    *  the only way to test a real-world write failure (the FK race retireWorkouts.ts
    *  guards against) without a real Postgres connection. */
   failOps?: Set<string>
+  /** Force a specific Postgres error CODE for a "table.op", for the paths that
+   *  branch on one — workoutRemoval falls back from delete to skip only on
+   *  23503 (foreign key violation) and must rethrow anything else. */
+  failOpCodes?: Record<string, string>
 }
 
 function parseOrClause(expr: string): (row: Row) => boolean {
@@ -77,8 +81,11 @@ export function createFakeSupabase(tables: Tables, options: FakeOptions = {}) {
       then: (resolve: (v: { data: any; error: any; count?: number }) => void, reject?: (e: any) => void) => {
         try {
           const opKey = `${table}.${op.kind}`
-          if (failOps.has(opKey)) {
-            resolve({ data: null, error: fakeError(`simulated failure: ${opKey}`) })
+          const forcedCode = options.failOpCodes?.[opKey]
+          if (failOps.has(opKey) || forcedCode) {
+            const error: Row = fakeError(`simulated failure: ${opKey}`)
+            if (forcedCode) error.code = forcedCode
+            resolve({ data: null, error })
             return
           }
           if (op.kind === 'insert') {

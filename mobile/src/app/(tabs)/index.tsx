@@ -24,6 +24,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { requestCalendarPermissions, type DayEvent } from '@/services/calendarService'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar, getCalendarEventsForRange } from '@/services/calendarSync'
+import { applyRemoval, removalModeFor, removalCopy } from '@/lib/workoutRemoval'
 import { googleCalendarNeedsReconnect } from '@/services/googleCalendar/CalendarAuthService'
 import { EditWorkoutSheet } from '@/components/EditWorkoutSheet'
 import { AddWorkoutSheet } from '@/components/AddWorkoutSheet'
@@ -252,6 +253,9 @@ export default function ScheduleScreen() {
   const [editingWorkout, setEditingWorkout] = useState<ScheduledWorkout | null>(null)
   const [addWorkoutOpen, setAddWorkoutOpen] = useState(false)
   const [skipSheetWorkout, setSkipSheetWorkout] = useState<ScheduledWorkout | null>(null)
+  // Wording follows the workout's own type, so "Skip"/"Delete" always matches
+  // what the confirm will actually do.
+  const skipCopy = removalCopy(removalModeFor(skipSheetWorkout?.source), skipSheetWorkout?.focus ?? '')
   const [removeCalWorkout, setRemoveCalWorkout] = useState<ScheduledWorkout | null>(null)
   const [rescheduleConfirm, setRescheduleConfirm] = useState<{ workout: ScheduledWorkout; slot: SlotSuggestion; message: string } | null>(null)
 
@@ -1048,11 +1052,20 @@ export default function ScheduleScreen() {
   // clear "you didn't do this" outcome). Skipped workouts drop out of the feed.
   const handleSkip = (workout: ScheduledWorkout) => setSkipSheetWorkout(workout)
 
+  // Skip vs delete is decided by what the workout IS, not by which button was
+  // tapped — a one-off Quick Workout is deleted outright, a plan session is
+  // skipped and keeps its record. See lib/workoutRemoval for why.
   const skipWorkout = async (workout: ScheduledWorkout) => {
-    const { error } = await supabase.from('scheduled_workouts').update({ status: 'skipped' }).eq('id', workout.id).eq('user_id', userId)
-    if (error) { const info = describeSaveError(error, 'skip this workout'); Alert.alert('Couldn’t skip', info.message); return }
-    cancelWorkoutReminder(workout.id).catch(() => {})
+    const mode = removalModeFor(workout.source)
+    try {
+      await applyRemoval(supabase, userId, workout, mode)
+    } catch (e) {
+      const info = describeSaveError(e, mode === 'delete' ? 'delete this workout' : 'skip this workout')
+      Alert.alert(mode === 'delete' ? 'Couldn’t delete' : 'Couldn’t skip', info.message)
+      return
+    }
     queryClient.invalidateQueries({ queryKey: ['scheduled_workouts'] })
+    queryClient.invalidateQueries({ queryKey: ['missed_workouts', userId] })
   }
 
   const onSkipSheetSelect = (key: string) => {
@@ -2323,11 +2336,11 @@ export default function ScheduleScreen() {
 
       <OptionSheet
         visible={skipSheetWorkout !== null}
-        title={`Skip ${skipSheetWorkout?.focus ?? ''}?`}
-        subtitle="It'll be marked skipped. Rescheduling it keeps your week on track — want to do that instead?"
+        title={skipCopy.title}
+        subtitle={skipCopy.subtitle}
         options={[
           { key: 'reschedule', label: 'Reschedule instead', icon: 'calendar-outline' },
-          { key: 'skip', label: 'Skip it', icon: 'close-circle-outline', destructive: true },
+          { key: 'skip', label: skipCopy.actionLabel, icon: skipCopy.icon as IconName, destructive: true },
         ]}
         onSelect={onSkipSheetSelect}
         onClose={() => setSkipSheetWorkout(null)}

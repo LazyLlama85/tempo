@@ -16,6 +16,7 @@ import { useTheme, useThemedStyles, type Palette } from '@/theme'
 import { TempoSheet } from '@/components/TempoSheet'
 import { TimePickerSheet, formatTime12 } from '@/components/TimePickerSheet'
 import { addWorkoutToCalendar, removeWorkoutFromCalendar } from '@/services/calendarSync'
+import { applyRemoval, removalModeFor } from '@/lib/workoutRemoval'
 import { scheduleWorkoutReminders, cancelWorkoutReminder, requestPermissions } from '@/lib/notifications'
 import type { CalendarProvider } from '@/types'
 
@@ -28,6 +29,10 @@ export interface EditableWorkout {
   planned_duration_min: number
   calendar_event_id: string | null
   calendar_provider: CalendarProvider | null
+  /** Which system created this workout — decides whether "remove" skips or
+   *  deletes it. Optional so existing callers keep compiling; an absent source
+   *  falls back to the conservative "skip". See lib/workoutRemoval. */
+  source?: string | null
 }
 
 interface Props {
@@ -56,6 +61,8 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
   const [showTime, setShowTime] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // What "remove" means for THIS workout — delete a one-off, skip a plan session.
+  const removalMode = removalModeFor(workout?.source)
   const [actionError, setActionError] = useState<string | null>(null)
 
   // Re-seed local state whenever a different workout is opened OR the sheet re-opens.
@@ -123,18 +130,17 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
     setActionError(null)
     setSaving(true)
     try {
-      if (workout.calendar_event_id) await removeWorkoutFromCalendar(client, workout, userId).catch(() => {})
-      cancelWorkoutReminder(workout.id).catch(() => {})
-      const { error } = await client
-        .from('scheduled_workouts')
-        .update({ status: 'skipped' })
-        .eq('id', workout.id)
-        .eq('user_id', userId)
-      if (error) throw error
+      // Same rule as Home's sheet: a one-off Quick/custom workout is deleted for
+      // real, a plan session is skipped and keeps its record.
+      await applyRemoval(client, userId, workout, removalMode)
       onSaved()
       onClose()
     } catch {
-      setActionError('Could not remove this workout. Please try again.')
+      setActionError(
+        removalMode === 'delete'
+          ? 'Could not delete this workout. Please try again.'
+          : 'Could not remove this workout. Please try again.',
+      )
     } finally {
       setSaving(false)
     }
@@ -182,7 +188,9 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
           // In-sheet confirmation. NOT Alert.alert — that never presents over this
           // Modal on iOS, so the old confirm dialog appeared to "do nothing".
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmText}>Remove "{workout.focus}" from your schedule? You can always add a new one.</Text>
+            <Text style={styles.confirmText}>{removalMode === 'delete'
+              ? `Delete "${workout.focus}"? You made this one yourself, so it won't come back, and it won't count as a missed session.`
+              : `Skip "${workout.focus}"? It drops off your schedule and is marked skipped. Next week's session isn't affected.`}</Text>
             <View style={styles.confirmRow}>
               <TouchableOpacity
                 style={[styles.confirmBtn, styles.confirmCancel]}
@@ -198,7 +206,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
                 disabled={saving}
                 activeOpacity={0.8}
               >
-                {saving ? <ActivityIndicator color={C.error} /> : <Text style={styles.confirmRemoveText}>Remove</Text>}
+                {saving ? <ActivityIndicator color={C.error} /> : <Text style={styles.confirmRemoveText}>{removalMode === 'delete' ? 'Delete' : 'Skip it'}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -210,7 +218,7 @@ export function EditWorkoutSheet({ visible, workout, userId, client, preferredCa
             activeOpacity={0.7}
           >
             <Ionicons name="trash-outline" size={16} color={C.error} />
-            <Text style={styles.removeBtnText}>Remove from schedule</Text>
+            <Text style={styles.removeBtnText}>{removalMode === 'delete' ? 'Delete workout' : 'Skip this session'}</Text>
           </TouchableOpacity>
         )}
       </View>
