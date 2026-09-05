@@ -1902,6 +1902,28 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   OTA — no rebuild — but appears only once the founder flips `tester_tools` on.
 
 ### 3.5 Domain logic (`src/lib/`, ~36 modules)
+- **Quick Workout target areas (`lib/quickWorkout.ts`, corrected 2026-09-04):** a Target Area
+  ("Legs", "Arms", "Upper Body"…) filters the candidate pool by muscle. Two defects made that
+  filter return the wrong body part entirely, both found from the founder's real
+  `scheduled_workouts` rows. (1) **Group membership** — `hip_flexors` was listed under
+  `LEG_MUSCLES`, and every exercise in this catalogue with it as a primary muscle is an ab
+  exercise (Hollow Body Hold and Hanging Leg Raise are both `['abs','hip_flexors']`), so a
+  "40-Minute Legs" request returned ab holds; `lower_back`/`erectors` sat inside `BACK_MUSCLES`,
+  which `upper_body` was composed from, so Conventional Deadlift and Hyperextension counted as
+  UPPER body. `BACK_MUSCLES` is now `UPPER_BACK_MUSCLES` + `LOWER_BACK_MUSCLES`, and `upper_body`
+  uses only the upper half. (2) **Loose matching** — the filter accepted an exercise if ANY of
+  its primary muscles matched, so Barbell Bench Press (`['chest','triceps']`) satisfied an ARMS
+  request. Matching now requires the **dominant** muscle, `primary_muscles[0]`, which this
+  catalogue orders most-worked-first. It has to be a filter rather than a sort preference
+  because `pickBest` ranks by how many muscles an exercise works, so a compound would always
+  outrank a true isolation for the target. The loose rule survives only as a last resort, when
+  nothing in the catalogue dominantly trains the requested area, so a target never yields an
+  empty pool. Covered by `lib/__tests__/quickWorkoutTargetAreaFidelity.test.ts`, which is built
+  from the real production muscle arrays and fails 5/7 without the fix. The same `hip_flexors`
+  mis-grouping was corrected in `trainingLoad.ts` (ab work was adding leg fatigue to the
+  recovery map) and `fitnessInsights.ts` (ab work counted as quadriceps volume);
+  `exerciseSearch.ts` already matched on the dominant muscle and needed no change.
+
 - **OTA update delivery (`lib/otaUpdates.ts`, added 2026-09-03):** the app never called
   `expo-updates` at all, leaving delivery to the library's passive default — check on cold
   start, download in the background, apply on the NEXT cold start. On iOS an app stays warm

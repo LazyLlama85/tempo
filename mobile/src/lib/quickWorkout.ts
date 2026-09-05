@@ -92,10 +92,23 @@ export interface QuickContext {
 // silently filters to nothing).
 const ARM_MUSCLES = ['biceps', 'triceps', 'forearms']
 const CHEST_MUSCLES = ['chest', 'upper_chest']
-const BACK_MUSCLES = ['lats', 'upper_back', 'lower_back', 'traps', 'rhomboids', 'teres_major', 'mid_traps', 'back', 'erectors', 'spine']
+// Split so "Upper Body" can exclude the lower back. Lumping `lower_back` /
+// `erectors` in with the lats meant Conventional Deadlift (primary
+// hamstrings/glutes/erectors) and Hyperextension (primary lower_back) both
+// counted as UPPER body — which is how a real "60-Minute Upper Body" request
+// came back as deadlifts, hyperextensions and back extensions with no pressing
+// in it at all (founder, 2026-09-04).
+const UPPER_BACK_MUSCLES = ['lats', 'upper_back', 'traps', 'rhomboids', 'teres_major', 'mid_traps', 'back']
+const LOWER_BACK_MUSCLES = ['lower_back', 'erectors', 'spine']
+const BACK_MUSCLES = [...UPPER_BACK_MUSCLES, ...LOWER_BACK_MUSCLES]
 const SHOULDER_MUSCLES = ['shoulders', 'lateral_deltoids', 'rear_delts', 'rotator_cuff']
-const LEG_MUSCLES = ['quads', 'quadriceps', 'hamstrings', 'calves', 'glutes', 'abductors', 'adductors', 'hip_flexors', 'inner_thighs', 'legs', 'hips']
-const CORE_MUSCLES = ['abs', 'obliques', 'core', 'transverse_abdominis']
+// `hip_flexors` used to live here. In this catalogue every exercise that lists it
+// as a PRIMARY muscle is an ab exercise (Hollow Body Hold and Hanging Leg Raise
+// are both `['abs','hip_flexors']`), so having it under Legs meant a Legs request
+// matched ab holds — the founder's "I asked for 40 minutes of legs and got a
+// 5-minute ab workout" (2026-09-04). It belongs with the core group.
+const LEG_MUSCLES = ['quads', 'quadriceps', 'hamstrings', 'calves', 'glutes', 'abductors', 'adductors', 'inner_thighs', 'legs', 'hips']
+const CORE_MUSCLES = ['abs', 'obliques', 'core', 'transverse_abdominis', 'hip_flexors']
 
 export interface TargetAreaOption {
   key: string
@@ -115,7 +128,7 @@ export const TARGET_AREA_OPTIONS: TargetAreaOption[] = [
   { key: 'chest', label: 'Chest', icon: 'shirt-outline', muscles: CHEST_MUSCLES },
   { key: 'back', label: 'Back', icon: 'body-outline', muscles: BACK_MUSCLES },
   { key: 'shoulders', label: 'Shoulders', icon: 'triangle-outline', muscles: SHOULDER_MUSCLES },
-  { key: 'upper_body', label: 'Upper Body', icon: 'man-outline', muscles: [...CHEST_MUSCLES, ...BACK_MUSCLES, ...SHOULDER_MUSCLES, ...ARM_MUSCLES] },
+  { key: 'upper_body', label: 'Upper Body', icon: 'man-outline', muscles: [...CHEST_MUSCLES, ...UPPER_BACK_MUSCLES, ...SHOULDER_MUSCLES, ...ARM_MUSCLES] },
   { key: 'legs', label: 'Legs', icon: 'walk-outline', muscles: LEG_MUSCLES },
   { key: 'core', label: 'Core', icon: 'disc-outline', muscles: CORE_MUSCLES },
   { key: 'cardio', label: 'Cardio', icon: 'heart-outline', pattern: 'cardio' },
@@ -583,8 +596,33 @@ export async function generateQuickWorkout(
   // Target Area (Arms/Chest/Back/…): a hard filter to that muscle group, not
   // just a priority nudge — this is a direct "give me an X workout" request.
   const targetMuscles = ctx.targetMuscles?.length ? new Set(ctx.targetMuscles) : null
-  const filterByMuscle = (rows: ExerciseRow[]) =>
-    targetMuscles ? rows.filter(ex => ex.primary_muscles.some(m => targetMuscles.has(m))) : rows
+
+  // Match on the exercise's DOMINANT muscle — `primary_muscles[0]`, which this
+  // catalogue orders most-worked-first — not on "any listed primary muscle".
+  //
+  // Matching any primary is far too loose, and produced three separate wrong
+  // sessions the founder actually received on 2026-09-04. Barbell Bench Press is
+  // `['chest','triceps']`, so it satisfied an ARMS request; Push-Up is
+  // `['chest','triceps','shoulders']`, same. Conventional Deadlift is
+  // `['hamstrings','glutes','erectors']`, so it satisfied a BACK request. In each
+  // case the exercise's actual purpose is the first muscle and the rest are
+  // along for the ride.
+  //
+  // `pickBest` ranks by how many muscles an exercise works, so a compound will
+  // always outrank a true isolation for the target — which is exactly why this
+  // has to be a filter and cannot be a sort preference. The loose rule is kept
+  // only as a last resort, for when NOTHING in the catalogue dominantly trains
+  // the requested area, so a target still never returns an empty pool.
+  const dominantlyMatches = (ex: ExerciseRow) =>
+    !!targetMuscles && targetMuscles.has(ex.primary_muscles[0] ?? '')
+  const looselyMatches = (ex: ExerciseRow) =>
+    !!targetMuscles && ex.primary_muscles.some(m => targetMuscles.has(m))
+
+  const filterByMuscle = (rows: ExerciseRow[]) => {
+    if (!targetMuscles) return rows
+    const dominant = rows.filter(dominantlyMatches)
+    return dominant.length ? dominant : rows.filter(looselyMatches)
+  }
 
   const coreMusclePool = filterByMuscle(corePool)
   // The 60-exercise curated set is deliberately small (is_core's own comment:

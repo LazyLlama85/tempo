@@ -709,7 +709,10 @@ const MUSCLE_TO_BODY: Record<string, BodyMuscle> = {
   lower_back: 'lower-back', erectors: 'lower-back', spine: 'lower-back',
   abs: 'abs', transverse_abdominis: 'abs', core: 'abs',
   obliques: 'obliques',
-  quads: 'quadriceps', quadriceps: 'quadriceps', hip_flexors: 'quadriceps',
+  quads: 'quadriceps', quadriceps: 'quadriceps',
+  // hip_flexors was 'quadriceps', so an ab hold showed up as quad volume in the
+  // body map. Same root cause as the 2026-09-04 Quick Workout target-area bug.
+  hip_flexors: 'abs',
   hamstrings: 'hamstring', hamstring: 'hamstring',
   glutes: 'gluteal', hips: 'gluteal', gluteal: 'gluteal',
   calves: 'calves', ankles: 'calves',

@@ -28,7 +28,12 @@ const MUSCLE_REGION: Record<string, Region> = {
   traps: 'pull', mid_traps: 'pull', upper_traps: 'pull', teres_major: 'pull',
   biceps: 'pull', brachialis: 'pull', forearms: 'pull',
   quads: 'legs', hamstrings: 'legs', glutes: 'legs', calves: 'legs', legs: 'legs',
-  inner_thighs: 'legs', adductors: 'legs', abductors: 'legs', hip_flexors: 'legs',
+  inner_thighs: 'legs', adductors: 'legs', abductors: 'legs',
+  // hip_flexors was 'legs', which made every ab hold contribute leg training load
+  // and leg fatigue to the recovery map — Hollow Body Hold and Hanging Leg Raise
+  // are both ['abs','hip_flexors']. Same root cause as the Quick Workout target
+  // area bug (founder, 2026-09-04); matches exerciseProgramming's own mapping.
+  hip_flexors: 'core',
   core: 'core', abs: 'core', obliques: 'core', transverse_abdominis: 'core',
   lower_back: 'core', erectors: 'core',
 }
