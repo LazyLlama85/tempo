@@ -57,8 +57,13 @@ export function isUnmakeable(row: RetimeRow, av: AvailabilityInputs): boolean {
   return !free.some(([s, e]) => start >= s && end <= e)
 }
 
-/** The candidate times a repair prefers, in order: the session's own hour first. */
-function candidatesFor(row: RetimeRow): number[] {
+/**
+ * The candidate times a repair prefers, in order: the session's own hour first.
+ * Exported so an out-of-band repair (e.g. fixing rows for users who have not yet
+ * received the client update) uses the identical candidate list, rather than a
+ * second copy that could drift from this one.
+ */
+export function candidatesFor(row: RetimeRow): number[] {
   const own = toMinutes(row.planned_start_time)
   const usual = ['07:00', '08:00', '09:00', '12:30', '15:30', '16:00', '17:30', '18:30', '19:00']
     .map(t => toMinutes(t))
