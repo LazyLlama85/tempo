@@ -18,6 +18,19 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
+**2026-09-05 (later) — 1.0.2 IS LIVE ON BOTH STORES, and scheduling is now enforced
+server-side.** Read back from the APIs, not assumed:
+- **iOS 1.0.2: `READY_FOR_SALE`** (build 39, approved; submission `fbae743f` COMPLETE)
+- **Android 1.0.2: live** — 8 users confirmed running it, verified via `js_update_id`
+- **`retime-sessions` + `retime-sessions-hourly` cron: live for 100% of users**, no app update
+  required. This is the one that does not depend on delivery at all.
+
+**Delivery is finally measurable.** `js_update_id` is arriving on real events for the first
+time, which is what the property was added for. Current split over 3 days: 8 Android + 1 iOS on
+1.0.2 carrying a bundle id; **~25 iOS users still on 1.0.1 with no bundle id**, i.e. still the
+pre-fix JS. Those users' OTA never landed and likely never will — their route to the fix is the
+App Store update, which is exactly why the 1.0.2 native build mattered more than another OTA.
+
 **2026-09-05 — 44% of live scheduled sessions were unmakeable. Repaired in production.**
 
 **The finding.** Asked to look for other bugs, an audit of live data found that of 333 future
