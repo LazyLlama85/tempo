@@ -17,9 +17,15 @@
 
 import { supabase } from '@/lib/supabase'
 
-const HOST = 'exercisedb.p.rapidapi.com'
-const API_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY ?? ''
-const HEADERS = { 'x-rapidapi-key': API_KEY, 'x-rapidapi-host': HOST }
+// Routed through our own `exercise-media` edge function rather than calling
+// RapidAPI directly, so the billable RapidAPI key lives on the server instead of
+// being inlined into every shipped bundle (and, until 2026-09-06, sitting in a
+// public repo). See supabase/functions/exercise-media.
+const MEDIA_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1/exercise-media`
+const MEDIA_AUTH = {
+  Authorization: `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ''}`,
+}
+const MEDIA_CONFIGURED = !!process.env.EXPO_PUBLIC_SUPABASE_URL
 
 const IMPORTED_PREFIX = 'edb00000-0000-4000-8000-'
 
@@ -42,9 +48,12 @@ const instructionsCache = new Map<string, string[]>()
 export async function fetchRemoteInstructions(exdbId: string, exerciseId?: string): Promise<string[]> {
   const cached = instructionsCache.get(exdbId)
   if (cached) return cached
-  if (!API_KEY) return []
+  if (!MEDIA_CONFIGURED) return []
   try {
-    const res = await fetch(`https://${HOST}/exercises/exercise/${exdbId}`, { headers: HEADERS })
+    const res = await fetch(
+      `${MEDIA_FN}?kind=instructions&id=${encodeURIComponent(exdbId)}`,
+      { headers: MEDIA_AUTH },
+    )
     if (!res.ok) return []
     const data = await res.json()
     const steps = (Array.isArray(data?.instructions) ? data.instructions : [])

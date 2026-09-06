@@ -1,8 +1,16 @@
-const API_KEY = process.env.EXPO_PUBLIC_RAPIDAPI_KEY ?? ''
-const API_HEADERS = {
-  'X-RapidAPI-Key': API_KEY,
-  'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com',
+// Routed through our own `exercise-media` edge function rather than calling
+// RapidAPI directly, so the billable RapidAPI key lives on the server instead of
+// being inlined into every shipped bundle (and, until 2026-09-06, sitting in a
+// public repo). See supabase/functions/exercise-media.
+//
+// Both paths here are FALLBACKS: images normally come from our own
+// `exercise-gifs` Storage bucket (see data/exerciseMedia.ts) and every caller
+// already degrades to a placeholder, so a miss here is never a broken screen.
+const MEDIA_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1/exercise-media`
+const MEDIA_AUTH = {
+  Authorization: `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ''}`,
 }
+const MEDIA_CONFIGURED = !!process.env.EXPO_PUBLIC_SUPABASE_URL
 
 // Map our exercise names (lowercase) → ExerciseDB search terms.
 // null means ExerciseDB doesn't have it; we fall back to the raw name which will
@@ -36,20 +44,20 @@ const idCache = new Map<string, string | null>()
 export async function fetchExerciseId(name: string): Promise<string | null> {
   const key = name.toLowerCase()
   if (idCache.has(key)) return idCache.get(key) ?? null
-  if (!API_KEY) return null
+  if (!MEDIA_CONFIGURED) return null
 
   const searchTerm = SEARCH_OVERRIDE[key] ?? key
 
   try {
-    const encoded = encodeURIComponent(searchTerm)
     const res = await fetch(
-      `https://exercisedb.p.rapidapi.com/exercises/name/${encoded}?limit=1&offset=0`,
-      { headers: API_HEADERS }
+      `${MEDIA_FN}?kind=search&name=${encodeURIComponent(searchTerm)}`,
+      { headers: MEDIA_AUTH },
     )
     if (!res.ok) { idCache.set(key, null); return null }
     const raw = await res.json()
-    const list = Array.isArray(raw) ? raw : (raw?.exercises ?? raw?.data ?? [])
-    const id: string | null = list[0]?.id ?? null
+    // The function already resolves the first match to an id; the array shapes
+    // it used to have to disambiguate are handled server-side now.
+    const id: string | null = raw?.id ?? null
     idCache.set(key, id)
     return id
   } catch {
@@ -60,8 +68,8 @@ export async function fetchExerciseId(name: string): Promise<string | null> {
 
 export function gifSource(exerciseId: string) {
   return {
-    uri: `https://exercisedb.p.rapidapi.com/image?exerciseId=${exerciseId}&resolution=180`,
-    headers: API_HEADERS,
+    uri: `${MEDIA_FN}?kind=image&id=${encodeURIComponent(exerciseId)}&resolution=180`,
+    headers: MEDIA_AUTH,
     cacheKey: `ex_${exerciseId}`,
   }
 }

@@ -149,7 +149,7 @@ you obtain them.
 | Var | Purpose | Status |
 |-----|---------|--------|
 | `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Backend | ✅ In `eas.json` |
-| `EXPO_PUBLIC_RAPIDAPI_KEY` | Exercise media | ✅ In `eas.json` |
+| ~~`EXPO_PUBLIC_RAPIDAPI_KEY`~~ | Exercise media | ❌ **Removed 2026-09-06** — the key is billable and was shipping in every bundle + a public repo. Exercise media now goes through the `exercise-media` edge function, which holds it as a Supabase secret. Do NOT re-add it to `eas.json`. |
 | `EXPO_PUBLIC_POSTHOG_KEY` (+ `_HOST`) | Analytics | Optional — no-ops if unset |
 | `EXPO_PUBLIC_SENTRY_DSN` | Crash reporting | ✅ In `eas.json` + `.env.local` (org `tempo-0u`, project `react-native`) |
 

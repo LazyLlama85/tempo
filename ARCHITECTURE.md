@@ -2553,6 +2553,24 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   user's avatar photo no longer stays reachable at its stable public URL forever. Best-effort —
   a storage failure is logged, never blocks the account deletion itself.
 - **google-calendar-token** — securely stores/uses the user's Google refresh token server-side.
+- **exercise-media (edge function, added 2026-09-06):** proxies the three ExerciseDB/RapidAPI
+  endpoints the app still calls live, so the RapidAPI key lives server-side as a Supabase secret
+  instead of being inlined into every shipped bundle. `EXPO_PUBLIC_*` values are compiled into
+  the app and readable out of any IPA/APK; that is fine for the Supabase publishable key,
+  RevenueCat SDK key, PostHog project key and Sentry DSN, which are all designed to be
+  client-visible, and **not** fine for a RapidAPI key, which is billable per request. It was also
+  committed to a public GitHub repo. The quota had already been exhausted once this way, which is
+  why images moved to our own `exercise-gifs` Storage bucket (see `data/exerciseMedia.ts`). Three
+  kinds: `search` (name → ExerciseDB id), `instructions` (id → step text), `image` (id → the
+  clip, streamed through). All three are **fallbacks** behind the Storage bucket or curated
+  media, and every caller already degrades to a placeholder, which is what made this safe to
+  switch without device verification. Deployed with JWT verification ON so it is not an open
+  proxy onto the quota; the client authenticates with the same publishable key it uses for
+  everything else. `EXPO_PUBLIC_RAPIDAPI_KEY` is now removed from `eas.json` and from
+  `lib/exerciseDb.ts` / `lib/exerciseGif.ts`. **Still outstanding: the old key must be rotated in
+  the RapidAPI dashboard** — it is in git history and in every already-shipped binary, so
+  removing it from HEAD reduces future exposure but does not un-leak it.
+
 - **retime-sessions (edge function + `retime-sessions-hourly` cron, added 2026-09-05):**
   server-side enforcement of "never schedule a session at a time the user cannot make".
   `lib/retimeUnmakeable.ts` already does this on the client, on app open, and that is not
