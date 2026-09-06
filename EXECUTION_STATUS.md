@@ -60,6 +60,23 @@ Scripts + report are in the session scratchpad (`repair_report.txt`, `repair_com
   on the "Nothing on your plan yet" empty state with an Add-workout action, not a blank screen.
 
 **▶ NEXT:**
+0. **FIRST ACTION NEXT SESSION — check the iOS 1.0.1 group is shrinking.** As of 2026-09-06
+   ~01:30Z there were **~25 iOS users still on 1.0.1 with no `js_update_id`**, i.e. still the
+   pre-fix JS. Their OTA never landed and won't; the App Store update to 1.0.2 is their only
+   route. If that number has NOT dropped after a day or two, something is holding the store
+   update back and it needs investigating (auto-update off is normal for a few, 25 staying flat
+   is not). Run this in PostHog:
+
+   ```sql
+   SELECT properties.$app_version AS ver, properties.platform AS platform,
+          if(isNull(properties.js_update_id),'(pre-fix JS)','has bundle id') AS tagged,
+          count(DISTINCT person_id) AS people, max(timestamp) AS last_seen
+   FROM events WHERE timestamp > now() - INTERVAL 3 DAY
+   GROUP BY ver, platform, tagged ORDER BY last_seen DESC
+   ```
+   Baseline to compare against: 1.0.2 android 8 (has bundle id), 1.0.2 ios 1, **1.0.1 ios 25
+   (pre-fix)**, 1.0.0 android 4.
+
 1. **`EXPO_PUBLIC_RAPIDAPI_KEY` is still exposed** in the public repo AND in every shipped
    bundle. It is billable and not client-safe (the other committed keys are). Full fix =
    proxy `exerciseDb.ts` + `exerciseGif.ts` through an edge function, THEN the founder rotates
