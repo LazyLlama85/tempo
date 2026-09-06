@@ -77,11 +77,13 @@ Scripts + report are in the session scratchpad (`repair_report.txt`, `repair_com
    Baseline to compare against: 1.0.2 android 8 (has bundle id), 1.0.2 ios 1, **1.0.1 ios 25
    (pre-fix)**, 1.0.0 android 4.
 
-1. **`EXPO_PUBLIC_RAPIDAPI_KEY` is still exposed** in the public repo AND in every shipped
-   bundle. It is billable and not client-safe (the other committed keys are). Full fix =
-   proxy `exerciseDb.ts` + `exerciseGif.ts` through an edge function, THEN the founder rotates
-   the key in RapidAPI. Not attempted here: it changes a visual feature (form GIFs) that cannot
-   be verified without a device, and the session had just shipped a store build.
+1. ~~**`EXPO_PUBLIC_RAPIDAPI_KEY` exposed**~~ — **DONE 2026-09-06.** Exercise media now routes
+   through the `exercise-media` edge function (JWT-verified, key held as a Supabase secret);
+   removed from `eas.json` and from both client modules; published to all three runtimes.
+   **⚠ FOUNDER ACTION STILL REQUIRED: rotate the key in the RapidAPI dashboard.** It remains in
+   git history and inside every already-shipped binary, so removing it from HEAD stops future
+   leakage but does not un-leak it. Rotating will break exercise media on OLD bundles only,
+   which is acceptable — those callers already fall back to a placeholder.
 2. **One pre-existing collision**: user `deb0b08e` has two `split` sessions on 2026-09-05 at
    13:15. 1 of 349, left untouched on purpose. If it recurs, `splitSchedule.materializeSplit`
    has no same-slot guard.
