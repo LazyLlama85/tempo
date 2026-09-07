@@ -89,6 +89,14 @@ export default function QuickWorkoutScreen() {
   // suggestion), so every existing call site that already used targetPattern/
   // targetMuscles keeps working unchanged.
   const [selectedAreaKeys, setSelectedAreaKeys] = useState<Set<string>>(new Set())
+  // Mirrors selectedAreaKeys so a tap always toggles against the LATEST set.
+  // Target Area is multi-select, and three quick taps (Chest, Arms, Shoulders)
+  // are three separate events: reading `selectedAreaKeys` out of the handler's
+  // closure could see a set from before the previous tap had re-rendered, so the
+  // third tap regenerated with the wrong muscles. Changing the duration
+  // afterwards passed the correctly-derived value and appeared to "fix" it,
+  // which is exactly how the founder hit it (2026-09-07).
+  const areaKeysRef = useRef<Set<string>>(new Set())
   const { pattern: targetPattern, muscles: targetMuscles, label: targetAreaLabel } = useMemo(
     () => computeTargetFromKeys(selectedAreaKeys, routeTargetPattern),
     [selectedAreaKeys, routeTargetPattern],
@@ -209,15 +217,17 @@ export default function QuickWorkoutScreen() {
   // suggestion (a missed "leg day") — an explicit pick always wins.
   const handleToggleTargetArea = (opt: TargetAreaOption) => {
     if (opt.surprise) {
+      areaKeysRef.current = new Set()
       setSelectedAreaKeys(new Set())
       setRouteTargetPattern(undefined)
       regenerate(minutes, purpose, currentEquip(), undefined, undefined, null)
       return
     }
     setRouteTargetPattern(undefined)
-    const next = new Set(selectedAreaKeys)
+    const next = new Set(areaKeysRef.current)
     if (next.has(opt.key)) next.delete(opt.key)
     else next.add(opt.key)
+    areaKeysRef.current = next
     setSelectedAreaKeys(next)
     const { pattern, muscles, label } = computeTargetFromKeys(next, undefined)
     regenerate(minutes, purpose, currentEquip(), pattern, muscles, label)

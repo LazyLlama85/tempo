@@ -147,6 +147,25 @@ describe('"Pick for me" is backed by the plan', () => {
     expect(w.exercises.every(e => e.movement_pattern === 'core')).toBe(false)
   })
 
+  it('names the session by how long it ACTUALLY runs, not the window asked for', async () => {
+    // A Quick Workout is not necessarily quicker than the planned session.
+    // Asking for 60 minutes when today's Push is 3 exercises gets the whole
+    // session, and the title must not claim 60 minutes of work that isn't there.
+    const client = createFakeSupabase({
+      exercises: CATALOGUE, user_profiles: [], scheduled_workouts: ppl(),
+    } as never)
+
+    const w = await generateQuickWorkout(
+      client, USER, { minutes: 60 as never, purpose: 'muscle_growth' }, GYM,
+    )
+
+    expect(w.title).toBe(`${w.estimatedMinutes}-Minute Push`)
+    expect(w.estimatedMinutes).toBeLessThan(60)
+    // And it says so plainly rather than implying it filled the hour.
+    expect(w.why).toContain('60')
+    expect(w.why.toLowerCase()).toContain('fits')
+  })
+
   it('an explicit Target Area is still answered literally, not with the plan', async () => {
     // "Give me Arms" is a specific request. It must not be quietly replaced by
     // today's Push session just because one exists.

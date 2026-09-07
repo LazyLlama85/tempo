@@ -835,23 +835,32 @@ export async function generateQuickWorkout(
       if (ordered.length) {
         const trimmed = trimToBudget(ordered, scheme, ctx.minutes)
         if (trimmed.exercises.length) {
-          const shortened = trimmed.exercises.length < planned.exerciseIds.length
+          const runsFor = Math.max(1, Math.round(trimmed.estimatedSeconds / 60))
+          const dropped = ordered.length - trimmed.exercises.length
+          const isToday = planned.plannedDate === toDateStr(new Date())
+          const when = isToday ? 'today' : 'coming up'
+
+          // Title the session by how long it ACTUALLY runs, not by the window
+          // the user picked. A Quick Workout is not necessarily quicker than the
+          // planned session — asking for 60 minutes when today's Push Day is 40
+          // gets you the whole 40-minute session, and calling that "60-Minute"
+          // would be a straight lie about what is in it (founder, 2026-09-07:
+          // "it gave me an ab workout that wasn't 60 min").
+          const why = dropped > 0
+            ? `A shorter version of the ${planned.focus} you have ${when}: the ${trimmed.exercises.length} lifts that matter most, in about ${runsFor} of your ${ctx.minutes} minutes.`
+            : runsFor < ctx.minutes - 5
+            ? `Your full ${planned.focus} from ${isToday ? 'today' : 'the days ahead'}. It runs about ${runsFor} minutes, so it fits inside the ${ctx.minutes} you have.`
+            : `Your ${planned.focus} from ${isToday ? 'today' : 'the days ahead'}, sized to the ${ctx.minutes} minutes you have.`
+
           return {
             minutes: ctx.minutes,
             purpose,
-            title: `${ctx.minutes}-Minute ${planned.focus}`,
-            // Name the day when it is not today's session, so "you already have
-            // this scheduled" can't read as though it were today's.
-            why: (() => {
-              const when = planned.plannedDate === toDateStr(new Date()) ? 'today' : 'coming up'
-              return shortened
-                ? `A shorter version of the ${planned.focus} you have ${when} — the main lifts, sized to ${ctx.minutes} minutes.`
-                : `Your ${planned.focus} from ${when === 'today' ? 'today' : 'the days ahead'}, which already fits ${ctx.minutes} minutes.`
-            })(),
+            title: `${runsFor}-Minute ${planned.focus}`,
+            why,
             contribution: buildContribution(purpose, profile.goal),
             structure: scheme.structure,
             exercises: trimmed.exercises,
-            estimatedMinutes: Math.max(1, Math.round(trimmed.estimatedSeconds / 60)),
+            estimatedMinutes: runsFor,
             focusLabel: `Quick · ${planned.focus}`,
           }
         }
