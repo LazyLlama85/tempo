@@ -307,6 +307,67 @@ function pickBest(
   return head[seed % head.length]
 }
 
+/**
+ * Short sessions get denser: fewer sets, shorter rest so the time is all work.
+ *
+ * The <=20 tier exists because under an honest time budget a 15-minute request
+ * fits only TWO full-rest exercises, which reads as a thin workout rather than a
+ * tight one. The real problem was never the exercise count, it was spending 70s
+ * of a 15-minute window resting between every set. Trading rest for movements is
+ * the right call at this length; it is not at 45+, where the full scheme applies
+ * untouched.
+ *
+ * Shared by both builders — the pattern-based selector and the plan-backed
+ * "Pick for me" path — so a 15-minute session is dense the same way whichever
+ * one produced it.
+ */
+function tuneScheme(scheme: PurposeScheme, minutes: QuickMinutes): PurposeScheme {
+  if (minutes <= 10) {
+    return { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 40), structure: 'circuit' }
+  }
+  if (minutes <= 20) {
+    return { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 50) }
+  }
+  return scheme
+}
+
+/**
+ * Keep as many of an already-ordered session's exercises as the time budget
+ * allows. Used by the plan-backed "Pick for me" path: the plan's own order puts
+ * the movements that matter first, so a prefix IS the sensible short version.
+ *
+ * Always keeps at least one exercise, for the same reason selectExercises does —
+ * a 5-minute request should still produce something to do.
+ */
+function trimToBudget(
+  ordered: ExerciseRow[], scheme: PurposeScheme, minutes: QuickMinutes,
+): BuiltSelection {
+  const budget = minutes * 60
+  const tuned = tuneScheme(scheme, minutes)
+  const cost = exerciseCostSeconds(tuned)
+  const max = maxExercisesFor(minutes)
+
+  const exercises: QuickExercise[] = []
+  let spent = 0
+  for (const ex of ordered) {
+    if (exercises.length >= max) break
+    if (exercises.length > 0 && spent + cost > budget) break
+    exercises.push({
+      id: ex.id,
+      name: ex.name,
+      movement_pattern: ex.movement_pattern,
+      primary_muscles: ex.primary_muscles,
+      sets: tuned.sets,
+      repLow: tuned.repLow,
+      repHigh: tuned.repHigh,
+      repUnit: tuned.repUnit,
+      restSeconds: tuned.restSeconds,
+    })
+    spent += cost
+  }
+  return { exercises, estimatedSeconds: spent }
+}
+
 interface BuiltSelection {
   exercises: QuickExercise[]
   estimatedSeconds: number
@@ -354,11 +415,7 @@ function selectExercises(
   // aggressively: ~3 exercises of genuine work, and an estimate the runner agrees
   // with. Trading rest for movements is the right call at this length; it is not
   // at 45+, where the full scheme still applies untouched.
-  const tuned: PurposeScheme = minutes <= 10
-    ? { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 40), structure: 'circuit' }
-    : minutes <= 20
-    ? { ...scheme, sets: Math.min(scheme.sets, 2), restSeconds: Math.min(scheme.restSeconds, 50) }
-    : scheme
+  const tuned = tuneScheme(scheme, minutes)
 
   const byPattern: Record<string, ExerciseRow[]> = {}
   for (const ex of pool) {
@@ -574,7 +631,70 @@ export async function getScheduleRestrictions(
       for (const p of focusToPatterns(row.focus ?? '')) avoid.add(p)
     }
   } catch { /* best-effort — a Quick Workout must always be producible */ }
+  // A FLOOR, and the reason it exists: this reads a 4-day window, so someone
+  // training 5-6 days a week on Push/Pull/Legs has every one of those sessions
+  // inside it. focusToPatterns then avoids push, pull, squat AND hinge, which is
+  // every resistance pattern there is, and the candidate pool collapses to core.
+  // Real users got 60-minute "Full Body" sessions that were four ab exercises
+  // (founder, 2026-09-07). Avoiding what is scheduled is a PREFERENCE; producing
+  // a usable workout is the requirement, so when the preference would leave
+  // nothing to train it is dropped entirely.
+  const RESISTANCE: MovementPattern[] = ['push', 'pull', 'squat', 'hinge']
+  const remaining = RESISTANCE.filter(p => !avoid.has(p))
+  if (remaining.length === 0) return { avoidMuscles: [], avoidPatterns: [] }
+
   return { avoidMuscles: [], avoidPatterns: [...avoid] }
+}
+
+// ── "Pick for me" backed by the plan ─────────────────────────────────────────
+// Founder, 2026-09-07: "an idea is that it will give you a shortened or adjusted
+// version of your scheduled plan if you click pick for me".
+//
+// That is the right answer, and it resolves the tension the restriction floor
+// above only patches. Avoiding everything you have scheduled is incoherent for
+// someone who trains most days: there is nothing left that is both useful and
+// unscheduled. Handing them a trimmed version of the session they already have
+// is better than either avoiding it or inventing something unrelated — it is the
+// same training, sized to the time they actually have.
+//
+// Only applies to "Pick for me" (no Target Area, no route pattern). An explicit
+// "give me Arms" is a different request and is still honoured literally.
+
+export interface PlannedSessionSource {
+  focus: string
+  exerciseIds: string[]
+  plannedDate: string
+}
+
+/** Today's scheduled session, else the next one within 2 days. */
+export async function findPlannedSessionForQuick(
+  client: SupabaseClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<PlannedSessionSource | null> {
+  try {
+    const todayStr = toDateStr(now)
+    const soon = new Date(now); soon.setDate(now.getDate() + 2)
+    const { data } = await client
+      .from('scheduled_workouts')
+      .select('focus, exercise_ids, planned_date')
+      .eq('user_id', userId)
+      .eq('status', 'scheduled')
+      .gte('planned_date', todayStr)
+      .lte('planned_date', toDateStr(soon))
+      .order('planned_date', { ascending: true })
+      .limit(1)
+    const row = (data ?? [])[0] as
+      { focus: string | null; exercise_ids: string[] | null; planned_date: string } | undefined
+    if (!row?.exercise_ids?.length) return null
+    return {
+      focus: row.focus ?? 'Your session',
+      exerciseIds: row.exercise_ids,
+      plannedDate: row.planned_date,
+    }
+  } catch {
+    return null // best-effort: fall through to the normal generator
+  }
 }
 
 export async function generateQuickWorkout(
@@ -618,6 +738,14 @@ export async function generateQuickWorkout(
     if (scheme.lowImpact && (ex.experience_level === 'advanced' || HIGH_IMPACT_NAMES.has(ex.name))) return false
     return true
   }
+  // Equipment + experience only. The plan-backed "Pick for me" path maps against
+  // this rather than `matchesConstraints`, because that one also applies the
+  // avoid-what-is-scheduled preference — and the whole point of that path is to
+  // serve the scheduled session, so filtering it out by its own schedule would
+  // be self-defeating. Injuries were already respected when the plan was built.
+  const gearOnlyPool = allRows.filter(
+    ex => validExp.has(ex.experience_level as Experience) && canPerform(ex, equipment),
+  )
   const corePool = (coreRows.length ? coreRows : allRows).filter(matchesConstraints)
   // Only computed from — and used against — the full 1300+ imported library, so
   // a well-stocked curated hit (the common case) never pays this extra pass.
@@ -689,6 +817,48 @@ export async function generateQuickWorkout(
     : undefined
 
   const seed = dayOfYear() + ctx.minutes
+
+  // ── "Pick for me" → a shortened version of the session you already have ─────
+  // Only when the user expressed no preference at all. An explicit Target Area
+  // or a route-driven pattern is a specific request and is answered literally.
+  if (!targetMuscles && !ctx.targetPattern) {
+    const planned = await findPlannedSessionForQuick(client, userId)
+    if (planned) {
+      const byId = new Map(gearOnlyPool.map(ex => [ex.id, ex]))
+      // The plan already orders a session primary → secondary → accessory →
+      // isolation → core, so taking the first N that fit keeps the work that
+      // matters and drops the tail. That is what "shortened" should mean.
+      const ordered = planned.exerciseIds
+        .map(id => byId.get(id))
+        .filter((ex): ex is ExerciseRow => !!ex)
+
+      if (ordered.length) {
+        const trimmed = trimToBudget(ordered, scheme, ctx.minutes)
+        if (trimmed.exercises.length) {
+          const shortened = trimmed.exercises.length < planned.exerciseIds.length
+          return {
+            minutes: ctx.minutes,
+            purpose,
+            title: `${ctx.minutes}-Minute ${planned.focus}`,
+            // Name the day when it is not today's session, so "you already have
+            // this scheduled" can't read as though it were today's.
+            why: (() => {
+              const when = planned.plannedDate === toDateStr(new Date()) ? 'today' : 'coming up'
+              return shortened
+                ? `A shorter version of the ${planned.focus} you have ${when} — the main lifts, sized to ${ctx.minutes} minutes.`
+                : `Your ${planned.focus} from ${when === 'today' ? 'today' : 'the days ahead'}, which already fits ${ctx.minutes} minutes.`
+            })(),
+            contribution: buildContribution(purpose, profile.goal),
+            structure: scheme.structure,
+            exercises: trimmed.exercises,
+            estimatedMinutes: Math.max(1, Math.round(trimmed.estimatedSeconds / 60)),
+            focusLabel: `Quick · ${planned.focus}`,
+          }
+        }
+      }
+    }
+  }
+
   // What this user has actually trained before, so the session is built from
   // movements they know rather than whatever ranks highest in the abstract.
   const familiarity = await loadFamiliarity(client, userId)

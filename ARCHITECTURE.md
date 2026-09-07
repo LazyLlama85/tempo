@@ -1944,6 +1944,28 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   rows are generated per date, so deleting one occurrence would not stop next week's, and a
   button claiming otherwise would be lying. Covered by `lib/__tests__/workoutRemoval.test.ts`.
 
+- **Quick Workout: "Pick for me" is backed by the plan (2026-09-07):** with no Target Area
+  selected, a Quick Workout now serves a **trimmed version of the session already scheduled**
+  (today's, else the next within 2 days) instead of generating something unrelated. The plan
+  orders a session primary → secondary → accessory → isolation → core, so taking the prefix that
+  fits the time budget keeps the work that matters and drops the tail. An explicit Target Area
+  or a route-driven pattern is a specific request and is still answered literally. Falls back to
+  the pattern-based generator when nothing is scheduled or none of the planned exercises are
+  performable with the user's current equipment. Maps against a **gear-only pool** (equipment +
+  experience + exclusions) rather than `matchesConstraints`, because the latter also applies the
+  avoid-what-is-scheduled preference and filtering the scheduled session out by its own schedule
+  would be self-defeating. `tuneScheme()` is shared by both builders so a 15-minute session is
+  dense the same way whichever produced it.
+- **The bug that prompted it — `getScheduleRestrictions` had no floor:** it avoids the movement
+  patterns of every session scheduled from yesterday to +2 days ("don't pre-empt tomorrow's leg
+  day"). Someone training 5-6 days a week on Push/Pull/Legs has all three inside that window, so
+  it avoided `push`, `pull`, `squat` AND `hinge` — every resistance pattern — and the candidate
+  pool collapsed to core. Real users got 60-minute "Full Body" sessions that were four ab
+  exercises. Avoiding a scheduled muscle is a **preference**; producing a usable workout is the
+  **requirement**, so when the preference would leave no resistance pattern at all it is now
+  dropped entirely. Covered by `lib/__tests__/quickWorkoutPlanBacked.test.ts` (2 of its 6 fail
+  with the fix reverted).
+
 - **Quick Workout target areas (`lib/quickWorkout.ts`, corrected 2026-09-04):** a Target Area
   ("Legs", "Arms", "Upper Body"…) filters the candidate pool by muscle. Two defects made that
   filter return the wrong body part entirely, both found from the founder's real
