@@ -1,0 +1,13 @@
+# https://fittempo.app/robots.txt
+
+User-agent: *
+Allow: /
+
+# Shared-workout permalinks are one person's training session, reachable by link
+# only. share.html already carries <meta name="robots" content="noindex">, and
+# /w/<code> is served from that same file, so it inherits it — this stops
+# crawlers fetching them at all rather than fetching and then discarding.
+Disallow: /w/
+Disallow: /share.html
+
+Sitemap: https://fittempo.app/sitemap.xml
