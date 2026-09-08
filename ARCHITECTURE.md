@@ -1944,6 +1944,19 @@ spinner is now reserved only for tight in-button saving states. All motion honor
   rows are generated per date, so deleting one occurrence would not stop next week's, and a
   button claiming otherwise would be lying. Covered by `lib/__tests__/workoutRemoval.test.ts`.
 
+- **Session timer pauses with the session (`workout_logs.active_seconds`, 2026-09-07):** the
+  timer is wall-clock based on purpose, so locking the phone between sets does not stop the
+  clock. That is right while training and wrong the moment you pause: resuming an open log
+  recomputed elapsed as `now - started_at`, counting every paused minute as training. Pause a
+  workout, return two hours later, and it read two hours — and because the completion path
+  writes `actual_duration_min` from the same number, it inflated recorded training time, making
+  it a data problem rather than a display one. The runner now banks active time whenever the
+  timer stops (pause, tab switch, unmount) into a new nullable `active_seconds` column, and
+  resumes from it. `durationEstimate.resumeElapsedSeconds()` is the pure rule: use
+  `active_seconds` when present (including 0, which is a real value, not "missing"), else fall
+  back to the old wall-clock derivation for logs predating the column rather than inventing a
+  number. Covered by `lib/__tests__/resumeElapsed.test.ts`.
+
 - **Quick Workout: "Pick for me" is backed by the plan (2026-09-07):** with no Target Area
   selected, a Quick Workout now serves a **trimmed version of the session already scheduled**
   (today's, else the next within 2 days) instead of generating something unrelated. The plan

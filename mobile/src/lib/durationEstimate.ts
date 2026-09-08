@@ -144,3 +144,29 @@ export function formatRemaining(sec: number): string {
   const m = min % 60
   return `${h} h ${String(m).padStart(2, '0')}`
 }
+
+// ── Resuming a paused session ────────────────────────────────────────────────
+//
+// The session timer is wall-clock based so that locking the phone between sets
+// doesn't stop the clock. That is right while you are training and wrong the
+// moment you pause: resuming an open log used to recompute elapsed as
+// (now - started_at), which counted every minute the user was away. Pause a
+// workout, come back two hours later, and the timer read two hours — and since
+// the completion path writes `actual_duration_min` from the same number, it
+// inflated the recorded training time too (founder, 2026-09-07: "when pausing
+// workout, time should pause too").
+//
+// `active_seconds` on workout_logs is the banked ACTIVE time, written whenever
+// the timer stops. When it is present it is the truth. Logs written before that
+// column existed have no value, so those fall back to the old derivation rather
+// than resuming from a number we do not have.
+export function resumeElapsedSeconds(
+  activeSeconds: number | null | undefined,
+  startedAt: Date,
+  now: Date = new Date(),
+): number {
+  if (activeSeconds != null && Number.isFinite(activeSeconds)) {
+    return Math.max(0, Math.floor(activeSeconds))
+  }
+  return Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000))
+}

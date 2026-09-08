@@ -50,7 +50,7 @@ import { startRestActivity, updateRestActivity, endRestActivity } from '@/widget
 import { getUnilateralPref, setUnilateralPref } from '@/lib/unilateralPrefs'
 import { useFocusModeEnabled } from '@/lib/focusModePref'
 import { useSessionActiveStore } from '@/stores/sessionActive'
-import { estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
+import { resumeElapsedSeconds, estimateSessionSec, estimateSessionMin, adaptiveRemainingSec, fetchPaceFactor, formatRemaining, WORK_SEC } from '@/lib/durationEstimate'
 import { MIN_STREAK_MINUTES } from '@/lib/streak'
 import { describeSaveError } from '@/lib/saveErrors'
 import { queuePendingSetLog, clearPendingSetLog } from '@/lib/pendingSetLogs'
@@ -854,11 +854,11 @@ export default function WorkoutsScreen() {
     // An open (never-completed) log for this workout means a session was already
     // running when the app died or the user walked away. Adopt a fresh one;
     // close out a stale one so it stops haunting the data.
-    let resumedLog: { id: string; started_at: string } | null = null
+    let resumedLog: { id: string; started_at: string; active_seconds: number | null } | null = null
     try {
       const { data: openLog } = await supabase
         .from('workout_logs')
-        .select('id, started_at, notes')
+        .select('id, started_at, notes, active_seconds')
         .eq('user_id', userId)
         .eq('scheduled_workout_id', workoutRow.id)
         .is('completed_at', null)
@@ -868,7 +868,7 @@ export default function WorkoutsScreen() {
       if (openLog) {
         const ageMs = Date.now() - new Date(openLog.started_at as string).getTime()
         if (ageMs < 12 * 60 * 60 * 1000) {
-          resumedLog = openLog as { id: string; started_at: string }
+          resumedLog = openLog as { id: string; started_at: string; active_seconds: number | null }
           setNoteText((openLog.notes as string | null) ?? '')
           setNoteSaved(!!(openLog.notes as string | null))
         } else {
@@ -883,8 +883,15 @@ export default function WorkoutsScreen() {
     if (resumedLog) {
       setWorkoutLogId(resumedLog.id)
       startedAt.current = new Date(resumedLog.started_at)
-      accumulatedSec.current = Math.max(0, Math.floor((Date.now() - startedAt.current.getTime()) / 1000))
-      setElapsed(accumulatedSec.current)
+      // Resume the ACTIVE time, not the wall clock. Deriving it from started_at
+      // counted every minute the user was paused — pause a session, come back two
+      // hours later, and the timer read two hours, which also inflated the
+      // duration written on completion (founder, 2026-09-07: "when pausing
+      // workout, time should pause too"). Logs written before active_seconds
+      // existed have no value, so those keep the old derivation rather than
+      // resuming from a number we do not have.
+      accumulatedSec.current = resumeElapsedSeconds(resumedLog.active_seconds, startedAt.current)
+      setElapsed(Math.floor(accumulatedSec.current))
     } else {
       setWorkoutLogId(null)
       accumulatedSec.current = 0
@@ -1138,12 +1145,24 @@ export default function WorkoutsScreen() {
     }
     tick()
     const iv = setInterval(tick, 1000)
+    const logId = workoutLogId
     return () => {
       clearInterval(iv)
       // Bank the stretch that just ended so a hub pause doesn't lose (or double) time.
       if (resumedAtMs.current != null) {
         accumulatedSec.current += (Date.now() - resumedAtMs.current) / 1000
         resumedAtMs.current = null
+      }
+      // Persist it, so a pause that outlives this component — app restart, tab
+      // switch, resuming tomorrow — comes back to the time actually trained
+      // rather than the wall clock. Best-effort: a failed write just means this
+      // session resumes on the old derivation, never a lost or blocked pause.
+      const banked = Math.floor(accumulatedSec.current)
+      if (logId && banked > 0) {
+        supabase.from('workout_logs')
+          .update({ active_seconds: banked })
+          .eq('id', logId)
+          .then(() => {}, () => {})
       }
     }
   }, [workoutLogId, sessionActive])

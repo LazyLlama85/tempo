@@ -27,6 +27,7 @@ jest.mock('@/lib/moveWorkout', () => ({ resyncMovedWorkout: jest.fn() }))
 jest.mock('@/lib/crashReporting', () => ({ captureApiError: jest.fn(), captureException: jest.fn() }))
 
 import { createFakeSupabase } from './fakeSupabase'
+import { toDateStr } from '@/lib/dates'
 import { generateQuickWorkout, getScheduleRestrictions } from '@/lib/quickWorkout'
 import type { ProfileForQuick } from '@/lib/quickWorkout'
 
@@ -58,12 +59,16 @@ const CATALOGUE = [
   ex('core-4', 'Lying Leg Raise', 'core', ['abs']),
 ]
 
-const today = new Date().toISOString().slice(0, 10)
-const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10)
+// LOCAL dates, matching what the scheduler itself compares against. Building
+// these with toISOString() takes the UTC date, which is a different day from
+// local "today" for most of the world for part of every day — the suite went
+// red overnight for exactly that reason, not because anything regressed.
+const today = toDateStr(new Date())
+const tomorrow = toDateStr(new Date(Date.now() + 864e5))
 
 /** A 6-day PPL athlete: Push today, Pull tomorrow, Legs the day after. */
 function ppl() {
-  const d2 = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10)
+  const d2 = toDateStr(new Date(Date.now() + 2 * 864e5))
   return [
     { id: 'w1', user_id: USER, focus: 'Push', status: 'scheduled', planned_date: today,
       exercise_ids: ['push-1', 'push-2', 'core-1'] },
