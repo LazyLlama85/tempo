@@ -2054,18 +2054,34 @@ export default function ScheduleScreen() {
                     case, where there is no recovery to protect, gets the live CTA. */}
                 {stats.totalWorkouts === 0 ? (
                   <>
+                    {/* Start the session they ALREADY HAVE, in full, rather than
+                        opening a blank builder. Someone who just answered seven
+                        onboarding questions has a real plan waiting; handing them
+                        an empty "add a workout" sheet asks them to do the work
+                        again, and it is the likeliest reason 30 users got a plan
+                        and only 10 ever pressed Start (funnel, 2026-09-08).
+                        Deliberately the WHOLE session, not a trimmed one — a
+                        motivated new user may well want all of it (founder,
+                        2026-09-08). The shorter route stays one tap away below.
+                        `workoutId` is the existing auto-start path Home's own
+                        workout cards already use. */}
                     <PressableScale
                       style={styles.planFirstBtn}
-                      onPress={() => setAddWorkoutOpen(true)}
+                      onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
                       scaleTo={0.98}
                       accessibilityRole="button"
-                      accessibilityLabel="Start your first workout today"
+                      accessibilityLabel={`Start ${nextWorkout.focus} now, ${nextWorkout.planned_duration_min} minutes`}
                     >
                       <Ionicons name="flash" size={16} color={C.onPrimary} />
-                      <Text style={styles.planFirstBtnText}>Start your first workout</Text>
+                      <Text style={styles.planFirstBtnText}>
+                        Start {nextWorkout.focus} now · {nextWorkout.planned_duration_min} min
+                      </Text>
                     </PressableScale>
+                    <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                      <Text style={styles.planQuickText}>Short on time? Build a quicker one →</Text>
+                    </TouchableOpacity>
                     <Text style={styles.planQuickHint}>
-                      Or wait for {nextWorkout.focus} on {relativeDayLabel(nextWorkout.planned_date)} — your plan runs either way.
+                      Or leave it for {relativeDayLabel(nextWorkout.planned_date)} — your plan runs either way.
                     </Text>
                   </>
                 ) : (
