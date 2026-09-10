@@ -89,6 +89,13 @@ type IconName = keyof typeof Ionicons.glyphMap
 
 // ── Date helpers (local time, no UTC shift) ───────────────────────────────────
 
+// Whole days between two 'YYYY-MM-DD' strings. Local to this file, matching the
+// date helpers above it rather than pulling in lib/dates for one call.
+function daysBetweenStr(fromStr: string, toStr: string): number {
+  const ms = Date.parse(`${toStr}T00:00:00`) - Date.parse(`${fromStr}T00:00:00`)
+  return Number.isFinite(ms) ? Math.round(ms / 86_400_000) : 0
+}
+
 function toDateStr(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -229,6 +236,20 @@ type ContextItem = {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+
+// Fires the day-0 impression exactly once per app process. Mounted inside the
+// CTA branch rather than derived from its conditions, so it cannot drift out of
+// sync with what is actually on screen — and once-per-process because the
+// question is "was this offered", not how many times it re-rendered.
+let day0Tracked = false
+function TrackDay0Shown({ focus, daysUntil }: { focus: string; daysUntil: number }) {
+  useEffect(() => {
+    if (day0Tracked) return
+    day0Tracked = true
+    track('day0_cta_shown', { focus, days_until: daysUntil })
+  }, [focus, daysUntil])
+  return null
+}
 
 export default function ScheduleScreen() {
   const C = useTheme()
@@ -2065,9 +2086,17 @@ export default function ScheduleScreen() {
                         2026-09-08). The shorter route stays one tap away below.
                         `workoutId` is the existing auto-start path Home's own
                         workout cards already use. */}
+                    <TrackDay0Shown focus={nextWorkout.focus} daysUntil={daysBetweenStr(todayStr, nextWorkout.planned_date)} />
                     <PressableScale
                       style={styles.planFirstBtn}
-                      onPress={() => router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })}
+                      onPress={() => {
+                        track('day0_cta_tapped', {
+                          choice: 'full_session',
+                          focus: nextWorkout.focus,
+                          days_until: daysBetweenStr(todayStr, nextWorkout.planned_date),
+                        })
+                        router.push({ pathname: '/(tabs)/plan', params: { workoutId: nextWorkout.id } })
+                      }}
                       scaleTo={0.98}
                       accessibilityRole="button"
                       accessibilityLabel={`Start ${nextWorkout.focus} now, ${nextWorkout.planned_duration_min} minutes`}
@@ -2077,7 +2106,17 @@ export default function ScheduleScreen() {
                         Start {nextWorkout.focus} now · {nextWorkout.planned_duration_min} min
                       </Text>
                     </PressableScale>
-                    <TouchableOpacity onPress={() => setAddWorkoutOpen(true)} activeOpacity={0.7}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        track('day0_cta_tapped', {
+                          choice: 'build_quicker',
+                          focus: nextWorkout.focus,
+                          days_until: daysBetweenStr(todayStr, nextWorkout.planned_date),
+                        })
+                        setAddWorkoutOpen(true)
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.planQuickText}>Short on time? Build a quicker one →</Text>
                     </TouchableOpacity>
                     <Text style={styles.planQuickHint}>

@@ -18,78 +18,46 @@
 
 ## ▶ CURRENT FOCUS *(the resume point)*
 
-**2026-09-05 (later) — 1.0.2 IS LIVE ON BOTH STORES, and scheduling is now enforced
-server-side.** Read back from the APIs, not assumed:
-- **iOS 1.0.2: `READY_FOR_SALE`** (build 39, approved; submission `fbae743f` COMPLETE)
-- **Android 1.0.2: live** — 8 users confirmed running it, verified via `js_update_id`
-- **`retime-sessions` + `retime-sessions-hourly` cron: live for 100% of users**, no app update
-  required. This is the one that does not depend on delivery at all.
+**2026-09-09 — health check clean; day-0 activation now instrumented.**
 
-**Delivery is finally measurable.** `js_update_id` is arriving on real events for the first
-time, which is what the property was added for. Current split over 3 days: 8 Android + 1 iOS on
-1.0.2 carrying a bundle id; **~25 iOS users still on 1.0.1 with no bundle id**, i.e. still the
-pre-fix JS. Those users' OTA never landed and likely never will — their route to the fix is the
-App Store update, which is exactly why the 1.0.2 native build mattered more than another OTA.
+**Verified, not assumed:**
+- **Server-side scheduling holds.** `retime-sessions-hourly`: 24/24 runs in 24h, 0 failures.
+  **0 unmakeable sessions** out of 307 future ones. Three days steady.
+- **Adoption worked.** iOS users on pre-fix JS: **25 → 3**. 1.0.2 is doing its job; the store
+  build was the right call over another OTA.
+- **No Quick Workout regressions.** The only all-core sessions in the window are the two the
+  founder reported on 09-07, both created BEFORE the schedule-restriction floor shipped. None
+  since.
 
-**2026-09-05 — 44% of live scheduled sessions were unmakeable. Repaired in production.**
+**⚠ PostHog project is shared with a different app.** 57 people in the last 3 days fire
+`deck_randomised`, `auction_started`, `auction_finished`, `room_joined`, `card_shared`, plus
+`$pageview`/`$web_vitals`. None of it is Arclo. Arclo's own funnel numbers are safe (its event
+names don't collide), but **every project-wide PostHog dashboard — DAU, retention, web
+analytics — is polluted and should not be trusted.** Either move Arclo to its own project or
+always filter by an Arclo-specific event.
 
-**The finding.** Asked to look for other bugs, an audit of live data found that of 333 future
-sessions, **74 started before wake+buffer, 84 overlapped school, 84 overlapped work** — 28 of
-33 users with upcoming sessions; 11 of the 15 recently-active ones, soonest two days out.
-
-**Why it persisted.** The engine fix AND `retimeUnmakeableSessions` already existed. Neither
-had reached anyone, and the repair *could not* — it runs client-side on app open, inside a
-bundle almost nobody had. The cleanup was trapped behind the same delivery failure as the bug.
-
-**The repair.** Generated with the REAL `isUnmakeable` / `chooseSessionStart` / `candidatesFor`
-(run under jest so the `@/` alias and native mocks resolve) against a dump of affected rows —
-not a SQL re-implementation, because the real rules cover unavailable blocks, post-midnight
-bedtimes and the weekday floor. Every result re-validated against `weekdayFreeIntervals`; every
-write guarded on the prior time + `status='scheduled'` so a user's own change couldn't be
-clobbered. **162 rows changed. Verified after: 0/0/0/0 across 349 future sessions.**
-Scripts + report are in the session scratchpad (`repair_report.txt`, `repair_compact.sql`).
-
-**Four false alarms, each chased to a conclusion — do not re-raise these:**
-- *Plan cliff*: 57 onboarded users have no future workouts, but 14/15 recently-active users do,
-  and the 15th has no plan row to extend. Churned accounts, not a live cliff.
-- *Missed sweep*: 616 past rows still `scheduled`, but every one is dated on/after its owner's
-  last app open. Working as designed.
-- *Orphaned logs*: 71 workout_logs with no sets, all >30 days old.
-- *7 onboarded users with no plan*: `plan_rows = 0` is only reachable via the custom-build
-  branch (generatePlan writes its plan row first), so it is an explicit user choice. They land
-  on the "Nothing on your plan yet" empty state with an Add-workout action, not a blank screen.
+**Day-0 activation instrumented** (`day0_cta_shown` / `day0_cta_tapped`). This exists to settle
+the funnel's biggest intent-qualified drop — 30 generated a plan, 10 pressed Start — which was
+being argued from inference. `shown` without `tapped` = they see the offer and decline it (copy
+or motivation). Few `shown` at all = they never reach a state that offers it (a state problem).
+Read it in ~a week; the two readings point at completely different fixes, so do not act before
+the data arrives.
 
 **▶ NEXT:**
-0. **FIRST ACTION NEXT SESSION — check the iOS 1.0.1 group is shrinking.** As of 2026-09-06
-   ~01:30Z there were **~25 iOS users still on 1.0.1 with no `js_update_id`**, i.e. still the
-   pre-fix JS. Their OTA never landed and won't; the App Store update to 1.0.2 is their only
-   route. If that number has NOT dropped after a day or two, something is holding the store
-   update back and it needs investigating (auto-update off is normal for a few, 25 staying flat
-   is not). Run this in PostHog:
-
+0. **Read the day-0 events** once there is a week of them (query below), then act on whichever
+   cause they indicate.
    ```sql
-   SELECT properties.$app_version AS ver, properties.platform AS platform,
-          if(isNull(properties.js_update_id),'(pre-fix JS)','has bundle id') AS tagged,
-          count(DISTINCT person_id) AS people, max(timestamp) AS last_seen
-   FROM events WHERE timestamp > now() - INTERVAL 3 DAY
-   GROUP BY ver, platform, tagged ORDER BY last_seen DESC
+   SELECT event, properties.choice AS choice, properties.days_until AS days_until,
+          count(DISTINCT person_id) AS people
+   FROM events WHERE event LIKE 'day0_cta%' AND timestamp > now() - INTERVAL 14 DAY
+   GROUP BY event, choice, days_until ORDER BY people DESC
    ```
-   Baseline to compare against: 1.0.2 android 8 (has bundle id), 1.0.2 ios 1, **1.0.1 ios 25
-   (pre-fix)**, 1.0.0 android 4.
-
-1. ~~**`EXPO_PUBLIC_RAPIDAPI_KEY` exposed**~~ — **DONE 2026-09-06.** Exercise media now routes
-   through the `exercise-media` edge function (JWT-verified, key held as a Supabase secret);
-   removed from `eas.json` and from both client modules; published to all three runtimes.
-   **⚠ FOUNDER ACTION STILL REQUIRED: rotate the key in the RapidAPI dashboard.** It remains in
-   git history and inside every already-shipped binary, so removing it from HEAD stops future
-   leakage but does not un-leak it. Rotating will break exercise media on OLD bundles only,
-   which is acceptable — those callers already fall back to a placeholder.
-2. **One pre-existing collision**: user `deb0b08e` has two `split` sessions on 2026-09-05 at
-   13:15. 1 of 349, left untouched on purpose. If it recurs, `splitSchedule.materializeSplit`
-   has no same-slot guard.
-3. **The repair is still client-side.** Consider whether `retimeUnmakeable` belongs in the
-   hourly `retention-push` cron so it can reach users who never take an update.
-4. Verify OTA delivery via `js_update_id` once 1.0.2 is out of review.
+1. **⚠ FOUNDER: rotate `EXPO_PUBLIC_RAPIDAPI_KEY`** in the RapidAPI dashboard, then
+   `npx supabase secrets set RAPIDAPI_KEY=<new>`. The proxy (`exercise-media`) is live and the
+   key is out of `eas.json`, but the old key is in git history and every shipped binary.
+2. Founder-only, unchanged: EAS Apple credential refresh, Tempo Coach deployment, the Google
+   Calendar reconnect tap, the staged Reddit post's Post click.
+3. One pre-existing split collision (user `deb0b08e`, two sessions same slot). 1 of 307.
 
 ---
 
@@ -873,6 +841,11 @@ them).
 ---
 
 ## Session Log *(newest first, one entry per session — full detail always in `git log` + `ARCHITECTURE.md`)*
+
+- **2026-09-09** — Health check: scheduling enforcement holding (0/307 unmakeable), iOS adoption
+  25→3 on pre-fix JS, no Quick Workout regressions. Found Arclo's PostHog project is shared with
+  an unrelated app, polluting project-wide dashboards. Instrumented the day-0 activation CTA so
+  the biggest funnel drop stops being argued from inference.
 
 - **2026-09-05** — Production bug hunt. Found and repaired 162 unmakeable scheduled sessions
   (44% of all future sessions), using the real scheduling logic rather than a SQL rewrite.

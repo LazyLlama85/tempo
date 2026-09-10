@@ -123,6 +123,14 @@ export type EventProperties = {
   // did because the publish succeeded.
   ota_update_downloaded: Record<string, never>
   ota_update_applied: Record<string, never>
+  // ── Day-0 activation (Home's never-trained CTA) ─────────────────────────────
+  // The funnel's biggest drop among users with real intent: 30 generated a plan,
+  // 10 ever pressed Start (2026-09-08). These two separate the possible causes,
+  // which guessing could not: `shown` without `tapped` means they see the offer
+  // and decline it (a copy/motivation problem), while few `shown` at all means
+  // they never reach a state that offers it (a state problem).
+  day0_cta_shown: { focus: string; days_until: number }
+  day0_cta_tapped: { choice: 'full_session' | 'build_quicker'; focus: string; days_until: number }
   first_workout_started: { experience?: string }
   first_set_logged: { experience?: string }
   first_workout_completed: { experience?: string; duration_min?: number }
