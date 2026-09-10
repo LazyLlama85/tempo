@@ -702,6 +702,11 @@ export default function WorkoutsScreen() {
   // failed load per exercise so those rows fall back to the barbell icon instead
   // of a blank/broken image.
   const [thumbFailed, setThumbFailed] = useState<Record<string, boolean>>({})
+  // Separate from thumbFailed: that one means "the curated clip failed, fall
+  // through to the remote one". This means "the REMOTE clip failed too, show the
+  // placeholder". Sharing one flag would send a failed remote clip back to the
+  // curated branch it already fell out of.
+  const [gifThumbFailed, setGifThumbFailed] = useState<Record<string, boolean>>({})
   const [goal, setGoal] = useState<Goal>('general_fitness')
   const [bias, setBias] = useState<IntensityBias>(0)
   const unit = useUnitStore(s => s.unit)

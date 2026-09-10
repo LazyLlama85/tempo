@@ -51,6 +51,11 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   // to the illustration so a real gap and a transient blip don't look identical.
   const [curatedRetry, setCuratedRetry] = useState(0)
   const [curatedFailed, setCuratedFailed] = useState(false)
+  // Mirrors curatedFailed for the remote clip. Without it a clip that fails to
+  // load left an empty box with no fallback — and the remote path is exactly the
+  // one that fails, since it depends on a third-party API and a proxy that can
+  // be down, rate-limited, or (during a key rotation) briefly unauthorised.
+  const [gifFailed, setGifFailed] = useState(false)
   useEffect(() => { setCuratedRetry(0); setCuratedFailed(false) }, [exercise?.id])
   const handleCuratedError = () => {
     setCuratedRetry((n) => {
@@ -87,6 +92,9 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
   const steps = exercise?.instructions.length ? exercise.instructions : remoteSteps
 
   useEffect(() => {
+    // Clear the failure flag for every exercise change, so one exercise whose
+    // clip failed to load doesn't suppress the next one's.
+    setGifFailed(false)
     if (!exercise) {
       setGifId(null)
       return
@@ -182,13 +190,14 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* GIF with fade-in */}
-                {(!curated || curatedFailed) && !gifLoading && gifId && (
+                {(!curated || curatedFailed) && !gifLoading && gifId && !gifFailed && (
                   <Animated.View style={[styles.gifWrapper, { opacity: fadeAnim }]}>
                     <Image
                       source={gifSource(gifId)}
                       style={styles.gifImage}
                       contentFit="contain"
                       cachePolicy="memory-disk"
+                      onError={() => setGifFailed(true)}
                     />
                     {exercise.video_url && (
                       <TouchableOpacity
@@ -204,7 +213,7 @@ export function ExerciseFormSheet({ exercise, onClose }: Props) {
                 )}
 
                 {/* No GIF fallback */}
-                {(!curated || curatedFailed) && !gifLoading && !gifId && (
+                {(!curated || curatedFailed) && !gifLoading && (!gifId || gifFailed) && (
                   <TouchableOpacity
                     style={styles.noGifFallback}
                     activeOpacity={exercise.video_url ? 0.8 : 1}

@@ -52,9 +52,38 @@ the data arrives.
    FROM events WHERE event LIKE 'day0_cta%' AND timestamp > now() - INTERVAL 14 DAY
    GROUP BY event, choice, days_until ORDER BY people DESC
    ```
-1. **⚠ FOUNDER: rotate `EXPO_PUBLIC_RAPIDAPI_KEY`** in the RapidAPI dashboard, then
-   `npx supabase secrets set RAPIDAPI_KEY=<new>`. The proxy (`exercise-media`) is live and the
-   key is out of `eas.json`, but the old key is in git history and every shipped binary.
+1. **⚠ FOUNDER: rotate the RapidAPI key.** Prep is done (2026-09-10) — the proxy is live and
+   verified, the key is out of the tree, and media now degrades to a placeholder instead of a
+   blank box if a call fails. Only the rotation itself needs you; I cannot sign into RapidAPI.
+
+   **Preferred order — no downtime.** If RapidAPI lets you hold two keys at once:
+   1. Create a NEW key in the RapidAPI dashboard. Leave the old one live.
+   2. `cd mobile && npx supabase secrets set RAPIDAPI_KEY=<new> --project-ref rtoahppnekykgmjukujm`
+   3. Verify (see below). Only once it passes:
+   4. Delete the OLD key in RapidAPI.
+
+   **If it only offers "regenerate"** (which kills the old key instantly): have step 2 typed and
+   ready in a terminal, hit regenerate, then run it immediately. The gap is seconds, and the only
+   effect during it is exercise clips showing a placeholder.
+
+   **Verify** (uses the Supabase publishable key, safe to run any time):
+   ```bash
+   cd mobile
+   KEY=$(python -c "import json;print(json.load(open('eas.json'))['build']['production']['env']['EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'])")
+   B=https://rtoahppnekykgmjukujm.supabase.co/functions/v1/exercise-media
+   curl -s -H "Authorization: Bearer $KEY" "$B?kind=search&name=barbell%20squat"     # -> {"id":"0102"}
+   curl -s -o /dev/null -w '%{http_code} %{content_type}
+' -H "Authorization: Bearer $KEY" "$B?kind=image&id=0043&resolution=180"   # -> 200 image/gif
+   ```
+
+   **Expected fallout, and why it's acceptable:** users still on a pre-fix bundle call RapidAPI
+   directly with the old key, so their exercise clips stop loading and show the placeholder.
+   That was 3 people at last count (down from 25), and they lose a form GIF, not a workout.
+
+   **What rotation does NOT fix:** the old key is in 2 commits of a public repo's history and
+   inside every already-shipped binary. Rotation is what actually retires it; scrubbing history
+   would need a force-push, which is off-limits without an explicit decision from you.
+
 2. Founder-only, unchanged: EAS Apple credential refresh, Tempo Coach deployment, the Google
    Calendar reconnect tap, the staged Reddit post's Post click.
 3. One pre-existing split collision (user `deb0b08e`, two sessions same slot). 1 of 307.
